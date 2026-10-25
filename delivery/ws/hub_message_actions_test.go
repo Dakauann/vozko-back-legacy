@@ -71,13 +71,13 @@ func (c fixedCapabilities) MessageCapabilities(shared.EntryType) conversation.Me
 func newActionHub(t *testing.T, action *fakeMessageAction) (*ConversationHub, *WSConnection) {
 	t.Helper()
 	hub, conn := newSendHub(t, panicSendTestUseCase{})
-	hub.SetMessageActions(conversation.MessageActionUseCases{
+	hub.cmds().MessageActions = conversation.MessageActionUseCases{
 		React:        fakeReact{action},
 		Edit:         fakeEdit{action},
 		Delete:       fakeRetract{action},
 		Resend:       fakeResend{action},
 		Capabilities: fixedCapabilities{React: true},
-	})
+	}
 	return hub, conn
 }
 

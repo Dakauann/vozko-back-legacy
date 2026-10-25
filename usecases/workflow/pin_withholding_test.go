@@ -35,7 +35,7 @@ func pinWithholdingFixture(t *testing.T, rule inboxRule) (workflow.ScopedWorkflo
 	}
 	return NewScopedWorkflowsUseCase(ScopedWorkflowsDeps{
 		Get:        NewGetWorkflowUseCase(repo),
-		Update:     NewUpdateWorkflowUseCase(repo),
+		Update:     NewUpdateWorkflowUseCase(repo, staticCatalog{}),
 		Versions:   NewWorkflowVersionsUseCase(repo),
 		PinSources: NewRunPinSources(conversationRun("whatsapp"), rule),
 	}), repo

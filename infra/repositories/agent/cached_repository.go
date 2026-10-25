@@ -24,11 +24,16 @@ func NewCachedRepository(inner agent.Repository, shared cache.SharedState) agent
 
 func agentCacheKey(id string) string { return "agent:" + id }
 
+func (r *CachedRepository) Invalidate(id string) {
+	r.invalidate(id)
+}
+
 func (r *CachedRepository) invalidate(id string) {
 	if r.shared == nil || strings.TrimSpace(id) == "" {
 		return
 	}
 	_ = r.shared.Del(agentCacheKey(id))
+	_ = r.shared.Del(publishedCacheKey(id))
 }
 
 func (r *CachedRepository) FindByID(id string) (*agent.Agent, error) {

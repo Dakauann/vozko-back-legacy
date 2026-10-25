@@ -313,3 +313,16 @@ func TestStartRefusalCodes(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestLaunchScheduleNeedsTheStartPermission(t *testing.T) {
+	h := newHarness(t, workspace_domain.ActionStart)
+	id := h.seed(t, "ws", `{"request":{"name":"Natal"}}`)
+	at := time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
+	rec := h.do(t, http.MethodPost, "/campaign-drafts/whatsapp/"+id+"/launch", "ws", map[string]any{"mode": "schedule", "scheduledStart": at})
+	if rec.Code != http.StatusForbidden || len(h.finisher.launched) != 0 {
+		t.Fatalf("%d %v", rec.Code, h.finisher.launched)
+	}
+	if _, kept := h.repo.rows[id]; !kept {
+		t.Fatal("a refused schedule consumed the draft")
+	}
+}

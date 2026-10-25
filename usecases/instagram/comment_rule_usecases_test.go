@@ -48,7 +48,7 @@ func TestInstagramRulesRunThroughTheSharedEvaluator(t *testing.T) {
 	hide.Normalize()
 	rules := &candidateRules{rules: []*ca.Rule{hide}}
 	comments := &fakeCommentService{}
-	moderate := NewModerateCommentUseCase(accountRepoFor(connectedAccount()), comments, &fakeCommentRepo{})
+	moderate := moderation(accountRepoFor(connectedAccount()), comments, &fakeCommentRepo{})
 
 	err := NewCommentRules(cauc.NewEvaluator(rules, &onceClaims{}), NewCommentActionRunner(nil, nil, moderate)).Execute(context.Background(), inbound("eu quero"))
 	if err != nil {
@@ -118,7 +118,7 @@ func TestAFailedRuleActionDoesNotFailTheComment(t *testing.T) {
 	hide := &ca.Rule{ID: "r1", WorkspaceID: "ws-1", Source: shared.EntryTypeInstagram, AccountID: "acct-gone",
 		Name: "Ocultar", Enabled: true, Match: ca.MatchContains, Keywords: []string{"quero"}, Actions: []ca.Action{ca.ActionHide}}
 	hide.Normalize()
-	moderate := NewModerateCommentUseCase(accountRepoFor(connectedAccount()), &fakeCommentService{}, &fakeCommentRepo{})
+	moderate := moderation(accountRepoFor(connectedAccount()), &fakeCommentService{}, &fakeCommentRepo{})
 	enq := &recordingEnqueuer{}
 	uc := NewHandleWebhookUseCase(HandleWebhookDeps{
 		Comments:     &fakeCommentRepo{},

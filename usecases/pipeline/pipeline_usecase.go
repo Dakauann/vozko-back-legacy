@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"vozko/domain/pipeline"
+	"vozko/domain/shared/deps"
 	wd "vozko/domain/workspace/workspace_department"
 )
 
@@ -44,12 +45,15 @@ type CreatePipelineUseCase struct {
 	seeder      StageSeeder
 }
 
-func NewCreatePipelineUseCase(repo pipeline.Repository, departments DepartmentDirectory) *CreatePipelineUseCase {
-	return &CreatePipelineUseCase{repo: repo, departments: departments}
-}
-
-func (uc *CreatePipelineUseCase) SetStageSeeder(s StageSeeder) {
-	uc.seeder = s
+func NewCreatePipelineUseCase(repo pipeline.Repository, departments DepartmentDirectory, seeder StageSeeder) (*CreatePipelineUseCase, error) {
+	if err := deps.Require("create pipeline", map[string]any{
+		"pipeline repository":  repo,
+		"department directory": departments,
+		"stage seeder":         seeder,
+	}); err != nil {
+		return nil, err
+	}
+	return &CreatePipelineUseCase{repo: repo, departments: departments, seeder: seeder}, nil
 }
 
 func (uc *CreatePipelineUseCase) Execute(workspaceID string, input pipeline.CreatePipelineInput) (*pipeline.Pipeline, error) {
@@ -94,7 +98,7 @@ func (uc *CreatePipelineUseCase) Execute(workspaceID string, input pipeline.Crea
 		}
 	}
 
-	if uc.seeder != nil && p.ObjectType == pipeline.ObjectConversation {
+	if p.ObjectType == pipeline.ObjectConversation {
 		if err := uc.seeder.SeedConversationPipeline(workspaceID, p.ID, strings.TrimSpace(input.CopyStagesFromPipelineID), input.Stages); err != nil {
 			log.Printf("[pipeline] funnel %s created but not seeded: %v", p.ID, err)
 		}

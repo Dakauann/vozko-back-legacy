@@ -34,7 +34,7 @@ func formTargetFor() formReplyTarget {
 }
 
 func TestExtractKeepsAFormAnswerAsTextWithItsPayload(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	payload := &conversation.WhatsAppWebhookPayload{Entry: []conversation.WhatsAppEntry{{Changes: []conversation.WhatsAppChange{{Field: "messages", Value: conversation.WhatsAppChangeValue{
 		Messages: []conversation.WhatsAppMessage{*formReplyMessage()},
 	}}}}}}
@@ -49,7 +49,7 @@ func TestExtractKeepsAFormAnswerAsTextWithItsPayload(t *testing.T) {
 
 func TestAFormAnswerBecomesTheSummaryTheReceiverReturns(t *testing.T) {
 	replies := &formReplies{received: ReceivedFormReply{Text: "Formulário \"Cadastro\" respondido\nNome: Ana", Metadata: map[string]any{"form": "card"}, ResumedRunID: "run-1"}}
-	uc := &handleWhatsAppMessageUseCase{formReplies: replies}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{formReplies: replies})
 	msg := formReplyMessage()
 	msg.Text = &conversation.WhatsAppTextMessage{Body: conversation.FormReplyPlaceholder}
 	got, err := uc.receiveFormReply(context.Background(), msg, formTargetFor())
@@ -64,7 +64,7 @@ func TestAFormAnswerBecomesTheSummaryTheReceiverReturns(t *testing.T) {
 }
 
 func TestAPlainMessageIsNotAFormAnswer(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	got, err := uc.receiveFormReply(context.Background(), &conversation.WhatsAppMessage{Text: &conversation.WhatsAppTextMessage{Body: "oi"}}, formTargetFor())
 	if err != nil || got != nil {
 		t.Fatalf("got = %+v err = %v", got, err)
@@ -74,10 +74,7 @@ func TestAPlainMessageIsNotAFormAnswer(t *testing.T) {
 func TestFormAnswersAreRetriedWhenTheyCannotBeHandled(t *testing.T) {
 	msg := formReplyMessage()
 	msg.Text = &conversation.WhatsAppTextMessage{Body: conversation.FormReplyPlaceholder}
-	if _, err := (&handleWhatsAppMessageUseCase{}).receiveFormReply(context.Background(), msg, formTargetFor()); !errors.Is(err, errFormRepliesUnwired) {
-		t.Fatalf("an unwired receiver must not drop answers, got %v", err)
-	}
-	failing := &handleWhatsAppMessageUseCase{formReplies: &formReplies{err: errors.New("db down")}}
+	failing := whatsappDefaults(&handleWhatsAppMessageUseCase{formReplies: &formReplies{err: errors.New("db down")}})
 	if _, err := failing.receiveFormReply(context.Background(), msg, formTargetFor()); err == nil {
 		t.Fatal("an infrastructure failure is returned so the webhook retries")
 	}
@@ -86,7 +83,7 @@ func TestFormAnswersAreRetriedWhenTheyCannotBeHandled(t *testing.T) {
 func TestAnUnreadableAnswerKeepsThePlaceholder(t *testing.T) {
 	msg := formReplyMessage()
 	msg.Text = &conversation.WhatsAppTextMessage{Body: conversation.FormReplyPlaceholder}
-	uc := &handleWhatsAppMessageUseCase{formReplies: &formReplies{err: whatsappform.ErrResponseInvalid}}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{formReplies: &formReplies{err: whatsappform.ErrResponseInvalid}})
 	got, err := uc.receiveFormReply(context.Background(), msg, formTargetFor())
 	if err != nil || got != nil || msg.Text.Body != conversation.FormReplyPlaceholder {
 		t.Fatalf("got = %+v err = %v", got, err)
@@ -95,7 +92,7 @@ func TestAnUnreadableAnswerKeepsThePlaceholder(t *testing.T) {
 
 func TestAFormAnswerWithoutAConversationIsNotHandled(t *testing.T) {
 	replies := &formReplies{}
-	uc := &handleWhatsAppMessageUseCase{formReplies: replies}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{formReplies: replies})
 	msg := formReplyMessage()
 	msg.Text = &conversation.WhatsAppTextMessage{Body: conversation.FormReplyPlaceholder}
 	target := formTargetFor()

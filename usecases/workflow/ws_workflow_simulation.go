@@ -21,7 +21,7 @@ import (
 	"vozko/domain/tools"
 	template_domain "vozko/domain/whatsapp/template"
 	"vozko/domain/workflow"
-	"vozko/domain/workflowsecret"
+	"vozko/domain/workspacesecret"
 	"vozko/domain/workspace"
 	"vozko/domain/workspace/workspace_department"
 	"vozko/usecases/workflow/node_executors"
@@ -108,7 +108,7 @@ type WSWorkflowSimulationDeps struct {
 	CallQueues        CallQueueLookup
 	HTTPEgress        node_executors.HTTPEgress
 	MediaFetcher      node_executors.MediaFetcher
-	Secrets           workflowsecret.Resolver
+	Secrets           workspacesecret.Resolver
 
 	LabelRepo      label.Repository
 	StageRepo      node_executors.StageReader

@@ -107,19 +107,6 @@ func TestSectionEndpointReportsOtherFailures(t *testing.T) {
 	}
 }
 
-func TestSectionEndpointWithoutAWiredServiceRefuses(t *testing.T) {
-	h := &AttendanceHandler{}
-	router := mux.NewRouter()
-	router.HandleFunc("/attendance/overview/{section}", h.GetOverviewSection)
-	req := httptest.NewRequest(http.MethodGet, "/attendance/overview/summary", nil)
-	req = req.WithContext(context.WithValue(req.Context(), middleware.WorkspaceIDContextKey, "ws1"))
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503", rec.Code)
-	}
-}
-
 func TestSectionEndpointServesLivePresence(t *testing.T) {
 	rec := serveSection(t, &stubSections{}, "/attendance/overview/live")
 	if rec.Code != http.StatusOK {

@@ -165,13 +165,3 @@ func TestADefaultTextReplacesTheTagFallbackAtSend(t *testing.T) {
 		t.Fatalf("sends = %+v", w.gateway.calls)
 	}
 }
-
-func TestReviewFailsClosedWithoutTheAudienceStep(t *testing.T) {
-	w := newWorld(t)
-	w.audience(person{email: "a@x.com", subscribed: true})
-	c := w.draft(nil)
-	w.svc.SetAudience(nil)
-	if _, err := w.svc.Review(bg, w.actor(), c.ID); !errors.Is(err, audience.ErrUnavailable) {
-		t.Fatalf("review = %v", err)
-	}
-}

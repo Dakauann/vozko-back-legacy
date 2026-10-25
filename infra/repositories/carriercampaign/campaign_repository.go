@@ -8,6 +8,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"vozko/domain/campaign/scheduledstart"
 	"vozko/domain/carriercampaign"
 	"vozko/domain/shared"
 	"vozko/infra/database/schema"
@@ -182,6 +183,19 @@ func (r *campaignRepository) Reschedule(ctx context.Context, id string, from, to
 		Where("id = ? AND status = ?", id, from).
 		Updates(map[string]any{"status": to, "scheduled_at": at})
 	return result.RowsAffected > 0, result.Error
+}
+
+func (r *campaignRepository) RecordScheduleFailure(ctx context.Context, campaignID string, failure scheduledstart.Failure) error {
+	result := r.db.WithContext(ctx).Model(&schema.CarrierCampaign{}).
+		Where("id = ?", campaignID).
+		Update("schedule_failure", string(failure))
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return carriercampaign.ErrCampaignNotFound
+	}
+	return nil
 }
 
 func (r *campaignRepository) ClaimScheduledStart(campaignID string, dueBy time.Time) (bool, error) {

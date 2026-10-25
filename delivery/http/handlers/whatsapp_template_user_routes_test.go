@@ -273,6 +273,10 @@ func newTemplateTestHandler(opts ...func(*templateTestOpts)) *whatsapptemplateht
 		Get:    o.getUC,
 		Create: o.createUC,
 	})
+	var creator whatsapptemplatehttp.ExitGuardedCreator = passThroughCreator{templates: workspaceTemplates}
+	if o.creator != nil {
+		creator = o.creator
+	}
 	h := whatsapptemplatehttp.NewWhatsAppTemplateHandler(
 		o.listUC,
 		o.getUC,
@@ -286,8 +290,8 @@ func newTemplateTestHandler(opts ...func(*templateTestOpts)) *whatsapptemplateht
 		o.templateAccessRepo,
 		o.phoneRepo,
 		workspaceTemplates,
+		whatsapptemplatehttp.TemplateEditDeps{Creator: creator, Editor: unusedTemplateEditor{}, Tracking: unusedButtonTracking{}},
 	)
-	h.SetExitGuardedCreator(passThroughCreator{templates: workspaceTemplates})
 	return h
 }
 
@@ -301,6 +305,14 @@ type templateTestOpts struct {
 	listUC             *stubTemplateListUC
 	templateAccessRepo *stubTemplateAccessRepo
 	phoneRepo          *stubPhoneRepoForTemplates
+	creator            whatsapptemplatehttp.ExitGuardedCreator
+}
+
+type unusedTemplateEditor struct{ whatsapptemplatehttp.ExitGuardedEditor }
+type unusedButtonTracking struct{ whatsapptemplatehttp.ButtonTracking }
+
+func withExitGuard(creator whatsapptemplatehttp.ExitGuardedCreator) func(*templateTestOpts) {
+	return func(o *templateTestOpts) { o.creator = creator }
 }
 
 func TestCreateForWorkspace_Success(t *testing.T) {

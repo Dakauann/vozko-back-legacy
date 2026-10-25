@@ -38,6 +38,7 @@ var entryTables = []keyedTable{
 	entry("live_decision_records"),
 	entry("ai_attendance_sessions"),
 	entry("ai_tool_calls"),
+	entry("agent_runs"),
 	entry("workflow_webhook_deliveries"),
 	entry("assignment_history"),
 	entry("inbox_assignments"),

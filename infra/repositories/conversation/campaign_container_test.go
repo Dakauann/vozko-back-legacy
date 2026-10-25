@@ -6,6 +6,7 @@ import (
 
 	"vozko/domain/conversation"
 	"vozko/domain/shared"
+	"vozko/infra/repositories/departmentscope"
 )
 
 func TestCampaignContainerDeclaresItsDepartmentColumns(t *testing.T) {
@@ -141,6 +142,29 @@ func TestContainerFiltersDoNotCastEntryIDsToText(t *testing.T) {
 						q.EntryType, name, projection)
 				}
 			}
+		}
+	}
+}
+
+func TestBothContainerKindsGoThroughTheRoute(t *testing.T) {
+	for _, q := range channelQueries {
+		var column string
+		capture := func(c, _ string) (string, []interface{}) {
+			column = c
+			return "", nil
+		}
+
+		q.filterForKind(conversation.ContainerKindAccount, capture)
+		if want := departmentscope.Routed(q.DepartmentEntryCol, string(q.EntryType), q.DepartmentColumn); column != want {
+			t.Errorf("%s account container scoped by %q, want %q", q.EntryType, column, want)
+		}
+
+		if q.CampaignCTE == "" {
+			continue
+		}
+		q.filterForKind(conversation.ContainerKindCampaign, capture)
+		if want := departmentscope.Routed(q.CampaignDeptEntryCol, string(q.EntryType), q.CampaignDeptColumn); column != want {
+			t.Errorf("%s campaign container scoped by %q, want %q", q.EntryType, column, want)
 		}
 	}
 }

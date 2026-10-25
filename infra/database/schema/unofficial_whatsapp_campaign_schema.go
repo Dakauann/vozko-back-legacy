@@ -46,8 +46,9 @@ type UnofficialWhatsAppCampaign struct {
 	ResetCode string `gorm:"size:10"`
 	ClearCode string `gorm:"size:10"`
 
-	ScheduledStart time.Time `gorm:"type:timestamptz;index"`
-	Archived       bool      `gorm:"default:false"`
+	ScheduledStart  time.Time `gorm:"type:timestamptz;index"`
+	ScheduleFailure string    `gorm:"column:schedule_failure;type:varchar(40);not null;default:''"`
+	Archived        bool      `gorm:"default:false"`
 
 	CreatedAt time.Time      `gorm:"autoCreateTime"`
 	UpdatedAt time.Time      `gorm:"autoUpdateTime"`

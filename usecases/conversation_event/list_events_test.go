@@ -11,6 +11,7 @@ import (
 	"vozko/domain/shared"
 	stagedomain "vozko/domain/stage"
 	"vozko/domain/user"
+	"vozko/domain/workflow"
 )
 
 type stubEventRepo struct {
@@ -95,7 +96,7 @@ const (
 func newUC(events []*ce.ConversationEvent) (ce.ListEventsUseCase, *stubUserRepo, *stubAgentRepo) {
 	users := &stubUserRepo{byID: map[string]string{ana: "ana", bruno: "bruno"}}
 	agents := &stubAgentRepo{byID: map[string]string{bot: "Atendente IA"}}
-	return NewListEventsUseCase(&stubEventRepo{events: events}, users, agents, nil, nil), users, agents
+	return NewListEventsUseCase(&stubEventRepo{events: events}, users, agents, nil, nil, noWorkflowNames{}), users, agents
 }
 
 func TestExecuteNamesTheSenderOfAHumanReply(t *testing.T) {
@@ -259,7 +260,7 @@ func (r *stubLabelRepo) ListByWorkspace(string) ([]*labeldomain.Label, error) {
 func newSubjectUC(events []*ce.ConversationEvent) (ce.ListEventsUseCase, *stubStageRepo, *stubLabelRepo) {
 	stages := &stubStageRepo{byID: map[string]string{"s-old": "recebido", "s-new": "em atendimento"}}
 	labels := &stubLabelRepo{byID: map[string]string{"l1": "urgente"}}
-	uc := NewListEventsUseCase(&stubEventRepo{events: events}, nil, nil, stages, labels)
+	uc := NewListEventsUseCase(&stubEventRepo{events: events}, nil, nil, stages, labels, noWorkflowNames{})
 	return uc, stages, labels
 }
 
@@ -318,3 +319,7 @@ func TestExecuteReadsStagesAndLabelsAtMostOncePerPage(t *testing.T) {
 		t.Fatalf("label reads = %d, want 0 — no label event on this page", labels.calls)
 	}
 }
+
+type noWorkflowNames struct{}
+
+func (noWorkflowNames) FindByIDs([]string) ([]*workflow.Workflow, error) { return nil, nil }

@@ -197,7 +197,7 @@ func TestRenamingDoesNotTouchTheDefaultFlag(t *testing.T) {
 
 func TestCreatingADefaultDemotesThePreviousOne(t *testing.T) {
 	repo := newDefaultRepo(convPipe("old", true))
-	uc := NewCreatePipelineUseCase(repo, departmentsOf{})
+	uc := createPipeline(repo, departmentsOf{})
 
 	created, err := uc.Execute("ws", pipeline.CreatePipelineInput{
 		Name: "novo", ObjectType: string(pipeline.ObjectConversation), IsDefault: true,
@@ -217,7 +217,7 @@ func TestCreatingADefaultDemotesThePreviousOne(t *testing.T) {
 
 func TestCreatingANonDefaultLeavesTheDefaultAlone(t *testing.T) {
 	repo := newDefaultRepo(convPipe("old", true))
-	uc := NewCreatePipelineUseCase(repo, departmentsOf{})
+	uc := createPipeline(repo, departmentsOf{})
 
 	if _, err := uc.Execute("ws", pipeline.CreatePipelineInput{
 		Name: "novo", ObjectType: string(pipeline.ObjectConversation),
@@ -234,7 +234,7 @@ func TestCreatingANonDefaultLeavesTheDefaultAlone(t *testing.T) {
 
 func TestFirstFunnelBecomesTheDefault(t *testing.T) {
 	repo := newDefaultRepo()
-	uc := NewCreatePipelineUseCase(repo, departmentsOf{})
+	uc := createPipeline(repo, departmentsOf{})
 
 	if _, err := uc.Execute("ws", pipeline.CreatePipelineInput{
 		Name: "primeiro", ObjectType: string(pipeline.ObjectConversation), IsDefault: true,
@@ -258,7 +258,7 @@ func (d departmentsOf) Execute(string) ([]wd.Department, error) {
 
 func TestCreatingAFunnelRefusesAForeignDepartment(t *testing.T) {
 	repo := newDefaultRepo()
-	uc := NewCreatePipelineUseCase(repo, departmentsOf{"d-mine"})
+	uc := createPipeline(repo, departmentsOf{"d-mine"})
 	if _, err := uc.Execute("ws", pipeline.CreatePipelineInput{
 		Name: "novo", ObjectType: string(pipeline.ObjectConversation), DepartmentID: "d-other",
 	}); err != pipeline.ErrDepartmentUnknown {

@@ -106,11 +106,11 @@ func newLeadTargetHarness() *leadTargetHarness {
 		},
 		"ws-2": {"lead-x": {ID: "lead-x", WorkspaceID: "ws-2", Number: "5584999990009"}},
 	}}}
-	h.uc = NewCreateCampaignUseCase(campaigns, entries, numbers, gateway, spam, fakeDepartments{id: "dept-1"}).(*createCampaignUseCase)
-	h.uc.SetAutomation(automationThatAllows{})
-	h.uc.SetLeadsByID(h.leads)
+	h.uc = createWith(CreateCampaignDeps{Campaigns: campaigns, Entries: entries, Leads: numbers, Instances: gateway, Eligibility: spam, Departments: fakeDepartments{id: "dept-1"}})
+	h.uc.automation = automationThatAllows{}
+	h.uc.leadsByID = h.leads
 	h.keys = &keyedCampaigns{campaigns: campaigns, entries: entries}
-	h.uc.SetIdempotentCampaigns(h.keys)
+	h.uc.keyed = h.keys
 	return h
 }
 
@@ -254,7 +254,7 @@ func TestAKeyedUnofficialCreationWhoseEntriesFailLeavesNothingForTheRetryToRetur
 
 func TestUnofficialLeadTargetsRefuseWithoutTheLeadLookup(t *testing.T) {
 	h := newLeadTargetHarness()
-	h.uc.SetLeadsByID(nil)
+	h.uc.leadsByID = nil
 	if _, err := h.uc.Execute(context.Background(), leadDraft(uwc.TargetInput{LeadID: "lead-a", Variables: []string{"Maria"}}), uw.Unrestricted()); !errors.Is(err, campaign.ErrLeadTargetsUnavailable) {
 		t.Fatalf("Execute = %v, want ErrLeadTargetsUnavailable", err)
 	}
@@ -265,15 +265,11 @@ func TestUnofficialLeadTargetsRefuseWithoutTheLeadLookup(t *testing.T) {
 
 func TestUnofficialCreateRunsTheSharedAutomationStep(t *testing.T) {
 	h := newLeadTargetHarness()
-	h.uc.SetAutomation(automationThatRefuses{err: campaign.ErrWorkflowVarsMissing})
+	h.uc.automation = automationThatRefuses{err: campaign.ErrWorkflowVarsMissing}
 	in := leadDraft(uwc.TargetInput{LeadID: "lead-a", Variables: []string{"Maria"}})
 	in.WorkflowID, in.EnableWorkflow = "wf-1", true
 	if _, err := h.uc.Execute(context.Background(), in, uw.Unrestricted()); !errors.Is(err, campaign.ErrWorkflowVarsMissing) {
 		t.Fatalf("Execute = %v, want ErrWorkflowVarsMissing", err)
-	}
-	h.uc.SetAutomation(nil)
-	if _, err := h.uc.Execute(context.Background(), in, uw.Unrestricted()); !errors.Is(err, campaign.ErrAutomationUnavailable) {
-		t.Fatalf("Execute without the step = %v, want ErrAutomationUnavailable", err)
 	}
 	if h.campaigns.count() != 0 {
 		t.Fatal("a refused campaign was written")

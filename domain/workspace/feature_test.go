@@ -127,6 +127,7 @@ var formScreenCapabilities = map[CapabilityKey]bool{
 	"team.lead_exit":              true,
 	"email.campaigns":             true,
 	"carrier.campaigns":           true,
+	"workflows.edit":              true,
 }
 
 func TestSeeingAScreenNeverRequiresAnActionPermission(t *testing.T) {
@@ -228,21 +229,29 @@ func TestScreensTakeAtMostOneParam(t *testing.T) {
 	}
 }
 
-func TestWorkflowSecretsListOpensWithReadWhileChangingThemNeedsUpdate(t *testing.T) {
+func TestWorkspaceSecretsListAndChangesNeedWorkflowOrAgentEditing(t *testing.T) {
 	use, ok := CapabilityForScreen(ScreenWorkflowSecrets)
-	if !ok || use.Capability.Key != "workflows.view" {
-		t.Fatalf("the secrets list must be opened by workflows.view, got %+v", use.Capability.Key)
+	if !ok || use.Capability.Key != "workflows.edit" {
+		t.Fatalf("the secrets page must be opened by workflows.edit, got %+v", use.Capability.Key)
 	}
 	reader := NewGrants(RoleMember, false, []PermissionEntry{{Resource: ResourceWorkflows, Action: ActionRead}})
-	if !use.Capability.Allows(reader) {
-		t.Errorf("reading workflows must open the secrets list, missing %v", use.Capability.Missing(reader))
+	if use.Capability.Allows(reader) {
+		t.Errorf("reading workflows must not open the secrets page")
 	}
-	edit := capabilityOf(t, use.Feature, "workflows.edit")
-	if !strings.Contains(edit.Description, "segredos") {
-		t.Errorf("workflows.edit must explain that workflows:update creates, replaces and removes secrets, got %q", edit.Description)
+	if !strings.Contains(use.Capability.Description, "segredos") {
+		t.Errorf("workflows.edit must explain that it lists, creates, replaces and removes secrets, got %q", use.Capability.Description)
 	}
-	missing := edit.Missing(reader)
-	if len(missing) != 1 || missing[0].Key() != "workflows:update" {
-		t.Errorf("changing secrets must be blocked only by workflows:update, got %v", missing)
+	agentEdit := capabilityOf(t, mustFeature(t, "agents"), "agents.edit")
+	if !strings.Contains(agentEdit.Description, "segredos") {
+		t.Errorf("agents.edit must explain that it lists, creates, replaces and removes secrets, got %q", agentEdit.Description)
 	}
+}
+
+func mustFeature(t *testing.T, key FeatureKey) Feature {
+	t.Helper()
+	f, ok := FeatureByKey(key)
+	if !ok {
+		t.Fatalf("feature %q missing", key)
+	}
+	return f
 }

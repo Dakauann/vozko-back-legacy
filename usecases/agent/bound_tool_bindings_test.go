@@ -1,42 +1,54 @@
 package agent_usecase
 
 import (
+	"errors"
 	"testing"
 
 	"vozko/domain/agent"
+	"vozko/domain/agenttool"
 	toolsdomain "vozko/domain/tools"
 )
 
-func indexWithBoundWorkflowTool() *toolRegistryIndex {
-	idx := indexWith("http_request")
-	idx.defs["run_workflow"] = toolsdomain.Definition{
-		Name:           "run_workflow",
-		BindingKey:     "workflow_id",
-		ConfigSchema:   map[string]toolsdomain.ConfigParameter{"workflow_id": {Type: "string", Required: true}},
-		RequiredConfig: []string{"workflow_id"},
+type boundRegistry struct{ toolsdomain.Service }
+
+func (boundRegistry) Definitions() []toolsdomain.Definition {
+	return []toolsdomain.Definition{
+		{Name: "http_request", Instances: toolsdomain.Many()},
+		{
+			Name:           "run_workflow",
+			Instances:      toolsdomain.PerTarget("workflow_id"),
+			ConfigSchema:   map[string]toolsdomain.ConfigParameter{"workflow_id": {Type: "string", Required: true}},
+			RequiredConfig: []string{"workflow_id"},
+		},
 	}
-	idx.all = append(idx.all, "run_workflow")
-	return idx
 }
 
 func workflowBinding(id string) agent.ToolBinding {
 	return agent.ToolBinding{Name: "run_workflow", Config: map[string]interface{}{"workflow_id": id}}
 }
 
-func TestAnAgentKeepsOneBindingPerBoundWorkflow(t *testing.T) {
-	idx := indexWithBoundWorkflowTool()
-	requested := []agent.ToolBinding{workflowBinding("wf-a"), workflowBinding("wf-b"), workflowBinding("wf-a"), {Name: "http_request"}, {Name: "http_request"}}
-
-	saved, err := validateRequestedToolBindings(idx, requested)
+func TestAnAgentKeepsEveryWorkflowAndHTTPInstanceInRequestOrder(t *testing.T) {
+	saved, err := resolveInternalToolSelection(boundRegistry{}, []agent.ToolBinding{
+		workflowBinding("wf-b"), {Name: "http_request", Function: "pedido"}, workflowBinding("wf-a"), {Name: "http_request", Function: "ticket"},
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(saved) != 3 || saved[1].Config["workflow_id"] != "wf-a" || saved[2].Config["workflow_id"] != "wf-b" {
-		t.Fatalf("saved = %+v, want http_request and one binding per workflow, in request order", saved)
+	if len(saved) != 4 || saved[0].Function != "run_workflow_wf-b" || saved[1].Function != "pedido" || saved[2].Function != "run_workflow_wf-a" || saved[3].Function != "ticket" {
+		t.Fatalf("saved = %+v", saved)
 	}
-
-	kept := filterExistingToolBindings(idx, requested)
-	if len(kept) != 3 {
-		t.Fatalf("kept = %+v", kept)
+	for _, b := range saved {
+		if b.ID == "" {
+			t.Fatalf("every instance gets an id: %+v", b)
+		}
 	}
 }
+
+func TestTheSameWorkflowTwiceIsRefusedInsteadOfDropped(t *testing.T) {
+	_, err := resolveInternalToolSelection(boundRegistry{}, []agent.ToolBinding{workflowBinding("wf-a"), workflowBinding("wf-a")}, nil)
+	if !errors.Is(err, agenttool.ErrTargetTaken) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func (boundRegistry) Handler(string) (toolsdomain.Handler, bool) { return nil, false }

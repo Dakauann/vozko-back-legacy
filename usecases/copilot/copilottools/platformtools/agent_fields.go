@@ -16,7 +16,6 @@ type agentFields struct {
 	MessagingModel  *string `json:"messagingModel" req:"true"`
 	AvatarURL       *string `json:"avatarUrl"`
 	Provider        *string `json:"provider" req:"true"`
-	BusinessPhoneID *string `json:"businessPhoneId"`
 	IsActive        *bool   `json:"isActive"`
 }
 
@@ -27,18 +26,14 @@ var agentFieldDescriptions = map[string]string{
 	"messagingModel":  "id do modelo de LLM para mensagens (use list_models para um id válido)",
 	"avatarUrl":       "URL do avatar do agente",
 	"provider":        "provedor do agente, ex.: platform",
-	"businessPhoneId": "id do número de WhatsApp Business vinculado ao agente",
 	"isActive":        "se o agente está ativo",
 
 	"internalTools":          "ferramentas internas do agente (lista COMPLETA; use list_agent_tools para nomes válidos e o config exigido por cada uma). Cabeçalhos (headers) e outros valores protegidos: envie só os NOMES com valor vazio (ex.: {\"Authorization\": \"\"}); o usuário digita os valores no cartão de aprovação e você nunca os vê.",
 	"knowledgeBaseIds":       "ids das bases de conhecimento a vincular (devem ser deste workspace)",
-	"mcpCollectionIds":       "ids das coleções MCP a vincular (devem ser deste workspace)",
 	"addTools":               "ferramentas internas a ADICIONAR ou substituir, preservando as demais. Use list_agent_tools para o nome exato e o config exigido (ex.: http_request exige url e method). Ao substituir, a configuração inteira é trocada: repita os nomes dos cabeçalhos que devem continuar. Cabeçalhos (headers) e outros valores protegidos: envie só os NOMES com valor vazio (ex.: {\"Authorization\": \"\"}); o usuário digita os valores no cartão de aprovação e você nunca os vê. run_workflow (Executar fluxo) vale uma vez por fluxo: cada item com um workflow_id diferente é uma ferramenta própria e os outros fluxos do agente são preservados.",
 	"removeTools":            "nomes das ferramentas internas a REMOVER do agente. Para tirar só um fluxo de run_workflow, use run_workflow_<id do fluxo>; run_workflow sozinho remove todos os fluxos",
 	"addKnowledgeBaseIds":    "ids de bases de conhecimento a ADICIONAR, preservando as atuais",
 	"removeKnowledgeBaseIds": "ids de bases de conhecimento a REMOVER",
-	"addMcpCollectionIds":    "ids de coleções MCP a ADICIONAR, preservando as atuais",
-	"removeMcpCollectionIds": "ids de coleções MCP a REMOVER",
 }
 
 func (f agentFields) toUpdateInput() agent.UpdateAgentInput {
@@ -48,7 +43,6 @@ func (f agentFields) toUpdateInput() agent.UpdateAgentInput {
 		MessagingPrompt: f.MessagingPrompt,
 		MessagingModel:  f.MessagingModel,
 		AvatarURL:       f.AvatarURL,
-		BusinessPhoneID: f.BusinessPhoneID,
 		IsActive:        f.IsActive,
 	}
 	if f.Provider != nil {
@@ -79,9 +73,6 @@ func (f agentFields) toCreateInput() agent.CreateAgentInput {
 	}
 	if f.Provider != nil {
 		in.Provider = agent.AgentProvider(*f.Provider)
-	}
-	if f.BusinessPhoneID != nil {
-		in.BusinessPhoneID = *f.BusinessPhoneID
 	}
 	return in
 }
@@ -172,7 +163,7 @@ func bindingIdentitiesOf(catalog ToolCatalog) bindingIdentities {
 
 func (ids bindingIdentities) of(name string, config map[string]interface{}) string {
 	if def, ok := ids[copilottools.TrimLower(name)]; ok {
-		return def.BindingIdentity(config)
+		return def.LegacyName(config)
 	}
 	return copilottools.TrimLower(name)
 }

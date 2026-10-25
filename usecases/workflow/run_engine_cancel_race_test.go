@@ -58,7 +58,7 @@ func TestACancelThatLandsBetweenStepsStopsTheRunAtTheNextBoundary(t *testing.T) 
 	w := twoStepWorkflow(h, &ranB)
 	var live *workflow.WorkflowRun
 	checks := &cancelOnStatusCheck{runs: h.runs, atNode: "b", current: func() string { return live.CurrentNodeID }}
-	h.engine.SetRunStatusReader(checks)
+	h.engine.statuses = checks
 
 	live = &workflow.WorkflowRun{
 		ID: "run-1", WorkflowID: w.ID, WorkspaceID: "ws-1", EntryID: "entry-1", EntryType: "whatsapp",
@@ -122,7 +122,7 @@ func TestAnUnreadableStatusStopsTheRunWithoutTouchingIt(t *testing.T) {
 	h := newTraceHarness()
 	ranB := false
 	w := twoStepWorkflow(h, &ranB)
-	h.engine.SetRunStatusReader(failingStatus{})
+	h.engine.statuses = failingStatus{}
 	run := &workflow.WorkflowRun{
 		ID: "run-1", WorkflowID: w.ID, WorkspaceID: "ws-1", EntryID: "entry-1", EntryType: "whatsapp",
 		Status: workflow.RunStatusRunning, CurrentNodeID: "t1", TriggerNodeID: "t1", State: workflow.NewRunState(),
@@ -153,7 +153,7 @@ func agentStartedRun(w *workflow.Workflow, result map[string]interface{}) func(r
 func TestAnAgentStartedRunThatRepliedAnnouncesItsEndOnce(t *testing.T) {
 	h := newTraceHarness()
 	spy := &finishedSpy{}
-	h.engine.SetAgentRunFinishedPublisher(spy)
+	h.engine.agentRunEnds = spy
 	h.register(workflow.NodeTypeActionHTTPRequest, func(ctx *workflow.NodeContext) (*workflow.NodeResult, error) {
 		return &workflow.NodeResult{Output: map[string]interface{}{}}, nil
 	})
@@ -173,7 +173,7 @@ func TestAnAgentStartedRunThatRepliedAnnouncesItsEndOnce(t *testing.T) {
 func TestAFailedAgentRunAnnouncesItsEnd(t *testing.T) {
 	h := newTraceHarness()
 	spy := &finishedSpy{}
-	h.engine.SetAgentRunFinishedPublisher(spy)
+	h.engine.agentRunEnds = spy
 	h.register(workflow.NodeTypeActionHTTPRequest, func(ctx *workflow.NodeContext) (*workflow.NodeResult, error) {
 		return &workflow.NodeResult{Error: "HTTP 500"}, nil
 	})
@@ -200,7 +200,7 @@ func TestRunsThatOweTheAgentNothingAnnounceNothing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newTraceHarness()
 			spy := &finishedSpy{}
-			h.engine.SetAgentRunFinishedPublisher(spy)
+			h.engine.agentRunEnds = spy
 			h.register(workflow.NodeTypeActionHTTPRequest, func(ctx *workflow.NodeContext) (*workflow.NodeResult, error) {
 				return &workflow.NodeResult{Output: map[string]interface{}{}}, nil
 			})
@@ -215,7 +215,7 @@ func TestRunsThatOweTheAgentNothingAnnounceNothing(t *testing.T) {
 
 func TestAPublishFailureNeverFailsTheRun(t *testing.T) {
 	h := newTraceHarness()
-	h.engine.SetAgentRunFinishedPublisher(&finishedSpy{err: errors.New("queue down")})
+	h.engine.agentRunEnds = &finishedSpy{err: errors.New("queue down")}
 	h.register(workflow.NodeTypeActionHTTPRequest, func(ctx *workflow.NodeContext) (*workflow.NodeResult, error) {
 		return &workflow.NodeResult{Output: map[string]interface{}{}}, nil
 	})

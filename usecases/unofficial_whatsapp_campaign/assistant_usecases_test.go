@@ -59,7 +59,7 @@ func (d *dispatchRecorder) Dispatch(_ context.Context, in uwc.DispatchCampaignIn
 
 func TestCampaignActionOnlyActsOnAnOwnedCampaign(t *testing.T) {
 	dispatch := &dispatchRecorder{}
-	uc := NewCampaignActionUseCase(NewCampaignAccessUseCase(accessCampaigns), dispatch)
+	uc := NewCampaignActionUseCase(NewCampaignAccessUseCase(accessCampaigns), dispatch, nil)
 	if _, err := uc.Act(context.Background(), "ws1", salesScope, "c-team", campaign.ActionStart); !errors.Is(err, uwc.ErrCampaignNotFound) {
 		t.Fatalf("other department: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestImportPreviewRefusesABadMessageOrAForeignFile(t *testing.T) {
 
 func TestOnlyTheReviewedStartTellsTheUnofficialDispatchTheSendWasReviewed(t *testing.T) {
 	dispatch := &dispatchRecorder{}
-	uc := NewCampaignActionUseCase(NewCampaignAccessUseCase(accessCampaigns), dispatch)
+	uc := NewCampaignActionUseCase(NewCampaignAccessUseCase(accessCampaigns), dispatch, nil)
 	reviewed, ok := uc.(uwc.ReviewedStartUseCase)
 	if !ok {
 		t.Fatalf("the campaign actions cannot start a reviewed send")

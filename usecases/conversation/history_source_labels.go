@@ -12,7 +12,7 @@ type ActorNameResolver interface {
 
 func historySourceLabels(names ActorNameResolver, history []*conversation.Message) conversation.SourceLabels {
 	senders := conversation.WorkflowSenders(history)
-	if len(senders) == 0 || names == nil {
+	if len(senders) == 0 {
 		return conversation.NewSourceLabels(nil)
 	}
 	found, err := names.ResolveNames(senders...)

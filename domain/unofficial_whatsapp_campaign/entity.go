@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"vozko/domain/campaign"
+	"vozko/domain/campaign/scheduledstart"
 	"vozko/domain/campaignaudience"
 	uw "vozko/domain/unofficial_whatsapp"
 )
@@ -99,8 +100,9 @@ type Campaign struct {
 	ResetCode string `json:"resetCode,omitempty"`
 	ClearCode string `json:"clearCode,omitempty"`
 
-	ScheduledStart time.Time `json:"scheduledStart,omitempty"`
-	Archived       bool      `json:"archived"`
+	ScheduledStart  time.Time              `json:"scheduledStart,omitempty"`
+	ScheduleFailure scheduledstart.Failure `json:"scheduleFailure,omitempty"`
+	Archived        bool                   `json:"archived"`
 
 	Targets       []TargetInput     `json:"targets,omitempty"`
 	RecentEntries []Entry           `json:"recentEntries,omitempty"`

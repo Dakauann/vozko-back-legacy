@@ -2,9 +2,12 @@ package carriercampaign_usecase
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	cc "vozko/domain/carriercampaign"
+	"vozko/usecases/campaignschedule"
 )
 
 type ScheduleReport struct {
@@ -22,6 +25,7 @@ func (s *Service) RunSchedules(ctx context.Context, limit int) (ScheduleReport, 
 
 func (s *Service) startDue(ctx context.Context, due []*cc.Campaign) (ScheduleReport, error) {
 	report := ScheduleReport{Failed: map[string]error{}}
+	var errs []error
 	for _, c := range due {
 		if c == nil || c.ScheduledAt == nil {
 			continue
@@ -37,15 +41,25 @@ func (s *Service) startDue(ctx context.Context, due []*cc.Campaign) (ScheduleRep
 		}
 		if err := s.startScheduled(ctx, *c, occurrence); err != nil {
 			report.Failed[c.ID] = err
-			s.deps.Logf("[carrier-campaign] scheduled campaign %s did not start: %v", c.ID, err)
-			if _, rerr := s.deps.Campaigns.Reschedule(ctx, c.ID, cc.StatusScheduled, cc.StatusDraft, nil); rerr != nil {
-				s.deps.Logf("[carrier-campaign] return campaign %s to draft: %v", c.ID, rerr)
+			if recordErr := s.failSchedule(ctx, *c, occurrence, err); recordErr != nil {
+				errs = append(errs, recordErr)
 			}
 			continue
 		}
 		report.Started = append(report.Started, c.ID)
 	}
-	return report, nil
+	return report, errors.Join(errs...)
+}
+
+func (s *Service) failSchedule(ctx context.Context, c cc.Campaign, occurrence time.Time, cause error) error {
+	if _, err := s.deps.Campaigns.Reschedule(ctx, c.ID, cc.StatusScheduled, cc.StatusDraft, nil); err != nil {
+		s.deps.Logf("[carrier-campaign] return campaign %s to draft: %v", c.ID, err)
+	}
+	attempt := campaignschedule.Attempt{WorkspaceID: c.WorkspaceID, CampaignID: c.ID, CampaignName: c.Name, ScheduledBy: c.CreatedBy, ScheduledAt: occurrence}
+	if err := s.schedules.Failed(ctx, attempt, cause); err != nil {
+		return fmt.Errorf("record the failed schedule of %s: %w", c.ID, err)
+	}
+	return nil
 }
 
 func (s *Service) startScheduled(ctx context.Context, c cc.Campaign, occurrence time.Time) error {

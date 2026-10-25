@@ -59,15 +59,15 @@ func (u *usageLedger) TotalsUnder(workspaceID, prefix string) (aiusage.Totals, e
 }
 
 func costService(l *ledger) (*Service, *costThreads) {
+	return costServiceWith(l, &usageLedger{})
+}
+
+func costServiceWith(l *ledger, usage *usageLedger) (*Service, *costThreads) {
 	threads := &costThreads{threads: map[string]*aichat.Thread{
 		"th-1":   {ID: "th-1", WorkspaceID: "ws-1", UserID: "u-1", CostTracked: true},
 		"th-old": {ID: "th-old", WorkspaceID: "ws-1", UserID: "u-1"},
 	}}
-	svc := NewService(threads, nil, nil, nil)
-	if l != nil {
-		svc.SetChargeLedger(l)
-	}
-	return svc, threads
+	return testService(Deps{Threads: threads, Charges: l, Usage: usage}), threads
 }
 
 func TestANewThreadHasItsCostTracked(t *testing.T) {
@@ -113,16 +113,11 @@ func TestTheThreadCostFailsClosed(t *testing.T) {
 	if _, err := failing.ThreadCost("ws-1", "u-1", "th-1"); err == nil {
 		t.Fatal("a ledger failure must not read as a cost")
 	}
-	unwired, _ := costService(nil)
-	if cost, err := unwired.ThreadCost("ws-1", "u-1", "th-1"); err != nil || cost.Available {
-		t.Fatalf("without a ledger there is no cost, got %+v %v", cost, err)
-	}
 }
 
 func TestTheThreadCostCarriesTheTokensItsChargesUsed(t *testing.T) {
-	svc, _ := costService(&ledger{totals: balance.ReferenceTotals{BillingMicros: 420_000, Transactions: 2, Debits: 2}})
 	usage := &usageLedger{totals: aiusage.Totals{Calls: 2, Billed: 2, Tokens: aiusage.Tokens{Input: 5000, Output: 400, CacheRead: 3000}}}
-	svc.SetUsageLedger(usage)
+	svc, _ := costServiceWith(&ledger{totals: balance.ReferenceTotals{BillingMicros: 420_000, Transactions: 2, Debits: 2}}, usage)
 	cost, err := svc.ThreadCost("ws-1", "u-1", "th-1")
 	if err != nil {
 		t.Fatal(err)
@@ -136,11 +131,7 @@ func TestTheThreadCostCarriesTheTokensItsChargesUsed(t *testing.T) {
 }
 
 func TestTheThreadUsageFailsClosed(t *testing.T) {
-	svc, _ := costService(&ledger{totals: balance.ReferenceTotals{BillingMicros: 420_000, Transactions: 1, Debits: 1}})
-	if cost, err := svc.ThreadCost("ws-1", "u-1", "th-1"); err != nil || cost.Usage.Available {
-		t.Fatalf("without a usage ledger there are no tokens, got %+v %v", cost, err)
-	}
-	svc.SetUsageLedger(&usageLedger{err: errors.New("db down")})
+	svc, _ := costServiceWith(&ledger{totals: balance.ReferenceTotals{BillingMicros: 420_000, Transactions: 1, Debits: 1}}, &usageLedger{err: errors.New("db down")})
 	if _, err := svc.ThreadCost("ws-1", "u-1", "th-1"); err == nil {
 		t.Fatal("a usage failure must not read as a token count")
 	}

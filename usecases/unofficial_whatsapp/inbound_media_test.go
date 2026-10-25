@@ -101,7 +101,7 @@ func newMediaHarness(t *testing.T) *mediaHarness {
 		media:   &fakeConvMedia{},
 		history: &recordingHistory{},
 	}
-	h.uc = NewHandleWebhookUseCase(HandleWebhookDeps{
+	h.uc = webhookFor(HandleWebhookDeps{
 		Instances:     newFakeInstanceRepo(instance),
 		Servers:       newFakeServerRepo(&uw.Server{ID: "srv-1", BaseURL: "https://host.test"}),
 		Contacts:      newFakeContactRepo(),
@@ -241,7 +241,7 @@ func TestFailedAttachmentDownloadStillRecordsAPlaceholder(t *testing.T) {
 		ID: "inst-1", WorkspaceID: "ws-1", ServerID: "srv-1",
 		Status: uw.StatusConnected, PhoneNumber: "5599999999999",
 	}
-	h.uc = NewHandleWebhookUseCase(HandleWebhookDeps{
+	h.uc = webhookFor(HandleWebhookDeps{
 		Instances:     newFakeInstanceRepo(instance),
 		Servers:       newFakeServerRepo(&uw.Server{ID: "srv-1", BaseURL: "https://host.test"}),
 		Contacts:      newFakeContactRepo(),

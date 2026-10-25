@@ -124,42 +124,19 @@ func (c *Container) wireWebchatConversationStack() {
 	}
 	conversations := bundle.Conversations
 
-	c.registerChannelAdapter(wcuc.NewChannelAdapter(bundle.Widgets, bundle.Visitors, conversations, bundle.Broker, c.repositories.conversation))
-
-	if setter, ok := c.services.conversationHistory.(interface {
-		SetAutomationReader(shared.EntryType, func(context.Context, string) (*bool, error))
-	}); ok {
-		setter.SetAutomationReader(shared.EntryTypeWebchat, func(ctx context.Context, entryID string) (*bool, error) {
+	c.registerConversationChannel(conversationChannel{
+		EntryType:     shared.EntryTypeWebchat,
+		Adapter:       wcuc.NewChannelAdapter(bundle.Widgets, bundle.Visitors, conversations, bundle.Broker, c.repositories.conversation),
+		Conversations: conversations,
+		Automation: func(ctx context.Context, entryID string) (*bool, error) {
 			conv, err := conversations.FindByID(ctx, entryID)
 			if err != nil {
 				return nil, err
 			}
 			return conv.AutomationEnabled, nil
-		})
-	}
-	if c.services.conversationAutomation != nil {
-		c.services.conversationAutomation.Register(shared.EntryTypeWebchat, conversations.SetAutomationEnabled)
-	}
-	if c.services.conversationAuthImpl != nil {
-		c.services.conversationAuthImpl.SetEntryAccessRepo(shared.EntryTypeWebchat, conversations)
-	}
-	if c.services.conversationStatusService != nil {
-		c.services.conversationStatusService.SetConversationStatusStore(shared.EntryTypeWebchat, conversationStatusFuncs{
-			status: conversations.StatusForEntry,
-			set:    conversations.SetStatus,
-		})
-		c.services.conversationStatusService.SetConversationCounter(shared.EntryTypeWebchat, conversations.CountByStatus)
-	}
-	if setter, ok := c.services.campaignWorkspaceResolver.(interface {
-		SetEntryOwnerResolver(shared.EntryType, conversation_usecase.EntryOwnerResolver)
-	}); ok {
-		setter.SetEntryOwnerResolver(shared.EntryTypeWebchat, conversations)
-	}
-	if setter, ok := c.services.conversationHistory.(interface {
-		SetContactIdentityLookup(shared.EntryType, conversation_usecase.ContactIdentityLookup)
-	}); ok {
-		setter.SetContactIdentityLookup(shared.EntryTypeWebchat, webchatContactIdentity(bundle))
-	}
+		},
+		Contacts: webchatContactIdentity(bundle),
+	})
 }
 
 func webchatContactIdentity(bundle *webchatBundle) conversation_usecase.ContactIdentityLookup {

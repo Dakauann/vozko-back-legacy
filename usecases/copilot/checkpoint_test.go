@@ -27,7 +27,7 @@ func TestTheNextReplyStartsFromTheThreadCheckpoint(t *testing.T) {
 	thread := testThread()
 	thread.Checkpoint, thread.CheckpointAt = "<conversation-checkpoint>\nresumo\n</conversation-checkpoint>", &at
 	ms := &listedMessages{fakeMessages: fakeMessages{list: []*aichat.Message{{Role: aichat.RoleUser, Content: "e agora?"}}}}
-	svc := NewService(agentloop.Engine{AI: &scriptAI{}}, NewRegistry(), &fakeAccess{}, openFunds{}, &fakeThreads{thread: thread}, ms, nil, nil, func() string { return "a" })
+	svc := testService(Deps{Engine: agentloop.Engine{AI: &scriptAI{}}, Registry: NewRegistry(), Access: &fakeAccess{}, Funds: openFunds{}, Threads: &fakeThreads{thread: thread}, Messages: ms, NewID: func() string { return "a" }})
 	h, err := svc.buildHistory("t1", "m", true)
 	if err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ func TestTheNextReplyStartsFromTheThreadCheckpoint(t *testing.T) {
 
 func TestWithoutACheckpointTheWholeThreadIsLoaded(t *testing.T) {
 	ms := &listedMessages{}
-	svc := NewService(agentloop.Engine{AI: &scriptAI{}}, NewRegistry(), &fakeAccess{}, openFunds{}, &fakeThreads{thread: testThread()}, ms, nil, nil, func() string { return "a" })
+	svc := testService(Deps{Engine: agentloop.Engine{AI: &scriptAI{}}, Registry: NewRegistry(), Access: &fakeAccess{}, Funds: openFunds{}, Threads: &fakeThreads{thread: testThread()}, Messages: ms, NewID: func() string { return "a" }})
 	if _, err := svc.buildHistory("t1", "m", true); err != nil {
 		t.Fatal(err)
 	}

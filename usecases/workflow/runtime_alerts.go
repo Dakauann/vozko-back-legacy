@@ -24,11 +24,16 @@ type AgentsByID interface {
 	FindByIDs(ids []string) ([]*agent.Agent, error)
 }
 
+type AgentToolsByID interface {
+	FindToolsByIDs(ids []string) ([]agent.ToolBinding, error)
+}
+
 type RuntimeAlertsDeps struct {
 	Alerts     workflow.RuntimeAlertRepository
 	Signals    workflow.RuntimeAlertSignals
 	Workflows  WorkflowsByID
 	Agents     AgentsByID
+	Tools      AgentToolsByID
 	Notices    notification.EpisodePublisher
 	Steps      StepNamer
 	Visibility conversation.Visibility
@@ -39,6 +44,7 @@ type RuntimeAlerts struct {
 	signals    workflow.RuntimeAlertSignals
 	workflows  WorkflowsByID
 	agents     AgentsByID
+	tools      AgentToolsByID
 	notices    notification.EpisodePublisher
 	steps      StepNamer
 	visibility conversation.Visibility
@@ -46,11 +52,11 @@ type RuntimeAlerts struct {
 }
 
 func NewRuntimeAlerts(d RuntimeAlertsDeps) (*RuntimeAlerts, error) {
-	if d.Alerts == nil || d.Signals == nil || d.Workflows == nil || d.Agents == nil || d.Notices == nil || d.Steps == nil || d.Visibility == nil {
-		return nil, errors.New("workflow runtime alerts: the alert store, signals, workflows, agents, notifications, step names and conversation visibility are required")
+	if d.Alerts == nil || d.Signals == nil || d.Workflows == nil || d.Agents == nil || d.Tools == nil || d.Notices == nil || d.Steps == nil || d.Visibility == nil {
+		return nil, errors.New("workflow runtime alerts: the alert store, signals, workflows, agents, agent tools, notifications, step names and conversation visibility are required")
 	}
 	return &RuntimeAlerts{
-		alerts: d.Alerts, signals: d.Signals, workflows: d.Workflows, agents: d.Agents, notices: d.Notices, steps: d.Steps, visibility: d.Visibility,
+		alerts: d.Alerts, signals: d.Signals, workflows: d.Workflows, agents: d.Agents, tools: d.Tools, notices: d.Notices, steps: d.Steps, visibility: d.Visibility,
 		now: func() time.Time { return time.Now().UTC() },
 	}, nil
 }
@@ -135,6 +141,7 @@ func (a *RuntimeAlerts) collectSignals(now time.Time) (collectedSignals, error) 
 type alertNames struct {
 	workflows map[string]*workflow.Workflow
 	agents    map[string]*agent.Agent
+	tools     map[string]agent.ToolBinding
 }
 
 func (a *RuntimeAlerts) facts(open []workflow.RuntimeAlert) workflow.RuntimeAlertFacts {
@@ -218,7 +225,7 @@ func (a *RuntimeAlerts) notify(ctx context.Context, open []workflow.RuntimeAlert
 	if len(due) == 0 {
 		return nil
 	}
-	names := alertNames{workflows: facts.Workflows, agents: a.agentNames(due)}
+	names := alertNames{workflows: facts.Workflows, agents: a.agentNames(due), tools: a.toolNames(due)}
 	var notified []string
 	var errs []error
 	for _, alert := range due {
@@ -251,6 +258,28 @@ func (a *RuntimeAlerts) agentNames(alerts []workflow.RuntimeAlert) map[string]*a
 		if ag != nil {
 			out[ag.ID] = ag
 		}
+	}
+	return out
+}
+
+func (a *RuntimeAlerts) toolNames(alerts []workflow.RuntimeAlert) map[string]agent.ToolBinding {
+	out := map[string]agent.ToolBinding{}
+	ids := uniqueAlertIDs(alerts, func(alert workflow.RuntimeAlert) string {
+		if alert.Key.Kind != workflow.AlertAgentToolFailing {
+			return ""
+		}
+		return alert.Key.Subject
+	})
+	if len(ids) == 0 {
+		return out
+	}
+	found, err := a.tools.FindToolsByIDs(ids)
+	if err != nil {
+		slog.Warn("workflow.alerts.agent_tools_unreadable", slog.String("error", err.Error()))
+		return out
+	}
+	for _, tool := range found {
+		out[tool.ID] = tool
 	}
 	return out
 }

@@ -9,7 +9,9 @@ import (
 	"vozko/domain/shared"
 )
 
-type sendRecorder struct{ inputs []conversation.OperatorSendInput }
+type sendRecorder struct {
+	inputs []conversation.OperatorSendInput
+}
 
 func (s *sendRecorder) Execute(_ context.Context, in conversation.OperatorSendInput) (*conversation.Message, error) {
 	s.inputs = append(s.inputs, in)

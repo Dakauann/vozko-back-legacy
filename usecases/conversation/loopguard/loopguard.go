@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"vozko/domain/cache"
+	"vozko/domain/shared/deps"
 )
 
 type Decision struct {
@@ -88,18 +89,15 @@ type guard struct {
 	metrics MetricsRecorder
 }
 
-func NewGuard(state cache.SharedState, cfg Config, metrics MetricsRecorder) Guard {
-	if state == nil {
-		return AlwaysAllow{}
-	}
-	if metrics == nil {
-		metrics = NoopMetrics{}
+func NewGuard(state cache.SharedState, cfg Config, metrics MetricsRecorder) (Guard, error) {
+	if err := deps.Require("loop guard", map[string]any{"shared state": state, "metrics": metrics}); err != nil {
+		return nil, err
 	}
 	return &guard{
 		state:   state,
 		cfg:     cfg.resolve(),
 		metrics: metrics,
-	}
+	}, nil
 }
 
 type AlwaysAllow struct{}

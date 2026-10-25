@@ -36,7 +36,7 @@ func statusPayload(phoneNumberID string, statuses ...conversation.WhatsAppStatus
 
 func TestStatusWebhookRecordsEveryDeliveryStatusInOneBatch(t *testing.T) {
 	recorder := &fakeStatusRecorder{}
-	uc := &handleWhatsAppMessageUseCase{statusEvents: recorder}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{statusEvents: recorder})
 
 	err := uc.logStatusUpdates(statusPayload("1179270238614202",
 		conversation.WhatsAppStatus{ID: "wamid.A", Status: "delivered", Timestamp: "1791986489", Pricing: &conversation.WhatsAppPricing{Category: "utility"}},
@@ -66,7 +66,7 @@ func TestStatusWebhookRecordsEveryDeliveryStatusInOneBatch(t *testing.T) {
 
 func TestStatusWebhookIsRetriedWhenRecordingFails(t *testing.T) {
 	boom := errors.New("db down")
-	uc := &handleWhatsAppMessageUseCase{statusEvents: &fakeStatusRecorder{err: boom}}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{statusEvents: &fakeStatusRecorder{err: boom}})
 
 	err := uc.logStatusUpdates(statusPayload("1179270238614202",
 		conversation.WhatsAppStatus{ID: "wamid.A", Status: "read", Timestamp: "1791986489"},
@@ -79,7 +79,7 @@ func TestStatusWebhookIsRetriedWhenRecordingFails(t *testing.T) {
 
 func TestStatusWithoutTheSendingNumberIsNotRecordedSoItCannotBlockTheWebhook(t *testing.T) {
 	recorder := &fakeStatusRecorder{}
-	uc := &handleWhatsAppMessageUseCase{statusEvents: recorder}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{statusEvents: recorder})
 
 	if err := uc.logStatusUpdates(statusPayload("", conversation.WhatsAppStatus{ID: "wamid.A", Status: "read", Timestamp: "1791986489"})); err != nil {
 		t.Fatalf("logStatusUpdates: %v", err)

@@ -72,7 +72,7 @@ func newGroupHarness(t *testing.T, handleGroups bool) *groupHarness {
 		storage:   newFakeStorage(),
 		history:   &recordingHistory{},
 	}
-	h.uc = NewHandleWebhookUseCase(HandleWebhookDeps{
+	h.uc = webhookFor(HandleWebhookDeps{
 		Instances:     newFakeInstanceRepo(instance),
 		Servers:       newFakeServerRepo(&uw.Server{ID: "srv-1", BaseURL: "https://host.test"}),
 		Contacts:      h.contacts,

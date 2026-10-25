@@ -23,7 +23,7 @@ func draftEditFixture(t *testing.T) (*MockWorkflowRepository, workflow.ScopedWor
 	repo := NewMockWorkflowRepository()
 	storedWorkflow(t, repo, workflow.WorkflowStatusDraft, manualGraph("end"))
 	return repo, NewScopedWorkflowsUseCase(ScopedWorkflowsDeps{
-		Get: NewGetWorkflowUseCase(repo), Update: NewUpdateWorkflowUseCase(repo), Versions: NewWorkflowVersionsUseCase(repo),
+		Get: NewGetWorkflowUseCase(repo), Update: NewUpdateWorkflowUseCase(repo, staticCatalog{}), Versions: NewWorkflowVersionsUseCase(repo),
 	})
 }
 

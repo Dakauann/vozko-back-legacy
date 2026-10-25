@@ -7,10 +7,6 @@ import (
 	"vozko/domain/callsession"
 )
 
-func (d *Dispatcher) SetConversationHandoff(handoff callrouting.ConversationHandoff) {
-	d.handoff = handoff
-}
-
 func (d *Dispatcher) mayHandOver(ctx context.Context, workspaceID string, call callrouting.RoutedCall, fromUserID, toUserID string) bool {
 	if call.Channel() != callsession.OfferChannelWhatsApp {
 		return true
@@ -51,7 +47,7 @@ func (d *Dispatcher) connect(ctx context.Context, workspaceID string, call callr
 
 func (d *Dispatcher) handoverOf(workspaceID string, call callrouting.RoutedCall, fromUserID, toUserID string) (callrouting.Handover, bool) {
 	contact, known := call.Contact()
-	if d.handoff == nil || !known || fromUserID == "" {
+	if !known || fromUserID == "" {
 		return callrouting.Handover{}, false
 	}
 	return callrouting.Handover{WorkspaceID: workspaceID, Contact: contact, FromUserID: fromUserID, ToUserID: toUserID}, true

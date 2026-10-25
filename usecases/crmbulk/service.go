@@ -10,6 +10,7 @@ import (
 	"vozko/domain/crmfilter"
 	"vozko/domain/label"
 	"vozko/domain/selection"
+	"vozko/domain/shared/deps"
 	"vozko/domain/stage"
 	"vozko/domain/workspace"
 )
@@ -109,27 +110,45 @@ type Service struct {
 	conversations ConversationActions
 }
 
-func (s *Service) SetSelection(resolver selection.Resolver, countGate cache.Gate) {
-	s.targets = resolver
-	s.countGate = countGate
+type Deps struct {
+	Stages        StageAssigner
+	LabelAdds     LabelAssigner
+	LabelRemovals LabelRemover
+	Assigner      EntryAssigner
+	Authz         Authorizer
+	Broadcaster   Broadcaster
+	Targets       selection.Resolver
+	CountGate     cache.Gate
+	Conversations ConversationActions
 }
 
-func NewService(
-	stageAssigner StageAssigner,
-	labelAssigner LabelAssigner,
-	labelRemover LabelRemover,
-	entryAssigner EntryAssigner,
-	authz Authorizer,
-	broadcaster Broadcaster,
-) *Service {
-	return &Service{
-		stageAssigner: stageAssigner,
-		labelAssigner: labelAssigner,
-		labelRemover:  labelRemover,
-		entryAssigner: entryAssigner,
-		authz:         authz,
-		broadcaster:   broadcaster,
+func NewService(d Deps) (*Service, error) {
+	if err := deps.Require("crm bulk actions", map[string]any{
+		"stage assigner":        d.Stages,
+		"label assigner":        d.LabelAdds,
+		"label remover":         d.LabelRemovals,
+		"entry assigner":        d.Assigner,
+		"authorizer":            d.Authz,
+		"broadcaster":           d.Broadcaster,
+		"selection resolver":    d.Targets,
+		"count gate":            d.CountGate,
+		"conversation finisher": d.Conversations.Finish,
+		"read marker":           d.Conversations.Read,
+		"personal inbox marks":  d.Conversations.Personal,
+	}); err != nil {
+		return nil, err
 	}
+	return &Service{
+		stageAssigner: d.Stages,
+		labelAssigner: d.LabelAdds,
+		labelRemover:  d.LabelRemovals,
+		entryAssigner: d.Assigner,
+		authz:         d.Authz,
+		broadcaster:   d.Broadcaster,
+		targets:       d.Targets,
+		countGate:     d.CountGate,
+		conversations: d.Conversations,
+	}, nil
 }
 
 func (s *Service) BulkApply(ctx context.Context, in BulkInput) (BulkResult, error) {
@@ -181,11 +200,8 @@ func (s *Service) authorize(in BulkInput) error {
 	if !known {
 		return fmt.Errorf("%w: %q", ErrUnknownAction, in.Action)
 	}
-	if s.authz == nil || !s.authz.HasWorkspacePermission(in.ActorID, in.WorkspaceID, resource, act, in.IsAdmin) {
+	if !s.authz.HasWorkspacePermission(in.ActorID, in.WorkspaceID, resource, act, in.IsAdmin) {
 		return ErrForbidden
-	}
-	if !s.conversationActionAvailable(in.Action) {
-		return ErrActionUnavailable
 	}
 	return nil
 }
@@ -210,9 +226,6 @@ func (s *Service) resolveTargets(ctx context.Context, in BulkInput, result *Bulk
 }
 
 func (s *Service) gated(ctx context.Context, read func(context.Context) error) error {
-	if s.targets == nil || s.countGate == nil {
-		return selection.ErrResolverUnavailable
-	}
 	return cache.Gated(ctx, s.countGate, read)
 }
 
@@ -279,9 +292,6 @@ func entryIDs(targets []EntryRef) []string {
 }
 
 func (s *Service) broadcast(in BulkInput, t EntryRef) {
-	if s.broadcaster == nil {
-		return
-	}
 	switch in.Action {
 	case ActionMoveStage:
 		s.broadcaster.BroadcastStageUpdate(in.WorkspaceID, t.EntryID, t.EntryType)

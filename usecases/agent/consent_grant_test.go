@@ -69,8 +69,9 @@ func agentFixture(checker workspace.PermissionChecker) (agent.CreateAgentUseCase
 		"ag-plain": {ID: "ag-plain", WorkspaceID: "ws1", Name: "Bia", MessagingPrompt: "p", MessagingModel: "m", Provider: agent.AgentProviderAI,
 			InternalTools: []agent.ToolBinding{optOutBinding()}},
 	}}
-	create := NewCreateAgentUseCase(store, nil, consentRegistry{}, nil, nil)
-	update := NewUpdateAgentUseCase(store, nil, consentRegistry{}, nil, nil)
+	create := NewCreateAgentUseCase(store, consentRegistry{}, nil)
+	update := NewUpdateAgentUseCase(store, consentRegistry{}, nil)
+	validated(create, update)
 	if checker != nil {
 		create.(ToolBindingGuarded).GuardToolBindings(checker)
 		update.(ToolBindingGuarded).GuardToolBindings(checker)
@@ -153,3 +154,5 @@ func TestAnAgentConsentSkillFailsClosedWithoutAPermissionChecker(t *testing.T) {
 		t.Fatalf("writes = %d", store.writes)
 	}
 }
+
+func (consentRegistry) Handler(string) (toolsdomain.Handler, bool) { return nil, false }

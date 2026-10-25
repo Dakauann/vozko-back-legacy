@@ -167,6 +167,9 @@ func (r *mockEntryRepo) ListByLeadID(string) ([]wce.WhatsAppCampaignEntry, error
 func (r *mockEntryRepo) ListRecentlyUpdated(string, int) ([]wce.WhatsAppCampaignEntry, error) {
 	return nil, nil
 }
+func (r *mockEntryRepo) ListRecentlyUpdatedForCampaigns([]string, int) (map[string][]wce.WhatsAppCampaignEntry, error) {
+	return nil, nil
+}
 func (r *mockEntryRepo) CountByCampaignID(string) (int64, error)         { return 0, nil }
 func (r *mockEntryRepo) CountByStatus(string) (*wce.StatusCounts, error) { return nil, nil }
 func (r *mockEntryRepo) CountByStatusForCampaigns([]string) (map[string]*wce.StatusCounts, error) {
@@ -248,6 +251,9 @@ func (r *mockMessageRepo) GetEntriesWithMessages(string, []string, shared.EntryT
 }
 func (r *mockMessageRepo) SearchEntriesWithMessages(conversation.SearchEntriesInput) ([]conversation.EntryWithLastMessage, int64, error) {
 	return nil, 0, nil
+}
+func (r *mockMessageRepo) CountEntriesByStages(conversation.SearchEntriesInput, []string) (map[string]int64, error) {
+	return nil, nil
 }
 func (r *mockMessageRepo) SearchEntriesByFilter(conversation.SearchByFilterInput) ([]conversation.EntryWithLastMessage, int64, error) {
 	return nil, 0, nil

@@ -106,7 +106,7 @@ func drainConnectedUsers(t *testing.T, conn *WSConnection) []string {
 
 func removalFixture(t *testing.T, canSee map[string]bool, viewOthers map[string]bool, users ...string) (*ConversationHub, map[string]*WSConnection) {
 	t.Helper()
-	hub := NewConversationHub(&hubDepartmentTestAuthorizer{entryAccess: canSee, viewOthers: viewOthers}, nil, nil, nil, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: &hubDepartmentTestAuthorizer{entryAccess: canSee, viewOthers: viewOthers}})
 	conns := map[string]*WSConnection{}
 	for i, user := range users {
 		conn := &WSConnection{ID: fmt.Sprintf("conn-%d", i), UserID: user, WorkspaceID: "ws-1", Send: make(chan []byte, 2)}
@@ -178,7 +178,7 @@ func TestBroadcastConnectedUsersToWorkspace_GlobalMemberSeesOnlyRelevantDepartme
 		},
 	}
 
-	hub := NewConversationHub(authorizer, nil, nil, nil, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer})
 	viewerConn := &WSConnection{ID: "viewer", UserID: "viewer", WorkspaceID: "ws-1", DepartmentID: "dept-1", ViewMode: "global", Send: make(chan []byte, 1)}
 	sameDeptConn := &WSConnection{ID: "same-dept", UserID: "same-dept", WorkspaceID: "ws-1", DepartmentID: "dept-1", ViewMode: "global", Send: make(chan []byte, 1)}
 	otherDeptConn := &WSConnection{ID: "other-dept", UserID: "other-dept", WorkspaceID: "ws-1", DepartmentID: "dept-2", ViewMode: "global", Send: make(chan []byte, 1)}
@@ -227,7 +227,7 @@ func TestBroadcastConnectedUsersToWorkspace_CampaignViewShowsUsersWhoCanAccessCa
 		},
 	}
 
-	hub := NewConversationHub(authorizer, nil, nil, nil, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer})
 	viewerConn := &WSConnection{ID: "viewer", UserID: "viewer", WorkspaceID: "ws-1", CampaignID: "camp-1", CampaignType: "whatsapp", ViewMode: "campaign", Send: make(chan []byte, 1)}
 	sameCampaignConn := &WSConnection{ID: "same-campaign", UserID: "same-campaign", WorkspaceID: "ws-1", CampaignID: "camp-1", CampaignType: "whatsapp", ViewMode: "campaign", Send: make(chan []byte, 1)}
 	globalSameScopeConn := &WSConnection{ID: "global-same-scope", UserID: "global-same-scope", WorkspaceID: "ws-1", DepartmentID: "dept-1", ViewMode: "global", Send: make(chan []byte, 1)}

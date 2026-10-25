@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+
+	"vozko/domain/conversation"
+	"vozko/infra/database/sqlexpr"
 )
 
 func TestConcurrentIndexBuildsWhenNothingIsThere(t *testing.T) {
@@ -78,6 +81,75 @@ func TestEveryConcurrentIndexIsBuiltConcurrently(t *testing.T) {
 		if !plain && !unique {
 			t.Fatalf("%s is not built concurrently under its own name: %s", idx.name, idx.sql)
 		}
+	}
+}
+
+func TestTheHotReadIndexesAreBuiltConcurrentlyWithTheirCoveringColumns(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		want string
+	}{
+		{
+			name: CampaignEntryLiveStatusIndex,
+			want: "ON whatsapp_campaign_entries (campaign_id, status) INCLUDE (lead_id, id) WHERE deleted_at IS NULL",
+		},
+		{
+			name: CampaignEntryOpenInboxIndex,
+			want: "ON whatsapp_campaign_entries (campaign_id, last_message_at DESC) INCLUDE (lead_id, conversation_status, awaiting_reply_since) WHERE deleted_at IS NULL AND last_message_at IS NOT NULL AND conversation_status IS DISTINCT FROM 'finished'",
+		},
+		{
+			name: CampaignEntryCreatedCoverIndex,
+			want: "ON whatsapp_campaign_entries (campaign_id, created_at) INCLUDE (id, conversation_status, last_message_at, closed_at) WHERE deleted_at IS NULL",
+		},
+		{
+			name: UnofficialConversationInboxIndex,
+			want: "ON unofficial_whatsapp_conversations (instance_id, last_message_at DESC) INCLUDE (contact_id, conversation_status, awaiting_reply_since) WHERE deleted_at IS NULL AND last_message_at IS NOT NULL",
+		},
+		{
+			name: MessageSenderCreatedIndex,
+			want: "ON conversation_messages (entry_id, entry_type, sender_id, created_at) WHERE deleted_at IS NULL",
+		},
+		{
+			name: UnresolvedChargeCampaignIndex,
+			want: "ON balance_transactions (id) WHERE service_type = 'whatsapp_campaign' AND charge_campaign_id IS NULL",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sql, ok := ConcurrentIndexSQL(tc.name)
+			if !ok {
+				t.Fatalf("%s is not in the concurrent index list; a plain CREATE INDEX locks a table above a million rows for writes", tc.name)
+			}
+			if _, plain := PerformanceIndexSQL(tc.name); plain {
+				t.Fatalf("%s is still declared as a plain index", tc.name)
+			}
+			flat := strings.Join(strings.Fields(sql), " ")
+			if !strings.HasSuffix(flat, tc.want) {
+				t.Fatalf("%s\nwant suffix: %s\ngot:         %s", tc.name, tc.want, flat)
+			}
+		})
+	}
+}
+
+func TestTheOpenInboxIndexMatchesTheInboxPredicate(t *testing.T) {
+	sql, ok := ConcurrentIndexSQL(CampaignEntryOpenInboxIndex)
+	if !ok {
+		t.Fatalf("%s is not declared", CampaignEntryOpenInboxIndex)
+	}
+	if !strings.Contains(sql, "conversation_status IS DISTINCT FROM "+sqlexpr.Literal(string(conversation.ConversationStatusFinished))) {
+		t.Fatalf("%s must exclude the finished status the inbox query excludes: %s", CampaignEntryOpenInboxIndex, sql)
+	}
+}
+
+func TestTheChargeCampaignBackfillSeeksOnlyItsPartialIndex(t *testing.T) {
+	sql, ok := ConcurrentIndexSQL(UnresolvedChargeCampaignIndex)
+	if !ok {
+		t.Fatalf("%s is not declared", UnresolvedChargeCampaignIndex)
+	}
+	if !strings.HasSuffix(strings.TrimSpace(sql), "WHERE "+unresolvedChargeCampaignPredicate) {
+		t.Fatalf("%s must carry the exact predicate the backfill seeks: %s", UnresolvedChargeCampaignIndex, sql)
+	}
+	if !strings.Contains(unresolvedChargeCampaignsSQL, unresolvedChargeCampaignPredicate+" ORDER BY id") {
+		t.Fatalf("the backfill must seek with the indexed predicate: %s", unresolvedChargeCampaignsSQL)
 	}
 }
 

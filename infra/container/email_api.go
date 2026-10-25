@@ -95,10 +95,13 @@ func (c *Container) initEmailAPI() {
 	c.emailAPI = &emailAPIBundle{EmailAPI: api, Handler: emailapihttp.NewHandler(api.Service, api.Service, api.Webhooks)}
 }
 
-func (c *Container) registerEmailAPIJobs() {
+func (c *Container) emailAPIJobs() cronJobs {
 	if c.emailAPI == nil {
 		log.Fatalf("[email-api] jobs requested before the email API was built")
 	}
 	webhooks := c.emailAPI.Webhooks
-	c.jobRunner.SetEmailWebhookJobs(cronPackage.CtxJobFunc(webhooks.Sweep), cronPackage.CtxJobFunc(webhooks.Purge))
+	return cronJobs{
+		"email_webhook_sweep": cronPackage.Method(webhooks, webhooks.Sweep),
+		"email_webhook_purge": cronPackage.Method(webhooks, webhooks.Purge),
+	}
 }

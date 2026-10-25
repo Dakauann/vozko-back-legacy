@@ -26,6 +26,8 @@ const (
 	whatsappInboundPerAgentRing = 15 * time.Second
 
 	whatsappInboundTotalWindow = 28 * time.Second
+
+	whatsappInboundNobodyAvailable = "📞 Chamada perdida. Nenhum agente disponível."
 )
 
 type inboundBusinessPhoneResolver interface {
@@ -160,11 +162,10 @@ func (uc *WhatsAppInboundCallUseCase) handle(c conversation_domain.WhatsAppInbou
 	workspaceID := strings.TrimSpace(phone.OwnerWorkspaceID)
 
 	entryID, departmentID, assignedUserID := "", "", ""
+	var departmentErr error
 	if entry, eerr := uc.entries.FindInboundRouteByNumberAndBusinessPhone(c.FromNumber, businessPhoneID); eerr == nil && entry != nil {
 		entryID = entry.ID
-		if dep, derr := uc.departments.GetEntryDepartmentID(entryID, whatsappInboundEntryType); derr == nil {
-			departmentID = dep
-		}
+		departmentID, departmentErr = uc.departments.GetEntryDepartmentID(entryID, whatsappInboundEntryType)
 	}
 	if workspaceID == "" {
 		uc.log.Printf("[WAInbound] %s: no workspace for business phone %s → reject", c.CallID, businessPhoneID)
@@ -177,9 +178,16 @@ func (uc *WhatsAppInboundCallUseCase) handle(c conversation_domain.WhatsAppInbou
 
 	uc.recordEvent(entryID, c.FromNumber, conversation_domain.MessageTypeCallReceived, "📞 Chamada recebida pelo WhatsApp.")
 
+	if departmentErr != nil {
+		uc.log.Printf("[WAInbound] %s: department of entry %s unreadable, refusing instead of ringing the workspace: %v", c.CallID, entryID, departmentErr)
+		uc.recordEvent(entryID, c.FromNumber, conversation_domain.MessageTypeCallMissed, whatsappInboundNobodyAvailable)
+		uc.reject(ctx, businessPhoneID, c.CallID)
+		return
+	}
+
 	candidates, roulette := uc.resolveCandidates(workspaceID, departmentID, assignedUserID)
 	if len(candidates) == 0 {
-		uc.recordEvent(entryID, c.FromNumber, conversation_domain.MessageTypeCallMissed, "📞 Chamada perdida. Nenhum agente disponível.")
+		uc.recordEvent(entryID, c.FromNumber, conversation_domain.MessageTypeCallMissed, whatsappInboundNobodyAvailable)
 		uc.reject(ctx, businessPhoneID, c.CallID)
 		return
 	}

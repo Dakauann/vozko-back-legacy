@@ -28,7 +28,7 @@ var _ ia.PortfolioHolders = (*stubPortfolio)(nil)
 func carteiraFixture(profile conversation.AutomationProfile, holder string, online ...string) (*aiFixture, *stubPortfolio) {
 	f := newAIFixture(profile, online...)
 	portfolio := &stubPortfolio{holder: holder}
-	f.svc.SetPortfolio(portfolio)
+	f.svc.portfolio = portfolio
 	return f, portfolio
 }
 

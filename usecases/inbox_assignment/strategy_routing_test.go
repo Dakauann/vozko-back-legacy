@@ -54,8 +54,8 @@ func strategyConfig(strategy ia.Strategy, recipients ...ia.Recipient) *wsc.Works
 }
 
 func strategyService(repo *statefulRepo, online *mockEligible, cfg *wsc.WorkspaceConfig) *AssignmentService {
-	svc := NewAssignmentService(repo, online, defaultResolver("ws-1", ""), &rouletteConfig{cfg: cfg})
-	svc.Candidates().SetClock(func() time.Time { return testNow })
+	svc := newService(repo, online, defaultResolver("ws-1", ""), &rouletteConfig{cfg: cfg})
+	svc.Candidates().now = func() time.Time { return testNow }
 	return svc
 }
 
@@ -108,7 +108,7 @@ func TestPriority_EmptyListAssignsNobody(t *testing.T) {
 func TestPriority_ListedMemberOutsideTheDepartmentNeverReceives(t *testing.T) {
 	repo := newStatefulRepo()
 	online := deptEligible([]string{"ana", "bob"}, "ws-1:dept-1", []string{"bob"})
-	svc := NewAssignmentService(repo, online, defaultResolver("ws-1", "dept-1"),
+	svc := newService(repo, online, defaultResolver("ws-1", "dept-1"),
 		&rouletteConfig{cfg: strategyConfig(ia.StrategyPriority, tier("ana", 1), tier("bob", 2))})
 
 	assert.Equal(t, "bob", svc.EnsureAssignment("entry-1", "whatsapp", "phone-1"))
@@ -148,8 +148,8 @@ func TestWeighted_OfflineMemberDropsOutOfTheSequence(t *testing.T) {
 func TestLeastBusy_PicksTheFewestOpenAndBalancesAsWorkArrives(t *testing.T) {
 	repo := newStatefulRepo()
 	svc := strategyService(repo, defaultEligible("ana", "bob", "cid"), strategyConfig(ia.StrategyLeastBusy))
-	svc.SetWorkload(&liveWorkload{repo: repo, base: map[string]int{"ana": 2, "bob": 0, "cid": 1}})
-	svc.SetHandouts(&stubHandouts{})
+	svc.candidates.workload = &liveWorkload{repo: repo, base: map[string]int{"ana": 2, "bob": 0, "cid": 1}}
+	svc.candidates.handouts = &stubHandouts{}
 
 	assert.Equal(t, []string{"bob", "bob", "cid", "ana"}, assignMany(svc, 4))
 }
@@ -157,15 +157,8 @@ func TestLeastBusy_PicksTheFewestOpenAndBalancesAsWorkArrives(t *testing.T) {
 func TestLeastBusy_FailsClosedWhenTheWorkloadCannotBeRead(t *testing.T) {
 	repo := newStatefulRepo()
 	svc := strategyService(repo, defaultEligible("ana"), strategyConfig(ia.StrategyLeastBusy))
-	svc.SetWorkload(&liveWorkload{err: errors.New("db down")})
-	svc.SetHandouts(&stubHandouts{})
-
-	assert.Empty(t, svc.EnsureAssignment("entry-1", "whatsapp", "phone-1"))
-}
-
-func TestLeastBusy_FailsClosedWhenTheReadersAreNotWired(t *testing.T) {
-	repo := newStatefulRepo()
-	svc := strategyService(repo, defaultEligible("ana"), strategyConfig(ia.StrategyLeastBusy))
+	svc.candidates.workload = &liveWorkload{err: errors.New("db down")}
+	svc.candidates.handouts = &stubHandouts{}
 
 	assert.Empty(t, svc.EnsureAssignment("entry-1", "whatsapp", "phone-1"))
 }
@@ -176,7 +169,7 @@ func TestCapacity_SkipsFullMembersUnderEveryStrategy(t *testing.T) {
 	cfg.RouletteMaxOpenPerMember = 2
 	svc := strategyService(repo, defaultEligible("ana", "bob"), cfg)
 	workload := &liveWorkload{repo: repo, base: map[string]int{"ana": 2}}
-	svc.SetWorkload(workload)
+	svc.candidates.workload = workload
 
 	assert.Equal(t, []string{"bob", "bob", ""}, assignMany(svc, 3))
 	assert.Equal(t, 3, workload.calls)
@@ -187,7 +180,7 @@ func TestCapacity_UnreadableWorkloadAssignsNobody(t *testing.T) {
 	cfg := strategyConfig(ia.StrategyRoundRobin)
 	cfg.RouletteMaxOpenPerMember = 5
 	svc := strategyService(repo, defaultEligible("ana"), cfg)
-	svc.SetWorkload(&liveWorkload{err: errors.New("db down")})
+	svc.candidates.workload = &liveWorkload{err: errors.New("db down")}
 
 	assert.Empty(t, svc.EnsureAssignment("entry-1", "whatsapp", "phone-1"))
 }
@@ -196,7 +189,7 @@ func TestRoundRobinWithoutCapacityNeverReadsTheWorkload(t *testing.T) {
 	repo := newStatefulRepo()
 	svc := strategyService(repo, defaultEligible("ana", "bob"), strategyConfig(ia.StrategyRoundRobin))
 	workload := &liveWorkload{repo: repo}
-	svc.SetWorkload(workload)
+	svc.candidates.workload = workload
 
 	assert.Equal(t, []string{"ana", "bob"}, assignMany(svc, 2))
 	assert.Zero(t, workload.calls)
@@ -205,7 +198,7 @@ func TestRoundRobinWithoutCapacityNeverReadsTheWorkload(t *testing.T) {
 func TestLongestIdle_PicksWhoWaitedLongestSinceTheirLastConversation(t *testing.T) {
 	repo := newStatefulRepo()
 	svc := strategyService(repo, defaultEligible("ana", "bob", "cid"), strategyConfig(ia.StrategyLongestIdle))
-	svc.SetHandouts(&stubHandouts{last: map[string]time.Time{"ana": hoursAgo(1), "bob": hoursAgo(3), "cid": hoursAgo(2)}})
+	svc.candidates.handouts = &stubHandouts{last: map[string]time.Time{"ana": hoursAgo(1), "bob": hoursAgo(3), "cid": hoursAgo(2)}}
 
 	assert.Equal(t, "bob", svc.EnsureAssignment("entry-1", "whatsapp", "phone-1"))
 }
@@ -213,7 +206,7 @@ func TestLongestIdle_PicksWhoWaitedLongestSinceTheirLastConversation(t *testing.
 func TestLongestIdle_FailsClosedWhenHandoutsCannotBeRead(t *testing.T) {
 	repo := newStatefulRepo()
 	svc := strategyService(repo, defaultEligible("ana"), strategyConfig(ia.StrategyLongestIdle))
-	svc.SetHandouts(&stubHandouts{err: errors.New("db down")})
+	svc.candidates.handouts = &stubHandouts{err: errors.New("db down")}
 
 	assert.Empty(t, svc.EnsureAssignment("entry-1", "whatsapp", "phone-1"))
 }
@@ -221,7 +214,7 @@ func TestLongestIdle_FailsClosedWhenHandoutsCannotBeRead(t *testing.T) {
 func TestRandom_PicksTheDrawnMember(t *testing.T) {
 	repo := newStatefulRepo()
 	svc := strategyService(repo, defaultEligible("ana", "bob", "cid"), strategyConfig(ia.StrategyRandom))
-	svc.Candidates().SetDraw(func(n int) int { return n - 1 })
+	svc.Candidates().draw = func(n int) int { return n - 1 }
 
 	assert.Equal(t, "cid", svc.EnsureAssignment("entry-1", "whatsapp", "phone-1"))
 }
@@ -231,7 +224,7 @@ func TestClaim_LeavesTheConversationForTheFirstWhoOpensIt(t *testing.T) {
 	svc := strategyService(repo, defaultEligible("ana", "bob"), strategyConfig(ia.StrategyClaim))
 
 	assert.Empty(t, svc.EnsureAssignment("entry-1", "whatsapp", "phone-1"))
-	claimed, err := svc.AssignOnOpen("entry-1", "whatsapp", "phone-1", "ws-1", "bob")
+	claimed, err := svc.ClaimIfUnassigned("entry-1", "whatsapp", "phone-1", "ws-1", "bob", ia.TriggerOpen)
 	require.NoError(t, err)
 	assert.True(t, claimed)
 }
@@ -248,7 +241,7 @@ func TestResolve_ReportsWhyThePoolIsEmpty(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			pool := NewCandidateResolver(defaultEligible(tc.online...)).Resolve("ws-1", "", false, tc.cfg)
+			pool := candidatesFor(defaultEligible(tc.online...)).Resolve("ws-1", "", false, tc.cfg)
 			assert.False(t, pool.CanPick())
 			assert.Equal(t, tc.want, pool.Reason)
 			assert.Equal(t, tc.cfg.EffectiveRouletteStrategy(), pool.Strategy)

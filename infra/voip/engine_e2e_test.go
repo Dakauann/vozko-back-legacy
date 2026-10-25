@@ -510,7 +510,9 @@ func TestEngineRejectsInboundCallsFromUnknownSources(t *testing.T) {
 	trunk.Settings.SkipRegistration = true
 	repo := siptrunktest.NewMemoryRepository()
 	manager := newEngine(t, repo, &gaugeMetrics{}, nil)
-	manager.SetInboundInviteHandler(&answeringHandler{answered: make(chan sip_trunk.TrunkCallSession, 1)})
+	if err := manager.BindInboundInviteHandler(&answeringHandler{answered: make(chan sip_trunk.TrunkCallSession, 1)}); err != nil {
+		t.Fatal(err)
+	}
 	if err := manager.RegisterTrunk(trunk); err != nil {
 		t.Fatal(err)
 	}
@@ -527,7 +529,9 @@ func TestEngineRejectsInboundCallsFromUnknownSources(t *testing.T) {
 func TestEngineAnswersInboundCallsFromTheProvider(t *testing.T) {
 	f := startEngine(t, nil)
 	handler := &answeringHandler{answered: make(chan sip_trunk.TrunkCallSession, 1)}
-	f.manager.SetInboundInviteHandler(handler)
+	if err := f.manager.BindInboundInviteHandler(handler); err != nil {
+		t.Fatal(err)
+	}
 
 	dialog, err := dialEngine(t, f.provider, f.manager, f.trunk.ID)
 	if err != nil {
@@ -563,7 +567,9 @@ func (f engineFixture) persistedStatus() sip_trunk.RegistrationStatus {
 func TestInboundCallerKeyPressesReachTheAnsweredSession(t *testing.T) {
 	f := startEngine(t, nil)
 	handler := &answeringHandler{answered: make(chan sip_trunk.TrunkCallSession, 1)}
-	f.manager.SetInboundInviteHandler(handler)
+	if err := f.manager.BindInboundInviteHandler(handler); err != nil {
+		t.Fatal(err)
+	}
 
 	dialog, err := dialEngine(t, f.provider, f.manager, f.trunk.ID)
 	if err != nil {

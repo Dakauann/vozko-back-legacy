@@ -246,57 +246,31 @@ func (c *Container) wireMercadoLivreConversationStack() {
 	if b == nil || b.Threads == nil || b.Tokens == nil {
 		log.Fatalf("[mercadolivre] the conversation stack needs the channel runtime")
 	}
-	if c.services.conversationAutomation == nil || c.services.conversationAuthImpl == nil || c.services.conversationStatusService == nil {
-		log.Fatalf("[mercadolivre] conversation services must be built before the Mercado Livre conversation stack")
-	}
 	conversations := b.Conversations
 
-	c.registerChannelAdapter(mluc.NewChannelAdapter(mluc.ChannelAdapterDeps{
-		Accounts:      b.Accounts,
-		Contacts:      b.Contacts,
+	c.registerConversationChannel(conversationChannel{
+		EntryType: shared.EntryTypeMercadoLivre,
+		Adapter: mluc.NewChannelAdapter(mluc.ChannelAdapterDeps{
+			Accounts:      b.Accounts,
+			Contacts:      b.Contacts,
+			Conversations: conversations,
+			Services:      b.Services,
+			Tokens:        b.Tokens,
+			Threads:       b.Threads,
+			Refresh:       b.Publisher,
+			Media:         mlinfra.NewMediaFetcher(netguard.NewHTTPClient(mercadoLivreMediaTimeout)),
+			Metrics:       b.Metrics,
+		}),
 		Conversations: conversations,
-		Services:      b.Services,
-		Tokens:        b.Tokens,
-		Threads:       b.Threads,
-		Refresh:       b.Publisher,
-		Media:         mlinfra.NewMediaFetcher(netguard.NewHTTPClient(mercadoLivreMediaTimeout)),
-		Metrics:       b.Metrics,
-	}))
-
-	automationReader, ok := c.services.conversationHistory.(interface {
-		SetAutomationReader(shared.EntryType, func(context.Context, string) (*bool, error))
+		Automation: func(ctx context.Context, entryID string) (*bool, error) {
+			conv, err := conversations.FindByID(ctx, entryID)
+			if err != nil {
+				return nil, err
+			}
+			return conv.AutomationEnabled, nil
+		},
+		Contacts: mercadoLivreContactIdentity(b),
 	})
-	if !ok {
-		log.Fatalf("[mercadolivre] history provider exposes no SetAutomationReader")
-	}
-	automationReader.SetAutomationReader(shared.EntryTypeMercadoLivre, func(ctx context.Context, entryID string) (*bool, error) {
-		conv, err := conversations.FindByID(ctx, entryID)
-		if err != nil {
-			return nil, err
-		}
-		return conv.AutomationEnabled, nil
-	})
-	c.services.conversationAutomation.Register(shared.EntryTypeMercadoLivre, conversations.SetAutomationEnabled)
-	c.services.conversationAuthImpl.SetEntryAccessRepo(shared.EntryTypeMercadoLivre, conversations)
-	c.services.conversationStatusService.SetConversationStatusStore(shared.EntryTypeMercadoLivre,
-		conversationStatusFuncs{status: conversations.StatusForEntry, set: conversations.SetStatus})
-	c.services.conversationStatusService.SetConversationCounter(shared.EntryTypeMercadoLivre, conversations.CountByStatus)
-
-	owners, ok := c.services.campaignWorkspaceResolver.(interface {
-		SetEntryOwnerResolver(shared.EntryType, conversation_usecase.EntryOwnerResolver)
-	})
-	if !ok {
-		log.Fatalf("[mercadolivre] workspace resolver exposes no SetEntryOwnerResolver")
-	}
-	owners.SetEntryOwnerResolver(shared.EntryTypeMercadoLivre, conversations)
-
-	identities, ok := c.services.conversationHistory.(interface {
-		SetContactIdentityLookup(shared.EntryType, conversation_usecase.ContactIdentityLookup)
-	})
-	if !ok {
-		log.Fatalf("[mercadolivre] history provider exposes no SetContactIdentityLookup")
-	}
-	identities.SetContactIdentityLookup(shared.EntryTypeMercadoLivre, mercadoLivreContactIdentity(b))
 }
 
 func mercadoLivreContactIdentity(b *mercadoLivreBundle) conversation_usecase.ContactIdentityLookup {

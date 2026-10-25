@@ -20,10 +20,6 @@ type GroupSenderDirectory interface {
 	WorkspaceInstances(ctx context.Context, workspaceID string) ([]*uw.Instance, error)
 }
 
-func (uc *createCampaignUseCase) SetGroupSenders(senders GroupSenderDirectory) {
-	uc.groupSenders = senders
-}
-
 type senderPool map[string]*uw.Instance
 
 func scopedSenderPool(ctx context.Context, dir GroupSenderDirectory, workspaceID string, scope uw.DepartmentScope) (senderPool, error) {
@@ -126,9 +122,6 @@ func subjectOf(seats []*uw.Group) string {
 }
 
 func (uc *createCampaignUseCase) groupEntries(ctx context.Context, in *uwc.Campaign, scope uw.DepartmentScope) ([]uwc.Entry, error) {
-	if uc.groupSenders == nil {
-		return nil, ErrGroupTargetsUnavailable
-	}
 	pool, err := scopedSenderPool(ctx, uc.groupSenders, in.WorkspaceID, scope)
 	if err != nil {
 		return nil, err

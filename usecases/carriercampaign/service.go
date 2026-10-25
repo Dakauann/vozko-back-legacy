@@ -15,10 +15,15 @@ import (
 	cc "vozko/domain/carriercampaign"
 	"vozko/domain/carriermessaging"
 	"vozko/domain/lead"
+	"vozko/domain/notification"
 	"vozko/domain/selection"
+	"vozko/domain/workspace"
 	campaignaudience_usecase "vozko/usecases/campaignaudience"
+	"vozko/usecases/campaignschedule"
 	carriermessaging_usecase "vozko/usecases/carriermessaging"
 )
+
+var scheduleChannel = campaignschedule.Channel{Key: "carrier", Label: "Campanha de RCS e SMS", Path: "/dashboard/rcs-sms/campaigns/", Resource: workspace.ResourceCarrierMessaging}
 
 var (
 	ErrDependencyMissing = errors.New("carrier campaign: a required dependency is missing")
@@ -58,16 +63,18 @@ type Deps struct {
 	Overview      OverviewReader
 	WhatsAppSpend WhatsAppSpend
 	Timezones     carriermessaging_usecase.WorkspaceTimezones
+	Notifications notification.Publisher
+	Audience      *campaignaudience_usecase.Service
 	Now           func() time.Time
 	NewID         func() string
 	Logf          func(format string, args ...any)
 }
 
 type Service struct {
-	deps     Deps
-	queue    Queue
-	launched func(carriermessaging.Channel) bool
-	audience *campaignaudience_usecase.Service
+	deps      Deps
+	schedules *campaignschedule.Reporter
+	queue     Queue
+	launched  func(carriermessaging.Channel) bool
 }
 
 func New(d Deps) (*Service, error) {
@@ -99,6 +106,8 @@ func New(d Deps) (*Service, error) {
 		"overview":       d.Overview == nil,
 		"whatsapp spend": d.WhatsAppSpend == nil,
 		"timezones":      d.Timezones == nil,
+		"notifications":  d.Notifications == nil,
+		"audience":       d.Audience == nil,
 	}
 	var absent []string
 	for name, gone := range missing {
@@ -119,7 +128,11 @@ func New(d Deps) (*Service, error) {
 	if d.Logf == nil {
 		d.Logf = log.Printf
 	}
-	return &Service{deps: d, launched: carriermessaging.Channel.Launched}, nil
+	schedules, err := campaignschedule.New(campaignschedule.Deps{Channel: scheduleChannel, Failures: d.Campaigns, Notifications: d.Notifications, Logf: d.Logf})
+	if err != nil {
+		return nil, err
+	}
+	return &Service{deps: d, schedules: schedules, launched: carriermessaging.Channel.Launched}, nil
 }
 
 func (s *Service) AttachQueue(q Queue) {

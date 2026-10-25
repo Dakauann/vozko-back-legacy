@@ -123,6 +123,7 @@ type Deps struct {
 	Shared        cache.SharedState
 	Memo          cache.Memo
 	Notifications notification.EpisodePublisher
+	Audience      *campaignaudience_usecase.Service
 	PublicBaseURL string
 	Now           func() time.Time
 	Logf          func(format string, args ...any)
@@ -130,7 +131,6 @@ type Deps struct {
 
 type Service struct {
 	deps       Deps
-	audience   *campaignaudience_usecase.Service
 	runner     *campaignqueue.Runner
 	billing    *RunBilling
 	dispatcher *campaignqueue.Dispatcher
@@ -145,7 +145,7 @@ func New(deps Deps) (*Service, error) {
 		"gateway": deps.Gateway == nil, "senders": deps.Senders == nil, "domains": deps.Domains == nil, "accounts": deps.Accounts == nil, "reactivation": deps.Reactivation == nil,
 		"billing": deps.Billing == nil, "wallet": deps.Wallet == nil, "rates": deps.Rates == nil, "queue pub": deps.QueuePub == nil,
 		"queue sub": deps.QueueSub == nil, "shared state": deps.Shared == nil, "memo": deps.Memo == nil,
-		"notifications": deps.Notifications == nil,
+		"notifications": deps.Notifications == nil, "audience": deps.Audience == nil,
 	}
 	for name, absent := range missing {
 		if absent {

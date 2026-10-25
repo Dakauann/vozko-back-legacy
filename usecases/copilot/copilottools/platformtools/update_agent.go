@@ -32,13 +32,12 @@ func (t *updateAgentTool) Definition() tools.Definition {
 	params["removeTools"] = stringListParam(agentFieldDescriptions["removeTools"])
 	params["addKnowledgeBaseIds"] = stringListParam(agentFieldDescriptions["addKnowledgeBaseIds"])
 	params["removeKnowledgeBaseIds"] = stringListParam(agentFieldDescriptions["removeKnowledgeBaseIds"])
-	params["addMcpCollectionIds"] = stringListParam(agentFieldDescriptions["addMcpCollectionIds"])
-	params["removeMcpCollectionIds"] = stringListParam(agentFieldDescriptions["removeMcpCollectionIds"])
+	params["publish"] = publishParam()
 
 	return tools.Definition{
 		Name: "update_agent",
 		Description: "Atualiza um agente existente. Apenas os campos informados são alterados; os demais permanecem como estão. " +
-			"Ferramentas, bases de conhecimento e coleções MCP são gerenciadas de forma incremental (addTools/removeTools etc.): " +
+			"Ferramentas (servidores MCP inclusive, como ferramentas do tipo mcp_source) e bases de conhecimento são gerenciadas de forma incremental (addTools/removeTools etc.): " +
 			"as atuais são preservadas automaticamente, não é preciso reenviá-las.",
 		Parameters: params,
 		Required:   []string{"id"},
@@ -67,31 +66,34 @@ func (t *updateAgentTool) Execute(ctx context.Context, cc copilot.Context, args 
 		copilottools.ArgStringList(args, "addKnowledgeBaseIds"),
 		copilottools.ArgStringList(args, "removeKnowledgeBaseIds"),
 	)
-	in.MCPCollectionIDs = mergeStrings(
-		a.MCPCollectionIDs,
-		copilottools.ArgStringList(args, "addMcpCollectionIds"),
-		copilottools.ArgStringList(args, "removeMcpCollectionIds"),
-	)
 
 	in.RequestedBy = copilottools.RequesterOf(cc)
 	out, err := t.update.Execute(ctx, id, in)
 	if res, refused := copilottools.ConsentGrantRefusal(err); refused {
 		return res
 	}
+	if message, blocked := blockedMessage(err); blocked {
+		return copilot.Result{Status: copilot.StatusError, Message: message}
+	}
 	if err != nil {
 		return copilot.Result{Status: copilot.StatusError, Message: err.Error()}
 	}
-	return copilot.Result{Status: copilot.StatusOK, Data: out}
+	return t.card.publishAfterSave(ctx, cc, args, out)
 }
 
 func (t *updateAgentTool) Validate(ctx context.Context, cc copilot.Context, args map[string]interface{}) error {
-	if _, err := ownedAgent(t.get, cc, copilottools.ArgString(args, "id")); err != nil {
+	a, err := ownedAgent(t.get, cc, copilottools.ArgString(args, "id"))
+	if err != nil {
 		return err
 	}
 	if err := t.card.secrets().validate(argToolBindings(args, "addTools")); err != nil {
 		return err
 	}
-	return t.card.requireLinks(ctx, cc.WorkspaceID, copilottools.ArgStringList(args, "addKnowledgeBaseIds"), copilottools.ArgStringList(args, "addMcpCollectionIds"))
+	if err := t.card.requireLinks(ctx, cc.WorkspaceID, copilottools.ArgStringList(args, "addKnowledgeBaseIds")); err != nil {
+		return err
+	}
+	draft := mergeToolBindings(t.card.Catalog, a.InternalTools, argToolBindings(args, "addTools"), copilottools.ArgStringList(args, "removeTools"))
+	return t.card.refuseBrokenActiveAgent(ctx, a, draft)
 }
 
 func (t *updateAgentTool) Secrets(args map[string]interface{}) []copilot.SecretField {
@@ -111,6 +113,5 @@ func (t *updateAgentTool) Describe(ctx context.Context, cc copilot.Context, args
 	card = append(card, namesField("removeTools", copilottools.ArgStringList(args, "removeTools"))...)
 	card = append(card, t.card.knowledgeBaseField(ctx, cc, "addKnowledgeBases", copilottools.ArgStringList(args, "addKnowledgeBaseIds"))...)
 	card = append(card, t.card.knowledgeBaseField(ctx, cc, "removeKnowledgeBases", copilottools.ArgStringList(args, "removeKnowledgeBaseIds"))...)
-	card = append(card, t.card.collectionField(ctx, cc, "addMcpCollections", copilottools.ArgStringList(args, "addMcpCollectionIds"))...)
-	return append(card, t.card.collectionField(ctx, cc, "removeMcpCollections", copilottools.ArgStringList(args, "removeMcpCollectionIds"))...)
+	return append(card, publishField(args)...)
 }

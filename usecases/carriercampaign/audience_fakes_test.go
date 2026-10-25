@@ -53,7 +53,7 @@ type audienceGate struct{}
 
 func (audienceGate) Acquire(context.Context) (func(), error) { return func() {}, nil }
 
-func (h *harness) wireAudience(t interface{ Fatal(...any) }) {
+func (h *harness) newAudience(t interface{ Fatal(...any) }) *campaignaudience_usecase.Service {
 	aud, err := campaignaudience_usecase.New(campaignaudience_usecase.Deps{
 		Selections: h.selections, Lists: audiencetest.NewLists(), Sheets: audienceSheets{}, Phones: audienceLookups{}, Emails: audienceLookups{},
 		EmailLeads: audienceLookups{}, EmailsSeen: &hygienetest.SeenEmails{}, Definitions: audienceLookups{}, Gate: audienceGate{}, Flight: audiencetest.Flight(audiencetest.NewState()), Now: func() time.Time { return h.now },
@@ -61,6 +61,5 @@ func (h *harness) wireAudience(t interface{ Fatal(...any) }) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	aud.AddChannel(h.svc.AudienceChannel())
-	h.svc.SetAudience(aud)
+	return aud
 }

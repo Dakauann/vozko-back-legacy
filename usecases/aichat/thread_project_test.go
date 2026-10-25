@@ -26,11 +26,7 @@ func (p *projectBinder) BindProject(threadID, projectID string) (bool, error) {
 }
 
 func projectService(binder aichat.ThreadProjects) *Service {
-	svc := NewService(&costThreads{}, nil, nil, nil)
-	if binder != nil {
-		svc.SetThreadProjects(binder)
-	}
-	return svc
+	return testService(Deps{Threads: &costThreads{}, Projects: binder})
 }
 
 func TestTheFirstStudioTurnBindsTheThreadToItsProject(t *testing.T) {
@@ -86,10 +82,6 @@ func TestATurnOutsideTheStudioLeavesTheProjectAlone(t *testing.T) {
 
 func TestAStudioTurnIsRefusedWhenTheBindingCannotBeChecked(t *testing.T) {
 	thread := &aichat.Thread{ID: "th1"}
-	if err := projectService(nil).ClaimProject(thread, "project-a"); !errors.Is(err, ErrProjectBindingUnavailable) {
-		t.Fatalf("without a binding store a studio turn must be refused, got %v", err)
-	}
-
 	failure := errors.New("database down")
 	if err := projectService(&projectBinder{bound: map[string]string{}, err: failure}).ClaimProject(thread, "project-a"); !errors.Is(err, failure) {
 		t.Fatalf("a failed binding must refuse the turn, got %v", err)

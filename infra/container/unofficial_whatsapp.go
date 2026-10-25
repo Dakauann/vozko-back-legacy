@@ -20,8 +20,8 @@ import (
 )
 
 type unofficialWhatsAppBundle struct {
-	Enabled bool
-
+	LinkGuard     *uwuc.LinkGuard
+	LineHandover  *uwuc.LineHandover
 	Servers       uw.ServerRepository
 	Instances     uw.InstanceRepository
 	Contacts      uw.ContactRepository
@@ -84,16 +84,18 @@ func (c *Container) initUnofficialWhatsApp() {
 		bundle.Instances, bundle.Servers, bundle.Contacts, bundle.Conversations,
 		bundle.Messaging, uwrepo.NewLeadLinker(c.repositories.lead))
 
-	bundle.Entitlements = uwuc.NewInstanceEntitlementReader(bundle.Instances)
+	bundle.Entitlements = uwuc.NewInstanceEntitlementReader(bundle.Instances, lateWorkspaceEntitlements{handle: c.uwEntitlementSourceHandle()})
+	bundle.LinkGuard = uwuc.NewLinkGuard(bundle.Instances, bundle.Servers, bundle.Provider)
+	bundle.LineHandover = uwuc.NewLineHandover(uwrepo.NewLineRepository(c.db))
+	connections := lateConnectionListener{handle: c.uwConnectionListenerHandle()}
 
 	c.seedUnofficialWhatsAppServer(bundle)
 
 	provision := uwuc.NewProvisionInstanceUseCase(
-		bundle.Servers, bundle.Instances, provider, c.cfg.UnofficialWhatsAppWebhookBaseURL)
-	provision.SetEntitlements(bundle.Entitlements)
+		bundle.Servers, bundle.Instances, provider, c.cfg.UnofficialWhatsAppWebhookBaseURL, bundle.Entitlements)
 	bundle.ProvisionInstances = provision
 
-	bundle.Connect = uwuc.NewConnectInstanceUseCase(bundle.Instances, bundle.Servers, provider)
+	bundle.Connect = uwuc.NewConnectInstanceUseCase(bundle.Instances, bundle.Servers, provider, bundle.LinkGuard, connections)
 
 	bundle.Handler = uwhttp.NewHandler(uwhttp.HandlerDeps{
 		Provision:   provision,
@@ -124,11 +126,11 @@ func (c *Container) initUnofficialWhatsApp() {
 	bundle.WebhookHandler = uwhttp.NewWebhookHandler(bundle.Instances, nil)
 
 	bundle.CheckHealth = uwuc.NewCheckInstanceHealthUseCase(
-		bundle.Instances, bundle.Servers, provider, c.cfg.UnofficialWhatsAppWebhookBaseURL)
+		bundle.Instances, bundle.Servers, provider, c.cfg.UnofficialWhatsAppWebhookBaseURL,
+		bundle.LinkGuard, connections, bundle.LineHandover)
 	bundle.ReconcileCapacity = uwuc.NewReconcileServerCapacityUseCase(
 		bundle.Servers, bundle.Instances, provider)
 
-	bundle.Enabled = true
 	log.Printf("[unofficial-whatsapp] channel enabled (webhook base=%s)",
 		c.cfg.UnofficialWhatsAppWebhookBaseURL)
 	log.Printf("[unofficial-whatsapp] webhook URL pattern: %s%s/{deliveryToken}",
@@ -154,53 +156,56 @@ func (c *Container) seedUnofficialWhatsAppServer(bundle *unofficialWhatsAppBundl
 
 func (c *Container) initUnofficialWhatsAppRuntime(history conversation_domain.MessageHistoryManager) {
 	bundle := c.unofficialWhatsApp
-	if bundle == nil || !bundle.Enabled {
+	if bundle == nil {
 		return
 	}
 	if c.useCases == nil {
 		log.Fatalf("[unofficial-whatsapp] runtime wiring ran before useCases were built")
 	}
 
-	bundle.Entitlements.SetSource(c.useCases.getWorkspaceEntitlements)
+	if err := c.uwEntitlementSourceHandle().Bind(c.useCases.getWorkspaceEntitlements); err != nil {
+		log.Fatalf("[unofficial-whatsapp] %v", err)
+	}
+	c.initWorkspaceGroups(bundle)
 
 	bundle.WebhookHandler = uwhttp.NewWebhookHandler(bundle.Instances, c.useCases.publishWebhook)
 
-	handler := uwuc.NewHandleWebhookUseCase(uwuc.HandleWebhookDeps{
-		Instances:     bundle.Instances,
-		Servers:       bundle.Servers,
-		Contacts:      bundle.Contacts,
-		Conversations: bundle.Conversations,
-		Groups:        bundle.Groups,
-		Messaging:     bundle.Messaging,
-		GroupAPI:      bundle.GroupAPI,
-		Assets:        bundle.Assets,
-		History:       history,
-		Messages:      c.repositories.conversation,
-		Media:         c.mediaStore(),
-		FileStorage:   c.services.fileStorage,
-		Broadcaster:   c.services.conversationHub,
-		Assignments:   c.services.assignmentService,
-		AIReply:       c.mustChannelAIReply(),
-		Workflows:     c.useCases.triggerEvaluator,
-		Leads:         uwrepo.NewLeadLinker(c.repositories.lead),
-		Analysis:      c.services.analysisScheduler,
-		Delegations:   c.services.delegations,
-		Choices:       c.choiceStatsRecorder(),
+	historyWindow := time.Duration(c.cfg.UnofficialWhatsAppHistoryDays) * 24 * time.Hour
+	handler, err := uwuc.NewHandleWebhookUseCase(uwuc.HandleWebhookDeps{
+		Instances:          bundle.Instances,
+		Servers:            bundle.Servers,
+		Contacts:           bundle.Contacts,
+		Conversations:      bundle.Conversations,
+		Groups:             bundle.Groups,
+		Messaging:          bundle.Messaging,
+		GroupAPI:           bundle.GroupAPI,
+		Assets:             bundle.Assets,
+		History:            history,
+		Messages:           c.repositories.conversation,
+		Media:              c.mediaStore(),
+		FileStorage:        c.services.fileStorage,
+		Broadcaster:        c.services.conversationHub,
+		Assignments:        c.services.assignmentService,
+		AIReply:            c.mustChannelAIReply(),
+		Workflows:          c.useCases.triggerEvaluator,
+		Leads:              uwrepo.NewLeadLinker(c.repositories.lead),
+		Analysis:           c.services.analysisScheduler,
+		Delegations:        c.services.delegations,
+		Choices:            c.choiceStatsRecorder(),
+		LinkGate:           bundle.LinkGuard,
+		Listener:           lateConnectionListener{handle: c.uwConnectionListenerHandle()},
+		Handover:           bundle.LineHandover,
+		HistoryWindow:      historyWindow,
+		GroupWatcher:       bundle.WorkspaceGroups,
+		CampaignSink:       uwcuc.NewDeliverySink(c.unofficialWhatsAppCampaigns.Entries),
+		CampaignAutomation: uwcuc.NewAutomationSource(bundle.Conversations, c.unofficialWhatsAppCampaigns.Campaigns),
+		ExitStep:           c.leadExitStep(),
 	})
-	handler.SetLeadExitStep(c.leadExitStep())
-
-	if c.unofficialWhatsAppCampaigns != nil && c.unofficialWhatsAppCampaigns.Enabled {
-		handler.SetCampaignDeliverySink(
-			uwcuc.NewDeliverySink(c.unofficialWhatsAppCampaigns.Entries))
-
-		handler.SetCampaignAutomationSource(
-			uwcuc.NewAutomationSource(
-				bundle.Conversations,
-				c.unofficialWhatsAppCampaigns.Campaigns))
+	if err != nil {
+		log.Fatalf("[unofficial-whatsapp] %v", err)
 	}
 
-	c.wireUnofficialWhatsAppLineAndHistory(bundle, handler)
-	c.initWorkspaceGroups(bundle, handler)
+	c.wireUnofficialWhatsAppHistory(bundle, handler, historyWindow)
 
 	bundle.SeedInboxPublisher = uwuc.NewSeedInboxPublisher(c.services.uwSeedQueuePub)
 	bundle.ConsumeSeedInbox = uwuc.NewConsumeSeedInboxUseCase(
@@ -216,7 +221,7 @@ func (c *Container) initUnofficialWhatsAppRuntime(history conversation_domain.Me
 		).WithAttachments(c.repositories.media, c.repositories.conversationMedia),
 	)
 	if err := bundle.ConsumeSeedInbox.Start(); err != nil {
-		log.Printf("[unofficial-whatsapp] inbox seed consumer failed to start: %v", err)
+		log.Fatalf("[unofficial-whatsapp] the inbox seed consumer failed to start: %v", err)
 	}
 
 	logChannelCapabilities("unofficial-whatsapp", map[string]bool{
@@ -224,13 +229,12 @@ func (c *Container) initUnofficialWhatsAppRuntime(history conversation_domain.Me
 		"workflows":            c.useCases.triggerEvaluator != nil,
 		"assignment":           c.services.assignmentService != nil,
 		"broadcaster":          c.services.conversationHub != nil,
-		"campaigns":            c.unofficialWhatsAppCampaigns != nil && c.unofficialWhatsAppCampaigns.Enabled,
+		"campaigns":            c.unofficialWhatsAppCampaigns != nil,
 		"media":                c.services.fileStorage != nil,
 		"avatars":              c.services.fileStorage != nil && bundle.Assets != nil,
 		"groups":               bundle.Groups != nil && bundle.GroupAPI != nil,
 		"inbox-seeding":        c.services.uwSeedQueuePub != nil && c.services.uwSeedQueueSub != nil,
 		"inbox-seed-scripting": c.services.ai != nil,
-		"entitlement-gate":     bundle.Entitlements.HasSource(),
 		"department-scope":     c.services.conversationAuthImpl != nil,
 	})
 
@@ -245,7 +249,7 @@ func (c *Container) initUnofficialWhatsAppRuntime(history conversation_domain.Me
 
 func (c *Container) wireUnofficialWhatsAppConversationStack() {
 	bundle := c.unofficialWhatsApp
-	if bundle == nil || !bundle.Enabled {
+	if bundle == nil {
 		return
 	}
 
@@ -255,70 +259,22 @@ func (c *Container) wireUnofficialWhatsAppConversationStack() {
 		bundle.Contacts,
 		bundle.Conversations,
 		bundle.Messaging,
+		uazapi.NewVoiceTranscoder(mediaDownloads()),
 	)
-	if setter, ok := adapter.(interface{ SetVoiceTranscoder(uw.VoiceTranscoder) }); ok {
-		setter.SetVoiceTranscoder(uazapi.NewVoiceTranscoder(mediaDownloads()))
-	}
 
-	c.registerChannelAdapter(adapter)
-
-	if setter, ok := c.services.conversationHistory.(interface {
-		SetAutomationReader(shared.EntryType, func(context.Context, string) (*bool, error))
-	}); ok {
-		conversations := bundle.Conversations
-		setter.SetAutomationReader(shared.EntryTypeUnofficialWhatsApp,
-			func(ctx context.Context, entryID string) (*bool, error) {
-				conv, err := conversations.FindByID(ctx, entryID)
-				if err != nil {
-					return nil, err
-				}
-				return conv.AutomationEnabled, nil
-			})
-	} else {
-		log.Printf("[unofficial-whatsapp] history provider exposes no SetAutomationReader; " +
-			"the automation toggle will read as always-on")
-	}
-
-	if c.services.conversationAutomation != nil {
-		conversations := bundle.Conversations
-		c.services.conversationAutomation.Register(
-			shared.EntryTypeUnofficialWhatsApp,
-			func(ctx context.Context, entryID string, enabled *bool) error {
-				return conversations.SetAutomationEnabled(ctx, entryID, enabled)
-			},
-		)
-	}
-
-	if c.services.conversationAuthImpl != nil {
-		c.services.conversationAuthImpl.SetEntryAccessRepo(
-			shared.EntryTypeUnofficialWhatsApp, bundle.Conversations)
-	}
-
-	if c.services.conversationStatusService != nil {
-		c.services.conversationStatusService.SetConversationStatusStore(
-			shared.EntryTypeUnofficialWhatsApp,
-			conversationStatusFuncs{
-				status: bundle.Conversations.StatusForEntry,
-				set:    bundle.Conversations.SetStatus,
-			},
-		)
-		c.services.conversationStatusService.SetConversationCounter(
-			shared.EntryTypeUnofficialWhatsApp, bundle.Conversations.CountByStatus)
-	}
-
-	if setter, ok := c.services.campaignWorkspaceResolver.(interface {
-		SetEntryOwnerResolver(shared.EntryType, conversation_usecase.EntryOwnerResolver)
-	}); ok {
-		var _ conversation_usecase.EntryCampaignResolver = bundle.Conversations
-		setter.SetEntryOwnerResolver(shared.EntryTypeUnofficialWhatsApp, bundle.Conversations)
-	}
-
-	if setter, ok := c.services.conversationHistory.(interface {
-		SetContactIdentityLookup(shared.EntryType, conversation_usecase.ContactIdentityLookup)
-	}); ok {
-		setter.SetContactIdentityLookup(
-			shared.EntryTypeUnofficialWhatsApp, unofficialWhatsAppContactIdentity(bundle))
-	}
+	c.registerConversationChannel(conversationChannel{
+		EntryType:     shared.EntryTypeUnofficialWhatsApp,
+		Adapter:       adapter,
+		Conversations: bundle.Conversations,
+		Automation: func(ctx context.Context, entryID string) (*bool, error) {
+			conv, err := bundle.Conversations.FindByID(ctx, entryID)
+			if err != nil {
+				return nil, err
+			}
+			return conv.AutomationEnabled, nil
+		},
+		Contacts: unofficialWhatsAppContactIdentity(bundle),
+	})
 }
 
 func unofficialWhatsAppContactIdentity(bundle *unofficialWhatsAppBundle) conversation_usecase.ContactIdentityLookup {
@@ -400,60 +356,45 @@ func unofficialWhatsAppContactIdentity(bundle *unofficialWhatsAppBundle) convers
 }
 
 func unofficialWhatsAppHandler(c *Container) *uwhttp.Handler {
-	if c.unofficialWhatsApp == nil || !c.unofficialWhatsApp.Enabled {
+	if c.unofficialWhatsApp == nil {
 		return nil
 	}
 	return c.unofficialWhatsApp.Handler
 }
 
 func unofficialWhatsAppGroupHandler(c *Container) *uwhttp.GroupHandler {
-	if c.unofficialWhatsApp == nil || !c.unofficialWhatsApp.Enabled {
+	if c.unofficialWhatsApp == nil {
 		return nil
 	}
 	return c.unofficialWhatsApp.GroupHandler
 }
 
 func unofficialWhatsAppWebhookHandler(c *Container) *uwhttp.WebhookHandler {
-	if c.unofficialWhatsApp == nil || !c.unofficialWhatsApp.Enabled {
+	if c.unofficialWhatsApp == nil {
 		return nil
 	}
 	return c.unofficialWhatsApp.WebhookHandler
 }
 
-func (c *Container) wireUnofficialWhatsAppLineAndHistory(bundle *unofficialWhatsAppBundle, handler *uwuc.HandleWebhookUseCase) {
-	guard := uwuc.NewLinkGuard(bundle.Instances, bundle.Servers, bundle.Provider)
-	handler.SetLinkGate(guard)
-	bundle.Connect.SetLinkGate(guard)
-	bundle.CheckHealth.SetLinkGate(guard)
-
-	handover := uwuc.NewLineHandover(uwrepo.NewLineRepository(c.db))
-	handler.SetLineHandover(handover)
-	bundle.CheckHealth.SetLineHandover(handover)
-
-	if !c.cfg.UnofficialWhatsAppHistoryEnabled {
-		handler.DisableHistoryImport()
-		log.Printf("[unofficial-whatsapp] history import disabled (UW_HISTORY_ENABLED=false); line handover stays on")
-		return
-	}
-
-	historySync := uwuc.NewHistorySyncUseCase(uwuc.HistorySyncDeps{
+func (c *Container) wireUnofficialWhatsAppHistory(bundle *unofficialWhatsAppBundle, handler *uwuc.HandleWebhookUseCase, window time.Duration) {
+	historySync, err := uwuc.NewHistorySyncUseCase(uwuc.HistorySyncDeps{
 		Runs:      uwrepo.NewHistorySyncRepository(c.db),
 		Instances: bundle.Instances,
 		Servers:   bundle.Servers,
 		Source:    bundle.History,
 		Importer:  handler,
-		Handover:  handover,
+		Handover:  bundle.LineHandover,
+		Window:    window,
 	})
-	window := time.Duration(c.cfg.UnofficialWhatsAppHistoryDays) * 24 * time.Hour
-	historySync.SetWindow(window)
-	handler.SetHistoryWindow(window)
-
-	handler.SetConnectionListener(historySync)
-	bundle.Connect.SetConnectionListener(historySync)
-	bundle.CheckHealth.SetConnectionListener(historySync)
+	if err != nil {
+		log.Fatalf("[unofficial-whatsapp] history import: %v", err)
+	}
+	if err := c.uwConnectionListenerHandle().Bind(historySync); err != nil {
+		log.Fatalf("[unofficial-whatsapp] %v", err)
+	}
 	bundle.Handler.SetHistorySync(historySync)
 	bundle.HistorySync = historySync
 
-	log.Printf("[unofficial-whatsapp] history import enabled: window %d days, sweep every minute",
+	log.Printf("[unofficial-whatsapp] history import: window %d days, sweep every minute",
 		c.cfg.UnofficialWhatsAppHistoryDays)
 }

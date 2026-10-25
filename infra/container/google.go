@@ -109,11 +109,11 @@ func googleRoutes(c *Container) deliveryHttp.GoogleRoutes {
 	}
 }
 
-func (c *Container) registerGoogleJobs() {
+func (c *Container) googleJobs() cronJobs {
 	if c.google == nil || c.google.RefreshTokens == nil {
 		log.Fatalf("[google] the account jobs were not built")
 	}
-	c.jobRunner.SetGoogleAccountJobs(c.google.RefreshTokens)
+	return cronJobs{"google_token_refresh": cronPackage.Executes(c.google.RefreshTokens)}
 }
 
 type googleSheetsBundle struct {
@@ -185,14 +185,15 @@ func (c *Container) workflowName(_ context.Context, workspaceID, id string) (str
 	return found.Name, nil
 }
 
-func (c *Container) registerGoogleSheetsJobs() {
+func (c *Container) googleSheetsJobs() cronJobs {
 	if c.googleSheets == nil {
 		log.Fatalf("[google-sheets] the jobs were requested before the pipeline was built")
 	}
-	c.jobRunner.SetGoogleSheetsJobs(
-		cronPackage.CtxJobFunc(c.googleSheets.Writer.DispatchPending),
-		cronPackage.CtxJobFunc(c.googleSheets.Retention.Execute),
-	)
+	sheets := c.googleSheets
+	return cronJobs{
+		"google_sheets_dispatch":  cronPackage.Method(sheets.Writer, sheets.Writer.DispatchPending),
+		"google_sheets_retention": cronPackage.Executes(sheets.Retention),
+	}
 }
 
 type sheetRows struct {

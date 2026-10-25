@@ -52,27 +52,8 @@ type repository struct {
 func NewRepository(db *gorm.DB) stage.Repository {
 	return &repository{
 		db:                db,
-		pipelineResolvers: map[shared.EntryType]stage.ContainerPipelineResolver{},
+		pipelineResolvers: ChannelPipelineResolvers(db),
 	}
-}
-
-type PipelineRegistrar interface {
-	SetContainerPipelineResolver(shared.EntryType, stage.ContainerPipelineResolver)
-}
-
-var _ PipelineRegistrar = (*repository)(nil)
-
-func (r *repository) SetContainerPipelineResolver(
-	entryType shared.EntryType,
-	resolver stage.ContainerPipelineResolver,
-) {
-	if r == nil || resolver == nil || entryType == "" {
-		return
-	}
-	if r.pipelineResolvers == nil {
-		r.pipelineResolvers = map[shared.EntryType]stage.ContainerPipelineResolver{}
-	}
-	r.pipelineResolvers[entryType] = resolver
 }
 
 func (r *repository) ensureDefaultConversationPipeline(workspaceID string) (string, error) {

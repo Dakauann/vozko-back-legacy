@@ -18,11 +18,12 @@ const (
 const DefaultMaxToolIterations = 3
 
 type ToolCall struct {
-	ID         string
-	Name       string
-	Arguments  map[string]interface{}
-	Result     *tools.ExecutionResult
-	DurationMs int64
+	ID             string
+	Name           string
+	Arguments      map[string]interface{}
+	Result         *tools.ExecutionResult
+	DurationMs     int64
+	ModelCallIndex int
 }
 
 func EnsureToolCallIDs(calls []ToolCall) {

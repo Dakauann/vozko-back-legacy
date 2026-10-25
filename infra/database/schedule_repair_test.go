@@ -96,3 +96,39 @@ func TestScheduleRepairAlsoCoversUnofficialCampaignsAgainstPostgres(t *testing.T
 		t.Fatalf("cleared %v, want only the campaign that already sent", cleared)
 	}
 }
+
+func TestAConsumedScheduleForgetsWhoConfirmedItAgainstPostgres(t *testing.T) {
+	tx := scheduleFixtures(t)
+	for _, ddl := range []string{
+		`ALTER TABLE whatsapp_campaigns ADD COLUMN scheduled_by varchar(64) NOT NULL DEFAULT ''`,
+		`ALTER TABLE whatsapp_campaigns ADD COLUMN schedule_fingerprint varchar(64) NOT NULL DEFAULT ''`,
+	} {
+		if err := tx.Exec(ddl).Error; err != nil {
+			t.Fatalf("fixture column: %v", err)
+		}
+	}
+	past, future := time.Now().Add(-time.Hour), time.Now().Add(time.Hour)
+	used := seedScheduled(t, tx, "PAUSED", past, "SENT")
+	waiting := seedScheduled(t, tx, "STOPPED", future, "PENDING")
+	if err := tx.Exec(`UPDATE whatsapp_campaigns SET scheduled_by = 'u1', schedule_fingerprint = 'abc'`).Error; err != nil {
+		t.Fatalf("seed confirmation: %v", err)
+	}
+
+	if err := consumeUsedSchedules(tx); err != nil {
+		t.Fatalf("repair: %v", err)
+	}
+
+	companions := func(id string) (by, fingerprint string) {
+		row := tx.Raw(`SELECT scheduled_by, schedule_fingerprint FROM whatsapp_campaigns WHERE id = ?`, id).Row()
+		if err := row.Scan(&by, &fingerprint); err != nil {
+			t.Fatalf("read %s: %v", id, err)
+		}
+		return by, fingerprint
+	}
+	if by, fp := companions(used); by != "" || fp != "" {
+		t.Fatalf("a consumed schedule kept %q %q", by, fp)
+	}
+	if by, fp := companions(waiting); by != "u1" || fp != "abc" {
+		t.Fatalf("a waiting schedule lost its confirmation: %q %q", by, fp)
+	}
+}

@@ -159,7 +159,7 @@ func startStack(t *testing.T, cfg dialerStackConfig) *dialerStack {
 
 	admission := &sipAdmission{}
 	pub := &liveCallBillingFakePub{}
-	lifecycle, err := callsession_usecase.NewOutboundCallLifecycleRunner(admission, nil, nil, pub, log.Default())
+	lifecycle, err := lifecycleFor(admission, pub, log.Default(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,9 @@ func startStack(t *testing.T, cfg dialerStackConfig) *dialerStack {
 		executor.WithChannels(routing.channels)
 		inbound.Parking, inbound.Queues, inbound.VoiceFlows = routing.channels, routing.transfers, routing.flows
 	}
-	manager.SetInboundInviteHandler(sip_trunk_usecase.NewInboundCallUseCase(inbound))
+	if err := manager.BindInboundInviteHandler(sip_trunk_usecase.NewInboundCallUseCase(inbound)); err != nil {
+		t.Fatal(err)
+	}
 	if err := manager.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}

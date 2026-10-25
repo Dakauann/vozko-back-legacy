@@ -55,8 +55,8 @@ type openingRig struct {
 func newOpeningRig(prov ai.Service, script *scriptAI, ts ...copilot.Tool) *openingRig {
 	rig := &openingRig{queueRig: newQueueRig(prov, script, openFunds{}, ts...), adopter: &fakeAdopter{adopted: map[string]string{}}}
 	rig.ms.listCreated = true
-	rig.svc.SetScreenMailbox(newMailbox())
-	rig.svc.SetProjectAdopter(rig.adopter)
+	rig.svc.screens = newMailbox()
+	rig.svc.adopter = rig.adopter
 	return rig
 }
 

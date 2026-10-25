@@ -29,11 +29,6 @@ type TargetRequest struct {
 	Currency  string  `json:"currency,omitempty" example:"BRL"`
 }
 
-func (h *AttendanceHandler) SetTargets(svc *attendance_usecase.TargetsService, scoper targetScoper) {
-	h.targets = svc
-	h.targetScoper = scoper
-}
-
 func (h *AttendanceHandler) targetAccess(r *http.Request, workspaceID string) (attendance_usecase.TargetAccess, bool) {
 	claims := middleware.GetClaims(r)
 	if claims == nil {
@@ -42,9 +37,6 @@ func (h *AttendanceHandler) targetAccess(r *http.Request, workspaceID string) (a
 	access := attendance_usecase.TargetAccess{
 		UserID:  claims.UserID,
 		IsAdmin: claims.Role == "admin",
-	}
-	if h.targetScoper == nil {
-		return access, true
 	}
 	scope, ok := h.targetScoper.GetDepartmentScope(claims.UserID, workspaceID, access.IsAdmin)
 	if !ok {
@@ -61,8 +53,6 @@ func parseTargetPeriod(raw string) (attendance_target.Month, bool) {
 
 func writeTargetError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, attendance_usecase.ErrTargetsUnavailable):
-		response.WriteError(w, http.StatusServiceUnavailable, err.Error(), nil)
 	case errors.Is(err, attendance_usecase.ErrTargetForbidden):
 		response.WriteError(w, http.StatusForbidden, err.Error(), nil)
 	case errors.Is(err, attendance_target.ErrNotFound):
@@ -104,7 +94,6 @@ func (h *AttendanceHandler) GetTargetableMetrics(w http.ResponseWriter, r *http.
 // @Param			period	query	string	false	"Período no formato YYYY-MM (padrão: mês atual)"
 // @Success		200	{object}	map[string][]attendance_target.Target
 // @Failure		400	{object}	response.ErrorResponse
-// @Failure		503	{object}	response.ErrorResponse
 // @Security		BearerAuth
 // @Router			/attendance/targets [get]
 func (h *AttendanceHandler) ListTargets(w http.ResponseWriter, r *http.Request) {

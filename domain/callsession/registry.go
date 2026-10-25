@@ -38,7 +38,7 @@ type CallSessionRegistry interface {
 
 	ListBrowserSessions(workspaceID string) []CallSession
 
-	SetPresenceListener(listener PresenceListener)
+	BindPresenceListener(listener PresenceListener) error
 
 	NotifyPresenceChanged(workspaceID string)
 }

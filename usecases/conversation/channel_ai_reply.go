@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"vozko/domain/agent"
@@ -17,6 +15,7 @@ import (
 	ce "vozko/domain/conversation_event"
 	"vozko/domain/lead"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/usecases/agentctx"
 	"vozko/usecases/agentturn"
 	"vozko/usecases/conversation/loopguard"
@@ -45,82 +44,60 @@ type ContinuationLeads interface {
 	FindByID(workspaceID, id string) (*lead.Lead, error)
 }
 
-func (s *ChannelAIReplyService) SetEntryLeads(leads ContinuationLeads) {
-	s.entryLeads = leads
+type ChannelAIReplyDeps struct {
+	Agents        agent.Repository
+	AI            ai.Service
+	Messages      conversation.MessageRepository
+	Sender        AgentTextSender
+	Adapters      conversation.AdapterRegistry
+	HandOff       AgentReplyHandOff
+	Events        ce.Logger
+	Guard         loopguard.Guard
+	Assembler     *agentturn.Assembler
+	TurnLock      *AgentTurnLock
+	Attendance    AIAttendanceRecorder
+	Leads         ContinuationLeads
+	WorkflowNames ActorNameResolver
 }
 
-func (s *ChannelAIReplyService) SetAgentTurnLock(lock *AgentTurnLock) {
-	s.turnLock = lock
-}
-
-func (s *ChannelAIReplyService) SetAIAttendance(recorder AIAttendanceRecorder) {
-	s.aiAttendance = recorder
-}
-
-func NewChannelAIReplyService(
-	agents agent.Repository,
-	aiService ai.Service,
-	messages conversation.MessageRepository,
-	sender AgentTextSender,
-	adapters conversation.AdapterRegistry,
-	handOff AgentReplyHandOff,
-	events ce.Logger,
-) *ChannelAIReplyService {
-	missing := []string{}
-	for name, dep := range map[string]any{
-		"agent repository":    agents,
-		"ai service":          aiService,
-		"message repository":  messages,
-		"agent text sender":   sender,
-		"channel adapters":    adapters,
-		"hand-off":            handOff,
-		"conversation events": events,
-	} {
-		if dep == nil {
-			missing = append(missing, name)
-		}
-	}
-	if len(missing) > 0 {
-		sort.Strings(missing)
-		panic("channel ai reply: missing " + strings.Join(missing, ", "))
+func NewChannelAIReplyService(d ChannelAIReplyDeps) *ChannelAIReplyService {
+	if err := deps.Require("channel ai reply", map[string]any{
+		"agent repository":    d.Agents,
+		"ai service":          d.AI,
+		"message repository":  d.Messages,
+		"agent text sender":   d.Sender,
+		"channel adapters":    d.Adapters,
+		"hand-off":            d.HandOff,
+		"conversation events": d.Events,
+		"loop guard":          d.Guard,
+		"turn assembler":      d.Assembler,
+		"turn lock":           d.TurnLock,
+		"ai attendance":       d.Attendance,
+		"entry leads":         d.Leads,
+		"workflow names":      d.WorkflowNames,
+	}); err != nil {
+		panic(err.Error())
 	}
 	return &ChannelAIReplyService{
-		agents:    agents,
-		aiService: aiService,
-		messages:  messages,
-		sender:    sender,
-		adapters:  adapters,
-		handOff:   handOff,
-		events:    events,
+		agents:        d.Agents,
+		aiService:     d.AI,
+		messages:      d.Messages,
+		sender:        d.Sender,
+		adapters:      d.Adapters,
+		handOff:       d.HandOff,
+		events:        d.Events,
+		guard:         d.Guard,
+		assembler:     d.Assembler,
+		turnLock:      d.TurnLock,
+		aiAttendance:  d.Attendance,
+		entryLeads:    d.Leads,
+		workflowNames: d.WorkflowNames,
 	}
-}
-
-func (s *ChannelAIReplyService) SetLoopGuard(g loopguard.Guard) {
-	s.guard = g
-}
-
-func (s *ChannelAIReplyService) SetAssembler(a *agentturn.Assembler) {
-	s.assembler = a
-}
-
-func (s *ChannelAIReplyService) SetWorkflowNames(names ActorNameResolver) {
-	s.workflowNames = names
 }
 
 const historyDepth = 20
 
-var nilServiceWarning sync.Once
-
 func (s *ChannelAIReplyService) Reply(ctx context.Context, req conversation.AIReplyRequest) (*conversation.Message, error) {
-	if s == nil {
-		nilServiceWarning.Do(func() {
-			log.Printf("[channel-ai-reply] BUG: the AI reply service is nil; no channel will "+
-				"answer with an agent until it is wired before the channel runtimes "+
-				"(first seen on entry %s/%s, workspace %s)",
-				req.EntryType, req.EntryID, req.WorkspaceID)
-		})
-		return nil, nil
-	}
 	if !s.enabled(req) {
 		return nil, nil
 	}
@@ -130,12 +107,10 @@ func (s *ChannelAIReplyService) Reply(ctx context.Context, req conversation.AIRe
 		return nil, nil
 	}
 
-	if s.guard != nil {
-		if dec := s.guard.CheckInbound(ctx, req.WorkspaceID, req.EntryID, text); dec.Block {
-			log.Printf("[channel-ai] entry=%s loop suspected (%s, count=%d), not replying",
-				req.EntryID, dec.Reason, dec.Count)
-			return nil, nil
-		}
+	if dec := s.guard.CheckInbound(ctx, req.WorkspaceID, req.EntryID, text); dec.Block {
+		log.Printf("[channel-ai] entry=%s loop suspected (%s, count=%d), not replying",
+			req.EntryID, dec.Reason, dec.Count)
+		return nil, nil
 	}
 
 	release, held := s.turnLock.HoldForInbound(ctx, req.EntryID, req.EntryType)
@@ -188,12 +163,7 @@ func (s *ChannelAIReplyService) ContinueAgentTurn(ctx context.Context, turn Agen
 	return err
 }
 
-var errContinuationLeadsUnwired = errors.New("channel continuation: the lead of the conversation cannot be read, no lead store wired")
-
 func (s *ChannelAIReplyService) leadOfTurn(ctx context.Context, turn AgentContinuationTurn) (string, *lead.Lead, error) {
-	if s.entryLeads == nil {
-		return "", nil, errContinuationLeadsUnwired
-	}
 	leadID, err := s.entryLeads.LeadOfEntry(ctx, turn.WorkspaceID, shared.EntryRef{EntryID: turn.EntryID, EntryType: turn.EntryType})
 	if errors.Is(err, lead.ErrLeadNotFound) {
 		return "", nil, nil
@@ -301,15 +271,13 @@ func (s *ChannelAIReplyService) reply(ctx context.Context, req conversation.AIRe
 		return nil, err
 	}
 
-	if s.guard != nil {
-		s.guard.RecordAIResponse(ctx, req.WorkspaceID, req.EntryID)
-	}
+	s.guard.RecordAIResponse(ctx, req.WorkspaceID, req.EntryID)
 	s.recordAIReply(req, agentRecord, message)
 	return message, nil
 }
 
 func (s *ChannelAIReplyService) recordAIReply(req conversation.AIReplyRequest, agentRecord *agent.Agent, message *conversation.Message) {
-	if s.aiAttendance == nil || message == nil {
+	if message == nil {
 		return
 	}
 	s.aiAttendance.RecordAIReply(aa.StartInput{
@@ -415,15 +383,6 @@ func (s *ChannelAIReplyService) assembleTurn(
 	latest string,
 	triggerNote string,
 ) ai.GenerateInput {
-	if s.assembler == nil {
-		return ai.GenerateInput{
-			Model:        agentRecord.MessagingModel,
-			SystemPrompt: agentRecord.MessagingPrompt,
-			Messages:     messages,
-			WorkspaceID:  req.WorkspaceID,
-		}
-	}
-
 	identity := shared_usecase.ConversationContext{
 		Channel:        shared_usecase.ChannelMessaging,
 		AgentName:      agentRecord.Name,

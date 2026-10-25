@@ -33,7 +33,6 @@ func (c *Container) teamChat() *teamchat_usecase.Service {
 	if err != nil {
 		log.Fatalf("[team-chat] %v", err)
 	}
-	c.services.conversationHub.SetTeamChat(service)
 	c.teamChatService = service
 	return service
 }
@@ -42,8 +41,9 @@ func (c *Container) teamChatHandler() *teamchathttp.Handler {
 	return teamchathttp.NewHandler(c.teamChat())
 }
 
-func (c *Container) teamChatSweep() cronPackage.CtxJobFunc {
-	return cronPackage.CtxJobFunc(c.teamChat().SweepScheduled)
+func (c *Container) teamChatSweep() cronPackage.Run {
+	chat := c.teamChat()
+	return cronPackage.Method(chat, chat.SweepScheduled)
 }
 
 func (c *Container) startTeamChatDelivery() {
@@ -52,6 +52,6 @@ func (c *Container) startTeamChatDelivery() {
 		log.Fatalf("[team-chat] %v", err)
 	}
 	if err := consumer.Start(); err != nil {
-		log.Printf("[team-chat] the scheduled message consumer did not start: %v; the minute sweep delivers them", err)
+		log.Fatalf("[team-chat] the scheduled message consumer failed to start: %v", err)
 	}
 }

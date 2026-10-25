@@ -57,7 +57,7 @@ func runLoginThenCode(t *testing.T, code string) *workflow.WorkflowRun {
 	}
 	runs := NewMockWorkflowRunRepository()
 	_ = runs.Create(run)
-	if err := NewRunEngine(runs, NewMockWorkflowRunLogRepository(), registry).Execute(run, w); err != nil {
+	if err := testEngine(runs, NewMockWorkflowRunLogRepository(), registry).Execute(run, w); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
 	if run.Status != workflow.RunStatusCompleted {

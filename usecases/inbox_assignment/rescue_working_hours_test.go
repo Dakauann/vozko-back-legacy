@@ -73,11 +73,11 @@ func newHoursFixture(t *testing.T, workspaceHours *wh.Spec, deptRows []wd.Depart
 
 	f := &hoursFixture{t: t, base: base, depts: &stubDepartmentSchedules{rows: deptRows}}
 	f.store = newIntervalStore(func() time.Time { return f.now })
-	base.svc.SetHistory(f.store)
+	base.svc.telemetry = historyTelemetry{store: f.store}
 
-	f.job = NewRescueJob(base.cfg, f.store, base.att, base.status, base.svc)
-	f.job.SetDepartmentSchedules(f.depts)
-	f.job.SetClock(func() time.Time { return f.now })
+	f.job = rescueJob(base.cfg, f.store, base.att, base.status, base.svc)
+	f.job.departments = f.depts
+	f.job.now = func() time.Time { return f.now }
 	return f
 }
 
@@ -207,8 +207,8 @@ func TestWorkingHours_ClosedWorkspaceSkipsTheCandidateQuery(t *testing.T) {
 		RescueAfter:  15 * time.Minute,
 		WorkingHours: officeSpec(),
 	}}
-	job := NewRescueJob(base.cfg, base.history, base.att, base.status, base.svc)
-	job.SetClock(func() time.Time { return local(2026, 9, 13, 3, 0) })
+	job := rescueJob(base.cfg, base.history, base.att, base.status, base.svc)
+	job.now = func() time.Time { return local(2026, 9, 13, 3, 0) }
 
 	require.NoError(t, job.Execute(context.Background()))
 	assert.Nil(t, base.history.listArgs.workspaceIDs,

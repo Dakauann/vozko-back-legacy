@@ -11,13 +11,13 @@ import (
 func refundHarness() (*handleWhatsAppMessageUseCase, *settlementBilling, *mockWhatsAppSharedState) {
 	billing := &settlementBilling{}
 	state := newMockWhatsAppSharedState()
-	uc := &handleWhatsAppMessageUseCase{
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{
 		consumeWhatsappTemplate: billing,
 		wcCampaignRepo: routingCampaigns{byID: map[string]*wc.Campaign{
 			"campaign-1": {ID: "campaign-1", WorkspaceID: "ws-1"},
 		}},
 		sharedState: state,
-	}
+	})
 	return uc, billing, state
 }
 

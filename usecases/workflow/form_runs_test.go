@@ -61,8 +61,8 @@ func newFormHarness(t *testing.T, w *workflow.Workflow) formHarness {
 	}
 	registry := NewNodeExecutorRegistry()
 	RegisterDefaultExecutors(registry, ExecutorDeps{Forms: h.sender})
-	h.engine = NewRunEngine(h.runs, NewMockWorkflowRunLogRepository(), registry)
-	h.engine.SetAutomationGate(SandboxAutomationGate{})
+	h.engine = testEngine(h.runs, NewMockWorkflowRunLogRepository(), registry)
+	h.engine.automationGate = SandboxAutomationGate{}
 	return h
 }
 

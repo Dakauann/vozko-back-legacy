@@ -73,8 +73,8 @@ func TestRouletteEligibility_MultiDepartmentMember_IsEligibleInAllDepartments(t 
 	}
 
 	authorizer := &hubDepartmentTestAuthorizer{}
-	hub := NewConversationHub(authorizer, nil, nil, &eligibilityFakeSharedState{}, "test-replica", "")
-	hub.SetWorkspaceDepartmentRepo(deptRepo)
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer, SharedState: &eligibilityFakeSharedState{}})
+	hub.departmentRepo = deptRepo
 
 	for _, uid := range []string{"alice", "bob", "carol"} {
 		conn := &WSConnection{ID: uid, UserID: uid, WorkspaceID: "ws-1", Send: make(chan []byte, 1)}
@@ -100,8 +100,8 @@ func TestRouletteEligibility_MultiDepartmentMember_CurrentViewDoesNotRestrict(t 
 	}
 
 	authorizer := &hubDepartmentTestAuthorizer{}
-	hub := NewConversationHub(authorizer, nil, nil, &eligibilityFakeSharedState{}, "test-replica", "")
-	hub.SetWorkspaceDepartmentRepo(deptRepo)
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer, SharedState: &eligibilityFakeSharedState{}})
+	hub.departmentRepo = deptRepo
 
 	conn := &WSConnection{ID: "bob", UserID: "bob", WorkspaceID: "ws-1", DepartmentID: "dept-a", Send: make(chan []byte, 1)}
 	hub.connections[conn.ID] = conn

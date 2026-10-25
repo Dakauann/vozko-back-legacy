@@ -1,6 +1,7 @@
 package whatsapp_campaign_repository
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"vozko/domain/campaign"
+	"vozko/domain/campaign/scheduledstart"
 	"vozko/domain/shared"
 	wc "vozko/domain/whatsapp_campaign"
 	wce "vozko/domain/whatsapp_campaign_entry"
@@ -95,6 +97,9 @@ func createCampaignIn(db *gorm.DB, c *wc.Campaign) error {
 		AiModel:              c.AiModel,
 		Status:               string(c.Status),
 		ScheduledStart:       c.ScheduledStart,
+		ScheduledBy:          c.ScheduledBy,
+		ScheduleFingerprint:  c.ScheduleConfirmedFingerprint,
+		ScheduleFailure:      string(c.ScheduleFailure),
 		Source:               schema.OptionalText(c.Source),
 		IdempotencyKey:       schema.OptionalText(c.IdempotencyKey),
 	}
@@ -168,6 +173,9 @@ func (r *repository) Update(campaignID string, c *wc.Campaign) error {
 		"ai_model":               c.AiModel,
 		"archived":               c.Archived,
 		"scheduled_start":        c.ScheduledStart,
+		"scheduled_by":           c.ScheduledBy,
+		"schedule_fingerprint":   c.ScheduleConfirmedFingerprint,
+		"schedule_failure":       string(c.ScheduleFailure),
 	}
 	result := r.db.Model(&schema.WhatsAppCampaign{}).Where("id = ?", campaignID).Updates(update)
 	if result.Error != nil {
@@ -415,32 +423,35 @@ func mapToDomain(record *schema.WhatsAppCampaign) *wc.Campaign {
 	}
 
 	return &wc.Campaign{
-		ID:                   record.ID,
-		WorkspaceID:          record.WorkspaceID,
-		DepartmentID:         departmentID,
-		BusinessPhoneID:      businessPhoneID,
-		Name:                 record.Name,
-		Type:                 wc.CampaignType(record.Type),
-		TemplateID:           templateID,
-		AgentID:              agentID,
-		WorkflowID:           workflowID,
-		PipelineID:           pipelineID,
-		EnableAgentResponses: record.EnableAgentResponses,
-		EnableWorkflow:       record.EnableWorkflow,
-		EnableAnalysis:       record.EnableAnalysis,
-		EnableAutoStaging:    record.EnableAutoStaging,
-		EnableAutoMemory:     record.EnableAutoMemory,
-		ShowTemplateInCrm:    record.ShowTemplateInCrm,
-		AiModel:              record.AiModel,
-		Status:               normalizeCampaignStatus(record.Status),
-		ResetCode:            record.ResetCode,
-		ClearCode:            record.ClearCode,
-		Archived:             record.Archived,
-		CreatedAt:            record.CreatedAt,
-		UpdatedAt:            record.UpdatedAt,
-		ScheduledStart:       record.ScheduledStart,
-		Source:               string(record.Source),
-		IdempotencyKey:       string(record.IdempotencyKey),
+		ID:                           record.ID,
+		WorkspaceID:                  record.WorkspaceID,
+		DepartmentID:                 departmentID,
+		BusinessPhoneID:              businessPhoneID,
+		Name:                         record.Name,
+		Type:                         wc.CampaignType(record.Type),
+		TemplateID:                   templateID,
+		AgentID:                      agentID,
+		WorkflowID:                   workflowID,
+		PipelineID:                   pipelineID,
+		EnableAgentResponses:         record.EnableAgentResponses,
+		EnableWorkflow:               record.EnableWorkflow,
+		EnableAnalysis:               record.EnableAnalysis,
+		EnableAutoStaging:            record.EnableAutoStaging,
+		EnableAutoMemory:             record.EnableAutoMemory,
+		ShowTemplateInCrm:            record.ShowTemplateInCrm,
+		AiModel:                      record.AiModel,
+		Status:                       normalizeCampaignStatus(record.Status),
+		ResetCode:                    record.ResetCode,
+		ClearCode:                    record.ClearCode,
+		Archived:                     record.Archived,
+		CreatedAt:                    record.CreatedAt,
+		UpdatedAt:                    record.UpdatedAt,
+		ScheduledStart:               record.ScheduledStart,
+		ScheduledBy:                  record.ScheduledBy,
+		ScheduleConfirmedFingerprint: record.ScheduleFingerprint,
+		ScheduleFailure:              scheduledstart.Failure(record.ScheduleFailure),
+		Source:                       string(record.Source),
+		IdempotencyKey:               string(record.IdempotencyKey),
 	}
 }
 
@@ -567,11 +578,27 @@ func applySorts(db *gorm.DB, sorts []shared.Sort) *gorm.DB {
 func (r *repository) ClaimScheduledStart(campaignID string, dueBy time.Time) (bool, error) {
 	result := r.db.Model(&schema.WhatsAppCampaign{}).
 		Where("id = ? AND scheduled_start > ? AND scheduled_start <= ?", campaignID, time.Time{}, dueBy.UTC()).
-		Update("scheduled_start", time.Time{})
+		Updates(map[string]interface{}{"scheduled_start": time.Time{}, "scheduled_by": "", "schedule_fingerprint": ""})
 	if result.Error != nil {
 		return false, result.Error
 	}
 	return result.RowsAffected > 0, nil
 }
 
-var _ wc.ScheduleClaimer = (*repository)(nil)
+func (r *repository) RecordScheduleFailure(ctx context.Context, campaignID string, failure scheduledstart.Failure) error {
+	result := r.db.WithContext(ctx).Model(&schema.WhatsAppCampaign{}).
+		Where("id = ?", campaignID).
+		Update("schedule_failure", string(failure))
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return wc.ErrCampaignNotFound
+	}
+	return nil
+}
+
+var (
+	_ wc.ScheduleClaimer      = (*repository)(nil)
+	_ scheduledstart.Recorder = (*repository)(nil)
+)

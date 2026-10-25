@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -15,6 +16,7 @@ import (
 
 	"vozko/delivery/http/audiencex"
 	buttonactionhttp "vozko/delivery/http/buttonaction"
+	"vozko/delivery/http/campaigndrafthttp"
 	"vozko/delivery/http/campaignlaunchhttp"
 	"vozko/delivery/http/httpx"
 	"vozko/delivery/http/response"
@@ -23,6 +25,7 @@ import (
 	"vozko/domain/auth"
 	campaigndomain "vozko/domain/campaign"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/domain/stage"
 	"vozko/domain/user"
 	wc "vozko/domain/whatsapp_campaign"
@@ -31,6 +34,7 @@ import (
 	workspace_department "vozko/domain/workspace/workspace_department"
 	workspace_plan "vozko/domain/workspace/workspace_plan"
 	"vozko/infra/http/middleware"
+	"vozko/usecases/campaignlaunch"
 	whatsapp_campaign_usecase "vozko/usecases/whatsapp_campaign"
 )
 
@@ -60,6 +64,24 @@ type WhatsAppCampaignHandler struct {
 	summaryUseCase          wc.GetSummaryUseCase
 	progress                campaigndomain.ProgressUseCase
 	timeline                campaigndomain.TimelineUseCase
+	scheduled               ScheduledLauncher
+	startGuard              httpx.Guard
+}
+
+type CampaignLaunchDeps struct {
+	Access    wc.CampaignAccessUseCase
+	Start     wc.ConfirmedStartUseCase
+	Progress  campaigndomain.ProgressUseCase
+	Timeline  campaigndomain.TimelineUseCase
+	Scheduled ScheduledLauncher
+}
+
+type ScheduledLauncher interface {
+	Launch(ctx context.Context, in whatsapp_campaign_usecase.DraftLaunchInput) (campaignlaunch.Outcome[*wc.Campaign], error)
+}
+
+func (h *WhatsAppCampaignHandler) SetStartGuard(guard httpx.Guard) {
+	h.startGuard = guard
 }
 
 func NewWhatsAppCampaignHandler(
@@ -84,8 +106,23 @@ func NewWhatsAppCampaignHandler(
 	activeSubscription workspace_plan.EnsureActiveWorkspaceSubscriptionUseCase,
 	getAgentUC agent.GetAgentUseCase,
 	summaryUC wc.GetSummaryUseCase,
+	launch CampaignLaunchDeps,
 ) *WhatsAppCampaignHandler {
+	if err := deps.Require("whatsapp campaign handler", map[string]any{
+		"campaign access":    launch.Access,
+		"confirmed start":    launch.Start,
+		"live progress":      launch.Progress,
+		"live timeline":      launch.Timeline,
+		"scheduled launcher": launch.Scheduled,
+	}); err != nil {
+		panic(err.Error())
+	}
 	return &WhatsAppCampaignHandler{
+		access:                  launch.Access,
+		start:                   launch.Start,
+		progress:                launch.Progress,
+		timeline:                launch.Timeline,
+		scheduled:               launch.Scheduled,
 		createUseCase:           createUC,
 		updateUseCase:           updateUC,
 		assignDepartmentUseCase: assignDepartmentUC,
@@ -132,6 +169,7 @@ type whatsappCampaignRequest struct {
 	Recipients           *audiencex.AudienceRequest         `json:"recipients,omitempty"`
 	ExitRiskAcknowledged bool                               `json:"exitRiskAcknowledged,omitempty"`
 	SmartPolicy          *smartcampaignhttp.PolicyBody      `json:"smartPolicy,omitempty"`
+	ConfirmedFingerprint string                             `json:"confirmedFingerprint,omitempty"`
 }
 
 type whatsappCampaignPhoneNumberInput struct {
@@ -158,15 +196,16 @@ func (req whatsappCampaignRequest) toDomainPhoneInputs() []wc.PhoneInput {
 }
 
 // @Summary		Criar uma campanha oficial
-// @Description	Cria uma campanha com um modelo aprovado e os contatos de uma de duas formas. `phoneNumbers` (como sempre): cada item vira um lead, casado pelo número em qualquer formato ou criado com origem importação, e uma entrada com `variables` e `metadata`. `recipients` (o passo de público, sem `phoneNumbers`): `source: list` com o `listId` de `POST /campaign-audience/whatsapp/lists`, que vira as mesmas entradas, com as colunas ligadas às variáveis e as células vazias de variável com campo sugerido preenchidas pelo lead (linha sem o valor recusa a criação com 422 `audience_list_variables_missing`); ou `source: leads` com a seleção (com `expectedCount` e `fingerprint` da contagem) e as variáveis ligadas a campos do lead, em que cada lead sem o valor precisa de `missing: text` (texto padrão) ou `missing: exclude` (entra como pulado com `missing_variable`), senão 422 `audience_variable_choice_required`. Com `workflowId` ou `agentId`, cada linha precisa ter nos metadados as chaves que o fluxo ou o agente pede, senão 422 `audience_list_metadata_missing`; leads não têm metadados, então a seleção de leads com essas chaves é recusada com 422 `audience_leads_metadata_unavailable`. Leads bloqueados, sem número, com opt-out, no intervalo entre disparos ou em outra campanha em andamento entram pulados com o motivo. As variáveis seguem a ordem do envio, nas duas formas: a variável do texto do cabeçalho primeiro, depois as do corpo (nomeadas ou numeradas); no envio a do cabeçalho vai no cabeçalho e as do corpo no corpo, com o nome quando o modelo usa variáveis nomeadas. As ondas de `smartPolicy` valem para as duas formas.
+// @Description	Cria uma campanha com um modelo aprovado e os contatos de uma de duas formas. `phoneNumbers` (como sempre): cada item vira um lead, casado pelo número em qualquer formato ou criado com origem importação, e uma entrada com `variables` e `metadata`. `recipients` (o passo de público, sem `phoneNumbers`): `source: list` com o `listId` de `POST /campaign-audience/whatsapp/lists`, que vira as mesmas entradas, com as colunas ligadas às variáveis e as células vazias de variável com campo sugerido preenchidas pelo lead (linha sem o valor recusa a criação com 422 `audience_list_variables_missing`); ou `source: leads` com a seleção (com `expectedCount` e `fingerprint` da contagem) e as variáveis ligadas a campos do lead, em que cada lead sem o valor precisa de `missing: text` (texto padrão) ou `missing: exclude` (entra como pulado com `missing_variable`), senão 422 `audience_variable_choice_required`. Com `workflowId` ou `agentId`, cada linha precisa ter nos metadados as chaves que o fluxo ou o agente pede, senão 422 `audience_list_metadata_missing`; leads não têm metadados, então a seleção de leads com essas chaves é recusada com 422 `audience_leads_metadata_unavailable`. Leads bloqueados, sem número, com opt-out, no intervalo entre disparos ou em outra campanha em andamento entram pulados com o motivo. As variáveis seguem a ordem do envio, nas duas formas: a variável do texto do cabeçalho primeiro, depois as do corpo (nomeadas ou numeradas); no envio a do cabeçalho vai no cabeçalho e as do corpo no corpo, com o nome quando o modelo usa variáveis nomeadas. As ondas de `smartPolicy` valem para as duas formas. Com `scheduledStart`, a criação passa antes pela mesma verificação do Iniciar: um bloqueio responde 409 `campaign_launch_blocked` e riscos pedem confirmação com 409 `campaign_launch_unconfirmed` (reenvie com o `confirmedFingerprint` dos detalhes); em ambos nada é criado. A confirmação fica guardada com o agendamento e, no horário, a campanha só inicia se os riscos ainda forem os mesmos; senão ela fica parada com `scheduleFailure` e quem agendou recebe uma notificação. Agendar exige a permissão de iniciar campanhas (403 `start_permission_required`); criar sem agendamento exige só a de criar.
 // @Tags			WhatsApp Campaigns
 // @Accept			json
 // @Produce		json
 // @Param			body	body		object	true	"Campanha, com phoneNumbers ou recipients"
 // @Success		201		{object}	map[string]interface{}
 // @Failure		400		{object}	response.ErrorResponse	"audience_source_ambiguous, audience_variable_unknown, selection_*"
+// @Failure		403		{object}	response.ErrorResponse	"start_permission_required"
 // @Failure		404		{object}	response.ErrorResponse	"audience_list_not_found"
-// @Failure		409		{object}	response.ErrorResponse	"selection_changed"
+// @Failure		409		{object}	response.ErrorResponse	"selection_changed, campaign_launch_blocked, campaign_launch_unconfirmed"
 // @Failure		410		{object}	response.ErrorResponse	"audience_list_expired"
 // @Failure		422		{object}	response.ErrorResponse	"audience_variable_choice_required, audience_list_variables_missing, audience_list_metadata_missing, audience_leads_metadata_unavailable, audience_list_channel_mismatch"
 // @Failure		503		{object}	response.ErrorResponse	"audience_busy"
@@ -198,6 +237,12 @@ func (h *WhatsAppCampaignHandler) Create(w http.ResponseWriter, r *http.Request)
 	}
 
 	r = withDepartmentCreationScope(r, req.DepartmentID)
+	if !campaign.ScheduledStart.IsZero() {
+		httpx.WithStart(h.startGuard, w, r, func(w http.ResponseWriter, r *http.Request) {
+			h.createScheduled(w, r, req, campaign, claims.UserID)
+		})
+		return
+	}
 
 	created, err := h.createUseCase.Execute(r.Context(), campaign)
 	if err != nil {
@@ -208,6 +253,27 @@ func (h *WhatsAppCampaignHandler) Create(w http.ResponseWriter, r *http.Request)
 	h.cloneStages(r, req, created)
 
 	response.WriteSuccess(w, http.StatusCreated, created)
+}
+
+func (h *WhatsAppCampaignHandler) createScheduled(w http.ResponseWriter, r *http.Request, req whatsappCampaignRequest, draft *wc.Campaign, scheduledBy string) {
+	at := draft.ScheduledStart
+	draft.ScheduledStart = time.Time{}
+	out, err := h.scheduled.Launch(r.Context(), whatsapp_campaign_usecase.DraftLaunchInput{
+		Campaign:             draft,
+		Launch:               campaigndomain.Launch{Mode: campaigndomain.LaunchSchedule, At: at},
+		ConfirmedFingerprint: req.ConfirmedFingerprint,
+		ScheduledBy:          scheduledBy,
+		Departments:          middleware.GetDepartmentFilter(r),
+		Settle: func(_ context.Context, created *wc.Campaign) []string {
+			h.cloneStages(r, req, created)
+			return nil
+		},
+	})
+	if err != nil {
+		h.handleDomainError(w, err)
+		return
+	}
+	response.WriteSuccess(w, http.StatusCreated, out.Campaign)
 }
 
 var errScheduledStartFormat = errors.New("scheduledStart must be RFC3339")
@@ -262,7 +328,7 @@ func (req whatsappCampaignRequest) toCampaign(workspaceID string, claims *auth.C
 }
 
 // @Summary		Editar uma campanha oficial
-// @Description	Atualiza só as configurações: nome, modelo, número, funil, fluxo, agente, ferramentas de IA e agendamento. Os contatos não mudam por aqui; `phoneNumbers` no corpo é ignorado (use POST /whatsapp/campaigns/{id}/entries). Arquivar não muda por aqui (use /archive e /unarchive). O modelo e o número só são conferidos quando mudam: modelo pronto para envio (422 `campaign_template_not_ready`), da mesma conta do número (422 `campaign_template_phone_mismatch`) e preenchível pelos contatos que ainda aguardam envio (400 `campaign_template_variables_missing`). Trocar o modelo passa pela regra de saída da criação (422 `exit_risk_not_acknowledged` sem `exitRiskAcknowledged: true`). Uma campanha preparada a partir de leads recusa a troca do modelo ou do número com 409 `send_selection_locked`. Quando o fluxo ou o agente mudam, cada contato salvo precisa ter as variáveis que ele pede (400 `campaign_workflow_vars_missing` ou `AGENT_REQUIRED_VARIABLE_MISSING`); fluxo de outro workspace 403 `campaign_workflow_forbidden`, inexistente 400 `campaign_workflow_not_found` ou `campaign_agent_not_found`. `scheduledStart` vazio desliga o agendamento; um novo horário precisa ficar entre 5 minutos e 1 ano (400 `campaign_schedule_in_past` ou `campaign_schedule_out_of_window`) e não vale para campanha em execução (409 `campaign_running`).
+// @Description	Atualiza só as configurações: nome, modelo, número, funil, fluxo, agente, ferramentas de IA e agendamento. Os contatos não mudam por aqui; `phoneNumbers` no corpo é ignorado (use POST /whatsapp/campaigns/{id}/entries). Arquivar não muda por aqui (use /archive e /unarchive). O modelo e o número só são conferidos quando mudam: modelo pronto para envio (422 `campaign_template_not_ready`), da mesma conta do número (422 `campaign_template_phone_mismatch`) e preenchível pelos contatos que ainda aguardam envio (400 `campaign_template_variables_missing`). Trocar o modelo passa pela regra de saída da criação (422 `exit_risk_not_acknowledged` sem `exitRiskAcknowledged: true`). Uma campanha preparada a partir de leads recusa a troca do modelo ou do número com 409 `send_selection_locked`. Quando o fluxo ou o agente mudam, cada contato salvo precisa ter as variáveis que ele pede (400 `campaign_workflow_vars_missing` ou `AGENT_REQUIRED_VARIABLE_MISSING`); fluxo de outro workspace 403 `campaign_workflow_forbidden`, inexistente 400 `campaign_workflow_not_found` ou `campaign_agent_not_found`. `scheduledStart` vazio desliga o agendamento; um novo horário precisa ficar entre 5 minutos e 1 ano (400 `campaign_schedule_in_past` ou `campaign_schedule_out_of_window`) e não vale para campanha em execução (409 `campaign_running`). Um agendamento novo ou mantido passa pela mesma verificação do Iniciar sobre a campanha já editada: um bloqueio responde 409 `campaign_launch_blocked` e riscos novos pedem confirmação com 409 `campaign_launch_unconfirmed` (reenvie com o `confirmedFingerprint` dos detalhes); riscos já confirmados no agendamento não pedem de novo. Nada é salvo nesses casos, e sem a verificação disponível responde 503 `campaign_launch_check_unavailable`. Uma campanha preparada a partir de leads não pode ser agendada (409 `send_schedule_from_leads`). Quem salva o agendamento é quem recebe a notificação se ele não iniciar no horário; o motivo fica em `scheduleFailure` até a campanha iniciar ou ser agendada de novo. Definir ou manter um agendamento exige a permissão de iniciar campanhas (403 `start_permission_required`); editar sem agendamento exige só a de editar.
 // @Tags			WhatsApp Campaigns
 // @Accept			json
 // @Produce		json
@@ -270,7 +336,7 @@ func (req whatsappCampaignRequest) toCampaign(workspaceID string, claims *auth.C
 // @Param			body	body		object	true	"Configurações da campanha"
 // @Success		200		{object}	map[string]interface{}
 // @Failure		400		{object}	response.ErrorResponse
-// @Failure		403		{object}	response.ErrorResponse
+// @Failure		403		{object}	response.ErrorResponse	"start_permission_required"
 // @Failure		404		{object}	response.ErrorResponse
 // @Failure		409		{object}	response.ErrorResponse
 // @Failure		422		{object}	response.ErrorResponse
@@ -326,14 +392,22 @@ func (h *WhatsAppCampaignHandler) Update(w http.ResponseWriter, r *http.Request)
 	if req.ExitRiskAcknowledged {
 		updateCampaign.ExitRiskAcknowledgedBy = claims.UserID
 	}
+	updateCampaign.ScheduledBy = claims.UserID
+	updateCampaign.ScheduleConfirmedFingerprint = req.ConfirmedFingerprint
 
-	updated, err := h.updateUseCase.Execute(r.Context(), id, updateCampaign)
-	if err != nil {
-		h.handleDomainError(w, err)
+	save := func(w http.ResponseWriter, r *http.Request) {
+		updated, err := h.updateUseCase.Execute(r.Context(), id, updateCampaign)
+		if err != nil {
+			h.handleDomainError(w, err)
+			return
+		}
+		response.WriteSuccess(w, http.StatusOK, updated)
+	}
+	if updateCampaign.ScheduledStart.IsZero() {
+		save(w, r)
 		return
 	}
-
-	response.WriteSuccess(w, http.StatusOK, updated)
+	httpx.WithStart(h.startGuard, w, r, save)
 }
 
 func (h *WhatsAppCampaignHandler) AssignDepartment(w http.ResponseWriter, r *http.Request) {
@@ -680,10 +754,6 @@ func (h *WhatsAppCampaignHandler) StartCampaign(w http.ResponseWriter, r *http.R
 		response.WriteValidationError(w, map[string]string{"id": "required"})
 		return
 	}
-	if h.start == nil {
-		response.WriteError(w, http.StatusForbidden, "You don't have access to this campaign", nil)
-		return
-	}
 	var body StartCampaignRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
 		response.WriteValidationError(w, map[string]string{"body": "invalid JSON"})
@@ -924,7 +994,7 @@ func (h *WhatsAppCampaignHandler) ConfirmClearHistory(w http.ResponseWriter, r *
 }
 
 func (h *WhatsAppCampaignHandler) handleDomainError(w http.ResponseWriter, err error) {
-	if httpx.WriteSelectionSendRefusal(w, err) || writeCampaignAutomationRefusal(w, err) || writeCampaignEditRefusal(w, err) || buttonactionhttp.WriteRefusal(w, err) || smartcampaignhttp.WriteRefusal(w, err) || audiencex.WriteRefusal(w, err) {
+	if campaigndrafthttp.WriteLaunchRefusal(w, err) || httpx.WriteSelectionSendRefusal(w, err) || writeCampaignAutomationRefusal(w, err) || writeCampaignEditRefusal(w, err) || buttonactionhttp.WriteRefusal(w, err) || smartcampaignhttp.WriteRefusal(w, err) || audiencex.WriteRefusal(w, err) {
 		return
 	}
 	switch {
@@ -1416,19 +1486,7 @@ func (h *WhatsAppCampaignHandler) QuickSend(w http.ResponseWriter, r *http.Reque
 	response.WriteSuccess(w, http.StatusAccepted, output)
 }
 
-func (h *WhatsAppCampaignHandler) SetCampaignAccess(access wc.CampaignAccessUseCase) {
-	h.access = access
-}
-
-func (h *WhatsAppCampaignHandler) SetStartCampaign(start wc.ConfirmedStartUseCase) {
-	h.start = start
-}
-
 func (h *WhatsAppCampaignHandler) ownedCampaign(w http.ResponseWriter, campaignID string, r *http.Request) (*wc.Campaign, bool) {
-	if h.access == nil {
-		response.WriteError(w, http.StatusForbidden, "You don't have access to this campaign", nil)
-		return nil, false
-	}
 	campaign, err := h.access.Owned(middleware.GetWorkspaceID(r), middleware.GetDepartmentFilter(r), campaignID)
 	if err != nil {
 		h.handleDomainError(w, err)

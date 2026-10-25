@@ -90,8 +90,8 @@ func newTraceHarness() *traceHarness {
 		logs:     NewMockWorkflowRunLogRepository(),
 		metrics:  &metricsSpy{},
 	}
-	h.engine = NewRunEngine(h.runs, h.logs, h.registry)
-	h.engine.SetMetrics(h.metrics)
+	h.engine = testEngine(h.runs, h.logs, h.registry)
+	h.engine.metrics = h.metrics
 	return h
 }
 
@@ -339,7 +339,7 @@ func TestASkippedNodeIsRecordedAsSkipped(t *testing.T) {
 
 func TestAWaitingNodeIsRecordedAsWaitingAndAFailedWakeEnqueueLeavesARow(t *testing.T) {
 	h := newTraceHarness()
-	h.engine.SetWakeScheduler(failingWakeScheduler{})
+	h.engine.wakeScheduler = failingWakeScheduler{}
 	h.register(workflow.NodeTypeWaitDuration, func(ctx *workflow.NodeContext) (*workflow.NodeResult, error) {
 		return &workflow.NodeResult{Wait: &workflow.WaitInstruction{WakeAt: 123, Reason: workflow.WaitReasonDuration}}, nil
 	})
@@ -470,8 +470,8 @@ func TestTheEngineCountsStartsFinishesAndStepDurations(t *testing.T) {
 
 func TestAGateCancelLeavesAGateRow(t *testing.T) {
 	logs := NewMockWorkflowRunLogRepository()
-	engine := NewRunEngine(nil, logs, nil)
-	engine.SetAutomationGate(&gateStub{enabled: false})
+	engine := testEngine(nil, logs, nil)
+	engine.automationGate = &gateStub{enabled: false}
 	run := parkedRun()
 	if err := resumeRunFromCurrent(&workflowRepoStub{t: t}, &runRepoStub{}, engine, run); err != nil {
 		t.Fatal(err)
@@ -484,8 +484,8 @@ func TestAGateCancelLeavesAGateRow(t *testing.T) {
 
 func TestAnUnreadableGateLeavesAGateRowPerAttempt(t *testing.T) {
 	logs := NewMockWorkflowRunLogRepository()
-	engine := NewRunEngine(nil, logs, nil)
-	engine.SetAutomationGate(&gateStub{err: errors.New("db down")})
+	engine := testEngine(nil, logs, nil)
+	engine.automationGate = &gateStub{err: errors.New("db down")}
 	run := parkedRun()
 	run.State = workflow.NewRunState()
 	if err := resumeRunFromCurrent(&workflowRepoStub{t: t}, &runRepoStub{}, engine, run); err != nil {

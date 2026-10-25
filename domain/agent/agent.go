@@ -4,43 +4,36 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
+
+	"vozko/domain/testinput"
 )
 
 const maxAgentVariables = 50
 
 var variableNamePattern = regexp.MustCompile(`^\w+$`)
 
-const (
-	ToolSendWhatsAppMessage = "send_whatsapp_message"
-)
-
 var (
-	ErrAgentNameRequired                    = errors.New("agent name is required")
-	ErrAgentNameTooLong                     = errors.New("agent name must not exceed 120 characters")
-	ErrAgentMessagingPromptRequired         = errors.New("agent messaging prompt is required")
-	ErrAgentMessagingModelRequired          = errors.New("agent messaging model is required")
-	ErrAgentMessagingModelTooLong           = errors.New("agent messaging model must not exceed 64 characters")
-	ErrAgentProviderRequired                = errors.New("agent provider is required")
-	ErrAgentProviderInvalid                 = errors.New("agent provider is invalid")
-	ErrAgentProviderUnsupported             = errors.New("agent provider is unsupported")
-	ErrAgentProviderUnavailable             = errors.New("agent provider is unavailable")
-	ErrAgentBusinessPhoneNotFound           = errors.New("agent business phone not found")
-	ErrAgentBusinessPhoneNoAccess           = errors.New("user does not have access to this business phone number")
-	ErrAgentNotFound                        = errors.New("agent not found")
-	ErrAgentMetadataInvalid                 = errors.New("agent metadata must be valid JSON object")
-	ErrAgentInternalToolInvalid             = errors.New("agent internal tool is invalid")
-	ErrAgentInternalToolsRequired           = errors.New("agent internal tools are required")
-	ErrAgentKnowledgeBaseNoAccess           = errors.New("knowledge base does not belong to this workspace")
-	ErrAgentMCPCollectionNoAccess           = errors.New("mcp collection does not belong to this workspace")
-	ErrAgentWhatsAppTemplateRequiredForTool = errors.New("whatsappTemplateId is required when using send_whatsapp_message tool")
-	ErrAgentToolVisibilityInvalid           = errors.New("agent tool visibility is invalid")
-	ErrAgentVariableNameInvalid             = errors.New("agent variable names must contain only letters, digits, and underscores")
-	ErrAgentVariableDuplicate               = errors.New("agent variable names must be unique")
-	ErrAgentVariableTooMany                 = errors.New("agent must not have more than 50 variables")
-	ErrAgentRequiredVariableMissing         = errors.New("required agent variable is missing from entry metadata")
+	ErrAgentNameRequired            = errors.New("agent name is required")
+	ErrAgentNameTooLong             = errors.New("agent name must not exceed 120 characters")
+	ErrAgentMessagingPromptRequired = errors.New("agent messaging prompt is required")
+	ErrAgentMessagingModelRequired  = errors.New("agent messaging model is required")
+	ErrAgentMessagingModelTooLong   = errors.New("agent messaging model must not exceed 64 characters")
+	ErrAgentProviderRequired        = errors.New("agent provider is required")
+	ErrAgentProviderInvalid         = errors.New("agent provider is invalid")
+	ErrAgentProviderUnsupported     = errors.New("agent provider is unsupported")
+	ErrAgentProviderUnavailable     = errors.New("agent provider is unavailable")
+	ErrAgentNotFound                = errors.New("agent not found")
+	ErrAgentMetadataInvalid         = errors.New("agent metadata must be valid JSON object")
+	ErrAgentInternalToolInvalid     = errors.New("agent internal tool is invalid")
+	ErrAgentInternalToolsRequired   = errors.New("agent internal tools are required")
+	ErrAgentKnowledgeBaseNoAccess   = errors.New("knowledge base does not belong to this workspace")
+	ErrAgentToolVisibilityInvalid   = errors.New("agent tool visibility is invalid")
+	ErrAgentVariableNameInvalid     = errors.New("agent variable names must contain only letters, digits, and underscores")
+	ErrAgentVariableDuplicate       = errors.New("agent variable names must be unique")
+	ErrAgentVariableTooMany         = errors.New("agent must not have more than 50 variables")
+	ErrAgentRequiredVariableMissing = errors.New("required agent variable is missing from entry metadata")
 )
 
 type ToolVisibility string
@@ -54,9 +47,15 @@ func (v ToolVisibility) IsValid() bool {
 }
 
 type ToolBinding struct {
-	Name       string                 `json:"name"`
-	Visibility []ToolVisibility       `json:"visibility,omitempty"`
-	Config     map[string]interface{} `json:"config,omitempty"`
+	ID          string                 `json:"id,omitempty"`
+	Name        string                 `json:"name"`
+	Function    string                 `json:"function,omitempty"`
+	Description string                 `json:"description,omitempty"`
+	Visibility  []ToolVisibility       `json:"visibility,omitempty"`
+	Config      map[string]interface{} `json:"config,omitempty"`
+	Revision    int                    `json:"revision,omitempty"`
+	TargetKey   string                 `json:"-"`
+	TestInputs  []testinput.TestInput  `json:"testInputs,omitempty"`
 }
 
 type AgentVariable struct {
@@ -175,25 +174,25 @@ type Agent struct {
 	Name             string   `json:"name"`
 	Description      string   `json:"description"`
 
-	MessagingPrompt    string            `json:"messagingPrompt"`
-	MessagingModel     string            `json:"messagingModel"`
-	AvatarURL          string            `json:"avatarUrl"`
-	Tags               []string          `json:"tags"`
-	Metadata           map[string]string `json:"metadata"`
-	InternalTools      []ToolBinding     `json:"internalTools"`
-	ToolBindings       map[string]string `json:"toolBindings"`
-	Provider           AgentProvider     `json:"provider"`
-	ExternalID         string            `json:"externalId"`
-	BusinessPhoneID    string            `json:"businessPhoneId,omitempty"`
-	WhatsAppTemplateID *string           `json:"whatsappTemplateId"`
-	RAGEnabled         bool              `json:"ragEnabled"`
-	RAGConfig          *RAGConfig        `json:"ragConfig,omitempty"`
-	IsActive           bool              `json:"isActive"`
-	Archived           bool              `json:"archived"`
-	CreatedAt          time.Time         `json:"createdAt"`
-	UpdatedAt          time.Time         `json:"updatedAt"`
-	MediaIDs           []string          `json:"mediaIds"`
-	Variables          []AgentVariable   `json:"variables,omitempty"`
+	MessagingPrompt string            `json:"messagingPrompt"`
+	MessagingModel  string            `json:"messagingModel"`
+	AvatarURL       string            `json:"avatarUrl"`
+	Tags            []string          `json:"tags"`
+	Metadata        map[string]string `json:"metadata"`
+	InternalTools   []ToolBinding     `json:"internalTools"`
+	Provider        AgentProvider     `json:"provider"`
+	ExternalID      string            `json:"externalId"`
+	RAGEnabled      bool              `json:"ragEnabled"`
+	RAGConfig       *RAGConfig        `json:"ragConfig,omitempty"`
+	IsActive        bool              `json:"isActive"`
+	Archived        bool              `json:"archived"`
+	CreatedAt       time.Time         `json:"createdAt"`
+	UpdatedAt       time.Time         `json:"updatedAt"`
+	MediaIDs        []string          `json:"mediaIds"`
+	Variables       []AgentVariable   `json:"variables,omitempty"`
+	ChangedBy       string            `json:"-"`
+	ExpectedTools   map[string]int    `json:"-"`
+	RunningVersion  int               `json:"-"`
 }
 
 func (a *Agent) Normalize() {
@@ -204,7 +203,6 @@ func (a *Agent) Normalize() {
 	a.MessagingModel = strings.TrimSpace(a.MessagingModel)
 	a.AvatarURL = strings.TrimSpace(a.AvatarURL)
 	a.ExternalID = strings.TrimSpace(a.ExternalID)
-	a.BusinessPhoneID = strings.TrimSpace(a.BusinessPhoneID)
 
 	prov := strings.TrimSpace(strings.ToLower(string(a.Provider)))
 	a.Provider = AgentProvider(prov)
@@ -234,7 +232,7 @@ func (a *Agent) Normalize() {
 			if t == "" {
 				continue
 			}
-			key := t + "\x00" + bindingConfigKey(binding.Config)
+			key := bindingKey(t, binding)
 			if _, exists := seen[key]; exists {
 				continue
 			}
@@ -248,9 +246,14 @@ func (a *Agent) Normalize() {
 				}
 			}
 			uniq = append(uniq, ToolBinding{
-				Name:       t,
-				Visibility: normalizedVisibility,
-				Config:     binding.Config,
+				ID:          strings.TrimSpace(binding.ID),
+				Name:        t,
+				Function:    strings.TrimSpace(binding.Function),
+				Description: strings.TrimSpace(binding.Description),
+				Visibility:  normalizedVisibility,
+				Config:      binding.Config,
+				Revision:    binding.Revision,
+				TestInputs:  binding.TestInputs,
 			})
 		}
 		a.InternalTools = uniq
@@ -260,9 +263,6 @@ func (a *Agent) Normalize() {
 
 	if a.Metadata == nil {
 		a.Metadata = make(map[string]string)
-	}
-	if a.ToolBindings == nil {
-		a.ToolBindings = make(map[string]string)
 	}
 
 	if len(a.Variables) > 0 {
@@ -349,62 +349,6 @@ func (a *Agent) Validate() error {
 	return nil
 }
 
-func (a *Agent) ProviderToolIDs() []string {
-	if len(a.ToolBindings) == 0 {
-		return nil
-	}
-	ids := make([]string, 0, len(a.ToolBindings))
-	for _, id := range a.ToolBindings {
-		id = strings.TrimSpace(id)
-		if id == "" {
-			continue
-		}
-		ids = append(ids, id)
-	}
-	return ids
-}
-
-func (a *Agent) SyncInternalToolsFromBindings() {
-	if a == nil {
-		return
-	}
-	if len(a.ToolBindings) == 0 {
-		a.InternalTools = []ToolBinding{}
-		return
-	}
-
-	existingVisibility := make(map[string][]ToolVisibility, len(a.InternalTools))
-	for _, tb := range a.InternalTools {
-		if tb.Name != "" {
-			existingVisibility[tb.Name] = tb.Visibility
-		}
-	}
-
-	names := make([]string, 0, len(a.ToolBindings))
-	for name := range a.ToolBindings {
-		trimmed := strings.TrimSpace(name)
-		if trimmed == "" {
-			continue
-		}
-		names = append(names, trimmed)
-	}
-	sort.Strings(names)
-	if len(names) == 0 {
-		a.InternalTools = []ToolBinding{}
-		return
-	}
-
-	tools := make([]ToolBinding, 0, len(names))
-	for _, name := range names {
-		tb := ToolBinding{Name: name}
-		if vis, exists := existingVisibility[name]; exists {
-			tb.Visibility = vis
-		}
-		tools = append(tools, tb)
-	}
-	a.InternalTools = tools
-}
-
 func (a *Agent) HasTool(toolName string) bool {
 	if a == nil {
 		return false
@@ -415,65 +359,6 @@ func (a *Agent) HasTool(toolName string) bool {
 		}
 	}
 	return false
-}
-
-func (a *Agent) GetToolBinding(toolName string) (ToolBinding, bool) {
-	if a == nil {
-		return ToolBinding{}, false
-	}
-	for _, tb := range a.InternalTools {
-		if tb.Name == toolName {
-			return tb, true
-		}
-	}
-	return ToolBinding{}, false
-}
-
-func (a *Agent) GetToolNames() []string {
-	if a == nil || len(a.InternalTools) == 0 {
-		return nil
-	}
-	names := make([]string, 0, len(a.InternalTools))
-	for _, tb := range a.InternalTools {
-		if tb.Name != "" {
-			names = append(names, tb.Name)
-		}
-	}
-	return names
-}
-
-func (a *Agent) HasWhatsAppMessageTool() bool {
-	return a.HasTool(ToolSendWhatsAppMessage)
-}
-
-func (a *Agent) RemoveTool(toolName string) {
-	if a == nil {
-		return
-	}
-	filtered := make([]ToolBinding, 0, len(a.InternalTools))
-	for _, tb := range a.InternalTools {
-		if tb.Name != toolName {
-			filtered = append(filtered, tb)
-		}
-	}
-	a.InternalTools = filtered
-
-	if a.ToolBindings != nil {
-		delete(a.ToolBindings, toolName)
-	}
-}
-
-func (a *Agent) ValidateWhatsAppToolRequirements() error {
-	if a.HasWhatsAppMessageTool() && (a.WhatsAppTemplateID == nil || *a.WhatsAppTemplateID == "") {
-		return ErrAgentWhatsAppTemplateRequiredForTool
-	}
-	return nil
-}
-
-func (a *Agent) EnsureWhatsAppToolConsistency() {
-	if a.WhatsAppTemplateID == nil || *a.WhatsAppTemplateID == "" {
-		a.RemoveTool(ToolSendWhatsAppMessage)
-	}
 }
 
 func (a *Agent) HasKnowledgeBases() bool {
@@ -535,4 +420,11 @@ func (a *Agent) HasMCPCollection(id string) bool {
 		}
 	}
 	return false
+}
+
+func bindingKey(toolType string, binding ToolBinding) string {
+	if id := strings.TrimSpace(binding.ID); id != "" {
+		return "id\x00" + id
+	}
+	return toolType + "\x00" + strings.TrimSpace(binding.Function) + "\x00" + bindingConfigKey(binding.Config)
 }

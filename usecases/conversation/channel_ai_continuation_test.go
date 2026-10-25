@@ -41,24 +41,15 @@ func continuationHistory() stubMessageRepo {
 
 func readyToContinue(h *textRulesHarness) {
 	h.svc.messages = continuationHistory()
-	h.svc.SetEntryLeads(&entryLeadsStub{err: lead.ErrLeadNotFound})
-}
-
-func TestAChannelContinuationWithoutALeadStoreSendsNothing(t *testing.T) {
-	h := newTextRulesHarness(t, channel.Capabilities{}, "Pronto!")
-	h.svc.messages = continuationHistory()
-
-	if err := h.svc.ContinueAgentTurn(context.Background(), continuationTurn()); err == nil || len(h.sender.sent) != 0 {
-		t.Fatalf("err = %v, sent = %v; without the lead its consent cannot be checked", err, h.sender.sent)
-	}
+	h.svc.entryLeads = &entryLeadsStub{err: lead.ErrLeadNotFound}
 }
 
 func TestAContinuationTurnRepliesWithoutAnInboundMessageAndWithTheTriggerNote(t *testing.T) {
 	h := newTextRulesHarness(t, channel.Capabilities{}, "Sua matrícula foi concluída!")
 	readyToContinue(h)
-	h.svc.SetAssembler(newAssembledService(t).assembler)
+	h.svc.assembler = newAssembledService(t).assembler
 	attendance := &recordingAttendance{}
-	h.svc.SetAIAttendance(attendance)
+	h.svc.aiAttendance = attendance
 
 	if err := h.svc.ContinueAgentTurn(context.Background(), continuationTurn()); err != nil {
 		t.Fatal(err)
@@ -87,7 +78,7 @@ func TestAContinuationTurnRepliesWithoutAnInboundMessageAndWithTheTriggerNote(t 
 func TestAnInboundReplyIsAlsoRecordedAsAnAIReply(t *testing.T) {
 	h := newTextRulesHarness(t, channel.Capabilities{}, "Em 3 dias.")
 	attendance := &recordingAttendance{}
-	h.svc.SetAIAttendance(attendance)
+	h.svc.aiAttendance = attendance
 
 	if _, err := h.svc.Reply(context.Background(), textRulesRequest()); err != nil {
 		t.Fatal(err)
@@ -122,7 +113,7 @@ func TestAnInboundReplyWaitsForAContinuationOnTheSameConversation(t *testing.T) 
 	h := newTextRulesHarness(t, channel.Capabilities{}, "Em 3 dias.")
 	state := newLockState()
 	lock := NewAgentTurnLock(state)
-	h.svc.SetAgentTurnLock(lock)
+	h.svc.turnLock = lock
 	release, _ := lock.Acquire(context.Background(), "conv-1", shared.EntryTypeInstagram)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -162,7 +153,7 @@ func TestAChannelContinuationNeverWritesToALeadWhoOptedOut(t *testing.T) {
 	optedOut := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
 	h := newTextRulesHarness(t, channel.Capabilities{}, "Pronto!")
 	h.svc.messages = continuationHistory()
-	h.svc.SetEntryLeads(&entryLeadsStub{leadID: "lead-1", contact: &lead.Lead{ID: "lead-1", OptedOutAt: &optedOut}})
+	h.svc.entryLeads = &entryLeadsStub{leadID: "lead-1", contact: &lead.Lead{ID: "lead-1", OptedOutAt: &optedOut}}
 
 	err := h.svc.ContinueAgentTurn(context.Background(), continuationTurn())
 
@@ -177,7 +168,7 @@ func TestAChannelContinuationNeverWritesToALeadWhoOptedOut(t *testing.T) {
 func TestAChannelContinuationWhoseLeadCannotBeReadSendsNothing(t *testing.T) {
 	h := newTextRulesHarness(t, channel.Capabilities{}, "Pronto!")
 	h.svc.messages = continuationHistory()
-	h.svc.SetEntryLeads(&entryLeadsStub{leadID: "lead-1", readErr: errors.New("db down")})
+	h.svc.entryLeads = &entryLeadsStub{leadID: "lead-1", readErr: errors.New("db down")}
 
 	err := h.svc.ContinueAgentTurn(context.Background(), continuationTurn())
 	if err == nil || len(h.sender.sent) != 0 {
@@ -263,9 +254,9 @@ func TestAChannelContinuationThatProducesNothingIsASkipNotASend(t *testing.T) {
 func TestAContinuationOnAnotherChannelCarriesTheLeadMemory(t *testing.T) {
 	h := newTextRulesHarness(t, channel.Capabilities{}, "Sua matrícula foi concluída!")
 	h.svc.messages = continuationHistory()
-	h.svc.SetAssembler(newAssembledServiceWithMemories(t).assembler)
+	h.svc.assembler = newAssembledServiceWithMemories(t).assembler
 	leads := &entryLeadsStub{leadID: "lead-1"}
-	h.svc.SetEntryLeads(leads)
+	h.svc.entryLeads = leads
 
 	if err := h.svc.ContinueAgentTurn(context.Background(), continuationTurn()); err != nil {
 		t.Fatal(err)
@@ -281,14 +272,14 @@ func TestAContinuationOnAnotherChannelCarriesTheLeadMemory(t *testing.T) {
 func TestAContinuationWithoutALeadStillRepliesButAnUnreadableLeadStopsIt(t *testing.T) {
 	h := newTextRulesHarness(t, channel.Capabilities{}, "Pronto!")
 	h.svc.messages = continuationHistory()
-	h.svc.SetEntryLeads(&entryLeadsStub{err: lead.ErrLeadNotFound})
+	h.svc.entryLeads = &entryLeadsStub{err: lead.ErrLeadNotFound}
 	if err := h.svc.ContinueAgentTurn(context.Background(), continuationTurn()); err != nil || len(h.sender.sent) != 1 {
 		t.Fatalf("a conversation without a lead must still continue: err = %v, sent = %v", err, h.sender.sent)
 	}
 
 	h = newTextRulesHarness(t, channel.Capabilities{}, "Pronto!")
 	h.svc.messages = continuationHistory()
-	h.svc.SetEntryLeads(&entryLeadsStub{err: errors.New("db down")})
+	h.svc.entryLeads = &entryLeadsStub{err: errors.New("db down")}
 	if err := h.svc.ContinueAgentTurn(context.Background(), continuationTurn()); err == nil || len(h.sender.sent) != 0 {
 		t.Fatalf("an unreadable lead must stop the turn: err = %v, sent = %v", err, h.sender.sent)
 	}

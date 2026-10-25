@@ -2,7 +2,6 @@ package whatsapp_campaign_usecase
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"sync"
 	"testing"
@@ -44,7 +43,7 @@ func buttonCampaignTemplate() *template.Template {
 func TestACampaignTemplateSendIsRecordedPerEntryWithItsClickToken(t *testing.T) {
 	spy := &spyChoices{}
 	rig := newFormConsumerRig("camp-cta", buttonCampaignTemplate(), nil)
-	rig.h.consumer.SetChoiceStats(spy, testLinkBase, testClickTokens)
+	rig.h.consumer.choices, rig.h.consumer.clickLinkBase, rig.h.consumer.clickTokens = spy, testLinkBase, testClickTokens
 	rig.client.out = &conversation.SendTextMessageOutput{MessageID: "wamid-cta-1"}
 
 	rig.deliver(t, "camp-cta")
@@ -71,21 +70,5 @@ func TestACampaignTemplateSendIsRecordedPerEntryWithItsClickToken(t *testing.T) 
 	}
 	if index, signed, ok := testClickTokens.Verify(token); !ok || index != 1 || signed != key {
 		t.Fatalf("url suffix = %q", token)
-	}
-}
-
-func TestTheCampaignConsumerRefusesToStartWithoutTheChoiceRecorder(t *testing.T) {
-	h := newTestHarness()
-	h.consumer.choices = nil
-	if err := h.consumer.Start(); err == nil {
-		t.Fatal("started without the recorder")
-	}
-}
-
-func TestTheCampaignConsumerRefusesToStartWithoutTheClickTokens(t *testing.T) {
-	h := newTestHarness()
-	h.consumer.clickTokens = nil
-	if err := h.consumer.Start(); !errors.Is(err, choicestats.ErrClickTokenSecretMissing) {
-		t.Fatalf("err = %v", err)
 	}
 }

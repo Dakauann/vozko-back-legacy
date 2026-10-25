@@ -5,6 +5,7 @@ import (
 
 	"vozko/domain/campaign"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	uw "vozko/domain/unofficial_whatsapp"
 	uwc "vozko/domain/unofficial_whatsapp_campaign"
 	workspace_department "vozko/domain/workspace/workspace_department"
@@ -23,19 +24,25 @@ type updateCampaignUseCase struct {
 	automation campaignautomation.Rules
 }
 
-func (uc *updateCampaignUseCase) SetAutomation(automation campaignautomation.Rules) {
-	uc.automation = automation
-}
-
 func NewUpdateCampaignUseCase(
 	campaigns uwc.Repository,
 	entries uwc.EntryRepository,
 	instances InstanceGateway,
-) uwc.UpdateCampaignUseCase {
-	return &updateCampaignUseCase{
-		repos:     campaignRepos{campaigns: campaigns, entries: entries},
-		instances: instances,
+	automation campaignautomation.Rules,
+) (uwc.UpdateCampaignUseCase, error) {
+	if err := deps.Require("unofficial campaign update", map[string]any{
+		"campaigns":  campaigns,
+		"entries":    entries,
+		"instances":  instances,
+		"automation": automation,
+	}); err != nil {
+		return nil, err
 	}
+	return &updateCampaignUseCase{
+		repos:      campaignRepos{campaigns: campaigns, entries: entries},
+		instances:  instances,
+		automation: automation,
+	}, nil
 }
 
 func (uc *updateCampaignUseCase) Execute(

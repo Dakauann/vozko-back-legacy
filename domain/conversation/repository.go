@@ -186,6 +186,7 @@ type MessageRepository interface {
 	GetEntriesWithMessages(campaignID string, entryIDs []string, entryType shared.EntryType, page, pageSize int, assignedUserID string) ([]EntryWithLastMessage, int64, error)
 
 	SearchEntriesWithMessages(input SearchEntriesInput) ([]EntryWithLastMessage, int64, error)
+	CountEntriesByStages(input SearchEntriesInput, stageIDs []string) (map[string]int64, error)
 
 	SearchEntriesByFilter(input SearchByFilterInput) ([]EntryWithLastMessage, int64, error)
 	CountEntriesByFilter(input SearchByFilterInput) (int64, error)

@@ -34,11 +34,9 @@ func (uc *pauseCampaignsForInstanceUseCase) Execute(
 		if camp == nil {
 			continue
 		}
-		if uc.consumer != nil {
-			if err := uc.consumer.PauseCampaignConsumer(camp.ID); err != nil {
-				log.Printf("[unofficial-whatsapp-campaign] could not detach the consumer for %s, it stays running until the next try: %v", camp.ID, err)
-				continue
-			}
+		if err := uc.consumer.PauseCampaignConsumer(camp.ID); err != nil {
+			log.Printf("[unofficial-whatsapp-campaign] could not detach the consumer for %s, it stays running until the next try: %v", camp.ID, err)
+			continue
 		}
 		swapped, err := uc.campaigns.UpdateStatus(camp.ID, campaign.StatusPaused, campaign.StatusRunning)
 		if err != nil {

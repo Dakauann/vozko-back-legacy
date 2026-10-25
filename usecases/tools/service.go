@@ -3,9 +3,10 @@ package tools_usecase
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"slices"
 	"strings"
+	"time"
 
 	"vozko/domain/redact"
 	"vozko/domain/tools"
@@ -72,13 +73,9 @@ func (s *Service) Execute(ctx context.Context, name string, params map[string]in
 	if params == nil {
 		params = map[string]interface{}{}
 	}
-	log.Printf("[Tool Service] Executing tool: %s with params: %v", name, params)
+	startedAt := time.Now()
 	result, err := handler.Execute(ctx, params)
-	if err != nil {
-		log.Printf("[Tool Service] Tool %s FAILED: %v", name, err)
-	} else {
-		log.Printf("[Tool Service] Tool %s SUCCESS: %+v", name, result.Result)
-	}
+	logToolOutcome(ctx, name, startedAt, result, err)
 	return result, err
 }
 
@@ -96,14 +93,28 @@ func (s *Service) ExecuteWithConfig(ctx context.Context, name string, config map
 	if config == nil {
 		config = map[string]interface{}{}
 	}
-	log.Printf("[Tool Service] Executing tool with config: %s, config: %v, params: %v", name, redactToolConfig(config), params)
+	startedAt := time.Now()
 	result, err := handler.ExecuteWithConfig(ctx, config, params)
-	if err != nil {
-		log.Printf("[Tool Service] Tool %s FAILED: %v", name, err)
-	} else {
-		log.Printf("[Tool Service] Tool %s SUCCESS: %+v", name, result.Result)
-	}
+	logToolOutcome(ctx, name, startedAt, result, err)
 	return result, err
+}
+
+var toolLogRedactor = redact.New()
+
+func logToolOutcome(ctx context.Context, name string, startedAt time.Time, result tools.ExecutionResult, err error) {
+	attrs := []any{
+		slog.String("tool", name),
+		slog.String("call_id", tools.CallIDFrom(ctx)),
+		slog.Int64("duration_ms", time.Since(startedAt).Milliseconds()),
+	}
+	switch {
+	case err != nil:
+		slog.Warn("tools.execute.failed", append(attrs, slog.String("error", toolLogRedactor.String(err.Error())))...)
+	case result.IsError:
+		slog.Info("tools.execute.error_result", attrs...)
+	default:
+		slog.Info("tools.execute.ok", attrs...)
+	}
 }
 
 func (s *Service) Handler(name string) (tools.Handler, bool) {
@@ -114,22 +125,8 @@ func (s *Service) Handler(name string) (tools.Handler, bool) {
 }
 
 func (s *Service) handlerFor(name string) (tools.Handler, bool) {
-	key := strings.ToLower(strings.TrimSpace(name))
-	if handler, ok := s.handlers[key]; ok {
-		return handler, true
-	}
-	for base, handler := range s.handlers {
-		if handler.Definition().BindingKey != "" && tools.IsBoundToolName(key, base) {
-			return handler, true
-		}
-	}
-	return nil, false
-}
-
-var toolConfigRedactor = redact.New()
-
-func redactToolConfig(config map[string]interface{}) map[string]interface{} {
-	return toolConfigRedactor.Map(config)
+	handler, ok := s.handlers[strings.ToLower(strings.TrimSpace(name))]
+	return handler, ok
 }
 
 var _ tools.Service = (*Service)(nil)

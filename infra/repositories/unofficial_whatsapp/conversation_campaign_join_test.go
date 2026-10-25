@@ -2,6 +2,7 @@ package unofficial_whatsapp_repository
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -50,7 +51,8 @@ func TestDepartmentIDForEntryFollowsTheConversationsCampaign(t *testing.T) {
 	db, mock, sqlDB := newLookupDB(t)
 	defer sqlDB.Close()
 
-	mock.ExpectQuery(`LEFT JOIN unofficial_whatsapp_campaigns camp ON camp\.id = NULLIF\(uwc\.campaign_id, ''\)::uuid.*COALESCE\(camp\.department_id, uwi\.department_id\)|COALESCE\(camp\.department_id, uwi\.department_id\).*LEFT JOIN unofficial_whatsapp_campaigns camp ON camp\.id = NULLIF\(uwc\.campaign_id, ''\)::uuid`).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT "+conversation_repository.UnofficialDepartment("uwc", "uwi")+
+		" FROM unofficial_whatsapp_conversations uwc JOIN unofficial_whatsapp_instances uwi ON uwi.id = uwc.instance_id WHERE uwc.id = ")).
 		WithArgs("conv-1", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"department_id"}).AddRow("dept-vendas"))
 

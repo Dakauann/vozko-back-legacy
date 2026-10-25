@@ -7,12 +7,9 @@ import (
 	uwc_domain "vozko/domain/unofficial_whatsapp_campaign"
 	wc_domain "vozko/domain/whatsapp_campaign"
 	leadsend_repository "vozko/infra/repositories/leadsend"
-	wc_repository "vozko/infra/repositories/whatsapp_campaign"
 	agent_usecase "vozko/usecases/agent"
 	"vozko/usecases/campaignautomation"
 	leadsend_usecase "vozko/usecases/leadsend"
-	uwcuc "vozko/usecases/unofficial_whatsapp_campaign"
-	wc_usecase "vozko/usecases/whatsapp_campaign"
 	workflow_usecase "vozko/usecases/workflow"
 	workspace_department_usecase "vozko/usecases/workspace_department"
 )
@@ -28,67 +25,9 @@ func (c *Container) campaignAutomation() *campaignautomation.Step {
 	return step
 }
 
-func (c *Container) automateCampaignChanges(name string, useCase any) any {
-	automated, ok := useCase.(interface {
-		SetAutomation(campaignautomation.Checker)
-	})
-	if !ok {
-		log.Fatalf("[campaigns] the %s cannot take the workflow and agent checks", name)
-	}
-	automated.SetAutomation(c.campaignAutomation())
-	return useCase
-}
-
-func (c *Container) automateCampaignEdits(name string, useCase any) any {
-	edited, ok := useCase.(interface {
-		SetAutomation(campaignautomation.Rules)
-	})
-	if !ok {
-		log.Fatalf("[campaigns] the %s cannot take the workflow and agent rules", name)
-	}
-	edited.SetAutomation(c.campaignAutomation())
-	return useCase
-}
-
-func (c *Container) wireOfficialCampaignCreate(create wc_domain.CreateCampaignUseCase) {
-	configurable, ok := create.(interface {
-		SetAutomation(wc_usecase.AutomationCheck)
-		SetIdempotentCampaigns(wc_usecase.IdempotentCampaigns)
-	})
-	if !ok {
-		log.Fatalf("[campaigns] the official campaign creation cannot take the workflow checks and the idempotency keys")
-	}
-	keyed, ok := wc_repository.NewRepository(c.db).(wc_usecase.IdempotentCampaigns)
-	if !ok {
-		log.Fatalf("[campaigns] the official campaign repository cannot read idempotency keys")
-	}
-	configurable.SetAutomation(c.campaignAutomation())
-	configurable.SetIdempotentCampaigns(keyed)
-}
-
-func (c *Container) wireUnofficialCampaignCreate(bundle *unofficialWhatsAppCampaignBundle) {
-	configurable, ok := bundle.Create.(interface {
-		SetAutomation(uwcuc.AutomationCheck)
-		SetLeadsByID(uwcuc.LeadsByID)
-		SetIdempotentCampaigns(uwcuc.IdempotentCampaigns)
-		SetGroupSenders(uwcuc.GroupSenderDirectory)
-	})
-	if !ok {
-		log.Fatalf("[unofficial-whatsapp-campaigns] the campaign creation cannot take the workflow checks, lead targets, idempotency keys and group senders")
-	}
-	keyed, ok := bundle.Campaigns.(uwcuc.IdempotentCampaigns)
-	if !ok {
-		log.Fatalf("[unofficial-whatsapp-campaigns] the campaign repository cannot read idempotency keys")
-	}
-	configurable.SetAutomation(c.campaignAutomation())
-	configurable.SetLeadsByID(c.repositories.lead)
-	configurable.SetIdempotentCampaigns(keyed)
-	configurable.SetGroupSenders(bundle.Senders)
-}
-
 func (c *Container) unofficialSends() *leadsend_usecase.Unofficial {
 	bundle := c.unofficialWhatsAppCampaigns
-	if bundle == nil || !bundle.Enabled {
+	if bundle == nil {
 		return nil
 	}
 	reviewed, ok := bundle.Actions.(uwc_domain.ReviewedStartUseCase)

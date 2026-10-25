@@ -131,7 +131,7 @@ func emailTurn(t *testing.T, watch *watchedEmailTool, prov *scriptAI) {
 	t.Helper()
 	th := &fakeThreads{thread: &aichat.Thread{ID: "th1", WorkspaceID: "ws1", UserID: "u1", ProjectID: emailView.ProjectID}}
 	svc := newService(prov, th, &fakeMessages{}, watch)
-	svc.SetScreenMailbox(newMailbox())
+	svc.screens = newMailbox()
 	cc := ownerCtx
 	cc.View = emailView
 	if err := svc.Stream(context.Background(), th.thread, copilot.UserMessage{Content: "e agora?"}, cc, (&capture{}).emit); err != nil {

@@ -15,6 +15,7 @@ type mockTemplateRepo struct {
 	deleteErr error
 	findErr   error
 	listErr   error
+	updated   []string
 }
 
 func newMockTemplateRepo() *mockTemplateRepo {
@@ -32,6 +33,7 @@ func (m *mockTemplateRepo) Create(t *template.Template) error {
 }
 
 func (m *mockTemplateRepo) Update(templateID string, t *template.Template) error {
+	m.updated = append(m.updated, templateID)
 	if m.updateErr != nil {
 		return m.updateErr
 	}
@@ -219,7 +221,7 @@ func makeStatusPayload(wabaID string, templateID int64, name, event, reason, cat
 func TestStatusUpdate_Approved(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "1689556908129832", "waba1", "order_confirmation", template.TemplateStatusPending, template.TemplateCategoryUtility)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 1689556908129832, "order_confirmation", "APPROVED", "NONE", "UTILITY")
 
@@ -236,7 +238,7 @@ func TestStatusUpdate_Approved(t *testing.T) {
 func TestStatusUpdate_Rejected(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "1689556908129835", "waba1", "abandoned_cart", template.TemplateStatusPending, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 1689556908129835, "abandoned_cart", "REJECTED", "INVALID_FORMAT", "MARKETING")
 
@@ -253,7 +255,7 @@ func TestStatusUpdate_Rejected(t *testing.T) {
 func TestStatusUpdate_Paused(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "100", "waba1", "promo", template.TemplateStatusApproved, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 100, "promo", "PAUSED", "NONE", "MARKETING")
 
@@ -269,7 +271,7 @@ func TestStatusUpdate_Paused(t *testing.T) {
 func TestStatusUpdate_Disabled(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "200", "waba1", "promo", template.TemplateStatusPaused, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 200, "promo", "DISABLED", "NONE", "MARKETING")
 
@@ -285,7 +287,7 @@ func TestStatusUpdate_Disabled(t *testing.T) {
 func TestStatusUpdate_Reinstated(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "300", "waba1", "promo", template.TemplateStatusDisabled, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 300, "promo", "REINSTATED", "NONE", "MARKETING")
 
@@ -301,7 +303,7 @@ func TestStatusUpdate_Reinstated(t *testing.T) {
 func TestStatusUpdate_Pending(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "400", "waba1", "auth_otp", template.TemplateStatusApproved, template.TemplateCategoryAuthentication)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 400, "auth_otp", "PENDING", "NONE", "AUTHENTICATION")
 
@@ -317,7 +319,7 @@ func TestStatusUpdate_Pending(t *testing.T) {
 func TestStatusUpdate_InAppeal(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "500", "waba1", "promo", template.TemplateStatusRejected, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 500, "promo", "IN_APPEAL", "NONE", "MARKETING")
 
@@ -333,7 +335,7 @@ func TestStatusUpdate_InAppeal(t *testing.T) {
 func TestStatusUpdate_Locked(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "600", "waba1", "promo", template.TemplateStatusApproved, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 600, "promo", "LOCKED", "NONE", "MARKETING")
 
@@ -349,7 +351,7 @@ func TestStatusUpdate_Locked(t *testing.T) {
 func TestStatusUpdate_Deleted(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "700", "waba1", "old_template", template.TemplateStatusApproved, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 700, "old_template", "DELETED", "", "MARKETING")
 
@@ -365,7 +367,7 @@ func TestStatusUpdate_Deleted(t *testing.T) {
 func TestStatusUpdate_PendingDeletion(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "800", "waba1", "soon_deleted", template.TemplateStatusApproved, template.TemplateCategoryUtility)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 800, "soon_deleted", "PENDING_DELETION", "", "UTILITY")
 
@@ -381,7 +383,7 @@ func TestStatusUpdate_PendingDeletion(t *testing.T) {
 func TestStatusUpdate_CategoryUpdatedAlongWithStatus(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "900", "waba1", "promo", template.TemplateStatusPending, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 900, "promo", "APPROVED", "NONE", "UTILITY")
 
@@ -400,7 +402,7 @@ func TestStatusUpdate_CategoryUpdatedAlongWithStatus(t *testing.T) {
 
 func TestStatusUpdate_TemplateNotFound(t *testing.T) {
 	repo := newMockTemplateRepo()
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 999, "nonexistent", "APPROVED", "NONE", "UTILITY")
 
@@ -412,21 +414,36 @@ func TestStatusUpdate_TemplateNotFound(t *testing.T) {
 func TestStatusUpdate_NoChange(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "1000", "waba1", "promo", template.TemplateStatusApproved, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 1000, "promo", "APPROVED", "NONE", "MARKETING")
 
 	if err := uc.Execute(payload); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
+	if len(repo.updated) != 0 {
+		t.Fatalf("an unchanged template must not be rewritten, got updates %v", repo.updated)
+	}
+}
 
+func TestStatusUpdate_UnknownCategoryKeepsTheStoredOneAndDoesNotRewrite(t *testing.T) {
+	repo := newMockTemplateRepo()
+	seedTemplate(repo, "t1", "1001", "waba1", "promo", template.TemplateStatusApproved, template.TemplateCategoryMarketing)
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
+
+	if err := uc.Execute(makeStatusPayload("waba1", 1001, "promo", "APPROVED", "NONE", "SOMETHING_NEW")); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if len(repo.updated) != 0 || repo.templates["t1"].Category != template.TemplateCategoryMarketing {
+		t.Fatalf("updates %v, category %s", repo.updated, repo.templates["t1"].Category)
+	}
 }
 
 func TestStatusUpdate_RepoUpdateError(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "1100", "waba1", "promo", template.TemplateStatusPending, template.TemplateCategoryMarketing)
 	repo.updateErr = errors.New("db unavailable")
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 1100, "promo", "APPROVED", "NONE", "MARKETING")
 
@@ -437,7 +454,7 @@ func TestStatusUpdate_RepoUpdateError(t *testing.T) {
 
 func TestStatusUpdate_MissingTemplateID(t *testing.T) {
 	repo := newMockTemplateRepo()
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := &template.TemplateWebhookPayload{
 		Object: "whatsapp_business_account",
@@ -462,7 +479,7 @@ func TestStatusUpdate_MissingTemplateID(t *testing.T) {
 func TestStatusUpdate_UnrecognisedEvent(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "1200", "waba1", "promo", template.TemplateStatusApproved, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 1200, "promo", "SOME_FUTURE_EVENT", "NONE", "MARKETING")
 
@@ -478,7 +495,7 @@ func TestStatusUpdate_UnrecognisedEvent(t *testing.T) {
 func TestComponentsUpdate_Logged(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "550", "waba1", "order_update", template.TemplateStatusApproved, template.TemplateCategoryUtility)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := &template.TemplateWebhookPayload{
 		Object: "whatsapp_business_account",
@@ -506,7 +523,7 @@ func TestComponentsUpdate_Logged(t *testing.T) {
 
 func TestComponentsUpdate_MissingID(t *testing.T) {
 	repo := newMockTemplateRepo()
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := &template.TemplateWebhookPayload{
 		Object: "whatsapp_business_account",
@@ -529,7 +546,7 @@ func TestComponentsUpdate_MissingID(t *testing.T) {
 func TestQualityUpdate_Logged(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "500", "waba1", "welcome_template", template.TemplateStatusApproved, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := &template.TemplateWebhookPayload{
 		Object: "whatsapp_business_account",
@@ -560,7 +577,7 @@ func TestQualityUpdate_Logged(t *testing.T) {
 func TestCategoryUpdate_MarketingToUtility(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "600", "waba1", "promo", template.TemplateStatusApproved, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := &template.TemplateWebhookPayload{
 		Object: "whatsapp_business_account",
@@ -591,7 +608,7 @@ func TestCategoryUpdate_MarketingToUtility(t *testing.T) {
 func TestCategoryUpdate_UtilityToAuthentication(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "601", "waba1", "otp", template.TemplateStatusApproved, template.TemplateCategoryUtility)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := &template.TemplateWebhookPayload{
 		Object: "whatsapp_business_account",
@@ -622,7 +639,7 @@ func TestCategoryUpdate_UtilityToAuthentication(t *testing.T) {
 func TestCategoryUpdate_NoChange(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "602", "waba1", "promo", template.TemplateStatusApproved, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := &template.TemplateWebhookPayload{
 		Object: "whatsapp_business_account",
@@ -643,12 +660,15 @@ func TestCategoryUpdate_NoChange(t *testing.T) {
 	if err := uc.Execute(payload); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
+	if len(repo.updated) != 0 {
+		t.Fatalf("an unchanged template must not be rewritten, got updates %v", repo.updated)
+	}
 }
 
 func TestCategoryUpdate_InvalidCategory(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "603", "waba1", "promo", template.TemplateStatusApproved, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := &template.TemplateWebhookPayload{
 		Object: "whatsapp_business_account",
@@ -677,7 +697,7 @@ func TestCategoryUpdate_InvalidCategory(t *testing.T) {
 func TestCategoryUpdate_MissingNewCategory(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "604", "waba1", "promo", template.TemplateStatusApproved, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := &template.TemplateWebhookPayload{
 		Object: "whatsapp_business_account",
@@ -701,7 +721,7 @@ func TestCategoryUpdate_MissingNewCategory(t *testing.T) {
 
 func TestExecuteTemplate_NilPayload(t *testing.T) {
 	repo := newMockTemplateRepo()
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	if err := uc.Execute(nil); err != nil {
 		t.Fatalf("Execute(nil): %v", err)
@@ -710,7 +730,7 @@ func TestExecuteTemplate_NilPayload(t *testing.T) {
 
 func TestExecuteTemplate_EmptyEntries(t *testing.T) {
 	repo := newMockTemplateRepo()
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := &template.TemplateWebhookPayload{
 		Object: "whatsapp_business_account",
@@ -726,7 +746,7 @@ func TestStatusUpdate_FallbackToExternalIDOnly(t *testing.T) {
 	repo := newMockTemplateRepo()
 
 	seedTemplate(repo, "t1", "1300", "", "legacy_template", template.TemplateStatusPending, template.TemplateCategoryUtility)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := makeStatusPayload("waba1", 1300, "legacy_template", "APPROVED", "NONE", "UTILITY")
 
@@ -742,7 +762,7 @@ func TestStatusUpdate_FallbackToExternalIDOnly(t *testing.T) {
 func TestStatusUpdate_Dialog360ChannelExternalID(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "gqh7gkLf8nZPcY4EpEbmWT", "2044166682973889", "concluirinscricao_03", template.TemplateStatusPending, template.TemplateCategoryUtility)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := &template.TemplateWebhookPayload{
 		Object: "whatsapp_business_account",
@@ -771,7 +791,7 @@ func TestMultipleTemplateChangesInSinglePayload(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "1400", "waba1", "promo_a", template.TemplateStatusPending, template.TemplateCategoryMarketing)
 	seedTemplate(repo, "t2", "1401", "waba1", "promo_b", template.TemplateStatusPending, template.TemplateCategoryMarketing)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	payload := &template.TemplateWebhookPayload{
 		Object: "whatsapp_business_account",

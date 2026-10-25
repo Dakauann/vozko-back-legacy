@@ -25,7 +25,7 @@ func (s *guardRepoStub) Delete(string) error {
 }
 
 func TestReceptiveCannotBeCreatedAsACampaign(t *testing.T) {
-	uc := NewCreateCampaignUseCase(&guardRepoStub{}, nil, nil, nil, nil, nil, nil, nil)
+	uc := createWith(CreateCampaignDeps{Campaigns: &guardRepoStub{}})
 	_, err := uc.Execute(context.Background(), &wc.Campaign{Name: "Receptivo", Type: wc.CampaignTypeOrganic, BusinessPhoneID: "phone-1", WorkspaceID: "ws-1"})
 	if !errors.Is(err, wc.ErrReceptiveManagedByNumber) {
 		t.Fatalf("err %v", err)
@@ -44,7 +44,7 @@ func TestReceptiveCannotBeEditedAsACampaign(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &guardRepoStub{stored: &wc.Campaign{ID: "c1", Type: tc.stored, Name: "x", BusinessPhoneID: "phone-1"}}
-			_, err := NewUpdateCampaignUseCase(repo, nil, nil, nil, nil).Execute(context.Background(), "c1", &wc.Campaign{Name: "y", Type: tc.input, EnableAgentResponses: true})
+			_, err := updateWith(UpdateCampaignDeps{Campaigns: repo}).Execute(context.Background(), "c1", &wc.Campaign{Name: "y", Type: tc.input, EnableAgentResponses: true})
 			if !errors.Is(err, wc.ErrReceptiveManagedByNumber) {
 				t.Fatalf("err %v", err)
 			}

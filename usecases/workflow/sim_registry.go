@@ -3,16 +3,54 @@ package workflow_usecase
 import (
 	"context"
 	"errors"
+	"time"
+
+	aa "vozko/domain/ai_attendance"
+	"vozko/domain/choicestats"
 
 	"vozko/domain/media"
 	"vozko/domain/workflow"
 	"vozko/usecases/workflow/node_executors"
 )
 
+type sandboxRuntime struct{}
+
+func (sandboxRuntime) ScheduleRunWake(string, int64) error         { return nil }
+func (sandboxRuntime) TryLock(string, time.Duration) (bool, error) { return true, nil }
+func (sandboxRuntime) Unlock(string) error                         { return nil }
+func (sandboxRuntime) RunStatus(string) (workflow.RunStatus, error) {
+	return workflow.RunStatusRunning, nil
+}
+func (sandboxRuntime) PublishAgentRunFinished(workflow.AgentRunFinished) error { return nil }
+func (sandboxRuntime) RecordRuntimeAlert(workflow.RuntimeAlertSignal) error    { return nil }
+func (sandboxRuntime) RecordSend(context.Context, choicestats.Send)            {}
+func (sandboxRuntime) RecordClick(context.Context, choicestats.Click)          {}
+func (sandboxRuntime) IncWorkflowRunStarted(string)                            {}
+func (sandboxRuntime) IncWorkflowRunFinished(string)                           {}
+func (sandboxRuntime) ObserveWorkflowStepDuration(string, time.Duration)       {}
+func (sandboxRuntime) IncWorkflowWebhookDelivery(string, string)               {}
+func (sandboxRuntime) IncWorkflowReplyLookupFailed()                           {}
+func (sandboxRuntime) IncWorkflowAgentContinuation(string)                     {}
+func (sandboxRuntime) RecordAIReply(aa.StartInput, string)                     {}
+
 func newSandboxEngine(runs workflow.WorkflowRunRepository, logs workflow.WorkflowRunLogRepository, registry *NodeExecutorRegistry, steps workflow.StepGate) *RunEngine {
-	engine := NewRunEngine(runs, logs, registry)
-	engine.SetStepGate(steps)
-	engine.SetAutomationGate(SandboxAutomationGate{})
+	engine, err := NewRunEngine(RunEngineDeps{
+		Runs:         runs,
+		Logs:         logs,
+		Registry:     registry,
+		Wakes:        sandboxRuntime{},
+		Locks:        sandboxRuntime{},
+		Automation:   SandboxAutomationGate{},
+		Metrics:      sandboxRuntime{},
+		Statuses:     sandboxRuntime{},
+		AgentRunEnds: sandboxRuntime{},
+		Alerts:       sandboxRuntime{},
+		Steps:        steps,
+		Choices:      sandboxRuntime{},
+	})
+	if err != nil {
+		panic(err.Error())
+	}
 	return engine
 }
 
@@ -89,6 +127,7 @@ func newSimulationRegistry(deps ExecutorDeps, box SimSandbox) *NodeExecutorRegis
 		WorkspaceRepo:         deps.WorkspaceRepo,
 		DepartmentRepo:        deps.DepartmentRepo,
 		ConversationHandOff:   handOff,
+		AIAttendance:          sandboxRuntime{},
 	})
 	return registry
 }

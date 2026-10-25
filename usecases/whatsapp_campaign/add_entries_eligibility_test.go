@@ -25,10 +25,10 @@ func addEntriesFixture(t *testing.T, screener campaignguard.Screener) (*addEntri
 	campaigns := newMockCampaignRepo()
 	stoppedSelectionSend(campaigns, "")
 	entries := &recordedEntries{mockEntryRepo: newMockEntryRepo()}
-	uc := NewAddEntriesUseCase(campaigns, entries, &qsLeadRepo{}).(*addEntriesUseCase)
-	uc.SetAutomation(permissiveAutomation(t))
+	uc := addEntriesWith(campaigns, entries, &qsLeadRepo{}).(*addEntriesUseCase)
+	uc.automation = permissiveAutomation(t)
 	if screener != nil {
-		uc.SetEligibility(screener)
+		uc.eligibility = screener
 	}
 	return uc, entries
 }
@@ -58,14 +58,7 @@ func TestAddedEntriesGoThroughTheSameEligibilityScreenAsTheCreate(t *testing.T) 
 	}
 }
 
-func TestAddEntriesFailsClosedWithoutTheEligibilityScreen(t *testing.T) {
-	uc, entries := addEntriesFixture(t, nil)
-	if _, err := uc.Execute(wc.AddEntriesInput{CampaignID: "camp-1", PhoneNumbers: validPhones(1)}); !errors.Is(err, campaignguard.ErrUnavailable) {
-		t.Fatalf("Execute = %v, want the screen to be required", err)
-	}
-	if len(entries.created) != 0 {
-		t.Fatal("an unscreened entry was written")
-	}
+func TestAddEntriesFailsClosedWhenTheEligibilityScreenFails(t *testing.T) {
 	screener := &fakeScreener{err: errors.New("redis down")}
 	broken, written := addEntriesFixture(t, screener)
 	if _, err := broken.Execute(wc.AddEntriesInput{CampaignID: "camp-1", PhoneNumbers: validPhones(1)}); err == nil || len(written.created) != 0 {

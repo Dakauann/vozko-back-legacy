@@ -147,8 +147,8 @@ func TestInboxRowsCarryTheWindowOfEveryChannel(t *testing.T) {
 		adapters = append(adapters, &batchWindowAdapter{entryType: entryType, states: map[string]conversation.WindowState{id: reported[entryType]}})
 		rows = append(rows, inboxRow(id, entryType))
 	}
-	svc := &HistoryProviderService{}
-	svc.SetChannelAdapters(conversation.NewAdapterRegistry(adapters...))
+	svc := historyWith(HistoryProviderService{})
+	svc.channelAdapters = conversation.NewAdapterRegistry(adapters...)
 
 	entries := svc.buildInboxEntries(rows, "")
 
@@ -164,8 +164,8 @@ func TestInboxWindowsAskEachChannelOncePerPage(t *testing.T) {
 	telegram := &batchWindowAdapter{entryType: shared.EntryTypeTelegram, states: map[string]conversation.WindowState{
 		"tg-1": conversation.OpenWindow(nil), "tg-2": conversation.OpenWindow(nil),
 	}}
-	svc := &HistoryProviderService{}
-	svc.SetChannelAdapters(conversation.NewAdapterRegistry(instagram, telegram))
+	svc := historyWith(HistoryProviderService{})
+	svc.channelAdapters = conversation.NewAdapterRegistry(instagram, telegram)
 	rows := []conversation.EntryWithLastMessage{
 		inboxRow("ig-1", shared.EntryTypeInstagram), inboxRow("tg-1", shared.EntryTypeTelegram),
 		inboxRow("ig-2", shared.EntryTypeInstagram), inboxRow("ig-3", shared.EntryTypeInstagram),
@@ -199,9 +199,9 @@ func TestInboxWindowsFailClosed(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			svc := &HistoryProviderService{}
+			svc := historyWith(HistoryProviderService{})
 			if tc.adapter != nil {
-				svc.SetChannelAdapters(conversation.NewAdapterRegistry(tc.adapter))
+				svc.channelAdapters = conversation.NewAdapterRegistry(tc.adapter)
 			}
 			entries := svc.buildInboxEntries([]conversation.EntryWithLastMessage{inboxRow("ig-1", shared.EntryTypeInstagram)}, "")
 			assertRowWindow(t, entries[0], conversation.ClosedWindow(conversation.WindowReasonChannelUnavailable))
@@ -217,7 +217,7 @@ func TestOfficialInboxRowsNameWhyTheWindowIsClosed(t *testing.T) {
 		{LeadID: "lead-other-phone", BusinessPhoneID: "phone-2", LastMessageAt: now.Add(-time.Hour)},
 		{LeadID: "lead-any-phone", BusinessPhoneID: "phone-2", LastMessageAt: now.Add(-time.Hour)},
 	}}
-	svc := &HistoryProviderService{messageWindowRepo: windows}
+	svc := historyWith(HistoryProviderService{messageWindowRepo: windows})
 	rows := []conversation.EntryWithLastMessage{
 		officialRow("wa-open", "lead-open", "phone-1"),
 		officialRow("wa-expired", "lead-old", "phone-1"),
@@ -247,7 +247,7 @@ func TestOfficialInboxRowsNameWhyTheWindowIsClosed(t *testing.T) {
 }
 
 func TestOfficialInboxRowsFailClosedWhenTheWindowsCannotBeRead(t *testing.T) {
-	svc := &HistoryProviderService{messageWindowRepo: &leadWindows{err: errors.New("db down")}}
+	svc := historyWith(HistoryProviderService{messageWindowRepo: &leadWindows{err: errors.New("db down")}})
 
 	entries := svc.buildInboxEntries([]conversation.EntryWithLastMessage{officialRow("wa-1", "lead-1", "phone-1")}, "")
 
@@ -282,8 +282,8 @@ func TestListAndSingleEntryAgreeOnEveryChannel(t *testing.T) {
 			id := "entry-" + string(entryType)
 			adapter := &batchWindowAdapter{entryType: entryType, states: map[string]conversation.WindowState{id: states[i]}}
 			row := inboxRow(id, entryType)
-			svc := &HistoryProviderService{messageRepo: singleEntryRows{rows: map[string]conversation.EntryWithLastMessage{id: row}}}
-			svc.SetChannelAdapters(conversation.NewAdapterRegistry(adapter))
+			svc := historyWith(HistoryProviderService{messageRepo: singleEntryRows{rows: map[string]conversation.EntryWithLastMessage{id: row}}})
+			svc.channelAdapters = conversation.NewAdapterRegistry(adapter)
 
 			listed := svc.buildInboxEntries([]conversation.EntryWithLastMessage{row}, "")[0]
 			card, err := svc.GetInboxEntry(id, string(entryType))
@@ -301,8 +301,8 @@ func TestListAndSingleEntryAgreeOnEveryChannel(t *testing.T) {
 		t.Run(string(shared.EntryTypeWhatsApp)+"/"+age.String(), func(t *testing.T) {
 			windows := &leadWindows{windows: []*lmw.LeadMessageWindow{{LeadID: "lead-1", BusinessPhoneID: "phone-1", LastMessageAt: time.Now().UTC().Add(-age)}}}
 			row := officialRow("entry", "lead-1", "phone-1")
-			svc := &HistoryProviderService{messageWindowRepo: windows, whatsappRepo: officialEntries{},
-				messageRepo: singleEntryRows{rows: map[string]conversation.EntryWithLastMessage{"entry": row}}}
+			svc := historyWith(HistoryProviderService{messageWindowRepo: windows, whatsappRepo: officialEntries{},
+				messageRepo: singleEntryRows{rows: map[string]conversation.EntryWithLastMessage{"entry": row}}})
 
 			listed := svc.buildInboxEntries([]conversation.EntryWithLastMessage{row}, "")[0]
 			card, err := svc.GetInboxEntry("entry", string(shared.EntryTypeWhatsApp))

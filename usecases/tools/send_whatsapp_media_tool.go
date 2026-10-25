@@ -20,6 +20,7 @@ import (
 	"vozko/domain/conversation"
 	"vozko/domain/media"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/domain/tools"
 	media_infra "vozko/infra/media"
 )
@@ -31,14 +32,6 @@ type SendWhatsappMediaTool struct {
 	downloads             media.RemoteFiles
 	adapters              conversation.AdapterRegistry
 	mediaURLs             *conversation.MediaURLResolver
-}
-
-func (uc *SendWhatsappMediaTool) SetAdapters(r conversation.AdapterRegistry) {
-	uc.adapters = r
-}
-
-func (uc *SendWhatsappMediaTool) SetMediaURLs(r *conversation.MediaURLResolver) {
-	uc.mediaURLs = r
 }
 
 const (
@@ -58,8 +51,15 @@ func NewSendWhatsappMediaToolUseCase(
 	whatsappClientFactory conversation.WhatsAppClientFactory,
 	mediaRepo media.MediaRepository,
 	downloads media.RemoteFiles,
+	adapters conversation.AdapterRegistry,
+	mediaURLs *conversation.MediaURLResolver,
 ) *SendWhatsappMediaTool {
+	if err := deps.Require("send media tool", map[string]any{"adapters": adapters, "media urls": mediaURLs}); err != nil {
+		panic(err.Error())
+	}
 	return &SendWhatsappMediaTool{
+		adapters:              adapters,
+		mediaURLs:             mediaURLs,
 		ctx:                   ctx,
 		whatsappClientFactory: whatsappClientFactory,
 		mediaRepo:             mediaRepo,

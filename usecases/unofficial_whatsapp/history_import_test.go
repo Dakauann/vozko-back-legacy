@@ -122,7 +122,7 @@ func newImportHarness(t *testing.T) *importHarness {
 		downloads:   &countingDownloads{fakeMessaging: &fakeMessaging{}},
 		convs:       newFakeConversationRepo(),
 	}
-	h.uc = NewHandleWebhookUseCase(HandleWebhookDeps{
+	h.uc = webhookFor(HandleWebhookDeps{
 		Instances:     newFakeInstanceRepo(instance),
 		Servers:       newFakeServerRepo(&uw.Server{ID: "srv-1", BaseURL: "https://host.test"}),
 		Contacts:      newFakeContactRepo(),
@@ -370,25 +370,13 @@ func TestHistoryBatchHandsTheLineOverFirst(t *testing.T) {
 	lines := &fakeLines{siblings: []*uw.Instance{{
 		ID: "old-inst", WorkspaceID: "ws-1", PhoneNumber: h.instance.PhoneNumber, Status: uw.StatusDisconnected,
 	}}}
-	h.uc.SetLineHandover(NewLineHandover(lines))
+	h.uc.handover = NewLineHandover(lines)
 
 	if err := h.deliverBatch(t, historyItem("a1", anaChat, false, time.Now().Add(-time.Hour))); err != nil {
 		t.Fatalf("batch: %v", err)
 	}
 	if len(lines.transfers) != 1 {
 		t.Errorf("transfers = %v", lines.transfers)
-	}
-}
-
-func TestHistoryBatchIsDroppedWhenTheImportIsSwitchedOff(t *testing.T) {
-	h := newImportHarness(t)
-	h.uc.DisableHistoryImport()
-
-	if err := h.deliverBatch(t, historyItem("a1", anaChat, false, time.Now().Add(-time.Hour))); err != nil {
-		t.Fatalf("batch: %v", err)
-	}
-	if len(h.history.all()) != 0 {
-		t.Error("the kill switch must stop webhook history too")
 	}
 }
 
@@ -447,7 +435,7 @@ func TestHistoryRePollHealsAStaleProfileWithoutReadingItPerMessage(t *testing.T)
 
 func TestHistoryBatchHonoursTheImportWindow(t *testing.T) {
 	h := newImportHarness(t)
-	h.uc.SetHistoryWindow(30 * 24 * time.Hour)
+	h.uc.historyWindow = 30 * 24 * time.Hour
 
 	err := h.deliverBatch(t,
 		historyItem("recent", anaChat, false, time.Now().Add(-24*time.Hour)),

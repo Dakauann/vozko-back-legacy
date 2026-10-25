@@ -1,57 +1,37 @@
 package node_executors
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"log/slog"
-	"net"
-	"net/http"
 	"net/url"
 	"strings"
+
 	"time"
 
-	"vozko/domain/shared"
+	"vozko/domain/httpcall"
 	"vozko/domain/workflow"
-	"vozko/domain/workflowsecret"
-	"vozko/usecases/workflow/httptrace"
+	"vozko/domain/workspacesecret"
+	httpcall_usecase "vozko/usecases/httpcall"
 )
 
 const (
-	defaultHTTPRequestTimeout = 15 * time.Second
-	MaxHTTPRequestTimeout     = 30 * time.Second
+	defaultHTTPRequestTimeout = httpcall.DefaultTimeout
+	MaxHTTPRequestTimeout     = httpcall.MaxTimeout
 	maxHTTPResponseBytes      = 64 * 1024
 )
 
-var errHTTPEgressNotConfigured = errors.New("outbound HTTP is not configured on this server")
-
-type HTTPEgress struct {
-	Client    *http.Client
-	LegacyTLS *http.Client
-}
+type HTTPEgress = httpcall_usecase.Egress
 
 var normalizeRequestMap = workflow.RequestMap
 
 type httpRequestExecutor struct {
-	egress  HTTPEgress
-	secrets workflowsecret.Resolver
+	caller  *httpcall_usecase.Caller
+	secrets workspacesecret.Resolver
 }
 
-func NewHTTPRequestExecutor(egress HTTPEgress, secrets workflowsecret.Resolver) workflow.NodeExecutor {
-	return &httpRequestExecutor{egress: egress, secrets: secrets}
-}
-
-func isTLSHandshakeError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "tls handshake timeout") ||
-		strings.Contains(msg, "remote error: tls") ||
-		strings.Contains(msg, "tls: handshake failure") ||
-		strings.Contains(msg, "tls: protocol version")
+func NewHTTPRequestExecutor(egress HTTPEgress, secrets workspacesecret.Resolver) workflow.NodeExecutor {
+	return &httpRequestExecutor{caller: httpcall_usecase.NewCaller(egress), secrets: secrets}
 }
 
 func httpRequestTimeout(config map[string]interface{}) time.Duration {
@@ -62,10 +42,7 @@ func httpRequestTimeout(config map[string]interface{}) time.Duration {
 	case int:
 		seconds = float64(v)
 	}
-	if seconds <= 0 {
-		return defaultHTTPRequestTimeout
-	}
-	return min(time.Duration(seconds*float64(time.Second)), MaxHTTPRequestTimeout)
+	return httpcall.Timeout(seconds)
 }
 
 func httpFailure(ctx *workflow.NodeContext, label, message string, kind workflow.ErrorKind) *workflow.NodeResult {
@@ -163,10 +140,6 @@ func (e *httpRequestExecutor) Execute(ctx *workflow.NodeContext) (*workflow.Node
 		slog.Warn("workflow.http_request.empty_url", nodeLogAttrs(ctx)...)
 		return httpFailure(ctx, "falha", "URL is empty", workflow.ErrorKindConfig), nil
 	}
-	if e.egress.Client == nil {
-		slog.Warn("workflow.http_request.refused", append(nodeLogAttrs(ctx), slog.String("reason", errHTTPEgressNotConfigured.Error()))...)
-		return httpFailure(ctx, "falha", errHTTPEgressNotConfigured.Error(), workflow.ErrorKindConfig), nil
-	}
 
 	secretNames := workflow.SecretRefs(ctx.Node.Config)
 	secrets, err := resolveNodeSecrets(ctx, e.secrets, secretNames)
@@ -199,117 +172,49 @@ func (e *httpRequestExecutor) Execute(ctx *workflow.NodeContext) (*workflow.Node
 		bodyStr = render(bs)
 	}
 
-	headers := normalizeRequestMap(ctx.Node.Config["headers"])
-	authType, _ := ctx.Node.Config["auth_type"].(string)
-	authToken, _ := ctx.Node.Config["auth_token"].(string)
-	if authToken != "" {
-		authToken = render(authToken)
+	headers := map[string]string{}
+	for k, v := range normalizeRequestMap(ctx.Node.Config["headers"]) {
+		headers[k] = render(workflow.TemplateText(v))
 	}
+	auth := httpcall.Auth{}
+	auth.Mode, _ = ctx.Node.Config["auth_type"].(string)
+	if token, _ := ctx.Node.Config["auth_token"].(string); token != "" {
+		auth.Token = render(token)
+	}
+	if user, _ := ctx.Node.Config["auth_user"].(string); user != "" {
+		auth.User = render(user)
+	}
+	auth.KeyName, _ = ctx.Node.Config["auth_key_name"].(string)
 
 	callCtx, releaseCall := ctx.CallContext()
 	defer releaseCall()
-	requestCtx, cancel := context.WithTimeout(callCtx, httpRequestTimeout(ctx.Node.Config))
-	defer cancel()
-
-	makeReq := func() (*http.Request, error) {
-		var body io.Reader
-		if bodyStr != "" {
-			body = strings.NewReader(bodyStr)
+	outcome := e.caller.Do(callCtx, httpcall_usecase.Prepared{
+		Method: method, URL: rawURL, Body: bodyStr, Headers: headers, Auth: auth,
+		Timeout: httpRequestTimeout(ctx.Node.Config), ResponseLimit: maxHTTPResponseBytes,
+	})
+	target := requestTarget(ctx, outcome.Exchange.URL, method, secrets)
+	if outcome.Kind == workflow.ErrorKindConfig {
+		slog.Warn("workflow.http_request.refused", append(nodeLogAttrs(ctx), slog.String("method", method), slog.String("error", secrets.scrub.String(httpcall_usecase.TransportCause(outcome.Err))))...)
+		return httpFailure(ctx, "falha", secrets.scrub.String(outcome.Err.Error()), workflow.ErrorKindConfig), nil
+	}
+	if outcome.Exchange.TLSFallback {
+		slog.Info("workflow.http_request.tls_fallback", target...)
+	}
+	ctx.Trace.RecordHTTP(outcome.Exchange)
+	if outcome.Err != nil {
+		label := outputFailure
+		if outcome.Kind == workflow.ErrorKindTimeout {
+			label = outputTimeout
 		}
-		req, err := http.NewRequestWithContext(requestCtx, method, rawURL, body)
-		if err != nil {
-			return nil, err
-		}
-		if bodyStr != "" && req.Header.Get("Content-Type") == "" {
-			req.Header.Set("Content-Type", "application/json")
-		}
-		for k, v := range headers {
-			req.Header.Set(k, render(workflow.TemplateText(v)))
-		}
-		switch authType {
-		case "bearer":
-			if authToken != "" {
-				token := strings.TrimSpace(authToken)
-				if len(token) >= 7 && strings.EqualFold(token[:7], "bearer ") {
-					token = strings.TrimSpace(token[7:])
-				}
-				req.Header.Set("Authorization", "Bearer "+token)
-			}
-		case "basic":
-			authUser, _ := ctx.Node.Config["auth_user"].(string)
-			if authUser != "" {
-				authUser = render(authUser)
-			}
-			if authUser != "" || authToken != "" {
-				req.SetBasicAuth(authUser, authToken)
-			}
-		case "api_key":
-			keyName, _ := ctx.Node.Config["auth_key_name"].(string)
-			if keyName == "" {
-				keyName = "X-API-Key"
-			}
-			if authToken != "" {
-				req.Header.Set(keyName, authToken)
-			}
-		}
-		return req, nil
+		slog.Warn("workflow.http_request.transport_error", append(target, slog.String("label", label), slog.String("error", secrets.scrub.String(httpcall_usecase.TransportCause(outcome.Err))))...)
+		return httpFailure(ctx, label, secrets.scrub.String(fmt.Sprintf("transport error: %v", outcome.Err)), outcome.Kind), nil
 	}
 
-	req, err := makeReq()
-	if err != nil {
-		slog.Warn("workflow.http_request.invalid_request", append(nodeLogAttrs(ctx), slog.String("method", method), slog.String("error", secrets.scrub.String(transportCause(err))))...)
-		return httpFailure(ctx, "falha", secrets.scrub.String(fmt.Sprintf("failed to create request: %v", err)), workflow.ErrorKindConfig), nil
-	}
-	target := requestTarget(ctx, req, method, secrets)
-	exchange := workflow.HTTPExchange{
-		Method:         method,
-		URL:            req.URL.String(),
-		RequestHeaders: httptrace.Headers(req.Header),
-		RequestBody:    bodyStr,
-	}
-	sentAt := time.Now()
-
-	resp, err := e.egress.Client.Do(req)
-	if err != nil && isTLSHandshakeError(err) && e.egress.LegacyTLS != nil {
-		slog.Info("workflow.http_request.tls_fallback", append(target, slog.String("error", secrets.scrub.String(transportCause(err))))...)
-		if req2, mkErr := makeReq(); mkErr == nil {
-			exchange.TLSFallback = true
-			resp, err = e.egress.LegacyTLS.Do(req2)
-		}
-	}
-	exchange.LatencyMs = time.Since(sentAt).Milliseconds()
-	if err != nil {
-		label, kind := outputFailure, workflow.ErrorKindTransport
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			label, kind = outputTimeout, workflow.ErrorKindTimeout
-		}
-		exchange.Error = transportCause(err)
-		if errors.Is(err, shared.ErrEgressBlocked) {
-			exchange.EgressRefusal = exchange.Error
-		}
-		ctx.Trace.RecordHTTP(exchange)
-		slog.Warn("workflow.http_request.transport_error", append(target, slog.String("label", label), slog.String("error", secrets.scrub.String(transportCause(err))))...)
-		return httpFailure(ctx, label, secrets.scrub.String(fmt.Sprintf("transport error: %v", err)), kind), nil
-	}
-	defer resp.Body.Close()
-
-	rawBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxHTTPResponseBytes+1))
-	if len(rawBody) > maxHTTPResponseBytes {
-		rawBody = rawBody[:maxHTTPResponseBytes]
-		exchange.Truncated = true
-	}
-	respBody := secrets.scrub.String(string(rawBody))
-	exchange.URL = resp.Request.URL.String()
-	exchange.Status = resp.StatusCode
-	exchange.ResponseHeaders = httptrace.Headers(resp.Header)
-	exchange.ResponseBody = string(rawBody)
-	exchange.Redirects = httptrace.Redirects(resp)
-	ctx.Trace.RecordHTTP(exchange)
-
+	respBody := secrets.scrub.String(string(outcome.Body))
 	output := map[string]interface{}{
-		"status_code": resp.StatusCode,
+		"status_code": outcome.Status,
 		"body":        respBody,
-		"success":     resp.StatusCode < 400,
+		"success":     outcome.Status < 400,
 	}
 
 	var jsonResp interface{}
@@ -331,38 +236,34 @@ func (e *httpRequestExecutor) Execute(ctx *workflow.NodeContext) (*workflow.Node
 		if jsonResp != nil {
 			captured = jsonResp
 		}
-		workflow.RecordHTTPCapture(ctx.State, captureVar, captured, resp.StatusCode)
+		workflow.RecordHTTPCapture(ctx.State, captureVar, captured, outcome.Status)
 	}
 
 	edges := ctx.Graph.OutgoingEdges(ctx.Node.ID)
 	var label string
 	var kind workflow.ErrorKind
-	if resp.StatusCode < 400 {
+	if outcome.Status < 400 {
 		label = "sucesso"
 	} else {
 		label, kind = outputFailure, workflow.ErrorKindHTTPStatus
-		output["error"] = fmt.Sprintf("HTTP %d: %s", resp.StatusCode, respBody)
+		output["error"] = fmt.Sprintf("HTTP %d: %s", outcome.Status, respBody)
 	}
 
 	output["next_edge"] = label
 	result := routeOutput(&workflow.NodeResult{Output: output, ErrorKind: kind}, edges, label)
 	output["next_node_id"] = result.NextNodeID
-	slog.Info("workflow.http_request", append(target, slog.Int("status", resp.StatusCode), slog.String("label", label))...)
+	slog.Info("workflow.http_request", append(target, slog.Int("status", outcome.Status), slog.String("label", label))...)
 	return result, nil
 }
 
-func requestTarget(ctx *workflow.NodeContext, req *http.Request, method string, secrets nodeSecrets) []any {
+func requestTarget(ctx *workflow.NodeContext, rawURL, method string, secrets nodeSecrets) []any {
+	host, path := "", ""
+	if parsed, err := url.Parse(rawURL); err == nil {
+		host, path = parsed.Host, parsed.Path
+	}
 	return append(nodeLogAttrs(ctx),
 		slog.String("method", method),
-		slog.String("host", secrets.scrub.String(req.URL.Host)),
-		slog.String("path", secrets.scrub.String(req.URL.Path)),
+		slog.String("host", secrets.scrub.String(host)),
+		slog.String("path", secrets.scrub.String(path)),
 	)
-}
-
-func transportCause(err error) string {
-	var urlErr *url.Error
-	if errors.As(err, &urlErr) && urlErr.Err != nil {
-		return urlErr.Err.Error()
-	}
-	return err.Error()
 }

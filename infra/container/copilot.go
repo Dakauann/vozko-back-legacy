@@ -44,7 +44,7 @@ func (c *Container) buildCopilot(
 	if err != nil {
 		log.Fatalf("[container] copilot skills: %v", err)
 	}
-	agentDeps := platformtools.AgentDeps{KnowledgeBases: c.useCases.listKnowledgeBases, Collections: c.mcpCollection, Catalog: c.services.toolRegistry}
+	agentDeps := platformtools.AgentDeps{KnowledgeBases: c.useCases.listKnowledgeBases, Catalog: c.services.toolRegistry, ToolCheck: c.agentToolChecks(), Publishing: c.agentPublishing()}
 	toolset := append([]copilot.Tool{
 		platformtools.NewListAgentsTool(listAgents),
 		platformtools.NewCountAgentsTool(listAgents),
@@ -75,22 +75,25 @@ func (c *Container) buildCopilot(
 	}, append(c.operationTools(), c.numberAutomationTools(getAgent)...)...)
 	toolset = append(toolset, emailCopilotTools(c.email, c.platformEmailRelay)...)
 	toolset = append(toolset, c.emailDesignTools()...)
-	svc := copilot_usecase.NewService(
-		agentloop.Engine{AI: c.services.ai},
-		copilot_usecase.NewRegistry(toolset...),
-		c.useCases.checkWsAccess,
-		c.useCases.chatFunds,
-		c.repositories.aichatThread,
-		c.repositories.aichatMessage,
-		c.useCases.getMedia,
-		state,
-		func() string { return uuid.New().String() },
-	)
 	screens := copilotscreen.NewBroker(c.redisProvider.SharedState())
 	screens.Start(context.Background())
-	svc.SetScreenMailbox(screens)
-	svc.SetQueue(c.repositories.aichatQueue)
-	svc.SetProjectAdopter(aichat_repository.NewProjectAdopter(c.db))
+	svc, err := copilot_usecase.NewService(copilot_usecase.Deps{
+		Engine:   agentloop.Engine{AI: c.services.ai},
+		Registry: copilot_usecase.NewRegistry(toolset...),
+		Access:   c.useCases.checkWsAccess,
+		Funds:    c.useCases.chatFunds,
+		Threads:  c.repositories.aichatThread,
+		Messages: c.repositories.aichatMessage,
+		Files:    c.useCases.getMedia,
+		State:    state,
+		NewID:    func() string { return uuid.New().String() },
+		Screens:  screens,
+		Queue:    c.repositories.aichatQueue,
+		Adopter:  aichat_repository.NewProjectAdopter(c.db),
+	})
+	if err != nil {
+		log.Fatalf("[container] %v", err)
+	}
 	return svc
 }
 
@@ -294,7 +297,7 @@ func (c *Container) telegramTools() []copilot.Tool {
 
 func (c *Container) unofficialCampaignTools() []copilot.Tool {
 	campaigns := c.unofficialWhatsAppCampaigns
-	if c.unofficialWhatsApp == nil || !c.unofficialWhatsApp.Enabled || campaigns == nil || !campaigns.Enabled {
+	if c.unofficialWhatsApp == nil || campaigns == nil {
 		return nil
 	}
 	deps := c.unofficialCampaignToolDeps()
@@ -322,7 +325,7 @@ func (c *Container) unofficialCampaignToolDeps() crmtools.UnofficialCampaignDeps
 
 func (c *Container) unofficialGroupTools() []copilot.Tool {
 	campaigns := c.unofficialWhatsAppCampaigns
-	if c.unofficialWhatsApp == nil || c.unofficialWhatsApp.WorkspaceGroups == nil || campaigns == nil || !campaigns.Enabled {
+	if c.unofficialWhatsApp == nil || c.unofficialWhatsApp.WorkspaceGroups == nil || campaigns == nil {
 		return nil
 	}
 	deps := crmtools.UnofficialGroupDeps{
@@ -407,7 +410,7 @@ func (c *Container) conversationActionTools() []copilot.Tool {
 		Send:      c.services.personSend,
 		Scheduler: c.useCases.personScheduler,
 		Entries:   c.services.conversationEntryLookup,
-		Broadcast: c.services.conversationHub,
+		Broadcast: c.services.messageArrivals,
 	}
 	templates := crmtools.TemplateSendDeps{
 		Rates:     c.walletRate(),
@@ -552,7 +555,7 @@ func (c *Container) leadTools() []copilot.Tool {
 }
 
 func (c *Container) conversationInsightsTool(now copilottools.Clock) copilot.Tool {
-	if c.audience == nil || !c.audience.Enabled {
+	if c.audience == nil {
 		return nil
 	}
 	return attendancetools.NewConversationInsightsTool(c.audience.Stats, c.audience.List, now)

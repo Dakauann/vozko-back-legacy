@@ -16,12 +16,9 @@ func checkGraphReasoning(ctx context.Context, catalog ModelCatalog, g *workflow.
 	if !workflow.GraphChoosesReasoning(g) {
 		return nil
 	}
-	var models []ai.ModelInfo
-	if catalog != nil {
-		var err error
-		if models, err = catalog.GetModelsWithPricing(ctx); err != nil {
-			log.Printf("[workflow] model catalog unavailable, refusing the chosen reasoning levels: %v", err)
-		}
+	models, err := catalog.GetModelsWithPricing(ctx)
+	if err != nil {
+		log.Printf("[workflow] model catalog unavailable, refusing the chosen reasoning levels: %v", err)
 	}
 	return workflow.CheckGraphReasoning(g, models)
 }

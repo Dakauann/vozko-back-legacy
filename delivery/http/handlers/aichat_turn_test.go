@@ -50,8 +50,8 @@ func (activePlan) GetCurrentByWorkspaceID(string, time.Time) (*workspace_plan.Wo
 
 func turnHandler(owner string) (*AIChatHandler, *copilot_usecase.Service) {
 	threads := screenThreads{thread: &aichat.Thread{ID: "th1", WorkspaceID: "ws1", UserID: owner}}
-	copilot := copilot_usecase.NewService(agentloop.Engine{}, copilot_usecase.NewRegistry(), nil, nil, threads, nil, nil, nil, nil)
-	chats := aichat_usecase.NewService(threads, turnMessages{}, nil, aichat_usecase.NewFundsGate(fundedBalance{}, activePlan{}))
+	copilot := copilotService(copilot_usecase.Deps{Threads: threads})
+	chats := chatService(aichat_usecase.Deps{Threads: threads})
 	return NewAIChatHandler(chats, copilot), copilot
 }
 
@@ -260,10 +260,8 @@ func (p pricedLedger) TotalsUnder(string, string) (balance.ReferenceTotals, erro
 
 func costHandler(owner string, tracked bool) *AIChatHandler {
 	threads := screenThreads{thread: &aichat.Thread{ID: "th1", WorkspaceID: "ws1", UserID: owner, CostTracked: tracked}}
-	chats := aichat_usecase.NewService(threads, turnMessages{}, nil, nil)
-	chats.SetChargeLedger(pricedLedger{totals: balance.ReferenceTotals{LedgerMicros: 80_000, BillingMicros: 420_000, Transactions: 2, Debits: 2}})
-	chats.SetUsageLedger(pricedUsage{totals: aiusage.Totals{Calls: 2, Billed: 2, Tokens: aiusage.Tokens{Input: 90_000, Output: 1_200, CacheRead: 80_000, CacheWrite: 9_000, Reasoning: 300}}})
-	copilot := copilot_usecase.NewService(agentloop.Engine{}, copilot_usecase.NewRegistry(), nil, nil, threads, nil, nil, nil, nil)
+	chats := chatService(aichat_usecase.Deps{Threads: threads, Charges: pricedLedger{totals: balance.ReferenceTotals{LedgerMicros: 80_000, BillingMicros: 420_000, Transactions: 2, Debits: 2}}, Usage: pricedUsage{totals: aiusage.Totals{Calls: 2, Billed: 2, Tokens: aiusage.Tokens{Input: 90_000, Output: 1_200, CacheRead: 80_000, CacheWrite: 9_000, Reasoning: 300}}}})
+	copilot := copilotService(copilot_usecase.Deps{Threads: threads})
 	return NewAIChatHandler(chats, copilot)
 }
 

@@ -75,8 +75,7 @@ func TestEmailE2E_AnOperatorReplyCarriesAnImageAndPaysForItsChunks(t *testing.T)
 	photo := w.upload(uploads, first.ConversationID, "vitrine.png", "image/png", image)
 	program := w.upload(uploads, first.ConversationID, "instalador.exe", "application/octet-stream", []byte("MZ"))
 	sender := conversation_usecase.NewMessageSenderService(conversation_repository.NewRepository(w.db), nil, nil, nil,
-		uploads, nil, nil, nil, nil, nil, nil, nil)
-	sender.SetChannelAdapters(conversation.NewAdapterRegistry(w.inbox.Adapter))
+		uploads, nil, nil, nil, nil, nil, nil, nil, conversation.NewAdapterRegistry(w.inbox.Adapter))
 
 	message, err := w.pricer.PriceEmail(ws.ID, workspace_pricing.EmailSendPerMessage)
 	w.must(err)

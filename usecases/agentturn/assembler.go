@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"vozko/domain/agent"
+	"vozko/domain/agentrun"
 	"vozko/domain/ai"
 	leadmemory "vozko/domain/lead_memory"
 	"vozko/domain/rag"
@@ -45,6 +46,8 @@ func (a *Assembler) CiteMessagesFrom(messages tools_usecase.RecentMessages) {
 type Request struct {
 	Agent *agent.Agent
 	Vars  map[string]string
+
+	Source agentrun.Source
 
 	Identity *shared_usecase.ConversationContext
 
@@ -124,6 +127,9 @@ func (a *Assembler) Assemble(ctx context.Context, req Request) Assembled {
 		}
 		for sk, sv := range req.ToolSeed {
 			toolConfigs[key][sk] = sv
+		}
+		if len(req.Vars) > 0 {
+			toolConfigs[key]["__vars"] = req.Vars
 		}
 	}
 
@@ -208,8 +214,17 @@ func (req Request) conversationEntry() (string, string) {
 func (req Request) agentTurn() ai.AgentTurn {
 	entryID, entryType := req.conversationEntry()
 	turn := ai.AgentTurn{EntryID: entryID, EntryType: entryType, CampaignID: req.CampaignID}
-	if req.Agent != nil {
-		turn.AgentID = req.Agent.ID
+	if req.Agent == nil {
+		return turn
+	}
+	turn.AgentID = req.Agent.ID
+	source := req.Source
+	if source == "" {
+		source = agentrun.SourceConversation
+	}
+	turn.Source = string(source)
+	if !source.Sandboxed() {
+		turn.AgentVersion = req.Agent.RunningVersion
 	}
 	return turn
 }

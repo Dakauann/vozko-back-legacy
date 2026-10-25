@@ -10,6 +10,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 
 	aa "vozko/domain/ai_attendance"
+	"vozko/domain/calltrace"
 	"vozko/domain/shared"
 )
 
@@ -29,12 +30,16 @@ func TestATurnsToolCallsAreWrittenInOneInsert(t *testing.T) {
 	at := time.Date(2026, 10, 19, 20, 0, 0, 0, time.UTC)
 	calls := []aa.ToolCall{
 		{ID: "c-1", ToolCallID: "call_model_1", WorkspaceID: "ws-1", EntryID: "e-1", EntryType: "whatsapp", AgentID: "a-1", SessionID: "s-1", ToolName: "http_request", Args: map[string]interface{}{"url": "https://api"}, Outcome: aa.ToolCallOK, DurationMs: 120, CreatedAt: at},
-		{ID: "c-2", WorkspaceID: "ws-1", EntryID: "e-1", EntryType: "whatsapp", AgentID: "a-1", ToolName: "transfer_to_human", Outcome: aa.ToolCallError, Error: "409", ErrorCode: "workflow_not_active", CreatedAt: at},
+		{ID: "c-2", WorkspaceID: "ws-1", EntryID: "e-1", EntryType: "whatsapp", AgentID: "a-1", ToolName: "transfer_to_human", Outcome: aa.ToolCallError, Error: "409", ErrorCode: "workflow_not_active", CreatedAt: at,
+			AgentRunID: "run-1", Source: "conversation", ToolInstanceID: "tool-1", ToolType: "http_request", ToolRevision: 2, Sequence: 1, ModelCallIndex: 1, ErrorKind: "http_status",
+			ErrorChain: []string{"a API respondeu 502"}, HTTP: []calltrace.HTTPExchange{{Method: "GET", Status: 502}}, ModelResult: `{"is_error":true}`, FollowedBy: "retry"},
 	}
-	mock.ExpectExec(`^INSERT INTO "ai_tool_calls" \("id","tool_call_id","workspace_id","entry_id","entry_type","agent_id","session_id","tool_name","args","outcome","error","error_code","duration_ms","run_id","created_at"\) VALUES \(.+\),\(.+\)$`).
+	mock.ExpectExec(`^INSERT INTO "ai_tool_calls" \("id","tool_call_id","workspace_id","entry_id","entry_type","agent_id","session_id","tool_name","args","outcome","error","error_code","duration_ms","run_id","created_at","agent_run_id","source","tool_instance_id","tool_type","tool_revision","sequence","model_call_index","error_kind","error_chain","http","model_result","mapped_output","followed_by","simulated"\) VALUES \(.+\),\(.+\)$`).
 		WithArgs(
 			"c-1", "call_model_1", "ws-1", "e-1", "whatsapp", "a-1", "s-1", "http_request", containsArg(`"url":"https://api"`), "ok", "", "", int64(120), nil, at,
+			nil, "", "", "", 0, 0, 0, "", nil, nil, nil, nil, "", false,
 			"c-2", nil, "ws-1", "e-1", "whatsapp", "a-1", "", "transfer_to_human", nil, "error", "409", "workflow_not_active", int64(0), nil, at,
+			"run-1", "conversation", "tool-1", "http_request", 2, 1, 1, "http_status", containsArg(`"a API respondeu 502"`), containsArg(`"status":502`), `{"is_error":true}`, nil, "retry", false,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 2))
 
@@ -54,7 +59,7 @@ func TestAConversationsToolCallsAreListedNewestFirstInsideTheWorkspace(t *testin
 	at := time.Date(2026, 10, 19, 20, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(pattern(`SELECT count(*) FROM "ai_tool_calls" WHERE workspace_id = ? AND entry_id = ? AND entry_type = ?`)).
 		WithArgs("ws-1", "e-1", "whatsapp").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(pattern(`SELECT ai_tool_calls.*, wr.workflow_id AS run_workflow_id FROM "ai_tool_calls" `+toolCallRunJoinSQL+` WHERE ai_tool_calls.workspace_id = ? AND ai_tool_calls.entry_id = ? AND ai_tool_calls.entry_type = ? ORDER BY ai_tool_calls.created_at DESC LIMIT ?`)).
+	mock.ExpectQuery(pattern(`SELECT `+listedToolCallColumns+`, wr.workflow_id AS run_workflow_id FROM "ai_tool_calls" `+toolCallRunJoinSQL+` WHERE ai_tool_calls.workspace_id = ? AND ai_tool_calls.entry_id = ? AND ai_tool_calls.entry_type = ? ORDER BY ai_tool_calls.created_at DESC LIMIT ?`)).
 		WithArgs("ws-1", "e-1", "whatsapp", 20).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "tool_call_id", "workspace_id", "entry_id", "entry_type", "agent_id", "session_id", "tool_name", "args", "outcome", "error", "duration_ms", "run_id", "created_at", "run_workflow_id"}).
 			AddRow("c-1", "call_model_1", "ws-1", "e-1", "whatsapp", "a-1", "s-1", "http_request", `{"url":"https://api"}`, "ok", "", 120, "r-1", at, "wf-1"))

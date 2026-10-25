@@ -10,13 +10,6 @@ import (
 	"vozko/infra/database/sqlexpr"
 )
 
-type inboxQueries struct {
-	countSQL  string
-	countArgs []interface{}
-	pageSQL   string
-	pageArgs  []interface{}
-}
-
 func inboxPage(page, pageSize int) (int, int) {
 	if page <= 0 {
 		page = 1
@@ -30,7 +23,25 @@ func inboxPage(page, pageSize int) (int, int) {
 	return pageSize, (page - 1) * pageSize
 }
 
-func workspaceInboxQueries(input conversation.SearchEntriesInput, pageSize, offset int) (inboxQueries, bool) {
+func workspaceInboxQueries(input conversation.SearchEntriesInput, pageSize, offset int) (countedPage, bool) {
+	set, ok := workspaceInboxSet(input)
+	if !ok {
+		return countedPage{}, false
+	}
+	return countedPage{
+		countSQL:  set.with + " SELECT COUNT(*) FROM entries_with_msg",
+		countArgs: set.withArgs,
+		pageSQL: fmt.Sprintf(`%s
+		SELECT entry_id, entry_type, %s FROM entries_with_msg
+		%s
+		LIMIT ? OFFSET ?
+	`, set.with, pageTotalColumn, inboxOrderBySQL(input.SortOrder, set.order)),
+		pageArgs: append(append([]interface{}{}, set.withArgs...), pageSize, offset),
+		offset:   offset,
+	}, true
+}
+
+func workspaceInboxSet(input conversation.SearchEntriesInput) (inboxSet, bool) {
 	entryCTE, entryArgs := buildEntryUnion(entrySourceScope{
 		EntryType:              input.EntryType,
 		WhatsAppCampaignType:   input.WhatsAppCampaignType,
@@ -41,7 +52,7 @@ func workspaceInboxQueries(input conversation.SearchEntriesInput, pageSize, offs
 		AssigneeOverrideUserID: input.AssigneeOverrideUserID,
 	}, input.WorkspaceID, entrySource.inboxSelect)
 	if entryCTE == "" {
-		return inboxQueries{}, false
+		return inboxSet{}, false
 	}
 
 	whereConditions, whereArgs := workspaceInboxConditions(input)
@@ -80,16 +91,7 @@ func workspaceInboxQueries(input conversation.SearchEntriesInput, pageSize, offs
 	`, entryCTE, selected, leadsJoin, marksJoin, whereClause)
 
 	args := append(append(append([]interface{}{}, entryArgs...), marksArgs...), whereArgs...)
-	return inboxQueries{
-		countSQL:  baseCTE + " SELECT COUNT(*) FROM entries_with_msg",
-		countArgs: args,
-		pageSQL: fmt.Sprintf(`%s
-		SELECT entry_id, entry_type FROM entries_with_msg
-		%s
-		LIMIT ? OFFSET ?
-	`, baseCTE, inboxOrderBySQL(input.SortOrder, order)),
-		pageArgs: append(append([]interface{}{}, args...), pageSize, offset),
-	}, true
+	return inboxSet{with: baseCTE, withArgs: args, rows: "SELECT entry_id FROM entries_with_msg", order: order}, true
 }
 
 func workspaceInboxConditions(input conversation.SearchEntriesInput) ([]string, []interface{}) {
@@ -111,7 +113,7 @@ func workspaceInboxConditions(input conversation.SearchEntriesInput) ([]string, 
 	}
 
 	if len(input.StageIDs) > 0 && input.StageWorkspaceID != "" {
-		if len(input.StageIDs) == 1 && input.StageIDs[0] == "__unstaged__" {
+		if len(input.StageIDs) == 1 && input.StageIDs[0] == unstagedStageID {
 			whereConditions = append(whereConditions, "ae.entry_id NOT IN (SELECT entry_id FROM entry_stages WHERE workspace_id = ? AND deleted_at IS NULL)")
 			whereArgs = append(whereArgs, input.StageWorkspaceID)
 		} else {
@@ -154,7 +156,7 @@ func workspaceInboxConditions(input conversation.SearchEntriesInput) ([]string, 
 	}
 
 	if input.AssignedUserID != "" {
-		whereConditions = append(whereConditions, "(NOT EXISTS (SELECT 1 FROM inbox_assignments ia WHERE ia.entry_id = ae.entry_id) OR EXISTS (SELECT 1 FROM inbox_assignments ia2 WHERE ia2.entry_id = ae.entry_id AND ia2.assigned_user_id = ?))")
+		whereConditions = append(whereConditions, unassignedOrAssignedTo("ae.entry_id"))
 		whereArgs = append(whereArgs, input.AssignedUserID)
 	}
 
@@ -200,6 +202,12 @@ func workspaceInboxConditions(input conversation.SearchEntriesInput) ([]string, 
 	return whereConditions, whereArgs
 }
 
+type workspaceInboxRow struct {
+	EntryID   string `gorm:"column:entry_id"`
+	EntryType string `gorm:"column:entry_type"`
+	PageTotal
+}
+
 func (r *repository) searchEntriesByWorkspace(input conversation.SearchEntriesInput) ([]conversation.EntryWithLastMessage, int64, error) {
 	pageSize, offset := inboxPage(input.Page, input.PageSize)
 	queries, ok := workspaceInboxQueries(input, pageSize, offset)
@@ -207,20 +215,8 @@ func (r *repository) searchEntriesByWorkspace(input conversation.SearchEntriesIn
 		return nil, 0, nil
 	}
 
-	var totalCount int64
-	if err := r.db.Raw(queries.countSQL, queries.countArgs...).Scan(&totalCount).Error; err != nil {
-		return nil, 0, fmt.Errorf("error counting workspace search results: %w", err)
-	}
-	if totalCount == 0 {
-		return nil, 0, nil
-	}
-
-	type idResult struct {
-		EntryID   string `gorm:"column:entry_id"`
-		EntryType string `gorm:"column:entry_type"`
-	}
-	var matchedIDs []idResult
-	if err := r.db.Raw(queries.pageSQL, queries.pageArgs...).Scan(&matchedIDs).Error; err != nil {
+	matchedIDs, totalCount, err := readCountedPage[workspaceInboxRow](r.db, queries)
+	if err != nil {
 		return nil, 0, fmt.Errorf("error searching workspace entries: %w", err)
 	}
 	if len(matchedIDs) == 0 {

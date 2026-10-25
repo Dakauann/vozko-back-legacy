@@ -4,15 +4,13 @@ import (
 	"log"
 	"time"
 
+	template_domain "vozko/domain/whatsapp/template"
 	whatsapp_repository "vozko/infra/repositories/whatsapp"
 	wc_repository "vozko/infra/repositories/whatsapp_campaign"
 	template_usecase "vozko/usecases/whatsapp/template"
 )
 
-func (c *Container) wireTemplateEdit() {
-	if c.handlers == nil || c.handlers.whatsappTemplate == nil {
-		log.Fatalf("[template-edit] the template handler must exist before the edit is wired")
-	}
+func (c *Container) templateContentEditor() template_domain.ContentEditor {
 	if c.services.fileReader == nil || c.useCases.syncWhatsAppTemplate == nil || c.useCases.setHeaderMediaWhatsApp == nil {
 		log.Fatalf("[template-edit] editing needs the media storage, the template sync and the header media use case")
 	}
@@ -32,8 +30,5 @@ func (c *Container) wireTemplateEdit() {
 	if err != nil {
 		log.Fatalf("[template-edit] %v", err)
 	}
-	guarded := c.buttonActions()
-	guarded.SetContentEditor(editor)
-	c.handlers.whatsappTemplate.SetTemplateEditor(guarded)
-	c.handlers.whatsappTemplate.SetClickTracking(c.choiceButtonTracking(), c.cfg.ShortLinkBaseURL)
+	return editor
 }

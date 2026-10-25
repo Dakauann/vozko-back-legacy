@@ -95,7 +95,7 @@ func ownerSchedulingWorkflow(t *testing.T) *workflow.Workflow {
 func productionCatalog(t *testing.T) []workflow.NodeDefinition {
 	t.Helper()
 	registry := NewNodeExecutorRegistry()
-	if err := RegisterProductionExecutors(registry, ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}, MediaURLs: externalMediaURLs()}); err != nil {
+	if err := RegisterProductionExecutors(registry, ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}, MediaURLs: externalMediaURLs(), AIAttendance: sandboxRuntime{}}); err != nil {
 		t.Fatal(err)
 	}
 	return registry.Catalog()
@@ -146,9 +146,15 @@ func TestTheOwnersSchedulingWorkflowIsBlockedTheSameWayByTheCopilotAndByPublish(
 	}
 }
 
-func TestASheetStepCannotPassValidationWithoutTheSheetLookup(t *testing.T) {
+type unreachableSheets struct{}
+
+func (unreachableSheets) Get(context.Context, string, string) (*googlesheet.Sheet, error) {
+	return nil, errors.New("sheets unreachable")
+}
+
+func TestASheetStepCannotPassValidationWhenTheSheetCannotBeRead(t *testing.T) {
 	catalog := []workflow.NodeDefinition{node_executors.NewAddSheetRowExecutor(nil).Definition()}
-	linter := &activateWorkflowUseCase{repo: NewMockWorkflowRepository(), catalogFn: func() []workflow.NodeDefinition { return catalog }}
+	linter := &activateWorkflowUseCase{repo: NewMockWorkflowRepository(), catalogFn: func() []workflow.NodeDefinition { return catalog }, googleSheets: unreachableSheets{}}
 	draft := &workflow.Workflow{WorkspaceID: "ws", Type: workflow.WorkflowTypeMessages, Graph: workflow.Graph{Nodes: []workflow.Node{{ID: "row", Type: workflow.NodeTypeActionAddSheetRow, Config: map[string]interface{}{"sheet_id": "sheet", "values": map[string]interface{}{"nome_do_cliente": "Ana"}}}}}}
 	report, err := linter.Lint(context.Background(), draft)
 	if err != nil || !reflect.DeepEqual(issueCodes(report.Issues)[workflow.LintValidationUnavailable], []string{"row"}) {

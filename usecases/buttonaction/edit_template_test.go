@@ -36,9 +36,7 @@ func editedPromo(extra ...template.TemplateButton) template.Edit {
 func editingFixture(t *testing.T) (*fixture, *fakeContentEditor) {
 	t.Helper()
 	f := newFixture(t)
-	editor := &fakeContentEditor{}
-	f.svc.SetContentEditor(editor)
-	return f, editor
+	return f, f.editor
 }
 
 func TestAnEditThatLeavesAMarketingTemplateWithoutAShownExitNeverReachesMeta(t *testing.T) {
@@ -100,13 +98,12 @@ func TestAnEditThatShowsAWordKeepsTheSavedActions(t *testing.T) {
 	}
 }
 
-func TestEditingWithoutAnEditorFailsClosed(t *testing.T) {
+func TestAServiceWithoutAnEditorIsRefusedAtConstruction(t *testing.T) {
 	f := newFixture(t)
-	edit := editedPromo()
-	edit.Components = append(edit.Components, template.TemplateComponent{Type: "FOOTER", Text: "Responda /sair"})
-
-	if _, err := f.svc.EditTemplate(ctx, actor(), EditTemplateRequest{TemplateID: templateID, Edit: edit}); !errors.Is(err, buttonaction.ErrUnavailable) {
-		t.Fatalf("got %v", err)
+	d := f.svc.deps
+	d.Editor = nil
+	if svc, err := NewService(d); svc != nil || !errors.Is(err, buttonaction.ErrUnavailable) {
+		t.Fatalf("svc = %v err = %v", svc, err)
 	}
 }
 

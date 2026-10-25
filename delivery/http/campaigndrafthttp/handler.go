@@ -11,6 +11,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"vozko/delivery/http/httpx"
 	"vozko/delivery/http/response"
 	"vozko/domain/campaign"
 	"vozko/domain/campaigndraft"
@@ -23,7 +24,7 @@ type Finisher interface {
 	Launch(w http.ResponseWriter, r *http.Request, request json.RawMessage, launch campaign.Launch, confirmedFingerprint string) bool
 }
 
-type Guard func(http.HandlerFunc) http.HandlerFunc
+type Guard = httpx.Guard
 
 type Handler struct {
 	drafts   *campaigndraft_usecase.Service
@@ -284,7 +285,7 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Concluir um rascunho: enviar agora, agendar ou deixar pronta
-// @Description	Um único pedido cria a campanha do rascunho e decide o início. `mode: ready` cria a campanha parada, pronta para iniciar quando quiser. `mode: schedule` cria com `scheduledStart` (o agendamento de sempre; no horário o servidor confere tudo de novo). `mode: now` exige a permissão de iniciar, roda antes a mesma verificação do Iniciar sobre o rascunho e, se ela bloqueia (409 `campaign_launch_blocked`) ou pede confirmação (409 `campaign_launch_unconfirmed`, envie `confirmedFingerprint`), nada é criado e o rascunho continua; senão cria, aplica as configurações do rascunho e inicia. Criada a campanha, o rascunho é apagado. Se o início ainda recusar depois de criar, a resposta traz a campanha pronta com `started: false` e `startRefusal`.
+// @Description	Um único pedido cria a campanha do rascunho e decide o início. `mode: ready` cria a campanha parada, pronta para iniciar quando quiser. `mode: schedule` roda antes a mesma verificação do `mode: now` sobre o rascunho (409 `campaign_launch_blocked`, ou 409 `campaign_launch_unconfirmed` e envie `confirmedFingerprint`; nada é criado nesses casos) e cria a campanha com `scheduledStart`, guardando a confirmação com o agendamento. No horário a campanha só inicia se os riscos ainda forem os mesmos; senão ela fica parada com `scheduleFailure` e quem agendou recebe uma notificação. Uma campanha não oficial nunca pede confirmação, só bloqueia. Agendar, como iniciar agora, exige a permissão de iniciar campanhas (403 `start_permission_required`); `mode: ready` exige só a de criar. `mode: now` exige a permissão de iniciar, roda antes a mesma verificação do Iniciar sobre o rascunho e, se ela bloqueia (409 `campaign_launch_blocked`) ou pede confirmação (409 `campaign_launch_unconfirmed`, envie `confirmedFingerprint`), nada é criado e o rascunho continua; senão cria, aplica as configurações do rascunho e inicia. Criada a campanha, o rascunho é apagado. Se o início ainda recusar depois de criar, a resposta traz a campanha pronta com `started: false` e `startRefusal`.
 // @Tags			Rascunhos de campanha
 // @Accept			json
 // @Produce		json
@@ -293,7 +294,7 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 // @Param			body	body		campaigndrafthttp.LaunchRequest	true	"Como iniciar"
 // @Success		201		{object}	map[string]interface{}
 // @Failure		400		{object}	response.ErrorResponse	"campaign_launch_mode_invalid, campaign_launch_schedule_missing e códigos de validação da campanha"
-// @Failure		403		{object}	response.ErrorResponse
+// @Failure		403		{object}	response.ErrorResponse	"start_permission_required"
 // @Failure		404		{object}	response.ErrorResponse	"campaign_draft_not_found"
 // @Failure		409		{object}	response.ErrorResponse	"campaign_launch_blocked, campaign_launch_unconfirmed"
 // @Failure		422		{object}	response.ErrorResponse	"campaign_draft_incomplete e códigos do público"
@@ -323,12 +324,8 @@ func (h *Handler) Launch(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[campaign-drafts] draft %s became a campaign but could not be deleted: %v", d.ID, err)
 		}
 	}
-	if launch.StartsNow() {
-		if h.start == nil {
-			response.WriteError(w, http.StatusForbidden, "You cannot start campaigns", nil)
-			return
-		}
-		h.start(finish)(w, r)
+	if launch.Starts() {
+		httpx.WithStart(h.start, w, r, finish)
 		return
 	}
 	finish(w, r)

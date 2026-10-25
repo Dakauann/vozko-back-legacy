@@ -51,7 +51,7 @@ func returnAvailability(ctx *workflow.NodeContext) {
 
 func TestToolResultReturnsAsAMatchedToolMessageAndTheAgentCanWaitForTheCustomer(t *testing.T) {
 	service := &toolRoundTripAI{}
-	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil)
+	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{})
 	state := workflow.NewRunState()
 	ctx := toolAgentContext(&state)
 	first, err := executor.Execute(ctx)
@@ -92,7 +92,7 @@ func TestToolResultReturnsAsAMatchedToolMessageAndTheAgentCanWaitForTheCustomer(
 
 func TestRepeatedIdenticalToolsStopBeforeAnotherCalendarRequest(t *testing.T) {
 	service := &toolRoundTripAI{repeat: true}
-	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil)
+	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{})
 	state := workflow.NewRunState()
 	ctx := toolAgentContext(&state)
 	for i := 0; i < maxIdenticalWorkflowToolCalls; i++ {
@@ -116,7 +116,7 @@ func TestRepeatedIdenticalToolsStopBeforeAnotherCalendarRequest(t *testing.T) {
 func TestACancelDuringGenerationDiscardsTheAnswerAndTheNextToolCall(t *testing.T) {
 	active := true
 	service := &toolRoundTripAI{afterCall: func() { active = false }}
-	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil)
+	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{})
 	state := workflow.NewRunState()
 	ctx := toolAgentContext(&state)
 	ctx.EnsureActive = func() error {
@@ -136,7 +136,7 @@ func TestACancelDuringGenerationDiscardsTheAnswerAndTheNextToolCall(t *testing.T
 
 func TestUnreadableToolHistoryBlocksTheModelCall(t *testing.T) {
 	service := &toolRoundTripAI{}
-	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil)
+	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{})
 	state := workflow.NewRunState()
 	ctx := toolAgentContext(&state)
 	state.Set(toolHistoryKey(ctx.Node.ID), "invalid json")

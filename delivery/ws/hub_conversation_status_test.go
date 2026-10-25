@@ -102,6 +102,9 @@ func (p *statusTestHistoryProvider) GetInboxEntry(entryID, entryType string) (*c
 func (p *statusTestHistoryProvider) SearchInboxEntries(conversation.SearchInboxInput) ([]conversation.InboxEntry, int64, error) {
 	return nil, 0, nil
 }
+func (p *statusTestHistoryProvider) CountInboxEntriesByStages(conversation.SearchInboxInput, []string) (map[string]int64, error) {
+	return nil, nil
+}
 
 type wsEventEnvelope struct {
 	Type    WSEventType     `json:"type"`
@@ -146,7 +149,7 @@ func TestBroadcastEntryUpdateLocal_FiltersConnectionsByConversationStatus(t *tes
 		},
 	}
 
-	hub := NewConversationHub(authorizer, nil, nil, nil, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer})
 
 	hub.historyProvider = &statusTestHistoryProvider{
 		entries: map[string]*conversation.InboxEntry{
@@ -157,6 +160,7 @@ func TestBroadcastEntryUpdateLocal_FiltersConnectionsByConversationStatus(t *tes
 			},
 		},
 	}
+	hub.cmds().Inbox = historyInbox{history: hub.historyProvider}
 
 	connAll := &WSConnection{ID: "conn-all", UserID: "user-all", WorkspaceID: "ws-1", ConversationStatus: "", Send: make(chan []byte, 2)}
 	connNew := &WSConnection{ID: "conn-new", UserID: "user-new", WorkspaceID: "ws-1", ConversationStatus: "new", Send: make(chan []byte, 2)}
@@ -168,7 +172,7 @@ func TestBroadcastEntryUpdateLocal_FiltersConnectionsByConversationStatus(t *tes
 		hub.userConnections[c.UserID] = map[string]bool{c.ID: true}
 	}
 
-	hub.broadcastEntryUpdateLocal("entry-1", "whatsapp", nil, false)
+	hub.broadcastEntryUpdateLocal("entry-1", "whatsapp", entryChanged)
 
 	require.Len(t, connAll.Send, 1, "connection with no status filter should receive update")
 	require.Len(t, connNew.Send, 1, "connection filtering for 'new' should receive update")
@@ -183,7 +187,7 @@ func TestBroadcastEntryUpdateLocal_NoStatusFilterReceivesAllStatuses(t *testing.
 		viewOthers:  map[string]bool{"user-1": true},
 	}
 
-	hub := NewConversationHub(authorizer, nil, nil, nil, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer})
 	hub.historyProvider = &statusTestHistoryProvider{
 		entries: map[string]*conversation.InboxEntry{
 			"e-new|whatsapp":      {EntryID: "e-new", EntryType: "whatsapp", ConversationStatus: conversation.ConversationStatusNew},
@@ -191,14 +195,15 @@ func TestBroadcastEntryUpdateLocal_NoStatusFilterReceivesAllStatuses(t *testing.
 			"e-finished|whatsapp": {EntryID: "e-finished", EntryType: "whatsapp", ConversationStatus: conversation.ConversationStatusFinished},
 		},
 	}
+	hub.cmds().Inbox = historyInbox{history: hub.historyProvider}
 
 	conn := &WSConnection{ID: "conn-1", UserID: "user-1", WorkspaceID: "ws-1", ConversationStatus: "", Send: make(chan []byte, 10)}
 	hub.connections[conn.ID] = conn
 	hub.userConnections[conn.UserID] = map[string]bool{conn.ID: true}
 
-	hub.broadcastEntryUpdateLocal("e-new", "whatsapp", nil, false)
-	hub.broadcastEntryUpdateLocal("e-ongoing", "whatsapp", nil, false)
-	hub.broadcastEntryUpdateLocal("e-finished", "whatsapp", nil, false)
+	hub.broadcastEntryUpdateLocal("e-new", "whatsapp", entryChanged)
+	hub.broadcastEntryUpdateLocal("e-ongoing", "whatsapp", entryChanged)
+	hub.broadcastEntryUpdateLocal("e-finished", "whatsapp", entryChanged)
 
 	require.Len(t, conn.Send, 3, "unfiltered connection should receive entry updates for all statuses")
 }
@@ -210,8 +215,8 @@ func TestHandleSetConversationStatus_CannotSetNewManually(t *testing.T) {
 	statusMock := newMockStatusUpdater()
 	statusMock.statuses["entry-1|whatsapp"] = conversation.ConversationStatusOngoing
 
-	hub := NewConversationHub(authorizer, nil, nil, nil, "test-replica", "")
-	hub.statusUpdater = statusMock
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer})
+	hub.cmds().Status = statusMock
 
 	conn := &WSConnection{
 		ID: "conn-admin", UserID: "admin-user", WorkspaceID: "ws-1",
@@ -242,8 +247,8 @@ func TestHandleSetConversationStatus_FinishedCannotReturnToOngoingManually(t *te
 	statusMock := newMockStatusUpdater()
 	statusMock.statuses["entry-1|whatsapp"] = conversation.ConversationStatusFinished
 
-	hub := NewConversationHub(authorizer, nil, nil, nil, "test-replica", "")
-	hub.statusUpdater = statusMock
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer})
+	hub.cmds().Status = statusMock
 
 	conn := &WSConnection{
 		ID: "conn-regular", UserID: "regular-user", WorkspaceID: "ws-1",
@@ -269,8 +274,8 @@ func TestHandleSetConversationStatus_NonAdminCanSetOngoing(t *testing.T) {
 	}
 	statusMock := newMockStatusUpdater()
 
-	hub := NewConversationHub(authorizer, nil, nil, &eligibilityFakeSharedState{}, "test-replica", "")
-	hub.statusUpdater = statusMock
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer, SharedState: &eligibilityFakeSharedState{}})
+	hub.cmds().Status = statusMock
 	hub.broadcast = make(chan *broadcastMessage, 10)
 
 	conn := &WSConnection{
@@ -297,9 +302,9 @@ func TestHandleSetConversationStatus_NonAdminCanSetFinished(t *testing.T) {
 	}
 	statusMock := newMockStatusUpdater()
 
-	hub := NewConversationHub(authorizer, nil, nil, &eligibilityFakeSharedState{}, "test-replica", "")
-	hub.statusUpdater = statusMock
-	hub.SetPersonFinish(conversation_usecase.NewPersonFinish(authorizer, statusMock))
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer, SharedState: &eligibilityFakeSharedState{}})
+	hub.cmds().Status = statusMock
+	hub.cmds().PersonFinish = conversation_usecase.NewPersonFinish(authorizer, statusMock)
 	hub.broadcast = make(chan *broadcastMessage, 10)
 
 	conn := &WSConnection{
@@ -323,8 +328,8 @@ func TestHandleSetConversationStatus_InvalidStatusRejected(t *testing.T) {
 	authorizer := &hubDepartmentTestAuthorizer{
 		entryAccess: map[string]bool{"user-1": true},
 	}
-	hub := NewConversationHub(authorizer, nil, nil, nil, "test-replica", "")
-	hub.statusUpdater = newMockStatusUpdater()
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer})
+	hub.cmds().Status = newMockStatusUpdater()
 
 	conn := &WSConnection{
 		ID: "conn-1", UserID: "user-1", WorkspaceID: "ws-1",
@@ -345,8 +350,8 @@ func TestHandleSetConversationStatus_InvalidStatusRejected(t *testing.T) {
 
 func TestHandleSetConversationStatus_MissingFieldsRejected(t *testing.T) {
 	authorizer := &hubDepartmentTestAuthorizer{}
-	hub := NewConversationHub(authorizer, nil, nil, nil, "test-replica", "")
-	hub.statusUpdater = newMockStatusUpdater()
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer})
+	hub.cmds().Status = newMockStatusUpdater()
 
 	conn := &WSConnection{
 		ID: "conn-1", UserID: "user-1", WorkspaceID: "ws-1",
@@ -369,8 +374,8 @@ func TestHandleSetConversationStatus_UnauthorizedAccess(t *testing.T) {
 	}
 	statusMock := newMockStatusUpdater()
 
-	hub := NewConversationHub(authorizer, nil, nil, nil, "test-replica", "")
-	hub.statusUpdater = statusMock
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer})
+	hub.cmds().Status = statusMock
 
 	conn := &WSConnection{
 		ID: "conn-1", UserID: "user-1", WorkspaceID: "ws-1",
@@ -394,7 +399,7 @@ func TestAnnounceStatusDeliversHowTheConversationWasClosed(t *testing.T) {
 	authorizer := &hubDepartmentTestAuthorizer{
 		entryAccess: map[string]bool{"user-1": true},
 	}
-	hub := NewConversationHub(authorizer, nil, nil, &eligibilityFakeSharedState{}, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer, SharedState: &eligibilityFakeSharedState{}})
 
 	conn := &WSConnection{
 		ID: "conn-1", UserID: "user-1", WorkspaceID: "ws-1",
@@ -436,7 +441,7 @@ func TestHandleSwitchView_SetsConversationStatusOnConnection(t *testing.T) {
 		entryAccess: map[string]bool{"user-1": true},
 	}
 
-	hub := NewConversationHub(authorizer, nil, nil, nil, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer})
 
 	conn := &WSConnection{
 		ID: "conn-1", UserID: "user-1", WorkspaceID: "ws-1",
@@ -466,7 +471,7 @@ func TestHandleSwitchView_ClearsConversationStatusWhenEmpty(t *testing.T) {
 		entryAccess: map[string]bool{"user-1": true},
 	}
 
-	hub := NewConversationHub(authorizer, nil, nil, nil, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer})
 
 	conn := &WSConnection{
 		ID: "conn-1", UserID: "user-1", WorkspaceID: "ws-1",

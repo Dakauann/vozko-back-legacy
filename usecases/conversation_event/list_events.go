@@ -7,6 +7,7 @@ import (
 	agentdomain "vozko/domain/agent"
 	ce "vozko/domain/conversation_event"
 	labeldomain "vozko/domain/label"
+	"vozko/domain/shared/deps"
 	stagedomain "vozko/domain/stage"
 	"vozko/domain/user"
 	"vozko/domain/workflow"
@@ -27,18 +28,18 @@ type listEventsUseCase struct {
 	workflows WorkflowNameLookup
 }
 
-func (uc *listEventsUseCase) SetWorkflowNames(workflows WorkflowNameLookup) {
-	uc.workflows = workflows
-}
-
 func NewListEventsUseCase(
 	repo ce.Repository,
 	users user.UserRepository,
 	agents agentdomain.Repository,
 	stages stagedomain.Repository,
 	labels labeldomain.Repository,
+	workflows WorkflowNameLookup,
 ) ce.ListEventsUseCase {
-	return &listEventsUseCase{repo: repo, users: users, agents: agents, stages: stages, labels: labels}
+	if err := deps.Require("conversation events", map[string]any{"events": repo, "workflows": workflows}); err != nil {
+		panic(err.Error())
+	}
+	return &listEventsUseCase{repo: repo, users: users, agents: agents, stages: stages, labels: labels, workflows: workflows}
 }
 
 func (uc *listEventsUseCase) Execute(workspaceID, entryID, entryType string, limit, offset int) ([]*ce.ConversationEvent, int64, error) {

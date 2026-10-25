@@ -27,7 +27,7 @@ func (t *createAgentTool) Definition() tools.Definition {
 	params, required := scalarParams()
 	params["internalTools"] = toolListParam(agentFieldDescriptions["internalTools"])
 	params["knowledgeBaseIds"] = stringListParam(agentFieldDescriptions["knowledgeBaseIds"])
-	params["mcpCollectionIds"] = stringListParam(agentFieldDescriptions["mcpCollectionIds"])
+	params["publish"] = publishParam()
 
 	return tools.Definition{
 		Name: "create_agent",
@@ -50,17 +50,19 @@ func (t *createAgentTool) Execute(ctx context.Context, cc copilot.Context, args 
 		in.InternalTools = append(in.InternalTools, a.toBinding())
 	}
 	in.KnowledgeBaseIDs = copilottools.ArgStringList(args, "knowledgeBaseIds")
-	in.MCPCollectionIDs = copilottools.ArgStringList(args, "mcpCollectionIds")
 
 	in.RequestedBy = copilottools.RequesterOf(cc)
 	out, err := t.create.Execute(ctx, in)
 	if res, refused := copilottools.ConsentGrantRefusal(err); refused {
 		return res
 	}
+	if message, blocked := blockedMessage(err); blocked {
+		return copilot.Result{Status: copilot.StatusError, Message: message}
+	}
 	if err != nil {
 		return copilot.Result{Status: copilot.StatusError, Message: err.Error()}
 	}
-	return copilot.Result{Status: copilot.StatusOK, Data: out}
+	return t.card.publishAfterSave(ctx, cc, args, out)
 }
 
 func (t *createAgentTool) Validate(ctx context.Context, cc copilot.Context, args map[string]interface{}) error {
@@ -71,7 +73,7 @@ func (t *createAgentTool) Validate(ctx context.Context, cc copilot.Context, args
 	if err := t.card.secrets().validate(argToolBindings(args, "internalTools")); err != nil {
 		return err
 	}
-	return t.card.requireLinks(ctx, cc.WorkspaceID, copilottools.ArgStringList(args, "knowledgeBaseIds"), copilottools.ArgStringList(args, "mcpCollectionIds"))
+	return t.card.requireLinks(ctx, cc.WorkspaceID, copilottools.ArgStringList(args, "knowledgeBaseIds"))
 }
 
 func (t *createAgentTool) Secrets(args map[string]interface{}) []copilot.SecretField {
@@ -88,5 +90,5 @@ func (t *createAgentTool) Describe(ctx context.Context, cc copilot.Context, args
 	card := agentFieldCard(fields)
 	card = append(card, toolBindingField("tools", argToolBindings(args, "internalTools"))...)
 	card = append(card, t.card.knowledgeBaseField(ctx, cc, "knowledgeBases", copilottools.ArgStringList(args, "knowledgeBaseIds"))...)
-	return append(card, t.card.collectionField(ctx, cc, "mcpCollections", copilottools.ArgStringList(args, "mcpCollectionIds"))...)
+	return append(card, publishField(args)...)
 }

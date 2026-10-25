@@ -29,8 +29,7 @@ func newArrival(t *testing.T, name string) *arrival {
 		From: "Carla <" + string(customer) + ">", To: []emailaddress.Address{emailaddress.Address("reply@" + ws.Domain.ReplyDomain)},
 		Subject: "Orçamento", Text: "Vocês entregam em Campinas?", SenderIP: customerIP,
 	})
-	sender := conversation_usecase.NewMessageSenderService(conversation_repository.NewRepository(w.db), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	sender.SetChannelAdapters(conversation.NewAdapterRegistry(w.inbox.Adapter))
+	sender := conversation_usecase.NewMessageSenderService(conversation_repository.NewRepository(w.db), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, conversation.NewAdapterRegistry(w.inbox.Adapter))
 	return &arrival{w: w, ws: ws, customer: customer, conv: w.conversationOf(ws, customer), sender: sender}
 }
 

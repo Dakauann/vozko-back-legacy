@@ -6,7 +6,6 @@ import (
 
 	"vozko/domain/conversation"
 	"vozko/domain/shared"
-	"vozko/domain/tools"
 )
 
 const WorkflowNotActiveCode = "workflow_not_active"
@@ -294,26 +293,37 @@ func SignalsOfRejectedDeliveries(groups []RejectedDeliveryGroup) []RuntimeAlertS
 }
 
 type FailedToolCallGroup struct {
-	WorkspaceID string
-	AgentID     string
-	ToolName    string
-	ErrorCode   string
-	Count       int
-	FirstSeen   time.Time
-	LastSeen    time.Time
-	Sample      string
+	WorkspaceID    string
+	AgentID        string
+	ToolInstanceID string
+	ToolType       string
+	TargetKey      string
+	ErrorCode      string
+	Count          int
+	FirstSeen      time.Time
+	LastSeen       time.Time
+	Sample         string
+}
+
+const toolTargetPrefix = "target:"
+
+func (g FailedToolCallGroup) workflowID() string {
+	if g.ToolType != AgentRunWorkflowTool || !strings.HasPrefix(g.TargetKey, toolTargetPrefix) {
+		return ""
+	}
+	return strings.TrimPrefix(g.TargetKey, toolTargetPrefix)
 }
 
 func SignalsOfFailedToolCalls(groups []FailedToolCallGroup) []RuntimeAlertSignal {
 	out := make([]RuntimeAlertSignal, 0, len(groups))
 	for _, g := range groups {
-		workflowID, boundToWorkflow := tools.BoundKeyOf(g.ToolName, AgentRunWorkflowTool)
-		if !boundToWorkflow && strings.ToLower(g.ToolName) != AgentHTTPRequestTool {
+		if strings.TrimSpace(g.ToolInstanceID) == "" {
 			continue
 		}
-		key := RuntimeAlertKey{WorkspaceID: g.WorkspaceID, WorkflowID: workflowID, AgentID: g.AgentID, Subject: g.ToolName, Kind: AlertAgentToolFailing}
+		workflowID := g.workflowID()
+		key := RuntimeAlertKey{WorkspaceID: g.WorkspaceID, WorkflowID: workflowID, AgentID: g.AgentID, Subject: g.ToolInstanceID, Kind: AlertAgentToolFailing}
 		if g.ErrorCode == WorkflowNotActiveCode {
-			if !boundToWorkflow {
+			if workflowID == "" {
 				continue
 			}
 			key = RuntimeAlertKey{WorkspaceID: g.WorkspaceID, WorkflowID: workflowID, Kind: AlertWorkflowCalledInactive}

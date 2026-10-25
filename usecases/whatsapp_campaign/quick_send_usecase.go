@@ -13,6 +13,7 @@ import (
 	"vozko/domain/cache"
 	"vozko/domain/lead"
 	"vozko/domain/messaging"
+	"vozko/domain/shared/deps"
 	wc "vozko/domain/whatsapp_campaign"
 	wce "vozko/domain/whatsapp_campaign_entry"
 )
@@ -35,10 +36,6 @@ type quickSendUseCase struct {
 	automation        AutomationCheck
 }
 
-func (uc *quickSendUseCase) SetAutomation(automation AutomationCheck) {
-	uc.automation = automation
-}
-
 func NewQuickSendUseCase(
 	campaignRepo wc.Repository,
 	entryRepo wce.Repository,
@@ -46,9 +43,18 @@ func NewQuickSendUseCase(
 	messageQueuePub messaging.MessageQueuePub,
 	messageConsumerUC wc.MessageConsumerUseCase,
 	shared cache.SharedState,
+	automation AutomationCheck,
 ) (wc.QuickSendUseCase, error) {
-	if messageConsumerUC == nil {
-		return nil, fmt.Errorf("quick send use case: message consumer is required")
+	if err := deps.Require("official quick send", map[string]any{
+		"campaigns":        campaignRepo,
+		"entries":          entryRepo,
+		"leads":            leadRepo,
+		"queue publisher":  messageQueuePub,
+		"message consumer": messageConsumerUC,
+		"shared state":     shared,
+		"automation":       automation,
+	}); err != nil {
+		return nil, err
 	}
 	return &quickSendUseCase{
 		campaignRepo:      campaignRepo,
@@ -57,6 +63,7 @@ func NewQuickSendUseCase(
 		messageQueuePub:   messageQueuePub,
 		messageConsumerUC: messageConsumerUC,
 		shared:            shared,
+		automation:        automation,
 	}, nil
 }
 
@@ -72,26 +79,18 @@ func (uc *quickSendUseCase) Execute(input wc.QuickSendInput) (*wc.QuickSendOutpu
 	if input.CampaignID == "" {
 		return nil, wc.ErrDispatchCampaignIDRequired
 	}
-	if uc.campaignRepo == nil || uc.entryRepo == nil || uc.leadRepo == nil || uc.messageQueuePub == nil {
-		return nil, fmt.Errorf("whatsapp campaign quick send: dependencies not configured")
+	acquired, err := uc.shared.SetNX(quickSendLockKey(input.CampaignID), "1", quickSendLockTTL)
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp campaign quick send: failed to acquire lock: %w", err)
 	}
-
-	if uc.shared != nil {
-		acquired, err := uc.shared.SetNX(quickSendLockKey(input.CampaignID), "1", quickSendLockTTL)
-		if err != nil {
-			return nil, fmt.Errorf("whatsapp campaign quick send: failed to acquire lock: %w", err)
-		}
-		if !acquired {
-			return nil, ErrQuickSendBusy
-		}
-		defer func() {
-			if err := uc.shared.Del(quickSendLockKey(input.CampaignID)); err != nil {
-				log.Printf("[whatsapp_campaign quick_send] failed to release lock for %s: %v", input.CampaignID, err)
-			}
-		}()
-	} else {
-		log.Printf("[whatsapp_campaign quick_send] WARN: shared state is nil, replica-safety degraded")
+	if !acquired {
+		return nil, ErrQuickSendBusy
 	}
+	defer func() {
+		if err := uc.shared.Del(quickSendLockKey(input.CampaignID)); err != nil {
+			log.Printf("[whatsapp_campaign quick_send] failed to release lock for %s: %v", input.CampaignID, err)
+		}
+	}()
 
 	campaign, err := uc.campaignRepo.FindByID(input.CampaignID)
 	if err != nil {
@@ -189,30 +188,28 @@ func (uc *quickSendUseCase) Execute(input wc.QuickSendInput) (*wc.QuickSendOutpu
 		return nil, err
 	}
 
-	if uc.shared != nil {
-		key := remainingCounterKey(input.CampaignID)
-		if wasAlreadyRunning {
-			if _, err := uc.shared.IncrBy(key, int64(len(toPublish))); err != nil {
-				if statusTransitioned {
-					uc.revertStatus(input.CampaignID, previousStatus)
-				}
-				return nil, fmt.Errorf("failed to increment whatsapp campaign remaining counter: %w", err)
+	key := remainingCounterKey(input.CampaignID)
+	if wasAlreadyRunning {
+		if _, err := uc.shared.IncrBy(key, int64(len(toPublish))); err != nil {
+			if statusTransitioned {
+				uc.revertStatus(input.CampaignID, previousStatus)
 			}
+			return nil, fmt.Errorf("failed to increment whatsapp campaign remaining counter: %w", err)
+		}
 
-			_, _ = uc.shared.Expire(key, remainingCounterTTL)
-		} else {
-			if err := uc.shared.Del(key); err != nil {
-				if statusTransitioned {
-					uc.revertStatus(input.CampaignID, previousStatus)
-				}
-				return nil, fmt.Errorf("failed to clear whatsapp campaign remaining counter: %w", err)
+		_, _ = uc.shared.Expire(key, remainingCounterTTL)
+	} else {
+		if err := uc.shared.Del(key); err != nil {
+			if statusTransitioned {
+				uc.revertStatus(input.CampaignID, previousStatus)
 			}
-			if err := uc.shared.SetString(key, strconv.Itoa(len(toPublish)), remainingCounterTTL); err != nil {
-				if statusTransitioned {
-					uc.revertStatus(input.CampaignID, previousStatus)
-				}
-				return nil, fmt.Errorf("failed to seed whatsapp campaign remaining counter: %w", err)
+			return nil, fmt.Errorf("failed to clear whatsapp campaign remaining counter: %w", err)
+		}
+		if err := uc.shared.SetString(key, strconv.Itoa(len(toPublish)), remainingCounterTTL); err != nil {
+			if statusTransitioned {
+				uc.revertStatus(input.CampaignID, previousStatus)
 			}
+			return nil, fmt.Errorf("failed to seed whatsapp campaign remaining counter: %w", err)
 		}
 	}
 
@@ -222,7 +219,7 @@ func (uc *quickSendUseCase) Execute(input wc.QuickSendInput) (*wc.QuickSendOutpu
 	if publishErr != nil {
 
 		missing := int64(len(toPublish) - published)
-		if uc.shared != nil && missing > 0 {
+		if missing > 0 {
 			if _, err := uc.shared.DecrBy(remainingCounterKey(input.CampaignID), missing); err != nil {
 				log.Printf("[whatsapp_campaign quick_send] failed to compensate counter for %s: %v", input.CampaignID, err)
 			}
@@ -289,9 +286,6 @@ func (uc *quickSendUseCase) insertEntries(workspaceID string, input wc.QuickSend
 }
 
 func (uc *quickSendUseCase) ensureConsumer(campaignID string, previousStatus wc.Status) error {
-	if uc.messageConsumerUC == nil {
-		return nil
-	}
 	switch {
 	case !uc.messageConsumerUC.IsSubscribed(campaignID):
 		if err := uc.messageConsumerUC.SubscribeToCampaign(campaignID); err != nil {

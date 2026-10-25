@@ -1,6 +1,10 @@
 package crm_telemetry
 
-import "time"
+import (
+	"time"
+
+	ia "vozko/domain/inbox_assignment"
+)
 
 const (
 	Exchange = "crm_telemetry_exchange"
@@ -36,18 +40,19 @@ type PresencePayload struct {
 }
 
 type AssignmentHistoryPayload struct {
-	ID                string    `json:"id,omitempty"`
-	WorkspaceID       string    `json:"workspace_id"`
-	EntryID           string    `json:"entry_id"`
-	EntryType         string    `json:"entry_type"`
-	ActorKind         string    `json:"actor_kind"`
-	AssignedActorID   string    `json:"assigned_actor_id"`
-	PreviousActorID   string    `json:"previous_actor_id,omitempty"`
-	Trigger           string    `json:"trigger"`
-	AssignedByActorID string    `json:"assigned_by_actor_id,omitempty"`
-	BusinessPhoneID   string    `json:"business_phone_id,omitempty"`
-	DepartmentID      string    `json:"department_id,omitempty"`
-	StartedAt         time.Time `json:"started_at"`
+	ID                   string    `json:"id,omitempty"`
+	WorkspaceID          string    `json:"workspace_id"`
+	EntryID              string    `json:"entry_id"`
+	EntryType            string    `json:"entry_type"`
+	ActorKind            string    `json:"actor_kind"`
+	AssignedActorID      string    `json:"assigned_actor_id"`
+	PreviousActorID      string    `json:"previous_actor_id,omitempty"`
+	Trigger              string    `json:"trigger"`
+	AssignedByActorID    string    `json:"assigned_by_actor_id,omitempty"`
+	BusinessPhoneID      string    `json:"business_phone_id,omitempty"`
+	DepartmentID         string    `json:"department_id,omitempty"`
+	DepartmentUnresolved bool      `json:"department_unresolved,omitempty"`
+	StartedAt            time.Time `json:"started_at"`
 }
 
 type AISessionOp string
@@ -104,4 +109,22 @@ type DropRecorder interface {
 	IncTelemetryPublishError(kind string)
 	IncTelemetryConsumeError(kind, reason string)
 	IncTelemetryDropped(kind, reason string)
+}
+
+func (p AssignmentHistoryPayload) Interval() ia.AssignmentHistory {
+	return ia.AssignmentHistory{
+		ID:                   p.ID,
+		WorkspaceID:          p.WorkspaceID,
+		EntryID:              p.EntryID,
+		EntryType:            p.EntryType,
+		ActorKind:            p.ActorKind,
+		AssignedActorID:      p.AssignedActorID,
+		PreviousActorID:      p.PreviousActorID,
+		Trigger:              p.Trigger,
+		AssignedByActorID:    p.AssignedByActorID,
+		BusinessPhoneID:      p.BusinessPhoneID,
+		DepartmentID:         p.DepartmentID,
+		DepartmentUnresolved: p.DepartmentUnresolved,
+		StartedAt:            p.StartedAt,
+	}
 }

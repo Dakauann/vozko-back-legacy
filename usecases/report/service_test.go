@@ -296,13 +296,14 @@ func buildService(t *testing.T, renderer report.Renderer) (*Service, *fakeRepo, 
 	if renderer != nil {
 		registry.Register(renderer)
 	}
-	service := NewService(repo, registry, publisher, storage)
-	service.SetAccess(allowAll{})
 	at, err := time.Parse(time.RFC3339, fixedNow)
 	if err != nil {
 		t.Fatalf("parse clock: %v", err)
 	}
-	service.SetClock(func() time.Time { return at })
+	service, err := NewService(Deps{Repo: repo, Registry: registry, Publisher: publisher, Storage: storage, Access: allowAll{}, PrintSecret: "test-print-secret", Clock: func() time.Time { return at }})
+	if err != nil {
+		t.Fatal(err)
+	}
 	return service, repo, publisher, storage
 }
 
@@ -480,7 +481,7 @@ func TestWorkerRendersUploadsAndCompletesTheJob(t *testing.T) {
 	service, repo, publisher, storage := buildService(t, renderer)
 	job := createJob(t, service)
 
-	worker := NewWorker(service, nil)
+	worker := reportWorker(service)
 	ack := &fakeAck{deliveries: 1}
 	worker.handle(publisher.published[0], ack)
 
@@ -515,7 +516,7 @@ func TestWorkerNeverMarksDoneWhenTheUploadFails(t *testing.T) {
 	job := createJob(t, service)
 	storage.uploaErr = errors.New("bucket unreachable")
 
-	worker := NewWorker(service, nil)
+	worker := reportWorker(service)
 	worker.handle(publisher.published[0], &fakeAck{deliveries: messaging.MaxRetries})
 
 	stored := repo.jobs[job.ID]
@@ -533,7 +534,7 @@ func TestWorkerRetriesBeforeGivingUp(t *testing.T) {
 	service, repo, publisher, _ := buildService(t, renderer)
 	job := createJob(t, service)
 
-	worker := NewWorker(service, nil)
+	worker := reportWorker(service)
 	ack := &fakeAck{deliveries: 1}
 	worker.handle(publisher.published[0], ack)
 
@@ -561,7 +562,7 @@ func TestWorkerReportsARowCeilingWithItsOwnCode(t *testing.T) {
 	service, repo, publisher, _ := buildService(t, renderer)
 	job := createJob(t, service)
 
-	worker := NewWorker(service, nil)
+	worker := reportWorker(service)
 	worker.handle(publisher.published[0], &fakeAck{deliveries: messaging.MaxRetries})
 
 	if got := repo.failCode[job.ID]; got != report.FailureTooManyRows {
@@ -572,7 +573,7 @@ func TestWorkerReportsARowCeilingWithItsOwnCode(t *testing.T) {
 func TestWorkerDiscardsAnUnreadableMessage(t *testing.T) {
 	service, _, _, _ := buildService(t, okRenderer())
 
-	worker := NewWorker(service, nil)
+	worker := reportWorker(service)
 	ack := &fakeAck{deliveries: 1}
 	worker.handle([]byte("{not json"), ack)
 
@@ -587,7 +588,7 @@ func TestWorkerFailsAJobWithNoRenderer(t *testing.T) {
 
 	service.registry = report.NewRegistry()
 
-	worker := NewWorker(service, nil)
+	worker := reportWorker(service)
 	worker.handle(publisher.published[0], &fakeAck{deliveries: 1})
 
 	if got := repo.failCode[job.ID]; got != report.FailureNoRenderer {
@@ -626,7 +627,7 @@ func TestWorkerDoesNotRetryADeterministicFailure(t *testing.T) {
 	service, repo, publisher, _ := buildService(t, renderer)
 	job := createJob(t, service)
 
-	worker := NewWorker(service, nil)
+	worker := reportWorker(service)
 	ack := &fakeAck{deliveries: 1}
 	worker.handle(publisher.published[0], ack)
 
@@ -650,7 +651,7 @@ func TestWorkerRetriesATransientFailureOnce(t *testing.T) {
 	service, _, publisher, _ := buildService(t, renderer)
 	createJob(t, service)
 
-	worker := NewWorker(service, nil)
+	worker := reportWorker(service)
 	ack := &fakeAck{deliveries: 1}
 	worker.handle(publisher.published[0], ack)
 
@@ -775,7 +776,7 @@ func TestWorkerFailsARenderTheRequesterMayNotSeeWithoutRetrying(t *testing.T) {
 	ack := &fakeAck{deliveries: 1}
 
 	payload, _ := json.Marshal(report.QueueMessage{JobID: job.ID, WorkspaceID: "ws-1", Kind: job.Kind})
-	NewWorker(service, nil).handle(payload, ack)
+	reportWorker(service).handle(payload, ack)
 
 	if ack.requeued || repo.failCode[job.ID] != report.FailureForbidden {
 		t.Fatalf("requeued %v, failure %q", ack.requeued, repo.failCode[job.ID])
@@ -789,7 +790,7 @@ func TestWorkerDoesNotRetryParametersTheKindCannotRender(t *testing.T) {
 	job := createJob(t, service)
 	ack := &fakeAck{deliveries: 1}
 
-	NewWorker(service, nil).handle(publisher.published[0], ack)
+	reportWorker(service).handle(publisher.published[0], ack)
 
 	if ack.requeued || repo.failCode[job.ID] != report.FailureRenderFailed {
 		t.Fatalf("requeued %v, failure %q", ack.requeued, repo.failCode[job.ID])

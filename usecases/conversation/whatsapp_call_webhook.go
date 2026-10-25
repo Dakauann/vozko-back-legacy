@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	conversation_domain "vozko/domain/conversation"
+	"vozko/domain/shared/deps"
 )
 
 type WhatsAppCallWebhookConsumer struct {
@@ -14,12 +15,11 @@ type WhatsAppCallWebhookConsumer struct {
 	log      *log.Logger
 }
 
-func NewWhatsAppCallWebhookConsumer(registry conversation_domain.WhatsAppCallRegistry) *WhatsAppCallWebhookConsumer {
-	return &WhatsAppCallWebhookConsumer{registry: registry, log: log.Default()}
-}
-
-func (c *WhatsAppCallWebhookConsumer) SetInboundHandler(h conversation_domain.WhatsAppInboundCallHandler) {
-	c.inbound = h
+func NewWhatsAppCallWebhookConsumer(registry conversation_domain.WhatsAppCallRegistry, inbound conversation_domain.WhatsAppInboundCallHandler) *WhatsAppCallWebhookConsumer {
+	if err := deps.Require("whatsapp call webhook", map[string]any{"registry": registry, "inbound calls": inbound}); err != nil {
+		panic(err.Error())
+	}
+	return &WhatsAppCallWebhookConsumer{registry: registry, inbound: inbound, log: log.Default()}
 }
 
 type callsWebhookEnvelope struct {
@@ -97,10 +97,6 @@ func (c *WhatsAppCallWebhookConsumer) HandleCallsWebhook(payload []byte) error {
 						})
 					case strings.EqualFold(call.Session.SDPType, "offer"):
 
-						if c.inbound == nil {
-							c.log.Printf("[WACallWebhook] inbound call %s ignored: no inbound handler wired", call.ID)
-							continue
-						}
 						contactName := ""
 						if len(v.Contacts) > 0 {
 							contactName = v.Contacts[0].Profile.Name

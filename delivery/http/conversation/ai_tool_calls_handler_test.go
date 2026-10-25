@@ -13,6 +13,7 @@ import (
 	aa "vozko/domain/ai_attendance"
 	"vozko/domain/auth"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/infra/http/middleware"
 	aa_usecase "vozko/usecases/ai_attendance"
 )
@@ -42,8 +43,7 @@ func toolCallsRequest(role string) *http.Request {
 
 func TestToolCallsAreListedForTheCallerAndTheConversation(t *testing.T) {
 	stub := &stubToolCalls{}
-	h := &ConversationHandler{}
-	h.SetToolCalls(stub)
+	h := &ConversationHandler{toolCalls: stub}
 	w := httptest.NewRecorder()
 	h.ListAIToolCalls(w, toolCallsRequest("user"))
 
@@ -62,15 +62,14 @@ func TestToolCallsAreListedForTheCallerAndTheConversation(t *testing.T) {
 }
 
 func TestToolCallsOfAnInvisibleConversationAreNotFound(t *testing.T) {
-	h := &ConversationHandler{}
-	h.SetToolCalls(&stubToolCalls{err: aa_usecase.ErrConversationNotVisible})
+	h := &ConversationHandler{toolCalls: &stubToolCalls{err: aa_usecase.ErrConversationNotVisible}}
 	w := httptest.NewRecorder()
 	h.ListAIToolCalls(w, toolCallsRequest("user"))
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d", w.Code)
 	}
 
-	h.SetToolCalls(&stubToolCalls{err: errors.New("db down")})
+	h = &ConversationHandler{toolCalls: &stubToolCalls{err: errors.New("db down")}}
 	w = httptest.NewRecorder()
 	h.ListAIToolCalls(w, toolCallsRequest("user"))
 	if w.Code != http.StatusInternalServerError {
@@ -78,10 +77,10 @@ func TestToolCallsOfAnInvisibleConversationAreNotFound(t *testing.T) {
 	}
 }
 
-func TestToolCallsWithoutTheServiceAreUnavailable(t *testing.T) {
-	w := httptest.NewRecorder()
-	(&ConversationHandler{}).ListAIToolCalls(w, toolCallsRequest("user"))
-	if w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d", w.Code)
+func TestTheConversationHandlerRefusesMissingDependencies(t *testing.T) {
+	h, err := NewConversationHandler(ConversationHandlerDeps{})
+	var missing *deps.MissingError
+	if h != nil || !errors.As(err, &missing) || len(missing.Missing) != 8 {
+		t.Fatalf("h = %v err = %v, want every dependency refused", h, err)
 	}
 }

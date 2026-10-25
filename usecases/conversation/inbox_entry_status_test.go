@@ -23,13 +23,13 @@ func TestInboxEntryCarriesConversationStatusOnEveryChannel(t *testing.T) {
 		shared.EntryTypeTelegram,
 	} {
 		t.Run(string(entryType), func(t *testing.T) {
-			svc := &HistoryProviderService{
+			svc := historyWith(HistoryProviderService{
 				messageRepo: stubEntryLastMessage{entry: conversation.EntryWithLastMessage{
 					EntryID: "entry-1", EntryType: entryType,
 					LastMessageType:    conversation.MessageTypeOperator,
 					ConversationStatus: string(conversation.ConversationStatusOngoing),
 				}},
-			}
+			})
 
 			entry, err := svc.GetInboxEntry("entry-1", string(entryType))
 			if err != nil {
@@ -47,13 +47,13 @@ func TestInboxEntryCarriesConversationStatusOnEveryChannel(t *testing.T) {
 }
 
 func TestInboxEntryKeepsAFinishedStatusOnEveryChannel(t *testing.T) {
-	svc := &HistoryProviderService{
+	svc := historyWith(HistoryProviderService{
 		messageRepo: stubEntryLastMessage{entry: conversation.EntryWithLastMessage{
 			EntryID: "entry-1", EntryType: shared.EntryTypeTelegram,
 			LastMessageType:    conversation.MessageTypeOperator,
 			ConversationStatus: string(conversation.ConversationStatusFinished),
 		}},
-	}
+	})
 	entry, err := svc.GetInboxEntry("entry-1", string(shared.EntryTypeTelegram))
 	if err != nil {
 		t.Fatalf("GetInboxEntry: %v", err)
@@ -64,12 +64,12 @@ func TestInboxEntryKeepsAFinishedStatusOnEveryChannel(t *testing.T) {
 }
 
 func TestInboxEntryToleratesAChannelWithoutStatus(t *testing.T) {
-	svc := &HistoryProviderService{
+	svc := historyWith(HistoryProviderService{
 		messageRepo: stubEntryLastMessage{entry: conversation.EntryWithLastMessage{
 			EntryID: "entry-1", EntryType: shared.EntryTypeTelegram,
 			LastMessageType: conversation.MessageTypeOperator,
 		}},
-	}
+	})
 	entry, err := svc.GetInboxEntry("entry-1", string(shared.EntryTypeTelegram))
 	if err != nil {
 		t.Fatalf("GetInboxEntry: %v", err)

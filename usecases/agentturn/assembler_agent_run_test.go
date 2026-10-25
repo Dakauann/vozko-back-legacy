@@ -22,7 +22,7 @@ func (s *agentRunLineStub) ContextLine(workspaceID, entryID, entryType string) s
 
 func workflowToolAssembler(runs AgentRunContext) *Assembler {
 	reg := stubRegistry{defs: []tools.Definition{
-		{Name: "run_workflow", BindingKey: "workflow_id"},
+		{Name: "run_workflow", Instances: tools.PerTarget("workflow_id")},
 		{Name: "book_meeting"},
 	}}
 	a := New(reg, echoRAG{}, nil)

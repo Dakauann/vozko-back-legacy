@@ -166,11 +166,11 @@ func (l *settlementLedger) ExistsTransactionByReferenceID(ref string) (bool, err
 }
 
 func newSettlementUC(attempts *settlementAttempts, billing *settlementBilling, ledger *settlementLedger) *handleWhatsAppMessageUseCase {
-	return &handleWhatsAppMessageUseCase{
+	return whatsappDefaults(&handleWhatsAppMessageUseCase{
 		templateSendAttempts:    attempts,
 		consumeWhatsappTemplate: billing,
 		balanceLedger:           ledger,
-	}
+	})
 }
 
 func chargedAttempt(id string) whatsapp_template.SendAttempt {
@@ -372,7 +372,7 @@ func TestSettlement_UnknownAttempt_DoesNothing(t *testing.T) {
 }
 
 func TestSettlement_WithoutAttemptsRepository_IsInert(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	uc.settleTemplateSendAttempt(
 		conversation.WhatsAppStatus{ID: "wamid.1", Status: "failed"},
 		conversation.DeliveryStatusFailed, true,

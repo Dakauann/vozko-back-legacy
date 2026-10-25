@@ -55,16 +55,20 @@ func (r *repository) GetTrend(
 
 	sql, args := query.build()
 	var rows []bucketRow
-	db := r.db.WithContext(ctx)
-	if err := db.Raw(sql, args...).Scan(&rows).Error; err != nil {
-		return out, err
-	}
-
-	unbucketed, err := trendUnbucketed(db, workspaceID, filter, sources, from, to)
+	err := r.analyticsContext(ctx, func(tx *gorm.DB) error {
+		if err := tx.Raw(sql, args...).Scan(&rows).Error; err != nil {
+			return err
+		}
+		unbucketed, err := trendUnbucketed(tx, workspaceID, filter, sources, from, to)
+		if err != nil {
+			return err
+		}
+		out.Unbucketed = unbucketed
+		return nil
+	})
 	if err != nil {
 		return out, err
 	}
-	out.Unbucketed = unbucketed
 
 	byBucket := make(map[string]attendance.TrendBucketRow, len(rows))
 	for _, row := range rows {

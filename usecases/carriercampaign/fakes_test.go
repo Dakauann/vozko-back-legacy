@@ -11,10 +11,12 @@ import (
 	"time"
 
 	"vozko/domain/campaign"
+	"vozko/domain/campaign/scheduledstart"
 	cc "vozko/domain/carriercampaign"
 	"vozko/domain/carriermessaging"
 	"vozko/domain/customfield"
 	"vozko/domain/lead"
+	"vozko/domain/notification"
 	"vozko/domain/rcs"
 	"vozko/domain/selection"
 	"vozko/domain/shared"
@@ -30,6 +32,7 @@ type fakeCampaigns struct {
 	mu           sync.Mutex
 	byID         map[string]cc.Campaign
 	beforeUpdate func()
+	recordErr    error
 }
 
 func newFakeCampaigns() *fakeCampaigns { return &fakeCampaigns{byID: map[string]cc.Campaign{}} }
@@ -40,6 +43,28 @@ func (f *fakeCampaigns) get(id string) cc.Campaign {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.byID[id]
+}
+
+func (f *fakeCampaigns) RecordScheduleFailure(_ context.Context, id string, failure scheduledstart.Failure) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.recordErr != nil {
+		return f.recordErr
+	}
+	c, ok := f.byID[id]
+	if !ok {
+		return cc.ErrCampaignNotFound
+	}
+	c.ScheduleFailure = failure
+	f.byID[id] = c
+	return nil
+}
+
+type fakeNotices struct{ drafts []notification.Draft }
+
+func (f *fakeNotices) Publish(_ context.Context, d notification.Draft) (notification.Record, error) {
+	f.drafts = append(f.drafts, d)
+	return notification.Record{}, nil
 }
 
 func (f *fakeCampaigns) ClaimScheduledStart(id string, dueBy time.Time) (bool, error) {
@@ -718,6 +743,7 @@ type harness struct {
 	rows       *fakeRows
 	overview   *fakeOverview
 	whatsapp   *fakeWhatsAppSpend
+	notices    *fakeNotices
 	now        time.Time
 	ids        int
 }
@@ -755,9 +781,11 @@ func newHarness(t interface{ Fatal(...any) }) *harness {
 		rows:     &fakeRows{},
 		overview: &fakeOverview{},
 		whatsapp: &fakeWhatsAppSpend{},
+		notices:  &fakeNotices{},
 		now:      testNow,
 	}
 	h.enqueuer = &fakeEnqueuer{queue: h.queue}
+	aud := h.newAudience(t)
 	svc, err := New(Deps{
 		Campaigns:     h.campaigns,
 		Runs:          h.runs,
@@ -786,6 +814,8 @@ func newHarness(t interface{ Fatal(...any) }) *harness {
 		Overview:      h.overview,
 		WhatsAppSpend: h.whatsapp,
 		Timezones:     fakeTimezones{},
+		Notifications: h.notices,
+		Audience:      aud,
 		Now:           func() time.Time { return h.now },
 		NewID:         func() string { h.ids++; return "id-" + strconv.Itoa(1000+h.ids) },
 		Logf:          func(string, ...any) {},
@@ -796,7 +826,7 @@ func newHarness(t interface{ Fatal(...any) }) *harness {
 	svc.launched = func(carriermessaging.Channel) bool { return true }
 	svc.AttachQueue(h.queue)
 	h.svc = svc
-	h.wireAudience(t)
+	aud.AddChannel(svc.AudienceChannel())
 	return h
 }
 

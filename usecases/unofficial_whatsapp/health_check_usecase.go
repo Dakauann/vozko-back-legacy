@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"vozko/domain/shared/deps"
 
 	uw "vozko/domain/unofficial_whatsapp"
 )
@@ -27,12 +28,19 @@ func NewCheckInstanceHealthUseCase(
 	servers uw.ServerRepository,
 	provider uw.ProviderAPI,
 	webhookBaseURL string,
+	gate LinkGate,
+	listener ConnectionListener,
+	handover *LineHandover,
 ) *CheckInstanceHealthUseCase {
+	if err := deps.Require("unofficial whatsapp health check", map[string]any{"link gate": gate, "connection listener": listener, "line handover": handover}); err != nil {
+		panic(err.Error())
+	}
 	return &CheckInstanceHealthUseCase{
 		instances:      instances,
 		servers:        servers,
 		provider:       provider,
-		sessionHost:    sessionHost{sync: sessionSync{instances: instances}},
+		sessionHost:    newSessionHost(instances, gate, listener),
+		handover:       handover,
 		webhookBaseURL: strings.TrimRight(strings.TrimSpace(webhookBaseURL), "/"),
 		staleAfter:     15 * time.Minute,
 		batchLimit:     200,
@@ -216,8 +224,4 @@ func missingEvents(have, want []string) []string {
 		}
 	}
 	return missing
-}
-
-func (uc *CheckInstanceHealthUseCase) SetLineHandover(handover *LineHandover) {
-	uc.handover = handover
 }

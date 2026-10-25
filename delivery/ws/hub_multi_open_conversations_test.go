@@ -26,8 +26,7 @@ func (multiOpenAuthorizer) GetDepartmentScope(string, string, bool) (conversatio
 
 func newMultiOpenHub(t *testing.T) *ConversationHub {
 	t.Helper()
-	hub := NewConversationHub(multiOpenAuthorizer{}, nil, nil, nil, "test-replica", "")
-	hub.SetWSMetrics(noopWSMetricsRecorder{})
+	hub := testHub(ConversationHubDeps{Authorizer: multiOpenAuthorizer{}})
 	return hub
 }
 

@@ -10,12 +10,8 @@ import (
 	"vozko/domain/shared"
 )
 
-func (uc *sendWhatsappButtonMessageTool) SetHistory(h conversation.MessageHistoryManager) {
-	uc.history = h
-}
-
 func (uc *sendWhatsappButtonMessageTool) recordOptions(ctx context.Context, config map[string]interface{}, record conversation.MessageHistoryRecord) {
-	if uc.history == nil || strings.TrimSpace(record.EntryID) == "" {
+	if strings.TrimSpace(record.EntryID) == "" {
 		return
 	}
 	agentID, _ := config["__agent_id"].(string)

@@ -117,7 +117,6 @@ type Config struct {
 	UnofficialWhatsAppAdminToken     string
 	UnofficialWhatsAppServerName     string
 	UnofficialWhatsAppMaxSessions    int
-	UnofficialWhatsAppHistoryEnabled bool
 	UnofficialWhatsAppHistoryDays    int
 
 	Dialog360PartnerID          string
@@ -133,8 +132,6 @@ type Config struct {
 	PrometheusURL string
 
 	MetricsListenAddr string
-
-	GeocodingSweeperDisabled bool
 
 	WhatsAppStunServers []string
 
@@ -284,11 +281,10 @@ func LoadConfig() Config {
 			mustGetEnvTrimmed("UNOFFICIAL_WHATSAPP_WEBHOOK_BASE_URL"), "/"),
 		UnofficialWhatsAppServerURL: strings.TrimRight(
 			mustGetEnvTrimmed("UNOFFICIAL_WHATSAPP_SERVER_URL"), "/"),
-		UnofficialWhatsAppAdminToken:     mustGetEnvTrimmed("UNOFFICIAL_WHATSAPP_ADMIN_TOKEN"),
-		UnofficialWhatsAppServerName:     getEnvTrimmed("UNOFFICIAL_WHATSAPP_SERVER_NAME", "platform"),
-		UnofficialWhatsAppMaxSessions:    mustGetEnvInt("UNOFFICIAL_WHATSAPP_MAX_SESSIONS"),
-		UnofficialWhatsAppHistoryEnabled: getBoolEnv("UW_HISTORY_ENABLED", true),
-		UnofficialWhatsAppHistoryDays:    envInt("UW_HISTORY_WINDOW_DAYS", 30),
+		UnofficialWhatsAppAdminToken:  mustGetEnvTrimmed("UNOFFICIAL_WHATSAPP_ADMIN_TOKEN"),
+		UnofficialWhatsAppServerName:  getEnvTrimmed("UNOFFICIAL_WHATSAPP_SERVER_NAME", "platform"),
+		UnofficialWhatsAppMaxSessions: mustGetEnvInt("UNOFFICIAL_WHATSAPP_MAX_SESSIONS"),
+		UnofficialWhatsAppHistoryDays: envInt("UW_HISTORY_WINDOW_DAYS", 30),
 
 		Google: loadGoogleConfig(),
 
@@ -304,8 +300,6 @@ func LoadConfig() Config {
 
 		PrometheusURL:     getEnvTrimmed("PROMETHEUS_URL", "http://localhost:9090"),
 		MetricsListenAddr: getEnvTrimmed("METRICS_LISTEN_ADDR", ":9213"),
-
-		GeocodingSweeperDisabled: getBoolEnv("GEOCODING_SWEEPER_DISABLED", false),
 
 		WhatsAppStunServers:     parseCSVEnv("WHATSAPP_STUN_SERVERS"),
 		WhatsAppMediaUDPMuxPort: mustGetIntEnv("WHATSAPP_MEDIA_UDP_MUX_PORT"),

@@ -27,7 +27,8 @@ func scopeClause(scope whatsappform.ReadScope) (string, []interface{}, error) {
 	if !scope.Resolved {
 		return "", nil, whatsappform.ErrForbidden
 	}
-	clause, args := departmentscope.Clause("wc.department_id", "wce.id", scope.DepartmentIDs, scope.Restrict, scope.AssigneeUserID)
+	department := departmentscope.Routed("wce.id", string(shared.EntryTypeWhatsApp), "wc.department_id")
+	clause, args := departmentscope.Clause(department, "wce.id", scope.DepartmentIDs, scope.Restrict, scope.AssigneeUserID)
 	return clause, args, nil
 }
 

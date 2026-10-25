@@ -7,7 +7,7 @@ import (
 	"vozko/domain/stage"
 	wf "vozko/domain/whatsappform"
 	workflow_domain "vozko/domain/workflow"
-	"vozko/domain/workflowsecret"
+	"vozko/domain/workspacesecret"
 	whatsappform_repository "vozko/infra/repositories/whatsappform"
 	workflow_repository "vozko/infra/repositories/workflow"
 	workflow_usecase "vozko/usecases/workflow"
@@ -104,7 +104,7 @@ func (c *Container) lastTriggerInput() *workflow_usecase.LastTriggerInputUseCase
 }
 
 type workflowSecretNames struct {
-	secrets workflowsecret.UseCases
+	secrets workspacesecret.UseCases
 }
 
 func (s workflowSecretNames) SecretNames(ctx context.Context, workspaceID string) ([]string, error) {
@@ -125,7 +125,7 @@ func (s workflowSecretNames) SecretNames(ctx context.Context, workspaceID string
 func (c *Container) workflowVariables() *workflow_usecase.VariableCatalogReader {
 	return &workflow_usecase.VariableCatalogReader{
 		Readers: c.workflowTriggerInputs(),
-		Secrets: workflowSecretNames{secrets: c.useCases.workflowSecrets},
+		Secrets: workflowSecretNames{secrets: c.useCases.workspaceSecrets},
 		Catalog: c.useCases.nodeCatalogFn,
 	}
 }

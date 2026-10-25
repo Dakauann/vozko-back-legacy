@@ -19,6 +19,7 @@ import (
 	leadmemory "vozko/domain/lead_memory"
 	"vozko/domain/livedecision"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/domain/stage"
 	toolsdomain "vozko/domain/tools"
 	wc "vozko/domain/whatsapp_campaign"
@@ -60,12 +61,8 @@ type ProfileAgents interface {
 	FindByID(agentID string) (*agent.Agent, error)
 }
 
-func (j *analysisDebounceJob) SetProfileAgents(agents ProfileAgents) {
-	j.profileAgents = agents
-}
-
 func (j *analysisDebounceJob) profileHandler(subject *AnalysisSubject) toolsdomain.Handler {
-	if j.profileAgents == nil || strings.TrimSpace(subject.AgentID) == "" {
+	if strings.TrimSpace(subject.AgentID) == "" {
 		return nil
 	}
 	handler, ok := j.toolRegistry.Handler(tools_usecase.UpdateLeadProfileToolName)
@@ -88,18 +85,11 @@ type QuietCascade interface {
 	QuietGate(ctx context.Context, target livedecisions_usecase.Trigger, wantMemory, wantDeals bool, memory, deals string) livedecision.QuietGate
 }
 
-func (j *analysisDebounceJob) SetQuietCascade(cascade QuietCascade) {
-	j.cascade = cascade
-}
-
 func (j *analysisDebounceJob) stageNeedsReview(ctx context.Context, target livedecisions_usecase.Trigger) bool {
-	return j.cascade == nil || j.cascade.StageNeedsReview(ctx, target)
+	return j.cascade.StageNeedsReview(ctx, target)
 }
 
 func (j *analysisDebounceJob) quietGate(ctx context.Context, target livedecisions_usecase.Trigger, wantMemory, wantDeals bool, memory, deals string) livedecision.QuietGate {
-	if j.cascade == nil {
-		return livedecision.QuietGate{NeedsMemory: wantMemory, NeedsDeals: wantDeals}
-	}
 	return j.cascade.QuietGate(ctx, target, wantMemory, wantDeals, memory, deals)
 }
 
@@ -107,14 +97,7 @@ type DealAutomationSettings interface {
 	PipelineFor(workspaceID string, channel dealautomation.Channel, containerID string) (string, error)
 }
 
-func (j *analysisDebounceJob) SetDealAutomation(settings DealAutomationSettings, desk tools_usecase.OpportunityManager) {
-	j.dealSettings, j.dealDesk = settings, desk
-}
-
 func (j *analysisDebounceJob) autoDealsPipeline(subject *AnalysisSubject) (string, error) {
-	if j.dealSettings == nil || j.dealDesk == nil {
-		return "", nil
-	}
 	return j.dealSettings.PipelineFor(subject.WorkspaceID, dealautomation.Channel{EntryType: subject.EntryType, Kind: subject.ContainerKind}, subject.ContainerID)
 }
 
@@ -129,16 +112,6 @@ type ConversationAnalysisEnqueuer interface {
 	EnqueueSubject(ctx context.Context, subject *AnalysisSubject) error
 }
 
-func (j *analysisDebounceJob) SetAnalysisDebouncePolicy(p AnalysisDebouncePolicy) {
-	j.debouncePolicy = p
-}
-
-func (j *analysisDebounceJob) SetAnalysisQueue(q ConversationAnalysisEnqueuer) {
-	if j != nil && q != nil {
-		j.analysisQueue = q
-	}
-}
-
 func (j *analysisDebounceJob) SetAnalysisSubjectResolver(entryType shared.EntryType, resolver AnalysisSubjectResolver) {
 	if j == nil || resolver == nil || entryType == "" {
 		return
@@ -147,6 +120,15 @@ func (j *analysisDebounceJob) SetAnalysisSubjectResolver(entryType shared.EntryT
 		j.resolvers = make(map[shared.EntryType]AnalysisSubjectResolver, 2)
 	}
 	j.resolvers[entryType] = resolver
+}
+
+type AnalysisJobDeps struct {
+	Queue         ConversationAnalysisEnqueuer
+	Policy        AnalysisDebouncePolicy
+	DealSettings  DealAutomationSettings
+	DealDesk      tools_usecase.OpportunityManager
+	Cascade       QuietCascade
+	ProfileAgents ProfileAgents
 }
 
 func NewAnalysisDebounceJob(
@@ -161,8 +143,25 @@ func NewAnalysisDebounceJob(
 	leadMemories leadmemory.ListUseCase,
 	hub conversation.EventBroadcaster,
 	cachedBalanceChecker balance.CachedBalanceChecker,
+	d AnalysisJobDeps,
 ) conversation.AnalysisDebounceJob {
+	if err := deps.Require("analysis debounce", map[string]any{
+		"queue":          d.Queue,
+		"policy":         d.Policy,
+		"deal settings":  d.DealSettings,
+		"deal desk":      d.DealDesk,
+		"cascade":        d.Cascade,
+		"profile agents": d.ProfileAgents,
+	}); err != nil {
+		panic(err.Error())
+	}
 	return &analysisDebounceJob{
+		analysisQueue:        d.Queue,
+		debouncePolicy:       d.Policy,
+		dealSettings:         d.DealSettings,
+		dealDesk:             d.DealDesk,
+		cascade:              d.Cascade,
+		profileAgents:        d.ProfileAgents,
 		sharedState:          sharedState,
 		messageRepo:          messageRepo,
 		wcEntryRepo:          wcEntryRepo,
@@ -236,9 +235,6 @@ func (j *analysisDebounceJob) ProcessPendingAnalyses() error {
 }
 
 func (j *analysisDebounceJob) configuredWindows() map[string]time.Duration {
-	if j.debouncePolicy == nil {
-		return nil
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), analysisDebounceTimeout)
 	defer cancel()
 	windows, err := j.debouncePolicy.ConfiguredDebounceWindows(ctx)
@@ -348,7 +344,7 @@ func (j *analysisDebounceJob) runAnalysisForEntry(entryID string, entryType shar
 	if !subject.WantsWork() && dealsPipeline == "" {
 		return nil
 	}
-	if subject.EnableAnalysis && j.analysisQueue != nil {
+	if subject.EnableAnalysis {
 		queueCtx, cancelQueue := context.WithTimeout(context.Background(), analysisDebounceTimeout)
 		queueErr := j.analysisQueue.EnqueueSubject(queueCtx, subject)
 		cancelQueue()
@@ -450,7 +446,7 @@ func (j *analysisDebounceJob) runAnalysisForEntry(entryID string, entryType shar
 		}
 		for _, toolCall := range response.ToolCalls {
 			if toolCall.Result != nil {
-				log.Printf("[analysis-debounce] %s result for entry %s: %v", toolCall.Name, entryID, toolCall.Result.Result)
+				log.Printf("[analysis-debounce] %s finished for entry %s (error=%v)", toolCall.Name, entryID, toolCall.Result.IsError)
 			}
 		}
 	}

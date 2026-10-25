@@ -128,7 +128,7 @@ func resultText(t *testing.T, r tools.ExecutionResult) string {
 
 func TestRunWorkflowIsAMessagingToolBoundToOneWorkflowPerBinding(t *testing.T) {
 	def := newRunWorkflowHarness().tool.Definition()
-	if def.Name != RunWorkflowToolName || def.DisplayName != "Executar fluxo" || def.BindingKey != "workflow_id" {
+	if def.Name != RunWorkflowToolName || def.DisplayName != "Executar fluxo" || def.Instances != tools.PerTarget("workflow_id") {
 		t.Fatalf("definition = %+v", def)
 	}
 	if !def.IsVisibleIn(tools.VisibilityMessaging) || def.IsVisibleIn(tools.VisibilityPostConversation) || def.IsVisibleIn(tools.VisibilityAnalysis) {
@@ -293,7 +293,7 @@ func TestTwoWorkflowBindingsBecomeTwoToolsAndEachCallStartsItsOwnWorkflow(t *tes
 				config[k] = v
 			}
 		}
-		result, err := registry.ExecuteWithConfig(agentContext(), def.Name, config, map[string]interface{}{"inputs": map[string]interface{}{field: "1"}})
+		result, err := registry.ExecuteWithConfig(agentContext(), def.HandlerName, config, map[string]interface{}{"inputs": map[string]interface{}{field: "1"}})
 		if err != nil || result.IsError || result.RunID != "run-"+workflowID {
 			t.Fatalf("calling %s: result = %+v, err = %v", def.Name, result, err)
 		}
@@ -301,8 +301,8 @@ func TestTwoWorkflowBindingsBecomeTwoToolsAndEachCallStartsItsOwnWorkflow(t *tes
 	if len(h.starter.starts) != 2 || h.starter.starts[0].WorkflowID == h.starter.starts[1].WorkflowID {
 		t.Fatalf("starts = %+v", h.starter.starts)
 	}
-	if _, ok := registry.Handler(byWorkflow["wf-b"].Name); !ok {
-		t.Fatal("a bound name must route to its handler")
+	if _, ok := registry.Handler(byWorkflow["wf-b"].HandlerName); !ok {
+		t.Fatal("the handler name must route to its handler")
 	}
 }
 

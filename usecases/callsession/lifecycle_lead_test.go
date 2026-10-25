@@ -59,9 +59,9 @@ func runLinkedCall(t *testing.T, input OutboundCallLifecycleInput, starts *start
 	t.Helper()
 	pub := &fakeBillingPub{}
 	runner := newRunner(&fakeAdmission{}, newFakeReserver(), &fakeBalanceChecker{balance: 1_000_000}, pub)
-	runner.SetCDRStart(starts)
+	runner.cdrStart = starts
 	if items != nil {
-		runner.SetCallListItems(items)
+		runner.callListItems = items
 	}
 	call := input.Call.(*fakeCRMCall)
 	call.events <- conversation.CallEvent{Type: conversation.CallEventAnswered}

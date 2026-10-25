@@ -2,7 +2,6 @@ package unofficial_whatsapp_campaign
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"vozko/domain/campaign"
@@ -37,10 +36,6 @@ func (c *messageConsumerUseCase) precheckGroups(ctx context.Context, camp *uwc.C
 }
 
 func (c *messageConsumerUseCase) handleGroup(ctx context.Context, camp *uwc.Campaign, entry *uwc.Entry) campaignqueue.Result {
-	if c.deps.Groups == nil {
-		log.Printf("[unofficial-whatsapp-campaign] entry %s is held (fail-closed): group sending is not wired", entry.ID)
-		return campaignqueue.RetryLater(restrictionRequeueDelay)
-	}
 	pool, err := campaignSenderPool(ctx, c.deps.Instances, camp)
 	if err != nil {
 		return campaignqueue.Requeue

@@ -11,6 +11,7 @@ import (
 	buttonactionhttp "vozko/delivery/http/buttonaction"
 	"vozko/delivery/http/response"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	businessphone "vozko/domain/whatsapp/business_phone"
 	whatsapptemplatedomain "vozko/domain/whatsapp/template"
 	"vozko/domain/workspace_template_access"
@@ -36,6 +37,13 @@ type WhatsAppTemplateHandler struct {
 	linkBase                    string
 }
 
+type TemplateEditDeps struct {
+	Creator  ExitGuardedCreator
+	Editor   ExitGuardedEditor
+	Tracking ButtonTracking
+	LinkBase string
+}
+
 func NewWhatsAppTemplateHandler(
 	listUC whatsapptemplatedomain.ListUseCase,
 	getUC whatsapptemplatedomain.GetUseCase,
@@ -49,8 +57,20 @@ func NewWhatsAppTemplateHandler(
 	workspaceTemplateAccessRepo workspace_template_access.Repository,
 	phoneRepo businessphone.Repository,
 	workspaceTemplates whatsapptemplatedomain.WorkspaceTemplatesUseCase,
+	edits TemplateEditDeps,
 ) *WhatsAppTemplateHandler {
+	if err := deps.Require("whatsapp template handler", map[string]any{
+		"exit guarded creator": edits.Creator,
+		"exit guarded editor":  edits.Editor,
+		"button tracking":      edits.Tracking,
+	}); err != nil {
+		panic(err.Error())
+	}
 	return &WhatsAppTemplateHandler{
+		exitGuardedCreator:          edits.Creator,
+		editor:                      edits.Editor,
+		tracking:                    edits.Tracking,
+		linkBase:                    edits.LinkBase,
 		listUseCase:                 listUC,
 		getUseCase:                  getUC,
 		syncUseCase:                 syncUC,

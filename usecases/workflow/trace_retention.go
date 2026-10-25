@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	"vozko/domain/agentrun"
+	"vozko/domain/agentscenario"
 	aa "vozko/domain/ai_attendance"
 	"vozko/domain/choicestats"
 	"vozko/domain/workflow"
@@ -31,20 +33,31 @@ type ChoiceStatsPruner interface {
 	PruneCounts(before time.Time, limit int) (int64, error)
 }
 
+type AgentRunPruner interface {
+	PrunePayloads(before time.Time, limit int) (int64, error)
+	DeleteStartedBefore(before time.Time, limit int) (int64, error)
+}
+
+type ScenarioRunPruner interface {
+	DeleteRunsStartedBefore(before time.Time, limit int) (int64, error)
+}
+
 type TraceRetention struct {
 	traces     workflow.TraceRetentionRepository
 	deliveries workflow.WebhookDeliveryRepository
 	toolCalls  aa.ToolCallLog
 	alerts     ResolvedAlertPruner
 	choices    ChoiceStatsPruner
+	agentRuns  AgentRunPruner
+	scenarios  ScenarioRunPruner
 	now        func() time.Time
 }
 
-func NewTraceRetention(traces workflow.TraceRetentionRepository, deliveries workflow.WebhookDeliveryRepository, toolCalls aa.ToolCallLog, alerts ResolvedAlertPruner, choices ChoiceStatsPruner) *TraceRetention {
-	if traces == nil || deliveries == nil || toolCalls == nil || alerts == nil || choices == nil {
-		panic("workflow: trace retention needs the step, delivery, tool call, runtime alert and choice stats stores")
+func NewTraceRetention(traces workflow.TraceRetentionRepository, deliveries workflow.WebhookDeliveryRepository, toolCalls aa.ToolCallLog, alerts ResolvedAlertPruner, choices ChoiceStatsPruner, agentRuns AgentRunPruner, scenarios ScenarioRunPruner) *TraceRetention {
+	if traces == nil || deliveries == nil || toolCalls == nil || alerts == nil || choices == nil || agentRuns == nil || scenarios == nil {
+		panic("workflow: trace retention needs the step, delivery, tool call, runtime alert, choice stats, agent run and scenario run stores")
 	}
-	return &TraceRetention{traces: traces, deliveries: deliveries, toolCalls: toolCalls, alerts: alerts, choices: choices, now: func() time.Time { return time.Now().UTC() }}
+	return &TraceRetention{traces: traces, deliveries: deliveries, toolCalls: toolCalls, alerts: alerts, choices: choices, agentRuns: agentRuns, scenarios: scenarios, now: func() time.Time { return time.Now().UTC() }}
 }
 
 func (j *TraceRetention) pruneVersions(_ time.Time, limit int) (int64, error) {
@@ -69,7 +82,10 @@ func (j *TraceRetention) Execute(ctx context.Context) error {
 		{name: "run_steps", before: now.Add(-RunRetention), run: j.traces.DeleteStepsOfFinishedRuns},
 		{name: "runs", before: now.Add(-RunRetention), run: j.traces.DeleteFinishedRuns, dependsOn: "run_steps"},
 		{name: "webhook_deliveries", before: now.Add(-WebhookDeliveryRetention), run: j.deliveries.DeleteReceivedBefore},
+		{name: "agent_span_payloads", before: now.Add(-agentrun.PayloadRetention), run: j.agentRuns.PrunePayloads},
 		{name: "ai_tool_calls", before: now.Add(-ToolCallRetention), run: j.toolCalls.DeleteCreatedBefore},
+		{name: "agent_runs", before: now.Add(-agentrun.RowRetention), run: j.agentRuns.DeleteStartedBefore},
+		{name: "scenario_runs", before: now.Add(-agentscenario.RunRetention), run: j.scenarios.DeleteRunsStartedBefore},
 		{name: "runtime_alerts", before: now.Add(-workflow.RuntimeAlertRetention), run: j.alerts.DeleteResolvedBefore},
 		{name: "workflow_versions", run: j.pruneVersions},
 		{name: "choice_prompts", before: choicestats.AttributionCutoff(now), run: j.choices.PrunePrompts},

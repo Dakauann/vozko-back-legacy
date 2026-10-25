@@ -12,7 +12,6 @@ import (
 	"github.com/gorilla/mux"
 
 	"vozko/domain/aichat"
-	"vozko/usecases/agentloop"
 	aichat_usecase "vozko/usecases/aichat"
 	copilot_usecase "vozko/usecases/copilot"
 )
@@ -65,10 +64,9 @@ func (q *memoryQueue) Deliver(string) ([]*aichat.QueuedMessage, error) {
 
 func queueHandler() (*AIChatHandler, *copilot_usecase.Service, *memoryQueue) {
 	threads := screenThreads{thread: &aichat.Thread{ID: "th1", WorkspaceID: "ws1", UserID: "u1"}}
-	copilot := copilot_usecase.NewService(agentloop.Engine{}, copilot_usecase.NewRegistry(), nil, nil, threads, turnMessages{}, nil, nil, nil)
 	queue := &memoryQueue{}
-	copilot.SetQueue(queue)
-	chats := aichat_usecase.NewService(threads, turnMessages{}, nil, aichat_usecase.NewFundsGate(fundedBalance{}, activePlan{}))
+	copilot := copilotService(copilot_usecase.Deps{Threads: threads, Queue: queue})
+	chats := chatService(aichat_usecase.Deps{Threads: threads})
 	return NewAIChatHandler(chats, copilot), copilot, queue
 }
 

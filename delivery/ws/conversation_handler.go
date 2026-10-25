@@ -223,7 +223,8 @@ func resolveConnectionDepartmentID(r *http.Request) string {
 // @Description
 // @Description	| type | payload | Quando |
 // @Description	|---|---|---|
-// @Description	| `conversation:entry_update` | `{"entry": InboxEntry, "silent"?: boolean}` | Nova mensagem, envio, troca de responsável, status ou etapa. `silent: true` indica atualização sem novidade para o atendente. |
+// @Description	| `conversation:entry_update` | `{"entry": InboxEntry, "silent"?: boolean, "alert"?: boolean}` | Nova mensagem, envio, troca de responsável, status ou etapa. `silent: true` indica atualização sem novidade para o atendente. `alert: true` só vem numa mensagem nova do cliente e só para quem deve ser avisado: o responsável humano; ninguém quando um agente ou fluxo é o responsável ou quando a distribuição automática vai entregar a conversa; na fila manual, quem pode pegá-la. Toque o som e mostre o aviso só quando `alert` vier. |
+// @Description	| `conversation:assigned_to_you` | `{"entry": InboxEntry, "assigned_at": string}` | Uma conversa passou a ser sua pela distribuição automática, por um colega, por uma transferência ou por um agente ou fluxo. Não chega quando você mesmo a pega. Chega uma vez por atribuição, em todas as suas conexões deste workspace. |
 // @Description	| `conversation:conversation_status_counts_update` | `{"counts": {"new": number, "ongoing": number, "finished": number}}` | Os totais por status mudaram. |
 // @Description	| `conversation:stage_update` | `{"entry_id", "entry_type", "stage": Stage \| null}` | A etapa da conversa mudou. |
 // @Description	| `conversation:label_update` | `{"entry_id", "entry_type", "labels": Label[]}` | As etiquetas mudaram. |
@@ -377,7 +378,7 @@ func (h *ConversationWSHandler) HandleWebSocket(w http.ResponseWriter, r *http.R
 	departmentID := resolveConnectionDepartmentID(r)
 
 	isSystemAdmin := claims.Role == string(user.RoleAdmin)
-	if !isSystemAdmin && h.hub.authorizer != nil {
+	if !isSystemAdmin {
 		isSystemAdmin := claims.Role == string(user.RoleAdmin)
 		allowed := h.hub.authorizer.HasWorkspacePermission(
 			claims.UserID,
@@ -406,7 +407,7 @@ func (h *ConversationWSHandler) HandleWebSocket(w http.ResponseWriter, r *http.R
 				return
 			}
 		}
-		if h.hub.authorizer != nil && !h.hub.authorizer.CanAccessCampaign(claims.UserID, workspaceID, campaignID, campaignType, isSystemAdmin) {
+		if !h.hub.authorizer.CanAccessCampaign(claims.UserID, workspaceID, campaignID, campaignType, isSystemAdmin) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}

@@ -75,14 +75,14 @@ func lastSeenService(
 	cfg WorkspaceConfigProvider,
 	deptID string,
 ) *AssignmentService {
-	svc := NewAssignmentService(repo, online, defaultResolver("ws-1", deptID), cfg)
+	svc := newService(repo, online, defaultResolver("ws-1", deptID), cfg)
 	if roster != nil {
-		svc.SetRoster(roster)
+		svc.candidates.roster = roster
 	}
 	if seen != nil {
-		svc.SetPresence(seen)
+		svc.candidates.seen = seen
 	}
-	svc.Candidates().SetClock(func() time.Time { return testNow })
+	svc.Candidates().now = func() time.Time { return testNow }
 	return svc
 }
 
@@ -223,14 +223,6 @@ func TestLastSeen_ReadErrorsFallBackToTheOnlinePool(t *testing.T) {
 		&stubLastSeen{err: boom},
 		lastSeenConfig(48), "")
 	assert.Equal(t, "connected", presenceErr.EnsureAssignment("entry-1", "whatsapp", "phone-1"))
-}
-
-func TestLastSeen_UnwiredReadersFallBackToTheOnlinePool(t *testing.T) {
-	svc := lastSeenService(newStatefulRepo(),
-		defaultEligible("connected"),
-		nil, nil,
-		lastSeenConfig(48), "")
-	assert.Equal(t, "connected", svc.EnsureAssignment("entry-1", "whatsapp", "phone-1"))
 }
 
 func TestLastSeen_ConfigErrorUsesTheOnlinePool(t *testing.T) {

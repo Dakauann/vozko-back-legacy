@@ -20,6 +20,15 @@ func (missingLabels) FindByID(string) (*label_domain.Label, error) {
 	return nil, nil
 }
 
+type labelsInEveryWorkspace struct {
+	label_domain.Repository
+	workspaceID string
+}
+
+func (l labelsInEveryWorkspace) FindByID(id string) (*label_domain.Label, error) {
+	return &label_domain.Label{ID: id, WorkspaceID: l.workspaceID}, nil
+}
+
 type unreachableFunnels struct{}
 
 func (unreachableFunnels) PipelineStages(string, string) ([]*stage_domain.Stage, error) {
@@ -36,8 +45,7 @@ func gateCatalog() []workflow.NodeDefinition {
 }
 
 func gate(repo *MockWorkflowRepository) *activateWorkflowUseCase {
-	uc := NewActivateWorkflowUseCase(repo).(*activateWorkflowUseCase)
-	uc.SetCatalogFn(gateCatalog)
+	uc := &activateWorkflowUseCase{repo: repo, catalogFn: gateCatalog}
 	return uc
 }
 
@@ -66,7 +74,7 @@ func TestPublishReportsEveryBlockingProblemAtOnce(t *testing.T) {
 	repo := NewMockWorkflowRepository()
 	storedWorkflow(t, repo, workflow.WorkflowStatusDraft, incompleteGraph())
 	uc := gate(repo)
-	uc.SetLabelRepo(missingLabels{})
+	uc.labelRepo = missingLabels{}
 
 	_, err := uc.Publish(publisherCtx(), "wf-1")
 	blocked, ok := workflow.NotPublishableOf(err)
@@ -94,7 +102,9 @@ func TestThePublishGateAndTheAlertsPanelAgreeOnTheGraphBlockers(t *testing.T) {
 	repo := NewMockWorkflowRepository()
 	storedWorkflow(t, repo, workflow.WorkflowStatusDraft, incompleteGraph())
 
-	_, err := gate(repo).Publish(publisherCtx(), "wf-1")
+	uc := gate(repo)
+	uc.labelRepo = labelsInEveryWorkspace{workspaceID: "ws1"}
+	_, err := uc.Publish(publisherCtx(), "wf-1")
 	blocked, ok := workflow.NotPublishableOf(err)
 	if !ok {
 		t.Fatalf("err = %v", err)
@@ -102,7 +112,7 @@ func TestThePublishGateAndTheAlertsPanelAgreeOnTheGraphBlockers(t *testing.T) {
 	stored, _ := repo.FindByID("wf-1")
 	lint := LintWorkflowGraph(gateCatalog(), stored).Blocking()
 	if len(blocked.Issues) != len(lint) {
-		t.Fatalf("publish issues = %d, lint blockers = %d: without reference lookups they must be the same list", len(blocked.Issues), len(lint))
+		t.Fatalf("publish issues = %d, lint blockers = %d: with every reference resolved they must be the same list", len(blocked.Issues), len(lint))
 	}
 	for i := range lint {
 		if blocked.Issues[i] != lint[i] {
@@ -118,7 +128,7 @@ func TestPublishFailsClosedWhenAReferenceCannotBeChecked(t *testing.T) {
 	repo := NewMockWorkflowRepository()
 	storedWorkflow(t, repo, workflow.WorkflowStatusDraft, g)
 	uc := gate(repo)
-	uc.SetDealFunnels(unreachableFunnels{})
+	uc.dealFunnels = unreachableFunnels{}
 
 	_, err := uc.Publish(publisherCtx(), "wf-1")
 	blocked, ok := workflow.NotPublishableOf(err)
@@ -139,7 +149,7 @@ func TestSavingAnIncompleteDraftNeverRunsThePublishGate(t *testing.T) {
 	repo := NewMockWorkflowRepository()
 	storedWorkflow(t, repo, workflow.WorkflowStatusDraft, manualGraph("end"))
 
-	saved, err := NewUpdateWorkflowUseCase(repo).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: incompleteGraph()}, revisionOf(repo, "wf-1"))
+	saved, err := NewUpdateWorkflowUseCase(repo, staticCatalog{}).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: incompleteGraph()}, revisionOf(repo, "wf-1"))
 	if err != nil {
 		t.Fatalf("an unconnected trigger, a missing end and empty fields must still save: %v", err)
 	}
@@ -155,12 +165,12 @@ func TestThePublishRefusalNamesTheUnconnectedOutputOfANode(t *testing.T) {
 	repo := NewMockWorkflowRepository()
 	storedWorkflow(t, repo, workflow.WorkflowStatusDraft, g)
 	uc := gate(repo)
-	uc.SetCatalogFn(func() []workflow.NodeDefinition {
+	uc.catalogFn = func() []workflow.NodeDefinition {
 		return append(gateCatalog(), workflow.NodeDefinition{
 			Type: "action_pick", Category: workflow.NodeCategoryAction, Scopes: []workflow.NodeScope{workflow.NodeScopeShared},
 			Outputs: []workflow.HandleDefinition{{ID: "sucesso", Label: "Sucesso"}, {ID: "erro", Label: "Erro"}},
 		})
-	})
+	}
 
 	_, err := uc.Publish(publisherCtx(), "wf-1")
 	blocked, ok := workflow.NotPublishableOf(err)

@@ -3,11 +3,11 @@ package whatsapp_campaign_usecase
 import (
 	"context"
 	"errors"
-	"time"
 
 	"vozko/domain/balance"
 	"vozko/domain/campaign"
 	"vozko/domain/campaign/launchcheck"
+	"vozko/domain/campaign/scheduledstart"
 	"vozko/domain/campaignaudience"
 	"vozko/domain/whatsapp/template"
 	wc "vozko/domain/whatsapp_campaign"
@@ -48,6 +48,7 @@ type DraftLaunchInput struct {
 	Campaign             *wc.Campaign
 	Launch               campaign.Launch
 	ConfirmedFingerprint string
+	ScheduledBy          string
 	Departments          *wd.DepartmentFilter
 	Settle               func(ctx context.Context, created *wc.Campaign) []string
 }
@@ -108,9 +109,9 @@ func (u *DraftLaunch) Launch(ctx context.Context, in DraftLaunchInput) (campaign
 			review, err := u.review(ctx, in.Campaign)
 			return review.Report, err
 		},
-		Create: func(ctx context.Context, scheduledStart time.Time) (*wc.Campaign, error) {
+		Create: func(ctx context.Context, schedule scheduledstart.Schedule) (*wc.Campaign, error) {
 			draft := *in.Campaign
-			draft.ScheduledStart = scheduledStart
+			draft.ApplySchedule(schedule, in.ScheduledBy)
 			return u.d.Create.Execute(ctx, &draft)
 		},
 		Settle: in.Settle,

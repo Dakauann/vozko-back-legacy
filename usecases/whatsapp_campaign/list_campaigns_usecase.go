@@ -47,14 +47,14 @@ func (uc *listCampaignsUseCase) Execute(input wc.ListCampaignsInput) (*shared.Pa
 		return nil, err
 	}
 
+	recentByCampaign, err := uc.entryRepo.ListRecentlyUpdatedForCampaigns(ids, recentEntriesLimit)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, item := range result.Items {
 		item.Metrics = wc.NewCampaignMetrics(countsByCampaign[item.ID])
-
-		recentEntries, err := uc.entryRepo.ListRecentlyUpdated(item.ID, recentEntriesLimit)
-		if err != nil {
-			return nil, err
-		}
-		item.RecentEntries = recentEntries
+		item.RecentEntries = recentByCampaign[item.ID]
 	}
 
 	uc.enrichTemplateMeta(result.Items)

@@ -33,13 +33,13 @@ func TestAButtonReplySendsTheQuoteToWhatsAppLikeTextAndMedia(t *testing.T) {
 	wamid := "wamid.customer"
 	client := &buttonCapturingClient{}
 	messages := &quotedMessageRepo{quoted: &conversation.Message{ID: "msg-quoted", WhatsAppMessageID: &wamid}}
-	svc := &MessageSenderService{
+	svc := senderWith(&MessageSenderService{
 		whatsappRepo:          stubAudioEntryRepo{},
 		leadRepo:              stubAudioLeadRepo{},
 		messageWindowRepo:     stubAudioWindowRepo{},
 		whatsappClientFactory: stubAudioClientFactory{client: client},
 		messageRepo:           messages,
-	}
+	})
 
 	sent, err := svc.SendButtonMessage("entry-1", "whatsapp", conversation.SendButtonInput{
 		BodyText: "Escolha", Buttons: []conversation.ButtonPayload{{ID: "yes", Title: "Sim"}},

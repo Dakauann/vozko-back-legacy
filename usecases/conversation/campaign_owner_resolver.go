@@ -2,6 +2,7 @@ package conversation_usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"vozko/domain/conversation"
@@ -22,16 +23,19 @@ type EntryCampaignResolver interface {
 type campaignWorkspaceResolver struct {
 	wcCampaignRepo wc_domain.Repository
 	waEntryRepo    wce.Repository
+	routes         conversation.DepartmentRoutes
 	entryResolvers map[shared.EntryType]EntryOwnerResolver
 }
 
 func NewCampaignWorkspaceResolver(
 	wcCampaignRepo wc_domain.Repository,
 	waEntryRepo wce.Repository,
+	routes conversation.DepartmentRoutes,
 ) conversation.CampaignWorkspaceResolver {
 	return &campaignWorkspaceResolver{
 		wcCampaignRepo: wcCampaignRepo,
 		waEntryRepo:    waEntryRepo,
+		routes:         routes,
 		entryResolvers: make(map[shared.EntryType]EntryOwnerResolver, 2),
 	}
 }
@@ -46,9 +50,7 @@ func (r *campaignWorkspaceResolver) SetEntryOwnerResolver(entryType shared.Entry
 	r.entryResolvers[entryType] = repo
 }
 
-func (r *campaignWorkspaceResolver) SetInstagramEntryResolver(repo EntryOwnerResolver) {
-	r.SetEntryOwnerResolver(shared.EntryTypeInstagram, repo)
-}
+var ErrChannelNotRegistered = errors.New("conversation: no channel is registered for this entry type")
 
 func (r *campaignWorkspaceResolver) resolverFor(entryType string) (EntryOwnerResolver, bool) {
 	if r == nil || r.entryResolvers == nil {
@@ -88,7 +90,7 @@ func (r *campaignWorkspaceResolver) GetEntryWorkspaceID(entryID, entryType strin
 		return resolver.WorkspaceIDForEntry(context.Background(), entryID)
 	}
 	if entryType != string(shared.EntryTypeWhatsApp) {
-		return "", fmt.Errorf("unknown entry type: %s", entryType)
+		return "", fmt.Errorf("%w: %s", ErrChannelNotRegistered, entryType)
 	}
 	info, err := r.waEntryRepo.GetCampaignForEntry(entryID)
 	if err != nil {
@@ -98,6 +100,20 @@ func (r *campaignWorkspaceResolver) GetEntryWorkspaceID(entryID, entryType strin
 }
 
 func (r *campaignWorkspaceResolver) GetEntryDepartmentID(entryID, entryType string) (string, error) {
+	if r.routes == nil {
+		return "", fmt.Errorf("department of %s (%s): %w", entryID, entryType, conversation.ErrDepartmentRoutesUnavailable)
+	}
+	routed, found, err := r.routes.RoutedDepartment(entryID, entryType)
+	if err != nil {
+		return "", fmt.Errorf("department of %s (%s): route: %w", entryID, entryType, err)
+	}
+	if found {
+		return routed, nil
+	}
+	return r.defaultDepartmentID(entryID, entryType)
+}
+
+func (r *campaignWorkspaceResolver) defaultDepartmentID(entryID, entryType string) (string, error) {
 	if entryType == string(shared.EntryTypeWhatsApp) {
 		campaignID, err := r.GetEntryCampaignID(entryID, entryType)
 		if err != nil {
@@ -105,13 +121,11 @@ func (r *campaignWorkspaceResolver) GetEntryDepartmentID(entryID, entryType stri
 		}
 		return r.GetCampaignDepartmentID(campaignID, string(shared.EntryTypeWhatsApp))
 	}
-	if resolver, ok := r.resolverFor(entryType); ok {
-		return resolver.DepartmentIDForEntry(context.Background(), entryID)
+	resolver, ok := r.resolverFor(entryType)
+	if !ok {
+		return "", fmt.Errorf("%w: %s", ErrChannelNotRegistered, entryType)
 	}
-	if shared.EntryType(entryType).IsKnown() {
-		return "", nil
-	}
-	return "", fmt.Errorf("unknown entry type: %s", entryType)
+	return resolver.DepartmentIDForEntry(context.Background(), entryID)
 }
 
 func (r *campaignWorkspaceResolver) GetEntryCampaignID(entryID, entryType string) (string, error) {
@@ -122,13 +136,12 @@ func (r *campaignWorkspaceResolver) GetEntryCampaignID(entryID, entryType string
 		}
 		return info.CampaignID, nil
 	}
-	if resolver, ok := r.resolverFor(entryType); ok {
-		if withCampaign, ok := resolver.(EntryCampaignResolver); ok {
-			return withCampaign.CampaignIDForEntry(context.Background(), entryID)
-		}
+	resolver, ok := r.resolverFor(entryType)
+	if !ok {
+		return "", fmt.Errorf("%w: %s", ErrChannelNotRegistered, entryType)
 	}
-	if shared.EntryType(entryType).IsKnown() {
-		return "", nil
+	if withCampaign, ok := resolver.(EntryCampaignResolver); ok {
+		return withCampaign.CampaignIDForEntry(context.Background(), entryID)
 	}
-	return "", fmt.Errorf("unknown entry type: %s", entryType)
+	return "", nil
 }

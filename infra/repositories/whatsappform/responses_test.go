@@ -10,7 +10,10 @@ import (
 
 	"vozko/domain/shared"
 	"vozko/domain/whatsappform"
+	"vozko/infra/repositories/departmentscope"
 )
+
+var routedFormDepartment = departmentscope.Routed("wce.id", string(shared.EntryTypeWhatsApp), "wc.department_id")
 
 func responseRowColumns() []string {
 	return []string{"id", "workspace_id", "form_id", "version_id", "send_id", "origin", "match", "inbound_message_id", "conversation_id",
@@ -130,7 +133,7 @@ func TestResponseGetAppliesTheReadersScope(t *testing.T) {
 	}{
 		{"unrestricted", whatsappform.ReadScope{Resolved: true}, from, []driver.Value{wsID, respID}},
 		{"restricted to a department", whatsappform.ReadScope{Resolved: true, Restrict: true, DepartmentIDs: []string{deptID}},
-			from + " AND wc.department_id = ANY(?::uuid[])", []driver.Value{wsID, respID, "{\"" + deptID + "\"}"}},
+			from + " AND " + routedFormDepartment + " = ANY(?::uuid[])", []driver.Value{wsID, respID, "{\"" + deptID + "\"}"}},
 		{"restricted without departments", whatsappform.ReadScope{Resolved: true, Restrict: true}, from + " AND 1 = 0", []driver.Value{wsID, respID}},
 	}
 	for _, tc := range cases {
@@ -204,7 +207,7 @@ func TestResponseListAppliesEveryFilter(t *testing.T) {
 				" AND r.version_id = ANY(?::uuid[]) AND r.submitted_at >= ? AND r.submitted_at <= ? AND r.origin = ANY(?)" +
 				" AND r.business_phone_id = ANY(?::uuid[]) AND wce.campaign_id = ? AND r.match IN ('token', 'context')" +
 				" AND (r.contact_number LIKE ? OR vozko_fold(l.name) LIKE vozko_fold(?))" +
-				" AND wc.department_id = ANY(?::uuid[])" +
+				" AND " + routedFormDepartment + " = ANY(?::uuid[])" +
 				" AND (r.submitted_at, r.id) < (?, ?::uuid) ORDER BY r.submitted_at DESC, r.id DESC LIMIT ?",
 			args: []driver.Value{wsID, formID, "{\"" + versionID + "\"}", from, to, `{"inbox","campaign"}`, "{\"" + phoneID + "\"}", campID,
 				"%José%", "%José%", "{\"" + deptID + "\"}", at, respID, int64(3)},

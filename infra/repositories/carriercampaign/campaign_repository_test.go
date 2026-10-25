@@ -34,7 +34,7 @@ func TestCampaignCreateStoresTheJSONDocuments(t *testing.T) {
 		WithArgs(sqlmock.AnyArg(), "ws1", "Black Friday", "s1", "rcs", "draft", "marketing",
 			`[{"name":"A","content":{"text":"oi"}}]`, `{"sms":{"route_id":"r1","text":"oi"}}`,
 			`{"mode":"first_n","limit":50,"expected_count":40,"fingerprint":"fp"}`,
-			sqlmock.AnyArg(), "u1", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			sqlmock.AnyArg(), "u1", "", sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	c := sampleCampaign()
 	if err := NewCampaignRepository(db).Create(context.Background(), c); err != nil {

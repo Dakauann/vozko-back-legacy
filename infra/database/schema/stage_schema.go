@@ -42,9 +42,9 @@ func (t *Stage) BeforeCreate(tx *gorm.DB) error {
 
 type EntryStage struct {
 	ID          string         `gorm:"primaryKey;type:text"`
-	StageID     string         `gorm:"type:uuid;not null;index:idx_entry_tag_tag;index:idx_et_ws_del_tag,priority:3;index:idx_et_tag_ws_del_entry,priority:1"`
-	EntryID     string         `gorm:"type:uuid;not null;index:idx_entry_tag_entry;index:idx_et_entry_type_ws,priority:1;index:idx_et_tag_ws_del_entry,priority:4"`
-	EntryType   string         `gorm:"type:varchar(20);not null;index:idx_entry_tag_entry;index:idx_et_entry_type_ws,priority:2"`
+	StageID     string         `gorm:"type:uuid;not null;index:idx_et_ws_del_tag,priority:3;index:idx_et_tag_ws_del_entry,priority:1"`
+	EntryID     string         `gorm:"type:uuid;not null;index:idx_et_entry_type_ws,priority:1;index:idx_et_tag_ws_del_entry,priority:4"`
+	EntryType   string         `gorm:"type:varchar(20);not null;index:idx_et_entry_type_ws,priority:2"`
 	WorkspaceID string         `gorm:"type:uuid;not null;index:idx_entry_tag_workspace;index:idx_et_ws_del_tag,priority:1;index:idx_et_entry_type_ws,priority:3;index:idx_et_tag_ws_del_entry,priority:2"`
 	Stage       Stage          `gorm:"foreignKey:StageID"`
 	CreatedAt   time.Time      `gorm:"autoCreateTime"`

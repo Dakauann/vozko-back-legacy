@@ -2,9 +2,11 @@ package tools
 
 import (
 	"context"
+
 	"fmt"
 	"sort"
 	"strings"
+	"vozko/domain/calltrace"
 )
 
 var (
@@ -53,7 +55,8 @@ type Definition struct {
 	RequiredConfig     []string
 	RequiresConfig     bool
 	AdminOnly          bool
-	BindingKey         string `json:",omitempty"`
+	Instances          InstancePolicy `json:"-"`
+	Instance           *InstanceRef   `json:"-"`
 }
 
 func (d Definition) SensitiveConfig() []string {
@@ -109,40 +112,6 @@ func (d Definition) ValidateConfig(config map[string]interface{}) error {
 	}
 
 	return nil
-}
-
-func (d Definition) WithConfigExpansion(config map[string]interface{}) Definition {
-	result := d
-
-	result.Parameters = make(map[string]Parameter, len(d.Parameters))
-	for k, v := range d.Parameters {
-		result.Parameters[k] = v
-	}
-
-	var extraDesc string
-
-	for _, schema := range []struct{ configKey, param, base, title string }{
-		{"path_params", "path_values", "Path parameters to replace in the URL", "Path Parameters"},
-		{"query_schema", "query_values", "Query parameters to append to the URL", "Query Parameters"},
-		{"body_schema", "body_values", "JSON body fields to send", "Body Parameters"},
-	} {
-		raw, _ := config[schema.configKey].([]interface{})
-		if param, section, ok := SchemaObjectParameter(schema.base, schema.title, raw); ok {
-			result.Parameters[schema.param] = param
-			extraDesc += section
-		}
-	}
-
-	if url, ok := config["url"].(string); ok && url != "" {
-		method, _ := config["method"].(string)
-		extraDesc = fmt.Sprintf("\n\nConfigured endpoint: %s %s%s", method, url, extraDesc)
-	}
-
-	if extraDesc != "" {
-		result.Description = d.Description + extraDesc
-	}
-
-	return result
 }
 
 func SchemaObjectParameter(base, title string, raw []interface{}) (Parameter, string, bool) {
@@ -369,6 +338,9 @@ type ExecutionResult struct {
 	DialStatusOverride string
 	RunID              string
 	ErrorCode          string
+	Trace              *calltrace.ToolTrace `json:"-"`
+	Simulated          bool                 `json:"-"`
+	Mocked             bool                 `json:"-"`
 }
 
 type Handler interface {

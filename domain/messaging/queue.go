@@ -29,3 +29,19 @@ type MessageQueuePub interface {
 	PublishWithDelay(topic string, message []byte, delay time.Duration) error
 	ValidateConnection() error
 }
+
+type BatchPublisher interface {
+	PublishBatch(topic string, messages [][]byte) error
+}
+
+func PublishAll(pub MessageQueuePub, topic string, messages [][]byte) error {
+	if batch, ok := pub.(BatchPublisher); ok {
+		return batch.PublishBatch(topic, messages)
+	}
+	for _, message := range messages {
+		if err := pub.Publish(topic, message); err != nil {
+			return err
+		}
+	}
+	return nil
+}

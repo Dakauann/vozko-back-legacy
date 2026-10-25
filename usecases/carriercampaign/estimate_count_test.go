@@ -50,10 +50,4 @@ func TestTheCarrierAudienceTakesNoListAndNeedsAKind(t *testing.T) {
 	if _, err := prepared.Open(context.Background(), nil, audience.SourceList); !errors.Is(err, audience.ErrSourceUnsupported) {
 		t.Fatalf("list = %v", err)
 	}
-	h.svc.SetAudience(nil)
-	h.campaigns.put(rcsCampaign("c1"))
-	h.addLead("lead-a", 1)
-	if _, err := h.svc.Estimate(context.Background(), wsID, "c1", Actor{UserID: owner}); !errors.Is(err, audience.ErrUnavailable) {
-		t.Fatalf("an estimate without the audience step = %v", err)
-	}
 }

@@ -2,13 +2,13 @@ package whatsapp_campaign_usecase
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
 
 	"vozko/domain/campaign"
 	"vozko/domain/lead"
+	"vozko/domain/shared/deps"
 	wc "vozko/domain/whatsapp_campaign"
 	wce "vozko/domain/whatsapp_campaign_entry"
 	"vozko/usecases/campaignguard"
@@ -54,8 +54,6 @@ type AIToggleTelemetrySink interface {
 	AIToggle(workspaceID, entryID, entryType, actorUserID string, enabled bool)
 }
 
-var errLeadMergerMissing = errors.New("whatsapp campaign entry: the lead merge is not wired, a name edit cannot reach the lead")
-
 type LeadMerger interface {
 	MergeIncoming(ctx context.Context, workspaceID, leadID string, update lead.LeadUpdate) (*lead.Lead, error)
 }
@@ -73,19 +71,24 @@ func NewUpdateEntryUseCase(
 	entryRepo wce.Repository,
 	leadRepo lead.Repository,
 	leadMerger LeadMerger,
-) *updateEntryUseCase {
+	aiToggle AIToggleTelemetrySink,
+) (*updateEntryUseCase, error) {
+	if err := deps.Require("official campaign entry update", map[string]any{
+		"campaigns":           campaignRepo,
+		"entries":             entryRepo,
+		"leads":               leadRepo,
+		"lead merger":         leadMerger,
+		"ai toggle telemetry": aiToggle,
+	}); err != nil {
+		return nil, err
+	}
 	return &updateEntryUseCase{
 		campaignRepo: campaignRepo,
 		entryRepo:    entryRepo,
 		leadRepo:     leadRepo,
 		leadMerger:   leadMerger,
-	}
-}
-
-func (uc *updateEntryUseCase) SetAIToggleTelemetry(t AIToggleTelemetrySink) {
-	if uc != nil {
-		uc.aiToggle = t
-	}
+		aiToggle:     aiToggle,
+	}, nil
 }
 
 func (uc *updateEntryUseCase) Execute(input wc.UpdateEntryInput) (*wc.EntryOutput, error) {
@@ -205,9 +208,7 @@ func (uc *updateEntryUseCase) Execute(input wc.UpdateEntryInput) (*wc.EntryOutpu
 		if err := uc.entryRepo.UpdateAutomationEnabled(input.EntryID, input.AutomationEnabled); err != nil {
 			return nil, err
 		}
-		if uc.aiToggle != nil {
-			uc.aiToggle.AIToggle(c.WorkspaceID, input.EntryID, "whatsapp", "", *input.AutomationEnabled)
-		}
+		uc.aiToggle.AIToggle(c.WorkspaceID, input.EntryID, "whatsapp", "", *input.AutomationEnabled)
 	}
 
 	updatedLead, err := uc.leadRepo.FindByID(c.WorkspaceID, currentLead.ID)
@@ -236,9 +237,6 @@ func (uc *updateEntryUseCase) Execute(input wc.UpdateEntryInput) (*wc.EntryOutpu
 }
 
 func (uc *updateEntryUseCase) mergeEntryName(workspaceID string, current *lead.Lead, name string) error {
-	if uc.leadMerger == nil {
-		return errLeadMergerMissing
-	}
 	_, err := uc.leadMerger.MergeIncoming(context.Background(), workspaceID, current.ID, lead.LeadUpdate{Source: lead.SourceImport, Name: name})
 	return err
 }
@@ -251,24 +249,29 @@ type addEntriesUseCase struct {
 	eligibility  campaignguard.Screener
 }
 
-func (uc *addEntriesUseCase) SetAutomation(automation AutomationCheck) {
-	uc.automation = automation
-}
-
-func (uc *addEntriesUseCase) SetEligibility(eligibility campaignguard.Screener) {
-	uc.eligibility = eligibility
-}
-
 func NewAddEntriesUseCase(
 	campaignRepo wc.Repository,
 	entryRepo wce.Repository,
 	leadRepo lead.Repository,
-) wc.AddEntriesUseCase {
+	automation AutomationCheck,
+	eligibility campaignguard.Screener,
+) (wc.AddEntriesUseCase, error) {
+	if err := deps.Require("official campaign add entries", map[string]any{
+		"campaigns":   campaignRepo,
+		"entries":     entryRepo,
+		"leads":       leadRepo,
+		"automation":  automation,
+		"eligibility": eligibility,
+	}); err != nil {
+		return nil, err
+	}
 	return &addEntriesUseCase{
 		campaignRepo: campaignRepo,
 		entryRepo:    entryRepo,
 		leadRepo:     leadRepo,
-	}
+		automation:   automation,
+		eligibility:  eligibility,
+	}, nil
 }
 
 func (uc *addEntriesUseCase) Execute(input wc.AddEntriesInput) (*wc.AddEntriesOutput, error) {
@@ -287,10 +290,6 @@ func (uc *addEntriesUseCase) Execute(input wc.AddEntriesInput) (*wc.AddEntriesOu
 
 	if err := guardCampaignChange(c, uc.automation, true, entriesMetadata(input.PhoneNumbers)); err != nil {
 		return nil, err
-	}
-
-	if uc.eligibility == nil {
-		return nil, campaignguard.ErrUnavailable
 	}
 
 	currentCount, err := uc.entryRepo.CountByCampaignID(input.CampaignID)

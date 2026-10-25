@@ -21,18 +21,10 @@ const (
 	OpenResumed   OpenOutcome = "resumed"
 )
 
-var ErrProjectAdoptionUnavailable = errors.New("copilot: the thread cannot adopt a studio project")
-
-func (s *Service) SetProjectAdopter(adopter aichat.ProjectAdopter) {
-	s.adopter = adopter
-}
 
 func (s *Service) adopt(thread *aichat.Thread, projectID string) error {
 	if thread.ProjectID == projectID {
 		return nil
-	}
-	if s.adopter == nil {
-		return ErrProjectAdoptionUnavailable
 	}
 	if err := s.adopter.AdoptProject(thread.ID, projectID); err != nil {
 		return err

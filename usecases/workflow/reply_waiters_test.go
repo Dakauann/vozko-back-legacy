@@ -46,8 +46,8 @@ func messageEvent() workflow.TriggerEvent {
 
 func TestAFailedWaitingRunLookupIsLoggedCountedAndReturned(t *testing.T) {
 	spy := &metricsSpy{}
-	engine := NewRunEngine(&recordingRunRepo{}, stubRunLogRepo{}, NewNodeExecutorRegistry())
-	engine.SetMetrics(spy)
+	engine := testEngine(&recordingRunRepo{}, stubRunLogRepo{}, NewNodeExecutorRegistry())
+	engine.metrics = spy
 	waiters := NewReplyWaiters(stubWorkflowRepo{}, lookupFailingRuns{&recordingRunRepo{}}, engine)
 
 	run, err := waiters.WaitingForReply(messageEvent())
@@ -64,7 +64,7 @@ func TestAMessageRoutedToAWaitingRunIsNotWokenOrStartedAgainByTheEvaluator(t *te
 	wf := replyMenuWorkflow()
 	runs := &recordingRunRepo{waitingReply: waitingMenuRun()}
 	te := NewTriggerEvaluator(stubWorkflowRepo{byID: map[string]*workflow.Workflow{wf.ID: wf}, active: []*workflow.Workflow{wf}}, runs,
-		NewRunEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
+		testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
 
 	event := messageEvent()
 	event.Reply = &workflow.ReplyRouting{RunID: "run-woken", WorkflowID: wf.ID}
@@ -82,7 +82,7 @@ func TestAMessageRoutedToNoRunSkipsTheLookupButStillStartsTriggers(t *testing.T)
 	wf := replyMenuWorkflow()
 	runs := &recordingRunRepo{waitingReply: waitingMenuRun()}
 	te := NewTriggerEvaluator(stubWorkflowRepo{byID: map[string]*workflow.Workflow{wf.ID: wf}, active: []*workflow.Workflow{wf}}, runs,
-		NewRunEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
+		testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
 
 	event := messageEvent()
 	event.Reply = &workflow.ReplyRouting{}
@@ -101,7 +101,7 @@ func TestAnUnroutedMessageWhoseLookupFailsStartsNothing(t *testing.T) {
 	inner := &recordingRunRepo{}
 	runs := lookupFailingRuns{inner}
 	te := NewTriggerEvaluator(stubWorkflowRepo{byID: map[string]*workflow.Workflow{wf.ID: wf}, active: []*workflow.Workflow{wf}}, runs,
-		NewRunEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
+		testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
 
 	te.Evaluate(messageEvent())
 
@@ -116,7 +116,7 @@ func TestAMessageSentBeforeTheQuestionDoesNotAnswerTheWait(t *testing.T) {
 	asked := time.Date(2026, 10, 22, 15, 11, 23, 0, time.UTC)
 	run.WaitingSince = &asked
 	runs := &recordingRunRepo{waitingReply: run}
-	waiters := NewReplyWaiters(stubWorkflowRepo{byID: map[string]*workflow.Workflow{wf.ID: wf}}, runs, NewRunEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()))
+	waiters := NewReplyWaiters(stubWorkflowRepo{byID: map[string]*workflow.Workflow{wf.ID: wf}}, runs, testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()))
 
 	early := messageEvent()
 	early.SentAt = asked.Add(-44 * time.Second)

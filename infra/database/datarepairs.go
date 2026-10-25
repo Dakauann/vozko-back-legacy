@@ -35,6 +35,11 @@ func dataRepairs() []dataRepair {
 		{"wf_canonical_node_types", canonicalizeLegacyNodeTypes},
 		{"inv_external_id_per_provider", repairInvoiceExternalIDs},
 		{"em_recheck_unconfirmed_no_mail", recheckUnconfirmedNoMail},
+		{"ag_tool_instances", copyAgentToolInstances},
+		{"ag_drop_agent_bindings_index", dropAgentBindingsIndex},
+		{"ag_canonical_http_configs", canonicalizeAgentHTTPConfigs},
+		{"ag_mcp_collection_instances", copyAgentMCPInstances},
+		{"bl_balance_read_model", backfillBalanceReadModel},
 	}
 }
 

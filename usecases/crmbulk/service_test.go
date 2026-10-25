@@ -163,7 +163,7 @@ func TestActionRequirements_CoverEveryActionWithAKnownPermission(t *testing.T) {
 func TestBulkApply_MoveStage_FansOutAndBroadcastsStage(t *testing.T) {
 	sa := &mockStageAssigner{}
 	bc := &mockBroadcaster{}
-	svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), bc)
+	svc := newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: allowAll(), Broadcaster: bc})
 
 	res := run(svc, BulkInput{
 		WorkspaceID: "ws-1", ActorID: "actor-1", Action: ActionMoveStage,
@@ -189,7 +189,7 @@ func TestBulkApply_MoveStage_FansOutAndBroadcastsStage(t *testing.T) {
 func TestBulkApply_Assign_ForwardsUserAndLeavesTheAnnouncementToTheAssigner(t *testing.T) {
 	ea := &mockEntryAssigner{}
 	bc := &mockBroadcaster{}
-	svc := NewService(&mockStageAssigner{}, &mockLabelAssigner{}, &mockLabelRemover{}, ea, allowAll(), bc)
+	svc := newTestService(Deps{Stages: &mockStageAssigner{}, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: ea, Authz: allowAll(), Broadcaster: bc})
 
 	res := run(svc, BulkInput{
 		WorkspaceID: "ws-7", ActorID: "a", Action: ActionAssign, Value: "user-42",
@@ -209,7 +209,7 @@ func TestBulkApply_Assign_ForwardsUserAndLeavesTheAnnouncementToTheAssigner(t *t
 
 func TestBulkApply_Labels_RouteAndBroadcast(t *testing.T) {
 	la, lr, bc := &mockLabelAssigner{}, &mockLabelRemover{}, &mockBroadcaster{}
-	svc := NewService(&mockStageAssigner{}, la, lr, &mockEntryAssigner{}, allowAll(), bc)
+	svc := newTestService(Deps{Stages: &mockStageAssigner{}, LabelAdds: la, LabelRemovals: lr, Assigner: &mockEntryAssigner{}, Authz: allowAll(), Broadcaster: bc})
 
 	add := run(svc, BulkInput{
 		WorkspaceID: "ws-1", ActorID: "a", Action: ActionAddLabel, Value: "lbl-1", Selection: byIDs, Targets: targets("e1"),
@@ -231,7 +231,7 @@ func TestBulkApply_Labels_RouteAndBroadcast(t *testing.T) {
 func TestBulkApply_RBAC_DeniedAction_TouchesNothing(t *testing.T) {
 	authz := &mockAuthorizer{allowPerm: map[string]bool{"labels:assign": true}}
 	sa, bc := &mockStageAssigner{}, &mockBroadcaster{}
-	svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, authz, bc)
+	svc := newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: authz, Broadcaster: bc})
 
 	res := run(svc, BulkInput{
 		WorkspaceID: "ws-1", ActorID: "a", Action: ActionMoveStage, Value: "s", Selection: byIDs, Targets: targets("e1", "e2"),
@@ -271,7 +271,7 @@ func TestBulkApply_ScopeGate_RejectsOutOfScopeEntries(t *testing.T) {
 	authz := allowAll()
 	authz.denyEntry = map[string]bool{"e2": true}
 	sa, bc := &mockStageAssigner{}, &mockBroadcaster{}
-	svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, authz, bc)
+	svc := newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: authz, Broadcaster: bc})
 
 	res := run(svc, BulkInput{
 		WorkspaceID: "ws-1", ActorID: "a", Action: ActionMoveStage, Value: "s", Selection: byIDs, Targets: targets("e1", "e2", "e3"),
@@ -298,7 +298,7 @@ func TestBulkApply_ScopeGate_RejectsOutOfScopeEntries(t *testing.T) {
 func TestBulkApply_Admin_BypassesPermissionAndScope(t *testing.T) {
 	authz := &mockAuthorizer{denyEntry: map[string]bool{"e1": true, "e2": true}}
 	sa := &mockStageAssigner{}
-	svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, authz, &mockBroadcaster{})
+	svc := newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: authz, Broadcaster: &mockBroadcaster{}})
 
 	res := run(svc, BulkInput{
 		WorkspaceID: "ws-1", ActorID: "admin", IsAdmin: true, Action: ActionMoveStage,
@@ -317,7 +317,7 @@ func TestBulkApply_MutationFailure_NoBroadcastForThatTarget(t *testing.T) {
 	boom := errors.New("stage not found")
 	sa := &mockStageAssigner{failIDs: map[string]error{"e2": boom}}
 	bc := &mockBroadcaster{}
-	svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), bc)
+	svc := newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: allowAll(), Broadcaster: bc})
 
 	res := run(svc, BulkInput{
 		WorkspaceID: "ws-1", ActorID: "a", Action: ActionMoveStage, Value: "s", Selection: byIDs, Targets: targets("e1", "e2", "e3"),
@@ -341,7 +341,7 @@ func TestBulkApply_MutationFailure_NoBroadcastForThatTarget(t *testing.T) {
 
 func TestBulkApply_UnknownAction_IsRefusedAndTouchesNothing(t *testing.T) {
 	sa, la, lr, ea := &mockStageAssigner{}, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}
-	svc := NewService(sa, la, lr, ea, allowAll(), &mockBroadcaster{})
+	svc := newTestService(Deps{Stages: sa, LabelAdds: la, LabelRemovals: lr, Assigner: ea, Authz: allowAll(), Broadcaster: &mockBroadcaster{}})
 
 	res := run(svc, BulkInput{
 		WorkspaceID: "ws-1", ActorID: "a", Action: "detonate", Value: "x", Selection: byIDs, Targets: targets("e1", "e2"),
@@ -352,19 +352,6 @@ func TestBulkApply_UnknownAction_IsRefusedAndTouchesNothing(t *testing.T) {
 	}
 	if len(sa.calls)+len(la.calls)+len(lr.calls)+len(ea.calls) != 0 {
 		t.Error("unknown action must not touch any single-entry port")
-	}
-}
-
-func TestBulkApply_NilAuthorizer_FailsClosed(t *testing.T) {
-	sa := &mockStageAssigner{}
-	svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, nil, &mockBroadcaster{})
-
-	res := run(svc, BulkInput{
-		WorkspaceID: "ws-1", ActorID: "a", Action: ActionMoveStage, Value: "s", Selection: byIDs, Targets: targets("e1"),
-	})
-
-	if !res.Forbidden || len(sa.calls) != 0 {
-		t.Fatalf("nil authorizer must fail closed, got %+v (calls=%d)", res, len(sa.calls))
 	}
 }
 
@@ -380,7 +367,7 @@ func TestBulkApply_EmptyOrMissingSelection_IsRefused(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			sa := &mockStageAssigner{}
-			svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), &mockBroadcaster{})
+			svc := newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: allowAll(), Broadcaster: &mockBroadcaster{}})
 			res := run(svc, tc.in)
 			if !errors.Is(res.err, tc.want) || res.Succeeded != 0 || len(sa.calls) != 0 {
 				t.Fatalf("want %v with nothing touched, got %+v", tc.want, res)
@@ -390,21 +377,10 @@ func TestBulkApply_EmptyOrMissingSelection_IsRefused(t *testing.T) {
 }
 
 func TestApplyOne_UnknownAction_FailSafe(t *testing.T) {
-	svc := NewService(&mockStageAssigner{}, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), nil)
+	svc := newTestService(Deps{Stages: &mockStageAssigner{}, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: allowAll()})
 	err := svc.applyOne(context.Background(), BulkInput{Action: "bogus"}, EntryRef{EntryID: "e1", EntryType: "whatsapp"})
 	if !errors.Is(err, ErrUnknownAction) {
 		t.Fatalf("expected ErrUnknownAction, got %v", err)
-	}
-}
-
-func TestBulkApply_NilBroadcaster_StillSucceeds(t *testing.T) {
-	sa := &mockStageAssigner{}
-	svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), nil)
-	res := run(svc, BulkInput{
-		WorkspaceID: "ws-1", ActorID: "a", Action: ActionMoveStage, Value: "s", Selection: byIDs, Targets: targets("e1"),
-	})
-	if res.Succeeded != 1 || len(sa.calls) != 1 {
-		t.Fatalf("mutation must succeed even without a broadcaster, got %+v", res)
 	}
 }
 
@@ -413,7 +389,7 @@ func TestBulkApply_PassesTheActorToEveryUseCase(t *testing.T) {
 
 	t.Run("move_stage", func(t *testing.T) {
 		sa := &mockStageAssigner{}
-		svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), &mockBroadcaster{})
+		svc := newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: allowAll(), Broadcaster: &mockBroadcaster{}})
 		run(svc, BulkInput{
 			WorkspaceID: "ws-1", ActorID: actorID, Action: ActionMoveStage,
 			Selection: byIDs, Targets: targets("e1", "e2"), Value: "stage-1",
@@ -430,7 +406,7 @@ func TestBulkApply_PassesTheActorToEveryUseCase(t *testing.T) {
 
 	t.Run("add_label", func(t *testing.T) {
 		la := &mockLabelAssigner{}
-		svc := NewService(&mockStageAssigner{}, la, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), &mockBroadcaster{})
+		svc := newTestService(Deps{Stages: &mockStageAssigner{}, LabelAdds: la, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: allowAll(), Broadcaster: &mockBroadcaster{}})
 		run(svc, BulkInput{
 			WorkspaceID: "ws-1", ActorID: actorID, Action: ActionAddLabel,
 			Selection: byIDs, Targets: targets("e1"), Value: "label-1",
@@ -442,7 +418,7 @@ func TestBulkApply_PassesTheActorToEveryUseCase(t *testing.T) {
 
 	t.Run("remove_label", func(t *testing.T) {
 		lr := &mockLabelRemover{}
-		svc := NewService(&mockStageAssigner{}, &mockLabelAssigner{}, lr, &mockEntryAssigner{}, allowAll(), &mockBroadcaster{})
+		svc := newTestService(Deps{Stages: &mockStageAssigner{}, LabelAdds: &mockLabelAssigner{}, LabelRemovals: lr, Assigner: &mockEntryAssigner{}, Authz: allowAll(), Broadcaster: &mockBroadcaster{}})
 		run(svc, BulkInput{
 			WorkspaceID: "ws-1", ActorID: actorID, Action: ActionRemoveLabel,
 			Selection: byIDs, Targets: targets("e1"), Value: "label-1",

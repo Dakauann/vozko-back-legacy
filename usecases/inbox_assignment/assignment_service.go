@@ -13,6 +13,7 @@ import (
 	"vozko/domain/crm_telemetry"
 	ia "vozko/domain/inbox_assignment"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	wsc "vozko/domain/workspace_config"
 )
 
@@ -22,10 +23,8 @@ type WorkspaceConfigProvider interface {
 
 type AssignmentService struct {
 	repo               ia.Repository
-	history            ia.HistoryRepository
 	telemetry          crm_telemetry.Publisher
 	events             ce.Logger
-	eligibleUsers      conversation.EligibleUserProvider
 	workspaceResolver  conversation.CampaignWorkspaceResolver
 	workspaceConfig    WorkspaceConfigProvider
 	candidates         *CandidateResolver
@@ -38,55 +37,86 @@ type AssignmentService struct {
 	receivers          ConversationReceivers
 	outreach           ia.EntryOutreachReader
 	portfolio          ia.PortfolioHolders
+	routes             conversation.DepartmentRoutes
+	accessRevoker      conversation.EntryAccessRevoker
+	assigneeAlerts     AssigneeAlerter
 }
 
-func NewAssignmentService(
-	repo ia.Repository,
-	eligibleUsers conversation.EligibleUserProvider,
-	workspaceResolver conversation.CampaignWorkspaceResolver,
-	workspaceConfig WorkspaceConfigProvider,
-) *AssignmentService {
-	return &AssignmentService{
-		repo:              repo,
-		eligibleUsers:     eligibleUsers,
-		workspaceResolver: workspaceResolver,
-		workspaceConfig:   workspaceConfig,
-		candidates:        NewCandidateResolver(eligibleUsers),
+type AssignmentDeps struct {
+	Assignments       ia.Repository
+	Candidates        *CandidateResolver
+	WorkspaceResolver conversation.CampaignWorkspaceResolver
+	WorkspaceConfig   WorkspaceConfigProvider
+	Telemetry         crm_telemetry.Publisher
+	Events            ce.Logger
+	Outreach          ia.EntryOutreachReader
+	Routes            conversation.DepartmentRoutes
+	AccessRevoker     conversation.EntryAccessRevoker
+	Portfolio         ia.PortfolioHolders
+	Automation        conversation.EntryAutomationReader
+	Entries           EntryAnnouncer
+	Alerts            AssigneeAlerter
+	Pauser            AutomationPauser
+	AISessions        AISessionEnder
+	Departments       DepartmentLookup
+	Accounts          EntryAccountReader
+	Receivers         ConversationReceivers
+}
+
+func NewAssignmentService(d AssignmentDeps) (*AssignmentService, error) {
+	if err := deps.Require("inbox assignment", map[string]any{
+		"assignments":        d.Assignments,
+		"candidates":         d.Candidates,
+		"workspace resolver": d.WorkspaceResolver,
+		"workspace config":   d.WorkspaceConfig,
+		"telemetry":          d.Telemetry,
+		"events":             d.Events,
+		"outreach":           d.Outreach,
+		"routes":             d.Routes,
+		"access revoker":     d.AccessRevoker,
+		"portfolio":          d.Portfolio,
+		"automation":         d.Automation,
+		"entries":            d.Entries,
+		"alerts":             d.Alerts,
+		"pauser":             d.Pauser,
+		"ai sessions":        d.AISessions,
+		"departments":        d.Departments,
+		"accounts":           d.Accounts,
+		"receivers":          d.Receivers,
+	}); err != nil {
+		return nil, err
 	}
-}
-
-func (s *AssignmentService) SetRoster(roster ia.RosterProvider) { s.candidates.SetRoster(roster) }
-
-func (s *AssignmentService) SetPresence(seen ia.LastSeenReader) { s.candidates.SetPresence(seen) }
-
-func (s *AssignmentService) SetWorkload(workload ia.WorkloadReader) {
-	s.candidates.SetWorkload(workload)
-}
-
-func (s *AssignmentService) SetHandouts(handouts ia.HandoutReader) {
-	s.candidates.SetHandouts(handouts)
+	return &AssignmentService{
+		repo:               d.Assignments,
+		telemetry:          d.Telemetry,
+		events:             d.Events,
+		workspaceResolver:  d.WorkspaceResolver,
+		workspaceConfig:    d.WorkspaceConfig,
+		candidates:         d.Candidates,
+		automationProfiles: d.Automation,
+		entryUpdates:       d.Entries,
+		pauser:             d.Pauser,
+		aiSessions:         d.AISessions,
+		departments:        d.Departments,
+		accounts:           d.Accounts,
+		receivers:          d.Receivers,
+		outreach:           d.Outreach,
+		portfolio:          d.Portfolio,
+		routes:             d.Routes,
+		accessRevoker:      d.AccessRevoker,
+		assigneeAlerts:     d.Alerts,
+	}, nil
 }
 
 func (s *AssignmentService) Candidates() *CandidateResolver { return s.candidates }
 
 func (s *AssignmentService) workspaceConfigFor(workspaceID string) *wsc.WorkspaceConfig {
-	if s.workspaceConfig == nil {
-		return nil
-	}
 	cfg, err := s.workspaceConfig.GetByWorkspaceID(context.Background(), workspaceID)
 	if err != nil {
 		return nil
 	}
 	return cfg
 }
-
-func (s *AssignmentService) SetHistory(h ia.HistoryRepository) { s.history = h }
-
-func (s *AssignmentService) SetTelemetry(p crm_telemetry.Publisher) { s.telemetry = p }
-
-func (s *AssignmentService) SetEventLogger(l ce.Logger) { s.events = l }
-
-func (s *AssignmentService) SetOutreach(r ia.EntryOutreachReader) { s.outreach = r }
 
 func (s *AssignmentService) EnsureAssignment(entryID, entryType, businessPhoneID string) string {
 
@@ -206,9 +236,6 @@ func (s *AssignmentService) handOut(in handOutInput) string {
 }
 
 func (s *AssignmentService) outreachOwner(entryID, entryType string, pool Pool) string {
-	if s.outreach == nil {
-		return ""
-	}
 	userID, err := s.outreach.LastOutreachBy(entryID, entryType)
 	if err != nil {
 		log.Printf("[InboxAssignment] cannot read the outreach owner of entry %s (%s), falling back to round-robin: %v", entryID, entryType, err)
@@ -281,9 +308,7 @@ func takesOverFromAutomation(trigger string, moved ownerMove, toUserID string) b
 }
 
 func (s *AssignmentService) announceOwner(workspaceID, entryID, entryType, previousOwner string) {
-	if s.entryUpdates != nil {
-		s.entryUpdates.AnnounceOwnerChange(workspaceID, entryID, entryType, previousOwner)
-	}
+	s.entryUpdates.AnnounceOwnerChange(workspaceID, entryID, entryType, previousOwner)
 }
 
 func (s *AssignmentService) reassign(entryID, entryType, businessPhoneID, workspaceID, toUserID, assignedBy, trigger string) (ownerMove, error) {
@@ -309,31 +334,40 @@ func (s *AssignmentService) reassign(entryID, entryType, businessPhoneID, worksp
 	return ownerMove{changed: true, previous: prev}, nil
 }
 
+func (s *AssignmentService) historyDepartment(entryID, entryType string) (string, bool) {
+	if s.workspaceResolver == nil {
+		log.Printf("[InboxAssignment] entry %s (%s): no resolver for its department, history records it as unresolved", entryID, entryType)
+		return "", true
+	}
+	departmentID, err := s.workspaceResolver.GetEntryDepartmentID(entryID, entryType)
+	if err != nil {
+		log.Printf("[InboxAssignment] entry %s (%s): department unreadable, history records it as unresolved: %v", entryID, entryType, err)
+		return "", true
+	}
+	return departmentID, false
+}
+
 func (s *AssignmentService) recordOwnerChange(entryID, entryType, businessPhoneID, workspaceID, toUserID, previous, assignedBy, trigger string) {
 	evType := ce.EventAssigned
 	if trigger == ia.TriggerOpen || trigger == ia.TriggerInboundRR || trigger == ia.TriggerOutreachSent {
 		evType = ce.EventAutoAssigned
 	}
 
-	dept := ""
-	if s.workspaceResolver != nil {
-		if d, err := s.workspaceResolver.GetEntryDepartmentID(entryID, entryType); err == nil {
-			dept = d
-		}
-	}
+	dept, unresolved := s.historyDepartment(entryID, entryType)
 
 	s.recordHistoryAndEvent(recordInput{
-		WorkspaceID:       workspaceID,
-		EntryID:           entryID,
-		EntryType:         entryType,
-		AssignedUserID:    toUserID,
-		PreviousUserID:    previous,
-		Trigger:           trigger,
-		AssignedByActorID: assignedBy,
-		BusinessPhoneID:   businessPhoneID,
-		DepartmentID:      dept,
-		EventType:         evType,
-		Channel:           channelForEntryType(entryType),
+		WorkspaceID:          workspaceID,
+		EntryID:              entryID,
+		EntryType:            entryType,
+		AssignedUserID:       toUserID,
+		PreviousUserID:       previous,
+		Trigger:              trigger,
+		AssignedByActorID:    assignedBy,
+		BusinessPhoneID:      businessPhoneID,
+		DepartmentID:         dept,
+		DepartmentUnresolved: unresolved,
+		EventType:            evType,
+		Channel:              channelForEntryType(entryType),
 	})
 }
 
@@ -353,8 +387,29 @@ func (s *AssignmentService) ClaimIfUnassigned(entryID, entryType, businessPhoneI
 	return true, nil
 }
 
-func (s *AssignmentService) AssignOnOpen(entryID, entryType, businessPhoneID, workspaceID, userID string) (bool, error) {
-	return s.ClaimIfUnassigned(entryID, entryType, businessPhoneID, workspaceID, userID, ia.TriggerOpen)
+func (s *AssignmentService) AssignOnOpen(entryID, entryType, userID string, isSystemAdmin bool) (bool, error) {
+	workspaceID, err := s.workspaceResolver.GetEntryWorkspaceID(entryID, entryType)
+	if err != nil {
+		return false, err
+	}
+	if workspaceID == "" {
+		return false, nil
+	}
+	if isSystemAdmin && !s.receivers.IsWorkspaceMember(userID, workspaceID) {
+		return false, nil
+	}
+	skipAdmins := false
+	if cfg := s.workspaceConfigFor(workspaceID); cfg != nil {
+		skipAdmins = cfg.SkipAdminAssignment
+	}
+	if !ia.CanReceiveRoulette(s.receivers, userID, workspaceID, skipAdmins) {
+		return false, nil
+	}
+	account, err := s.accounts.EntryAccountID(entryID, entryType)
+	if err != nil {
+		return false, err
+	}
+	return s.ClaimIfUnassigned(entryID, entryType, account, workspaceID, userID, ia.TriggerOpen)
 }
 
 func (s *AssignmentService) UnassignSystem(entryID, entryType, workspaceID, reason string) error {
@@ -382,41 +437,38 @@ func (s *AssignmentService) unassign(entryID, entryType, workspaceID, reason str
 		return ownerMove{}, err
 	}
 
-	dept := ""
-	if s.workspaceResolver != nil {
-		if d, err := s.workspaceResolver.GetEntryDepartmentID(entryID, entryType); err == nil {
-			dept = d
-		}
-	}
+	dept, unresolved := s.historyDepartment(entryID, entryType)
 
 	s.recordHistoryAndEvent(recordInput{
-		WorkspaceID:       workspaceID,
-		EntryID:           entryID,
-		EntryType:         entryType,
-		AssignedUserID:    "",
-		PreviousUserID:    prev,
-		Trigger:           reason,
-		AssignedByActorID: actor.SystemID,
-		BusinessPhoneID:   existing.BusinessPhoneID,
-		DepartmentID:      dept,
-		EventType:         ce.EventUnassigned,
-		Channel:           channelForEntryType(entryType),
+		WorkspaceID:          workspaceID,
+		EntryID:              entryID,
+		EntryType:            entryType,
+		AssignedUserID:       "",
+		PreviousUserID:       prev,
+		Trigger:              reason,
+		AssignedByActorID:    actor.SystemID,
+		BusinessPhoneID:      existing.BusinessPhoneID,
+		DepartmentID:         dept,
+		DepartmentUnresolved: unresolved,
+		EventType:            ce.EventUnassigned,
+		Channel:              channelForEntryType(entryType),
 	})
 	return ownerMove{changed: true, previous: prev}, nil
 }
 
 type recordInput struct {
-	WorkspaceID       string
-	EntryID           string
-	EntryType         string
-	AssignedUserID    string
-	PreviousUserID    string
-	Trigger           string
-	AssignedByActorID string
-	BusinessPhoneID   string
-	DepartmentID      string
-	EventType         ce.EventType
-	Channel           string
+	WorkspaceID          string
+	EntryID              string
+	EntryType            string
+	AssignedUserID       string
+	PreviousUserID       string
+	Trigger              string
+	AssignedByActorID    string
+	BusinessPhoneID      string
+	DepartmentID         string
+	DepartmentUnresolved bool
+	EventType            ce.EventType
+	Channel              string
 }
 
 func (s *AssignmentService) recordHistoryAndEvent(in recordInput) {
@@ -426,65 +478,37 @@ func (s *AssignmentService) recordHistoryAndEvent(in recordInput) {
 		actorKind = string(actor.KindOf(in.AssignedUserID))
 	}
 
-	if s.telemetry != nil {
-		histID := ""
-		_ = histID
-		_ = s.telemetry.Publish(crm_telemetry.KindAssignmentHistory, crm_telemetry.AssignmentHistoryPayload{
-			WorkspaceID:       in.WorkspaceID,
-			EntryID:           in.EntryID,
-			EntryType:         in.EntryType,
-			ActorKind:         actorKind,
-			AssignedActorID:   in.AssignedUserID,
-			PreviousActorID:   in.PreviousUserID,
-			Trigger:           in.Trigger,
-			AssignedByActorID: in.AssignedByActorID,
-			BusinessPhoneID:   in.BusinessPhoneID,
-			DepartmentID:      in.DepartmentID,
-			StartedAt:         now,
-		})
-	} else if s.history != nil {
-		s.appendHistory(in, actorKind, now)
+	if err := s.telemetry.Publish(crm_telemetry.KindAssignmentHistory, crm_telemetry.AssignmentHistoryPayload{
+		WorkspaceID:          in.WorkspaceID,
+		EntryID:              in.EntryID,
+		EntryType:            in.EntryType,
+		ActorKind:            actorKind,
+		AssignedActorID:      in.AssignedUserID,
+		PreviousActorID:      in.PreviousUserID,
+		Trigger:              in.Trigger,
+		AssignedByActorID:    in.AssignedByActorID,
+		BusinessPhoneID:      in.BusinessPhoneID,
+		DepartmentID:         in.DepartmentID,
+		DepartmentUnresolved: in.DepartmentUnresolved,
+		StartedAt:            now,
+	}); err != nil {
+		log.Printf("[InboxAssignment] assignment history of entry %s (%s) not published: %v", in.EntryID, in.EntryType, err)
 	}
 
-	if s.events != nil {
-		details := map[string]string{"trigger": in.Trigger}
-		if in.AssignedUserID != "" {
-			details["to_user_id"] = in.AssignedUserID
-		}
-		if in.PreviousUserID != "" {
-			details["from_user_id"] = in.PreviousUserID
-		}
-		s.events.Log(ce.New(in.WorkspaceID, in.EntryID, in.EntryType, in.EventType).
-			WithChannel(in.Channel).
-			WithDetails(details).
-			WithActor(in.AssignedByActorID).
-			Build())
+	details := map[string]string{"trigger": in.Trigger}
+	if in.AssignedUserID != "" {
+		details["to_user_id"] = in.AssignedUserID
 	}
-}
+	if in.PreviousUserID != "" {
+		details["from_user_id"] = in.PreviousUserID
+	}
+	s.events.Log(ce.New(in.WorkspaceID, in.EntryID, in.EntryType, in.EventType).
+		WithChannel(in.Channel).
+		WithDetails(details).
+		WithActor(in.AssignedByActorID).
+		Build())
 
-func (s *AssignmentService) appendHistory(in recordInput, actorKind string, now time.Time) {
-	if err := s.history.CloseOpen(in.WorkspaceID, in.EntryID, in.EntryType, now); err != nil {
-		log.Printf("[InboxAssignment] history CloseOpen: %v", err)
-	}
-	if in.AssignedUserID == "" {
-		return
-	}
-	h := &ia.AssignmentHistory{
-		WorkspaceID:       in.WorkspaceID,
-		EntryID:           in.EntryID,
-		EntryType:         in.EntryType,
-		ActorKind:         actorKind,
-		AssignedActorID:   in.AssignedUserID,
-		PreviousActorID:   in.PreviousUserID,
-		Trigger:           in.Trigger,
-		AssignedByActorID: in.AssignedByActorID,
-		BusinessPhoneID:   in.BusinessPhoneID,
-		DepartmentID:      in.DepartmentID,
-		StartedAt:         now,
-	}
-	if err := s.history.Append(h); err != nil {
-		log.Printf("[InboxAssignment] history Append: %v", err)
-	}
+	s.alertAssignee(in)
 }
 
 func channelForEntryType(entryType string) string {

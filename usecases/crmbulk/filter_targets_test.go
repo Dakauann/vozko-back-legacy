@@ -98,8 +98,7 @@ func allMatching(f *crmfilter.Filter) selection.Selection {
 }
 
 func withResolver(r selection.Resolver, sa *mockStageAssigner, bc *mockBroadcaster) *Service {
-	svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), bc)
-	svc.SetSelection(r, openGate{})
+	svc := newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: allowAll(), Broadcaster: bc, Targets: r, CountGate: openGate{}})
 	return svc
 }
 
@@ -112,8 +111,7 @@ func TestBulkApply_FilterResolvesTheWholeSetInOneGatedRead(t *testing.T) {
 	sa := &mockStageAssigner{}
 	bc := &mockBroadcaster{}
 	acquired := 0
-	svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), bc)
-	svc.SetSelection(res, openGate{acquired: &acquired})
+	svc := newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: allowAll(), Broadcaster: bc, Targets: res, CountGate: openGate{acquired: &acquired}})
 
 	out := run(svc, filtered(allMatching(stageFilter("stage-a"))))
 
@@ -142,8 +140,7 @@ func TestBulkApply_FilterStopsAtTheCapAndReportsTruncation(t *testing.T) {
 	res := &pagedResolver{ids: idsNamed(MaxFilterTargets + 300)}
 	sa := &mockStageAssigner{}
 	acquired := 0
-	svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), &mockBroadcaster{})
-	svc.SetSelection(res, openGate{acquired: &acquired})
+	svc := newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: allowAll(), Broadcaster: &mockBroadcaster{}, Targets: res, CountGate: openGate{acquired: &acquired}})
 
 	out := run(svc, filtered(allMatching(stageFilter("stage-a"))))
 
@@ -376,9 +373,7 @@ func TestBulkApply_ExplicitTargetsNeverReachTheResolver(t *testing.T) {
 
 func TestBulkApply_RBACGateRunsBeforeAnyResolve(t *testing.T) {
 	res := &pagedResolver{ids: idsNamed(1)}
-	svc := NewService(&mockStageAssigner{}, &mockLabelAssigner{}, &mockLabelRemover{},
-		&mockEntryAssigner{}, &mockAuthorizer{}, &mockBroadcaster{})
-	svc.SetSelection(res, openGate{})
+	svc := newTestService(Deps{Stages: &mockStageAssigner{}, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: &mockAuthorizer{}, Broadcaster: &mockBroadcaster{}, Targets: res, CountGate: openGate{}})
 
 	out := run(svc, filtered(allMatching(stageFilter("stage-a"))))
 
@@ -395,9 +390,7 @@ func TestBulkApply_PerEntryScopeStillAppliesToResolvedTargets(t *testing.T) {
 	authz := allowAll()
 	authz.denyEntry = map[string]bool{"e2": true}
 	sa := &mockStageAssigner{}
-	svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{},
-		&mockEntryAssigner{}, authz, &mockBroadcaster{})
-	svc.SetSelection(res, openGate{})
+	svc := newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: authz, Broadcaster: &mockBroadcaster{}, Targets: res, CountGate: openGate{}})
 
 	out := run(svc, filtered(allMatching(stageFilter("stage-a"))))
 
@@ -432,36 +425,10 @@ func TestBulkApply_ResolverErrorIsReturnedNotSilentlyEmpty(t *testing.T) {
 	}
 }
 
-func TestBulkApply_FilterWithoutAResolverOrGateFailsClosed(t *testing.T) {
-	cases := []struct {
-		name     string
-		resolver selection.Resolver
-		gate     cache.Gate
-	}{
-		{"no resolver", nil, openGate{}},
-		{"no gate", &pagedResolver{ids: idsNamed(2)}, nil},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			sa := &mockStageAssigner{}
-			svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{},
-				&mockEntryAssigner{}, allowAll(), &mockBroadcaster{})
-			svc.SetSelection(tc.resolver, tc.gate)
-
-			out := run(svc, filtered(allMatching(stageFilter("stage-a"))))
-
-			if !errors.Is(out.err, selection.ErrResolverUnavailable) || len(sa.calls) != 0 {
-				t.Fatalf("expected ErrResolverUnavailable with nothing touched, got %+v", out)
-			}
-		})
-	}
-}
-
 func TestBulkApply_TheConfirmingCountWaitsForTheGate(t *testing.T) {
 	res := &pagedResolver{ids: idsNamed(2)}
 	sa := &mockStageAssigner{}
-	svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), &mockBroadcaster{})
-	svc.SetSelection(res, busyGate{})
+	svc := newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: allowAll(), Broadcaster: &mockBroadcaster{}, Targets: res, CountGate: busyGate{}})
 
 	out := run(svc, filtered(allMatching(stageFilter("stage-a"))))
 
@@ -473,8 +440,7 @@ func TestBulkApply_TheConfirmingCountWaitsForTheGate(t *testing.T) {
 func TestCount_ReturnsTheFingerprintOfTheCountedFilter(t *testing.T) {
 	res := &pagedResolver{ids: idsNamed(7)}
 	acquired := 0
-	svc := NewService(&mockStageAssigner{}, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), &mockBroadcaster{})
-	svc.SetSelection(res, openGate{acquired: &acquired})
+	svc := newTestService(Deps{Stages: &mockStageAssigner{}, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: allowAll(), Broadcaster: &mockBroadcaster{}, Targets: res, CountGate: openGate{acquired: &acquired}})
 	scope := selection.Scope{WorkspaceID: "ws-1", ActorID: "a"}
 
 	cases := []struct {
@@ -512,13 +478,8 @@ func TestCount_RefusesAnInvalidFilterAMissingResolverOrABusyGate(t *testing.T) {
 	if _, _, err := withResolver(counting, &mockStageAssigner{}, &mockBroadcaster{}).Count(context.Background(), selection.Scope{}, unstated); !errors.Is(err, crmfilter.ErrConjunctionRequired) || len(counting.countCalls) != 0 {
 		t.Fatalf("a group without a conjunction must be refused at preview, got %v after %d counts", err, len(counting.countCalls))
 	}
-	bare := NewService(&mockStageAssigner{}, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), nil)
-	if _, _, err := bare.Count(context.Background(), selection.Scope{}, crmfilter.Filter{}); !errors.Is(err, selection.ErrResolverUnavailable) {
-		t.Fatalf("want ErrResolverUnavailable, got %v", err)
-	}
 	busy := &pagedResolver{ids: idsNamed(2)}
-	gated := NewService(&mockStageAssigner{}, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, allowAll(), nil)
-	gated.SetSelection(busy, busyGate{})
+	gated := newTestService(Deps{Targets: busy, CountGate: busyGate{}})
 	if _, _, err := gated.Count(context.Background(), selection.Scope{}, crmfilter.Filter{}); !errors.Is(err, cache.ErrGateBusy) || len(busy.countCalls) != 0 {
 		t.Fatalf("want ErrGateBusy before counting, got %v", err)
 	}
@@ -529,8 +490,7 @@ func TestBulkApply_ResolvesTheActorAccessOncePerCall(t *testing.T) {
 	authz := allowAll()
 	authz.denyEntry = map[string]bool{res.ids[7]: true}
 	sa := &mockStageAssigner{}
-	svc := NewService(sa, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, authz, &mockBroadcaster{})
-	svc.SetSelection(res, openGate{})
+	svc := newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: authz, Broadcaster: &mockBroadcaster{}, Targets: res, CountGate: openGate{}})
 
 	out := run(svc, filtered(allMatching(stageFilter("stage-a"))))
 

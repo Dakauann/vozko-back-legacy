@@ -69,7 +69,7 @@ func reactionFixture() (*handleWhatsAppMessageUseCase, *wamidMessages, *messageU
 	target := ourReply("wamid.out")
 	messages := &wamidMessages{byWamid: map[string]*conversation.Message{"wamid.out": target}}
 	hub := &messageUpdates{}
-	return &handleWhatsAppMessageUseCase{messageRepo: messages, hub: hub}, messages, hub, target
+	return whatsappDefaults(&handleWhatsAppMessageUseCase{messageRepo: messages, hub: hub}), messages, hub, target
 }
 
 func TestAnOfficialInboundReactionIsFoldedOntoTheMessageItTargets(t *testing.T) {
@@ -103,7 +103,7 @@ func TestAReactionFromSomeoneOutsideTheConversationIsIgnored(t *testing.T) {
 }
 
 func TestAQuotedInboundMessageCarriesTheQuotedProviderID(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	record := uc.inboundTextRecord(sairTap(), inboundTarget{entryID: "entry-1", entryType: shared.EntryTypeWhatsApp}, nil)
 	if record.ReplyToWAMessageID != "wamid.tmpl" {
 		t.Fatalf("reply_to = %q, want the quoted wamid for the history manager to resolve", record.ReplyToWAMessageID)
@@ -117,7 +117,7 @@ func TestATranscriptIsStoredBesideTheAudioAndReachesTheOpenThread(t *testing.T) 
 	audio := &conversation.Message{ID: "row-audio", EntryID: "entry-1", EntryType: shared.EntryTypeWhatsApp, MessageType: conversation.MessageTypeAudio, Text: conversation.AudioPlaceholder}
 	messages := &wamidMessages{byID: map[string]*conversation.Message{"row-audio": audio}}
 	hub := &messageUpdates{}
-	uc := &handleWhatsAppMessageUseCase{messageRepo: messages, hub: hub}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{messageRepo: messages, hub: hub})
 
 	uc.storeTranscript("row-audio", " quero o plano ")
 

@@ -82,7 +82,7 @@ func TestAgentCreateAndUpdatePassTheCallerAndAnswerAConsentRefusalWith403(t *tes
 	}
 
 	rec = httptest.NewRecorder()
-	h.Update(rec, agentRequestAs(http.MethodPut, agentBody(t)))
+	h.Update(rec, agentRequestAs(http.MethodPut, agentFieldsBody(t, nil)))
 	assertConsentRefusal(t, rec)
 	if update.got.RequestedBy != want {
 		t.Fatalf("update requester = %+v", update.got.RequestedBy)

@@ -122,16 +122,18 @@ func createPhonesAndTemplates() (*ownershipBusinessPhoneRepo, *mockTemplateRepo)
 
 func (f *createFixture) useCase(screener campaignguard.Screener) wc.CreateCampaignUseCase {
 	phones, templates := createPhonesAndTemplates()
-	uc := NewCreateCampaignUseCase(f.campaigns, f.entries, f.leads, templates, phones, &ownershipWorkspacePhoneAccessRepo{hasAccess: true}, screener)
-	uc.(*createCampaignUseCase).SetTemplateGrants(allowGrants{})
-	uc.(*createCampaignUseCase).SetAutomation(automationThatAllows{})
-	uc.(*createCampaignUseCase).SetExitRiskGate(admittingGate{})
+	uc := createWith(CreateCampaignDeps{Campaigns: f.campaigns, Entries: f.entries, Leads: f.leads, Templates: templates, Phones: phones, PhoneAccess: &ownershipWorkspacePhoneAccessRepo{hasAccess: true}, Eligibility: screener})
+	uc.(*createCampaignUseCase).templateGrants = allowGrants{}
+	uc.(*createCampaignUseCase).automation = automationThatAllows{}
+	uc.(*createCampaignUseCase).exitRisk = admittingGate{}
 	return uc
 }
 
 type automationThatAllows struct{}
 
-func (automationThatAllows) Check(string, campaign.Automation, []campaign.EntryMetadata) error { return nil }
+func (automationThatAllows) Check(string, campaign.Automation, []campaign.EntryMetadata) error {
+	return nil
+}
 
 func selectionCampaign() *wc.Campaign {
 	return &wc.Campaign{
@@ -186,15 +188,5 @@ func TestCreateWritesNothingWhenEligibilityCannotBeRead(t *testing.T) {
 	}
 	if len(f.campaigns.campaigns) != 0 || len(f.entries.created) != 0 {
 		t.Fatalf("campaigns %d entries %d, want nothing written", len(f.campaigns.campaigns), len(f.entries.created))
-	}
-}
-
-func TestCreateRefusesWithoutAnEligibilityCheck(t *testing.T) {
-	f := newCreateFixture()
-	if _, err := f.useCase(nil).Execute(context.Background(), selectionCampaign()); !errors.Is(err, campaignguard.ErrUnavailable) {
-		t.Fatalf("Execute() err = %v, want ErrUnavailable", err)
-	}
-	if f.leads.resolved != 0 || len(f.campaigns.campaigns) != 0 || len(f.entries.created) != 0 {
-		t.Fatal("nothing may be resolved or written without the eligibility check")
 	}
 }

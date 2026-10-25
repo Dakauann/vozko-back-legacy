@@ -22,7 +22,7 @@ func TestFinishingAConversationEndsItsDelegation(t *testing.T) {
 	repo := &outcomeEntryRepo{status: string(conversation.ConversationStatusOngoing)}
 	svc := outcomeServiceWith(t, repo, nil)
 	store := &recordingDelegationStore{}
-	svc.SetDelegations(store)
+	svc.delegations = store
 
 	if err := svc.Finish("entry-1", string(shared.EntryTypeWhatsApp), conversation.FinishOptions{
 		Source: conversation.CloseSourceHuman, Reason: conversation.CloseReasonManual,
@@ -38,7 +38,7 @@ func TestARefusedFinishKeepsTheDelegation(t *testing.T) {
 	repo := &outcomeEntryRepo{status: string(conversation.ConversationStatusOngoing)}
 	svc := outcomeServiceWith(t, repo, &stubCaptureReader{capture: requiringCapture()})
 	store := &recordingDelegationStore{}
-	svc.SetDelegations(store)
+	svc.delegations = store
 
 	if err := svc.Finish("entry-1", string(shared.EntryTypeWhatsApp), conversation.FinishOptions{
 		Source: conversation.CloseSourceHuman, Reason: conversation.CloseReasonManual,

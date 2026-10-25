@@ -40,6 +40,19 @@ func (e *Events) SetInboundHandler(h es.InboundHandler) {
 	e.inbound = h
 }
 
+func (e *Events) bound() error {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	var missing []error
+	if e.unsubscriber == nil {
+		missing = append(missing, ErrNoUnsubscriber)
+	}
+	if e.inbound == nil {
+		missing = append(missing, ErrNoInboundHandler)
+	}
+	return errors.Join(missing...)
+}
+
 func (e *Events) Apply(ctx context.Context, n es.Notification) error {
 	switch {
 	case n.Delivery != nil:

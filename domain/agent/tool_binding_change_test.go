@@ -55,3 +55,11 @@ func TestBindingsAddedListsEveryNewBindingOfATool(t *testing.T) {
 		})
 	}
 }
+
+func TestIdentityAndRevisionAloneDoNotChangeABinding(t *testing.T) {
+	stored := []ToolBinding{{ID: "t1", Name: "record_consent", Function: "record_consent", Revision: 3, Config: map[string]interface{}{"purpose": "ofertas"}}}
+	proposed := []ToolBinding{{ID: "t1", Name: "record_consent", Function: "record_consent", Description: "Registra.", Config: map[string]interface{}{"purpose": "ofertas"}}}
+	if BindingChanged(stored, proposed, "record_consent") || len(BindingsAdded(stored, proposed, "record_consent")) != 0 {
+		t.Fatal("only the behaviour of a binding counts")
+	}
+}

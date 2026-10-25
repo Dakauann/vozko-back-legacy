@@ -13,14 +13,14 @@ func TestInboxEntryCarriesWhenTheCustomerAndTheTeamLastWroteOnEveryChannel(t *te
 	agent := customer.Add(-time.Hour)
 	for _, entryType := range shared.ConversationViewableEntryTypes() {
 		t.Run(string(entryType), func(t *testing.T) {
-			svc := &HistoryProviderService{
+			svc := historyWith(HistoryProviderService{
 				messageRepo: stubEntryLastMessage{entry: conversation.EntryWithLastMessage{
 					EntryID: "entry-1", EntryType: entryType,
 					LastMessageType:       conversation.MessageTypeUserMessage,
 					LastCustomerMessageAt: &customer,
 					LastAgentMessageAt:    &agent,
 				}},
-			}
+			})
 
 			entry, err := svc.GetInboxEntry("entry-1", string(entryType))
 			if err != nil || entry == nil {
@@ -48,14 +48,14 @@ func TestInboxEntryWaitsSinceTheFirstUnansweredMessageOnEveryChannel(t *testing.
 			{conversation.ConversationStatusFinished, nil},
 		} {
 			t.Run(string(entryType)+"/"+string(c.status), func(t *testing.T) {
-				svc := &HistoryProviderService{
+				svc := historyWith(HistoryProviderService{
 					messageRepo: stubEntryLastMessage{entry: conversation.EntryWithLastMessage{
 						EntryID: "entry-1", EntryType: entryType,
 						LastMessageType:    conversation.MessageTypeUserMessage,
 						ConversationStatus: string(c.status),
 						AwaitingReplySince: &since,
 					}},
-				}
+				})
 				entry, err := svc.GetInboxEntry("entry-1", string(entryType))
 				if err != nil || entry == nil {
 					t.Fatalf("GetInboxEntry = %+v, %v", entry, err)

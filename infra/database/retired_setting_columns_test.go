@@ -36,13 +36,23 @@ func TestRetiredSettingColumnsAreGoneFromTheSchema(t *testing.T) {
 	}
 }
 
+func TestTheAgentBusinessPhoneColumnIsRetired(t *testing.T) {
+	for _, column := range retiredSettingColumns {
+		if column == (retiredColumn{"agents", "business_phone_id"}) {
+			return
+		}
+	}
+	t.Fatal("agents.business_phone_id must be dropped on boot; agents reach numbers through the number's receptive settings")
+}
+
 func TestDropRetiredSettingColumnsAgainstPostgres(t *testing.T) {
 	tx := postgresTx(t)
 	for _, ddl := range []string{
 		`DROP TABLE IF EXISTS whatsapp_campaigns, unofficial_whatsapp_campaigns, agents, unofficial_whatsapp_instances, email_sending_domains CASCADE`,
 		`CREATE TABLE whatsapp_campaigns (id uuid PRIMARY KEY, name text, prefer_audio boolean NOT NULL DEFAULT false)`,
 		`CREATE TABLE unofficial_whatsapp_campaigns (id uuid PRIMARY KEY, name text, prefer_audio boolean NOT NULL DEFAULT false)`,
-		`CREATE TABLE agents (id uuid PRIMARY KEY, name text, initial_message text NOT NULL, use_initial_message boolean NOT NULL DEFAULT true)`,
+		`CREATE TABLE agents (id uuid PRIMARY KEY, name text, initial_message text NOT NULL, use_initial_message boolean NOT NULL DEFAULT true, business_phone_id uuid)`,
+		`CREATE INDEX idx_agents_business_phone_id ON agents (business_phone_id)`,
 		`CREATE TABLE unofficial_whatsapp_instances (id uuid PRIMARY KEY, display_name text, auto_reject_calls boolean NOT NULL DEFAULT false)`,
 		`CREATE TABLE email_sending_domains (id uuid PRIMARY KEY, domain text, verified_at timestamptz, warmup_started_at timestamptz)`,
 	} {

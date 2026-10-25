@@ -12,6 +12,7 @@ import (
 	aa "vozko/domain/ai_attendance"
 	"vozko/domain/conversation"
 	ce "vozko/domain/conversation_event"
+	"vozko/domain/crm_telemetry"
 	ia "vozko/domain/inbox_assignment"
 	"vozko/domain/shared"
 	"vozko/domain/workspace"
@@ -87,6 +88,42 @@ type aiFixture struct {
 	accounts  *stubAccounts
 	receivers *stubReceivers
 	config    *mockWorkspaceConfig
+	routes    *recordingRoutes
+	revoker   *recordingRevoker
+}
+
+type recordingRevoker struct {
+	revoked []string
+	err     error
+}
+
+func (r *recordingRevoker) RevokeEntryAccess(entryID string) error {
+	if r.err != nil {
+		return r.err
+	}
+	r.revoked = append(r.revoked, entryID)
+	return nil
+}
+
+type departmentRoute struct {
+	entryID, entryType, departmentID string
+}
+
+type recordingRoutes struct {
+	routed []departmentRoute
+	err    error
+}
+
+func (r *recordingRoutes) RouteToDepartment(entryID, entryType, departmentID string) error {
+	if r.err != nil {
+		return r.err
+	}
+	r.routed = append(r.routed, departmentRoute{entryID: entryID, entryType: entryType, departmentID: departmentID})
+	return nil
+}
+
+func (r *recordingRoutes) RoutedDepartment(string, string) (string, bool, error) {
+	return "", false, nil
 }
 
 type stubDepartments struct {
@@ -131,6 +168,8 @@ func (s *stubReceivers) HasWorkspacePermission(userID, _, resource, action strin
 
 func (s *stubReceivers) IsWorkspaceOwnerOrAdmin(userID, _ string) bool { return s.admins[userID] }
 
+func (s *stubReceivers) IsWorkspaceMember(string, string) bool { return true }
+
 func newAIFixture(profile conversation.AutomationProfile, humans ...string) *aiFixture {
 	f := &aiFixture{
 		repo:      newStatefulRepo(),
@@ -148,18 +187,22 @@ func newAIFixture(profile conversation.AutomationProfile, humans ...string) *aiF
 		accounts:  &stubAccounts{},
 		receivers: &stubReceivers{denied: map[string]bool{}, admins: map[string]bool{}, noRoulette: map[string]bool{}},
 		config:    defaultConfig(),
+		routes:    &recordingRoutes{},
+		revoker:   &recordingRevoker{},
 	}
 	f.svc = newService(f.repo, f.eligible, defaultResolver("ws-1", ""), f.config)
-	f.svc.SetDepartmentLookup(f.depts)
-	f.svc.SetEntryAccountReader(f.accounts)
-	f.svc.SetConversationReceivers(f.receivers)
-	f.svc.SetAutomationGovernance(f.profiles)
-	f.svc.SetHistory(f.history)
-	f.svc.SetEventLogger(f.events)
+	f.svc.routes = f.routes
+	f.svc.accessRevoker = f.revoker
+	f.svc.departments = f.depts
+	f.svc.accounts = f.accounts
+	f.svc.receivers = f.receivers
+	f.svc.automationProfiles = f.profiles
+	f.svc.telemetry = historyTelemetry{store: f.history}
+	f.svc.events = f.events
 	f.broadcast.pauser = f.pauser
-	f.svc.SetEntryBroadcaster(f.broadcast)
-	f.svc.SetAutomationPauser(f.pauser)
-	f.svc.SetAISessionEnder(f.sessions)
+	f.svc.entryUpdates = f.broadcast
+	f.svc.pauser = f.pauser
+	f.svc.aiSessions = f.sessions
 	return f
 }
 
@@ -683,16 +726,6 @@ func TestHandOffToRoulette_RefusesADepartmentOutsideTheWorkspace(t *testing.T) {
 	}
 }
 
-func TestHandOffToRoulette_WithoutADepartmentLookupRefusesAChosenDepartment(t *testing.T) {
-	f := newAIFixture(workflowGoverned, "ana")
-	f.svc.SetDepartmentLookup(nil)
-	f.seed("entry-1", "workflow:wf-1")
-
-	_, err := f.svc.HandOffToRoulette(departmentHandOff("dept-sales"))
-
-	assert.ErrorIs(t, err, ia.ErrDepartmentOutOfScope)
-}
-
 func TestHandOffToRoulette_AChosenDepartmentReplacesAPerson(t *testing.T) {
 	f := newAIFixture(workflowGoverned)
 	f.eligible.departmentUsers["ws-1:dept-sales"] = []string{"carla"}
@@ -737,13 +770,6 @@ func TestHandOffToHuman_RefusesSomeoneWithoutConversationAccess(t *testing.T) {
 	assert.ErrorIs(t, err, ia.ErrHandOffTargetNoAccess)
 	assert.Equal(t, "workflow:wf-1", f.owner("entry-1"))
 	assert.Empty(t, f.pauser.paused)
-}
-
-func TestHandOffToHuman_WithoutAnAccessCheckRefusesEveryone(t *testing.T) {
-	f := newAIFixture(workflowGoverned)
-	f.svc.SetConversationReceivers(nil)
-
-	assert.ErrorIs(t, f.svc.HandOffToHuman("ws-1", "entry-1", "whatsapp", "bob"), ia.ErrHandOffTargetNoAccess)
 }
 
 func TestEveryReassignmentIsAnnouncedWithItsPreviousOwner(t *testing.T) {
@@ -803,4 +829,137 @@ func TestReassigningBetweenPeopleLeavesTheAutomationAlone(t *testing.T) {
 
 	assert.Empty(t, f.sessions.ended)
 	assert.Empty(t, f.pauser.paused)
+}
+
+func TestHandOffToRoulette_RecordsTheDepartmentEvenWhenNobodyCanTakeIt(t *testing.T) {
+	f := newAIFixture(workflowGoverned, "ana")
+	f.seed("entry-1", "workflow:wf-1")
+
+	_, err := f.svc.HandOffToRoulette(departmentHandOff("dept-sales"))
+
+	require.NoError(t, err)
+	assert.Equal(t, []departmentRoute{{entryID: "entry-1", entryType: "whatsapp", departmentID: "dept-sales"}}, f.routes.routed)
+}
+
+func TestHandOffToRoulette_RecordsTheDepartmentWhenSomeoneTakesIt(t *testing.T) {
+	f := newAIFixture(workflowGoverned, "ana")
+	f.eligible.departmentUsers["ws-1:dept-sales"] = []string{"carla"}
+	f.seed("entry-1", "workflow:wf-1")
+
+	got, err := f.svc.HandOffToRoulette(departmentHandOff("dept-sales"))
+
+	require.NoError(t, err)
+	assert.Equal(t, "carla", got)
+	assert.Equal(t, []departmentRoute{{entryID: "entry-1", entryType: "whatsapp", departmentID: "dept-sales"}}, f.routes.routed)
+}
+
+func TestHandOffToRoulette_AnUnrecordableDepartmentChangesNothing(t *testing.T) {
+	f := newAIFixture(workflowGoverned, "ana")
+	f.eligible.departmentUsers["ws-1:dept-sales"] = []string{"carla"}
+	f.seed("entry-1", "workflow:wf-1")
+	down := errors.New("routes down")
+	f.routes.err = down
+
+	_, err := f.svc.HandOffToRoulette(departmentHandOff("dept-sales"))
+
+	assert.ErrorIs(t, err, down)
+	assert.Equal(t, "workflow:wf-1", f.owner("entry-1"))
+	assert.Empty(t, f.pauser.paused)
+	assert.Empty(t, f.sessions.ended)
+}
+
+func TestHandOffToRoulette_WithoutADepartmentRecordsNoRoute(t *testing.T) {
+	f := newAIFixture(workflowGoverned, "ana")
+	f.seed("entry-1", "workflow:wf-1")
+
+	_, err := f.svc.HandOffToRoulette(departmentHandOff(""))
+
+	require.NoError(t, err)
+	assert.Empty(t, f.routes.routed)
+}
+
+func TestHandOffToRoulette_ADepartmentTransferRevokesCachedAccess(t *testing.T) {
+	f := newAIFixture(workflowGoverned, "ana")
+	f.eligible.departmentUsers["ws-1:dept-sales"] = []string{"carla"}
+	f.seed("entry-1", "workflow:wf-1")
+
+	_, err := f.svc.HandOffToRoulette(departmentHandOff("dept-sales"))
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"entry-1"}, f.revoker.revoked)
+}
+
+func TestHandOffToRoulette_AFailedRevokeStopsTheHandOff(t *testing.T) {
+	f := newAIFixture(workflowGoverned, "ana")
+	f.eligible.departmentUsers["ws-1:dept-sales"] = []string{"carla"}
+	f.seed("entry-1", "workflow:wf-1")
+	down := errors.New("cache down")
+	f.revoker.err = down
+
+	_, err := f.svc.HandOffToRoulette(departmentHandOff("dept-sales"))
+
+	assert.ErrorIs(t, err, down)
+	assert.Equal(t, "workflow:wf-1", f.owner("entry-1"))
+	assert.Empty(t, f.pauser.paused)
+	assert.Empty(t, f.sessions.ended)
+}
+
+func TestHandOffToRoulette_WithoutADepartmentRevokesNothing(t *testing.T) {
+	f := newAIFixture(workflowGoverned, "ana")
+	f.seed("entry-1", "workflow:wf-1")
+
+	_, err := f.svc.HandOffToRoulette(departmentHandOff(""))
+
+	require.NoError(t, err)
+	assert.Empty(t, f.revoker.revoked)
+}
+
+func TestAnOwnerChangeWithAnUnreadableDepartmentIsRecordedAsUnresolved(t *testing.T) {
+	f := newAIFixture(noAutomation, "ana")
+	f.svc.workspaceResolver = &mockResolver{workspaceID: "ws-1", departmentErr: errors.New("routes down")}
+	f.seed("entry-1", "bob")
+
+	require.NoError(t, f.svc.AssignManual("entry-1", "whatsapp", "phone-1", "ws-1", "ana", "carla", ia.TriggerManual))
+
+	h := f.lastHistory(t)
+	assert.True(t, h.DepartmentUnresolved, "an unreadable department must not look like no department")
+	assert.Equal(t, "", h.DepartmentID)
+}
+
+func TestAnOwnerChangeRecordsItsResolvedDepartment(t *testing.T) {
+	f := newAIFixture(noAutomation, "ana")
+	f.svc.workspaceResolver = defaultResolver("ws-1", "dept-sales")
+	f.seed("entry-1", "bob")
+
+	require.NoError(t, f.svc.AssignManual("entry-1", "whatsapp", "phone-1", "ws-1", "ana", "carla", ia.TriggerManual))
+
+	h := f.lastHistory(t)
+	assert.False(t, h.DepartmentUnresolved)
+	assert.Equal(t, "dept-sales", h.DepartmentID)
+}
+
+type recordingTelemetry struct {
+	history []crm_telemetry.AssignmentHistoryPayload
+}
+
+func (r *recordingTelemetry) Publish(kind crm_telemetry.Kind, payload any) error {
+	if p, ok := payload.(crm_telemetry.AssignmentHistoryPayload); ok && kind == crm_telemetry.KindAssignmentHistory {
+		r.history = append(r.history, p)
+	}
+	return nil
+}
+
+func TestAnUnreadableDepartmentIsPublishedAsUnresolved(t *testing.T) {
+	f := newAIFixture(noAutomation, "ana")
+	published := &recordingTelemetry{}
+	f.svc.telemetry = published
+	f.svc.workspaceResolver = &mockResolver{workspaceID: "ws-1", departmentErr: errors.New("routes down")}
+	f.seed("entry-1", "bob")
+
+	require.NoError(t, f.svc.AssignManual("entry-1", "whatsapp", "phone-1", "ws-1", "ana", "carla", ia.TriggerManual))
+
+	require.NotEmpty(t, published.history)
+	last := published.history[len(published.history)-1]
+	assert.True(t, last.DepartmentUnresolved)
+	assert.Equal(t, "", last.DepartmentID)
 }

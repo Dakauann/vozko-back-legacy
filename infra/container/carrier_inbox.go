@@ -23,46 +23,21 @@ func (c *Container) wireCarrierConversationStack() {
 	if b == nil || b.Service == nil || b.RCSConversations == nil || b.SMSConversations == nil || b.Contacts == nil {
 		log.Fatalf("[carrier] the conversation stack needs RCS and SMS built first")
 	}
-	if c.services.conversationAutomation == nil || c.services.conversationAuthImpl == nil || c.services.conversationStatusService == nil {
-		log.Fatalf("[carrier] conversation services must be built before the RCS and SMS conversation stack")
-	}
-	automationReader, ok := c.services.conversationHistory.(interface {
-		SetAutomationReader(shared.EntryType, func(context.Context, string) (*bool, error))
-	})
-	if !ok {
-		log.Fatalf("[carrier] history provider exposes no SetAutomationReader")
-	}
-	owners, ok := c.services.campaignWorkspaceResolver.(interface {
-		SetEntryOwnerResolver(shared.EntryType, conversation_usecase.EntryOwnerResolver)
-	})
-	if !ok {
-		log.Fatalf("[carrier] workspace resolver exposes no SetEntryOwnerResolver")
-	}
-	identities, ok := c.services.conversationHistory.(interface {
-		SetContactIdentityLookup(shared.EntryType, conversation_usecase.ContactIdentityLookup)
-	})
-	if !ok {
-		log.Fatalf("[carrier] history provider exposes no SetContactIdentityLookup")
-	}
 	for _, channel := range carriermessaging.AllChannels() {
-		entryType := channel.EntryType()
 		conversations := b.conversations(channel)
-
-		c.registerChannelAdapter(b.Service.Adapter(channel))
-		automationReader.SetAutomationReader(entryType, func(ctx context.Context, entryID string) (*bool, error) {
-			conv, err := conversations.FindByID(ctx, entryID)
-			if err != nil {
-				return nil, err
-			}
-			return conv.AutomationEnabled, nil
+		c.registerConversationChannel(conversationChannel{
+			EntryType:     channel.EntryType(),
+			Adapter:       b.Service.Adapter(channel),
+			Conversations: conversations,
+			Automation: func(ctx context.Context, entryID string) (*bool, error) {
+				conv, err := conversations.FindByID(ctx, entryID)
+				if err != nil {
+					return nil, err
+				}
+				return conv.AutomationEnabled, nil
+			},
+			Contacts: carrierContactIdentity(b.Contacts, conversations),
 		})
-		c.services.conversationAutomation.Register(entryType, conversations.SetAutomationEnabled)
-		c.services.conversationAuthImpl.SetEntryAccessRepo(entryType, conversations)
-		c.services.conversationStatusService.SetConversationStatusStore(entryType,
-			conversationStatusFuncs{status: conversations.StatusForEntry, set: conversations.SetStatus})
-		c.services.conversationStatusService.SetConversationCounter(entryType, conversations.CountByStatus)
-		owners.SetEntryOwnerResolver(entryType, conversations)
-		identities.SetContactIdentityLookup(entryType, carrierContactIdentity(b.Contacts, conversations))
 	}
 }
 

@@ -303,6 +303,9 @@ func (r *simWhatsAppEntryRepo) ListByLeadID(_ string) ([]wce.WhatsAppCampaignEnt
 func (r *simWhatsAppEntryRepo) ListRecentlyUpdated(_ string, _ int) ([]wce.WhatsAppCampaignEntry, error) {
 	return nil, nil
 }
+func (r *simWhatsAppEntryRepo) ListRecentlyUpdatedForCampaigns(_ []string, _ int) (map[string][]wce.WhatsAppCampaignEntry, error) {
+	return map[string][]wce.WhatsAppCampaignEntry{}, nil
+}
 func (r *simWhatsAppEntryRepo) CountByCampaignID(_ string) (int64, error) { return 0, nil }
 func (r *simWhatsAppEntryRepo) CountByStatus(_ string) (*wce.StatusCounts, error) {
 	return &wce.StatusCounts{}, nil
@@ -579,6 +582,9 @@ func (r *simMessageRepo) GetEntriesWithMessages(_ string, _ []string, _ shared.E
 }
 func (r *simMessageRepo) SearchEntriesWithMessages(_ conversation.SearchEntriesInput) ([]conversation.EntryWithLastMessage, int64, error) {
 	return nil, 0, nil
+}
+func (r *simMessageRepo) CountEntriesByStages(_ conversation.SearchEntriesInput, _ []string) (map[string]int64, error) {
+	return nil, nil
 }
 func (r *simMessageRepo) SearchEntriesByFilter(_ conversation.SearchByFilterInput) ([]conversation.EntryWithLastMessage, int64, error) {
 	return nil, 0, nil

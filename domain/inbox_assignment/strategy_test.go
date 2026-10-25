@@ -318,3 +318,12 @@ func TestOnlyRecipients_KeepsTheAvailabilityOrderAndAttachesTierAndWeight(t *tes
 		t.Fatalf("an empty list lets nobody through, got %v", got)
 	}
 }
+
+func TestEveryStrategyButClaimDealsConversationsOutByItself(t *testing.T) {
+	for _, s := range Strategies() {
+		want := s != StrategyClaim
+		if got := s.DealsAutomatically(); got != want {
+			t.Fatalf("%s.DealsAutomatically() = %v, want %v", s, got, want)
+		}
+	}
+}

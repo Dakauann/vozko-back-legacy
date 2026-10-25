@@ -10,7 +10,7 @@ import (
 	"vozko/domain/inbox_assignment"
 	"vozko/domain/shared"
 	"vozko/domain/workspace"
-	workspace_department "vozko/domain/workspace/workspace_department"
+	redisCache "vozko/infra/cache"
 )
 
 type whatsappEntryAccessRepository interface {
@@ -29,7 +29,7 @@ type workspaceMembershipRepository interface {
 }
 
 type departmentMembershipRepository interface {
-	ListDepartments(workspaceID string) ([]workspace_department.Department, error)
+	HasDepartments(workspaceID string) (bool, error)
 	GetMemberDepartmentIDs(workspaceID, userID string) ([]string, error)
 }
 
@@ -51,6 +51,7 @@ type Authorizer struct {
 	assignmentRepo    assignmentLookupRepository
 	workspaceResolver conversation.CampaignWorkspaceResolver
 	shared            cache.SharedState
+	grantVersions     *redisCache.SharedStateVersions
 	cacheTTL          time.Duration
 }
 
@@ -71,6 +72,7 @@ func NewAuthorizer(
 		assignmentRepo:    assignmentRepo,
 		workspaceResolver: workspaceResolver,
 		shared:            shared,
+		grantVersions:     redisCache.NewSharedStateVersions(shared, "auth_cache"),
 		cacheTTL:          5 * time.Minute,
 	}
 }
@@ -115,13 +117,13 @@ func (x *actorAccess) CanAccess(entryID, entryType string) bool {
 	}
 
 	if x.isAdmin {
-		cacheKey := x.userID + ":" + x.workspaceID
-		if a.checkCache(cacheKey, entryID) {
+		grant := a.grantFor(x.userID+":"+x.workspaceID, entryID)
+		if grant.cached {
 			return true
 		}
 		hasAccess := a.entryBelongsToWorkspace(x.workspaceID, entryID, entryType, true)
 		if hasAccess {
-			a.setCache(cacheKey, entryID)
+			a.remember(grant)
 		}
 		return hasAccess
 	}
@@ -159,8 +161,8 @@ func (a *Authorizer) canAccessEntryWith(
 		return false
 	}
 
-	cacheKey := userID + ":" + workspaceID
-	if a.checkCache(cacheKey, entryID) {
+	grant := a.grantFor(userID+":"+workspaceID, entryID)
+	if grant.cached {
 		return true
 	}
 
@@ -174,7 +176,7 @@ func (a *Authorizer) canAccessEntryWith(
 	}
 
 	if !scope.Restrict {
-		a.setCache(cacheKey, entryID)
+		a.remember(grant)
 		return true
 	}
 
@@ -191,13 +193,13 @@ func (a *Authorizer) canAccessEntryWith(
 
 	if departmentID != "" {
 		if containsString(scope.DepartmentIDs, departmentID) {
-			a.setCache(cacheKey, entryID)
+			a.remember(grant)
 			return true
 		}
 	}
 
 	if assignment.AssignedTo(userID) {
-		a.setCache(cacheKey, entryID)
+		a.remember(grant)
 		return true
 	}
 	return false
@@ -274,7 +276,7 @@ func (a *Authorizer) GetDepartmentScope(userID, workspaceID string, isAdmin bool
 	if member.Role == workspace.RoleOwner || member.Role == workspace.RoleAdmin {
 		wsHasDepts := false
 		if a.departmentRepo != nil {
-			if depts, err := a.departmentRepo.ListDepartments(workspaceID); err == nil && len(depts) > 0 {
+			if has, err := a.departmentRepo.HasDepartments(workspaceID); err == nil && has {
 				wsHasDepts = true
 			}
 		}
@@ -292,12 +294,12 @@ func (a *Authorizer) GetDepartmentScope(userID, workspaceID string, isAdmin bool
 		return conversation.DepartmentAccessScope{Restrict: true}, true
 	}
 
-	departments, err := a.departmentRepo.ListDepartments(workspaceID)
+	hasDepartments, err := a.departmentRepo.HasDepartments(workspaceID)
 	if err != nil {
-		log.Printf("[Authorizer] error listing departments for workspace %s: %v", workspaceID, err)
+		log.Printf("[Authorizer] error checking for departments in workspace %s: %v", workspaceID, err)
 		return conversation.DepartmentAccessScope{Restrict: true}, true
 	}
-	if len(departments) == 0 {
+	if !hasDepartments {
 		return conversation.DepartmentAccessScope{}, true
 	}
 
@@ -369,14 +371,6 @@ func (a *Authorizer) SetEntryAccessRepo(entryType shared.EntryType, repo entryAc
 	a.entryRepos[entryType] = repo
 }
 
-func (a *Authorizer) SetInstagramEntryRepo(repo entryAccessRepository) {
-	a.SetEntryAccessRepo(shared.EntryTypeInstagram, repo)
-}
-
-func (a *Authorizer) SetTelegramEntryRepo(repo entryAccessRepository) {
-	a.SetEntryAccessRepo(shared.EntryTypeTelegram, repo)
-}
-
 func (a *Authorizer) entryRepoFor(entryType string) (entryAccessRepository, bool) {
 	if a == nil || a.entryRepos == nil {
 		return nil, false
@@ -435,18 +429,33 @@ func (a *Authorizer) IsWorkspaceOwnerOrAdmin(userID, workspaceID string) bool {
 	return member.Role == workspace.RoleOwner || member.Role == workspace.RoleAdmin
 }
 
-func (a *Authorizer) checkCache(cacheKey, entryID string) bool {
-	key := "auth_cache:" + cacheKey + ":" + entryID
-	exists, err := a.shared.Exists(key)
-	if err != nil {
-		return false
-	}
-	return exists
+type cachedGrant struct {
+	key    string
+	cached bool
 }
 
-func (a *Authorizer) setCache(cacheKey, entryID string) {
-	key := "auth_cache:" + cacheKey + ":" + entryID
-	_ = a.shared.SetString(key, "1", a.cacheTTL)
+func (a *Authorizer) grantFor(cacheKey, entryID string) cachedGrant {
+	version, err := a.grantVersions.Version(entryID)
+	if err != nil {
+		return cachedGrant{}
+	}
+	key := "auth_cache:" + cacheKey + ":" + entryID + ":" + version
+	exists, err := a.shared.Exists(key)
+	if err != nil {
+		return cachedGrant{key: key}
+	}
+	return cachedGrant{key: key, cached: exists}
+}
+
+func (a *Authorizer) remember(grant cachedGrant) {
+	if grant.key == "" {
+		return
+	}
+	_ = a.shared.SetString(grant.key, "1", a.cacheTTL)
+}
+
+func (a *Authorizer) RevokeEntryAccess(entryID string) error {
+	return a.grantVersions.Bump(entryID)
 }
 
 func containsString(values []string, target string) bool {
@@ -486,6 +495,15 @@ func uniqueStrings(values []string) []string {
 // per-user cache, so a cached decision still cannot bypass it.
 func (a *Authorizer) ResolveEntryAccess(workspaceID, entryID, entryType string) func(userID string, isAdmin bool) bool {
 	assignment, resolved := a.entryAssignment(workspaceID, entryID, entryType)
+	actors := make(map[string]*actorAccess)
+	actorFor := func(userID string) *actorAccess {
+		x, ok := actors[userID]
+		if !ok {
+			x = a.actor(userID, workspaceID, false)
+			actors[userID] = x
+		}
+		return x
+	}
 
 	return func(userID string, isAdmin bool) bool {
 		if userID == "" || entryID == "" || entryType == "" {
@@ -500,6 +518,6 @@ func (a *Authorizer) ResolveEntryAccess(workspaceID, entryID, entryType string) 
 		if !resolved {
 			return false
 		}
-		return a.canAccessEntryWith(a.actor(userID, workspaceID, false), entryID, entryType, assignment)
+		return a.canAccessEntryWith(actorFor(userID), entryID, entryType, assignment)
 	}
 }

@@ -63,7 +63,7 @@ func TestTheLeadOfAStartedCallReachesItsCallRecord(t *testing.T) {
 	call.closeOnHangup = true
 	h := newCallSessionTestHarness(t, call)
 	starts := &recordedCallStarts{}
-	h.lifecycle.SetCDRStart(starts)
+	h.cdrStarts.inner = starts
 	h.startUC.linked = callsession_domain.StartOutboundCallResult{LeadID: "lead-1", TrunkID: "trunk-1"}
 
 	c := h.dial(t)

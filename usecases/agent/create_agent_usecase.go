@@ -6,29 +6,25 @@ import (
 	"github.com/google/uuid"
 
 	"vozko/domain/agent"
-	mcpdomain "vozko/domain/agent/mcp"
 	"vozko/domain/rag"
 	"vozko/domain/tools"
-	businessphone "vozko/domain/whatsapp/business_phone"
 	workspace_department "vozko/domain/workspace/workspace_department"
 )
 
 type createAgentUseCase struct {
 	toolBindingGuard
+	toolSecretSealing
+	toolValidation
 	repo               agent.Repository
-	businessPhoneRepo  businessphone.Repository
 	toolRegistry       tools.Service
 	knowledgeBaseRepo  rag.KnowledgeBaseRepository
-	mcpCollectionRepo  mcpdomain.CollectionRepository
 	departmentResolver workspace_department.CreationDepartmentResolver
 }
 
 func NewCreateAgentUseCase(
 	repo agent.Repository,
-	businessPhoneRepo businessphone.Repository,
 	toolRegistry tools.Service,
 	knowledgeBaseRepo rag.KnowledgeBaseRepository,
-	mcpCollectionRepo mcpdomain.CollectionRepository,
 	departmentResolver ...workspace_department.CreationDepartmentResolver,
 ) agent.CreateAgentUseCase {
 	var resolver workspace_department.CreationDepartmentResolver
@@ -37,10 +33,8 @@ func NewCreateAgentUseCase(
 	}
 	return &createAgentUseCase{
 		repo:               repo,
-		businessPhoneRepo:  businessPhoneRepo,
 		toolRegistry:       toolRegistry,
 		knowledgeBaseRepo:  knowledgeBaseRepo,
-		mcpCollectionRepo:  mcpCollectionRepo,
 		departmentResolver: resolver,
 	}
 }
@@ -69,13 +63,7 @@ func (uc *createAgentUseCase) Execute(ctx context.Context, in agent.CreateAgentI
 		a.IsActive = true
 	}
 
-	if err := validateBusinessPhoneOwnership(uc.businessPhoneRepo, a.WorkspaceID, a.BusinessPhoneID); err != nil {
-		return nil, err
-	}
 	if err := validateKnowledgeBaseOwnership(ctx, uc.knowledgeBaseRepo, a.WorkspaceID, a.KnowledgeBaseIDs); err != nil {
-		return nil, err
-	}
-	if err := validateMCPCollectionOwnership(ctx, uc.mcpCollectionRepo, a.WorkspaceID, a.MCPCollectionIDs); err != nil {
 		return nil, err
 	}
 
@@ -86,11 +74,12 @@ func (uc *createAgentUseCase) Execute(ctx context.Context, in agent.CreateAgentI
 	if err := uc.refuseUngrantedBindings(ctx, uc.toolRegistry, a.WorkspaceID, in.RequestedBy, nil, selectedTools); err != nil {
 		return nil, err
 	}
-	a.InternalTools = selectedTools
-
-	if err := syncAgentTools(uc.toolRegistry, a); err != nil {
+	sealedTools, err := uc.sealBindings(ctx, uc.toolRegistry, a.WorkspaceID, in.RequestedBy.UserID, a.ID, nil, selectedTools)
+	if err != nil {
 		return nil, err
 	}
+	a.InternalTools = sealedTools
+	a.ChangedBy = in.RequestedBy.UserID
 
 	if err := uc.repo.Create(a); err != nil {
 		return nil, err

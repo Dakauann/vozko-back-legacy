@@ -1,30 +1,39 @@
 package whatsapp_campaign_usecase
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	wc "vozko/domain/whatsapp_campaign"
+	"vozko/usecases/campaignschedule"
 )
 
 const scheduleStartBatchSize = 200
+
+var ErrScheduleStartUnavailable = errors.New("whatsapp campaign scheduled start: the failure reporter is not configured")
 
 type ScheduleStartJob struct {
 	dispatchCampaignUseCase wc.DispatchCampaignUseCase
 	whatsappCampaingsRepo   wc.Repository
 	schedules               wc.ScheduleClaimer
+	reporter                *campaignschedule.Reporter
 }
 
-func NewScheduleStartJob(dispatchCampaignUseCase wc.DispatchCampaignUseCase, whatsappCampaingsRepo wc.Repository, schedules wc.ScheduleClaimer) wc.StartScheduleJob {
+func NewScheduleStartJob(dispatchCampaignUseCase wc.DispatchCampaignUseCase, whatsappCampaingsRepo wc.Repository, schedules wc.ScheduleClaimer, reporter *campaignschedule.Reporter) wc.StartScheduleJob {
 	return &ScheduleStartJob{
 		dispatchCampaignUseCase: dispatchCampaignUseCase,
 		whatsappCampaingsRepo:   whatsappCampaingsRepo,
 		schedules:               schedules,
+		reporter:                reporter,
 	}
 }
 
 func (j *ScheduleStartJob) StartScheduledWhatsappCampaigns() error {
+	if j.reporter == nil {
+		return ErrScheduleStartUnavailable
+	}
 	now := time.Now().UTC()
 	campaigns, err := j.whatsappCampaingsRepo.ListScheduledToStart(now, scheduleStartBatchSize)
 	if err != nil {
@@ -45,15 +54,23 @@ func (j *ScheduleStartJob) StartScheduledWhatsappCampaigns() error {
 			continue
 		}
 		err = j.dispatchCampaignUseCase.Dispatch(wc.DispatchCampaignInput{
-			CampaignID: campaign.ID,
-			Action:     wc.CampaignActionStart,
+			CampaignID:           campaign.ID,
+			Action:               wc.CampaignActionStart,
+			ConfirmedFingerprint: campaign.ScheduleConfirmedFingerprint,
 		})
-		if err != nil && !errors.Is(err, wc.ErrDispatchCampaignAlreadyRunning) {
-			errs = append(errs, fmt.Errorf("scheduled start of %s: %w", campaign.ID, err))
+		if err == nil || errors.Is(err, wc.ErrDispatchCampaignAlreadyRunning) {
+			continue
+		}
+		if err := j.reporter.Failed(context.Background(), attemptOf(campaign), err); err != nil {
+			errs = append(errs, fmt.Errorf("record the failed schedule of %s: %w", campaign.ID, err))
 		}
 	}
 
 	return errors.Join(errs...)
+}
+
+func attemptOf(c *wc.Campaign) campaignschedule.Attempt {
+	return campaignschedule.Attempt{WorkspaceID: c.WorkspaceID, CampaignID: c.ID, CampaignName: c.Name, ScheduledBy: c.ScheduledBy, ScheduledAt: c.ScheduledStart}
 }
 
 var _ wc.StartScheduleJob = (*ScheduleStartJob)(nil)

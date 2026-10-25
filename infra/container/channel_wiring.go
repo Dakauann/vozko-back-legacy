@@ -1,9 +1,9 @@
 package container
 
 import (
+	"log"
 	"context"
 
-	conversation_domain "vozko/domain/conversation"
 	export_domain "vozko/domain/export"
 	facebook_repository "vozko/infra/repositories/facebook"
 	instagram_repository "vozko/infra/repositories/instagram"
@@ -64,27 +64,6 @@ func (f contactIdentityFuncs) AuthorsByAccount(ctx context.Context, handlesByAcc
 
 var _ conversation_usecase.ContactIdentityLookup = contactIdentityFuncs{}
 
-type conversationStatusFuncs struct {
-	status func(ctx context.Context, entryID string) (string, error)
-	set    func(ctx context.Context, entryID string, write conversation_domain.StatusWrite) error
-}
-
-func (f conversationStatusFuncs) Status(ctx context.Context, entryID string) (string, error) {
-	if f.status == nil {
-		return "", nil
-	}
-	return f.status(ctx, entryID)
-}
-
-func (f conversationStatusFuncs) SetStatus(ctx context.Context, entryID string, write conversation_domain.StatusWrite) error {
-	if f.set == nil {
-		return nil
-	}
-	return f.set(ctx, entryID, write)
-}
-
-var _ conversation_usecase.ConversationStatusStore = conversationStatusFuncs{}
-
 func (c *Container) buildExportEntriesUseCase() export_domain.ExportEntriesUseCase {
 	uc := export_usecase.NewExportEntriesUseCase(
 		c.repositories.conversationAnalyses,
@@ -95,21 +74,21 @@ func (c *Container) buildExportEntriesUseCase() export_domain.ExportEntriesUseCa
 		SetChannelEntryLister(export_domain.EntryType, export_domain.ChannelEntryLister)
 	})
 	if !ok {
-		return uc
+		log.Fatalf("[export] the export use case cannot take per-channel entry listers")
 	}
 	setter.SetChannelEntryLister(export_domain.EntryTypeWhatsApp,
 		wc_entry_repository.NewExportRepository(c.db))
-	if c.instagram != nil && c.instagram.Enabled {
+	if c.instagram != nil {
 		setter.SetChannelEntryLister(export_domain.EntryTypeInstagram, instagram_repository.NewExportRepository(c.db))
 	}
-	if c.telegram != nil && c.telegram.Enabled {
+	if c.telegram != nil {
 		setter.SetChannelEntryLister(export_domain.EntryTypeTelegram, telegram_repository.NewExportRepository(c.db))
 	}
-	if c.unofficialWhatsApp != nil && c.unofficialWhatsApp.Enabled {
+	if c.unofficialWhatsApp != nil {
 		setter.SetChannelEntryLister(export_domain.EntryTypeUnofficialWhatsApp,
 			unofficial_whatsapp_repository.NewExportRepository(c.db))
 	}
-	if c.facebook != nil && c.facebook.Enabled {
+	if c.facebook != nil {
 		setter.SetChannelEntryLister(export_domain.EntryTypeFacebook, facebook_repository.NewExportRepository(c.db))
 	}
 	if c.webchat != nil {

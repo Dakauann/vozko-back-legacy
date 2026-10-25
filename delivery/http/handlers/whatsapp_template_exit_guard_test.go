@@ -31,9 +31,8 @@ func (r *refusingCreator) CreateTemplate(_ context.Context, _ buttonaction_useca
 }
 
 func TestCreateForWorkspaceRefusesAMarketingTemplateWithoutAShownExit(t *testing.T) {
-	h := newTemplateTestHandler()
 	creator := &refusingCreator{}
-	h.SetExitGuardedCreator(creator)
+	h := newTemplateTestHandler(withExitGuard(creator))
 
 	req := requestWithClaims(http.MethodPost, "/whatsapp/templates", whatsapptemplatehttp.CreateTemplateRequest{
 		BusinessPhoneID:  "phone-ws1",
@@ -49,18 +48,5 @@ func TestCreateForWorkspaceRefusesAMarketingTemplateWithoutAShownExit(t *testing
 	}
 	if creator.got.ExitConfirmation != "Pronto." || creator.got.Template.Name != "promo" {
 		t.Fatalf("request = %+v", creator.got)
-	}
-}
-
-func TestCreateForWorkspaceWithoutTheExitGuardIsUnavailable(t *testing.T) {
-	h := newTemplateTestHandler()
-	h.SetExitGuardedCreator(nil)
-	req := requestWithClaims(http.MethodPost, "/whatsapp/templates", whatsapptemplatehttp.CreateTemplateRequest{
-		BusinessPhoneID: "phone-ws1", Name: "promo", Category: "MARKETING",
-	}, userClaims("user-1"), "ws-1")
-	rr := httptest.NewRecorder()
-	h.CreateForWorkspace(rr, req)
-	if rr.Code != http.StatusServiceUnavailable {
-		t.Fatalf("got %d: %s", rr.Code, rr.Body.String())
 	}
 }

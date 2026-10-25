@@ -6,6 +6,7 @@ import (
 
 	"vozko/delivery/http/httpx"
 	"vozko/domain/campaign"
+	"vozko/domain/campaign/scheduledstart"
 	"vozko/domain/campaignaudience"
 	"vozko/domain/carriercampaign"
 	cm "vozko/domain/carriermessaging"
@@ -52,19 +53,20 @@ type CampaignRequest struct {
 }
 
 type CampaignDTO struct {
-	ID          string                     `json:"id"`
-	Name        string                     `json:"name"`
-	Channel     string                     `json:"channel" example:"rcs"`
-	Kind        string                     `json:"kind" example:"marketing"`
-	SenderID    string                     `json:"sender_id"`
-	Status      string                     `json:"status" example:"draft"`
-	Variants    []VariantDTO               `json:"variants"`
-	Fallback    FallbackDTO                `json:"fallback"`
-	Audience    httpx.LeadSelectionRequest `json:"audience"`
-	ScheduledAt *time.Time                 `json:"scheduled_at"`
-	Recurrence  *RecurrenceDTO             `json:"recurrence"`
-	CreatedAt   time.Time                  `json:"created_at"`
-	UpdatedAt   time.Time                  `json:"updated_at"`
+	ID              string                     `json:"id"`
+	Name            string                     `json:"name"`
+	Channel         string                     `json:"channel" example:"rcs"`
+	Kind            string                     `json:"kind" example:"marketing"`
+	SenderID        string                     `json:"sender_id"`
+	Status          string                     `json:"status" example:"draft"`
+	Variants        []VariantDTO               `json:"variants"`
+	Fallback        FallbackDTO                `json:"fallback"`
+	Audience        httpx.LeadSelectionRequest `json:"audience"`
+	ScheduledAt     *time.Time                 `json:"scheduled_at"`
+	Recurrence      *RecurrenceDTO             `json:"recurrence"`
+	ScheduleFailure scheduledstart.Failure     `json:"schedule_failure,omitempty" enums:"schedule_blocked,schedule_unconfirmed,schedule_needs_review,schedule_nothing_to_send,schedule_start_failed"`
+	CreatedAt       time.Time                  `json:"created_at"`
+	UpdatedAt       time.Time                  `json:"updated_at"`
 }
 
 type CampaignStatsDTO struct {
@@ -77,16 +79,17 @@ type CampaignStatsDTO struct {
 }
 
 type CampaignSummaryDTO struct {
-	ID          string           `json:"id"`
-	Name        string           `json:"name"`
-	Channel     string           `json:"channel"`
-	Status      string           `json:"status"`
-	Kind        string           `json:"kind"`
-	SenderID    string           `json:"sender_id"`
-	ScheduledAt *time.Time       `json:"scheduled_at"`
-	Recurrence  *RecurrenceDTO   `json:"recurrence"`
-	CreatedAt   time.Time        `json:"created_at"`
-	Stats       CampaignStatsDTO `json:"stats"`
+	ID              string                 `json:"id"`
+	Name            string                 `json:"name"`
+	Channel         string                 `json:"channel"`
+	Status          string                 `json:"status"`
+	Kind            string                 `json:"kind"`
+	SenderID        string                 `json:"sender_id"`
+	ScheduledAt     *time.Time             `json:"scheduled_at"`
+	Recurrence      *RecurrenceDTO         `json:"recurrence"`
+	ScheduleFailure scheduledstart.Failure `json:"schedule_failure,omitempty" enums:"schedule_blocked,schedule_unconfirmed,schedule_needs_review,schedule_nothing_to_send,schedule_start_failed"`
+	CreatedAt       time.Time              `json:"created_at"`
+	Stats           CampaignStatsDTO       `json:"stats"`
 }
 
 type CampaignListResponse struct {
@@ -313,6 +316,7 @@ func campaignDTO(c *carriercampaign.Campaign) CampaignDTO {
 		ID: c.ID, Name: c.Name, Channel: string(c.Channel), Kind: string(c.Kind), SenderID: c.SenderID, Status: string(c.Status),
 		Variants: variants, Fallback: fallback, Audience: httpx.LeadSelectionRequestOf(c.Audience), ScheduledAt: c.ScheduledAt, Recurrence: recurrenceDTO(c.Recurrence),
 		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
+		ScheduleFailure: c.ScheduleFailure,
 	}
 }
 
@@ -321,7 +325,8 @@ func summaryDTO(s ccuc.CampaignSummary) CampaignSummaryDTO {
 	return CampaignSummaryDTO{
 		ID: c.ID, Name: c.Name, Channel: string(c.Channel), Status: string(c.Status), Kind: string(c.Kind), SenderID: c.SenderID,
 		ScheduledAt: c.ScheduledAt, Recurrence: recurrenceDTO(c.Recurrence), CreatedAt: c.CreatedAt,
-		Stats: CampaignStatsDTO{Targeted: f.Targeted, Sent: f.Sent, Delivered: f.Delivered, Read: f.Read, Clicks: f.Clicks, Replies: f.Replies},
+		ScheduleFailure: c.ScheduleFailure,
+		Stats:           CampaignStatsDTO{Targeted: f.Targeted, Sent: f.Sent, Delivered: f.Delivered, Read: f.Read, Clicks: f.Clicks, Replies: f.Replies},
 	}
 }
 

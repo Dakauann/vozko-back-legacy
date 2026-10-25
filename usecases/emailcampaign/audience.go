@@ -34,9 +34,6 @@ func (s *Service) planAudience(ctx context.Context, scope selection.Scope, c ema
 	if !ok {
 		return plan, nil
 	}
-	if s.audience == nil {
-		return audiencePlan{}, audience.ErrUnavailable
-	}
 	owner := ""
 	if spec.Source == audience.SourceList {
 		owner = c.AudienceOwner()
@@ -45,7 +42,7 @@ func (s *Service) planAudience(ctx context.Context, scope selection.Scope, c ema
 	actor := campaignaudience_usecase.Actor{WorkspaceID: c.WorkspaceID, UserID: scope.ActorID, IsAdmin: scope.IsAdmin}
 	params := campaignaudience_usecase.Params{Subject: c.MergeSubjects(), Document: &doc}
 	neverMailed := 0
-	count, err := s.audience.Walk(ctx, actor, audience.ChannelEmail, params, spec, owner, func(cand audience.Candidate, d audience.Decision) error {
+	count, err := s.deps.Audience.Walk(ctx, actor, audience.ChannelEmail, params, spec, owner, func(cand audience.Candidate, d audience.Decision) error {
 		r := plannedRecipient{leadID: cand.LeadID, address: emailaddress.Address(cand.Contact)}
 		if d.Outcome != audience.OutcomeSend {
 			r.skip = emailcampaign.SkipReason(d.Reason)

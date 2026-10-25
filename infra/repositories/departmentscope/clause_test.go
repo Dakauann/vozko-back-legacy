@@ -78,3 +78,14 @@ func TestClause(t *testing.T) {
 		})
 	}
 }
+
+func TestRoutedPrefersTheDepartmentTheConversationWasSentTo(t *testing.T) {
+	got := Routed("wce.id", "whatsapp", "wc.department_id")
+	want := "COALESCE((SELECT cdr.department_id FROM conversation_department_routes cdr WHERE cdr.entry_id = wce.id AND cdr.entry_type = 'whatsapp'), wc.department_id)"
+	if got != want {
+		t.Fatalf("Routed = %q, want %q", got, want)
+	}
+	if strings.Contains(got, "?") {
+		t.Fatalf("the routed expression must bind nothing: %q", got)
+	}
+}

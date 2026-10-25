@@ -3,7 +3,6 @@ package copilot_usecase
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log"
 	"time"
 
@@ -18,8 +17,6 @@ const (
 	EventUnqueued  = "unqueued"
 	EventDelivered = "delivered"
 )
-
-var ErrQueueUnavailable = errors.New("copilot: the message queue is not available")
 
 type QueuedView struct {
 	ID          string               `json:"id,omitempty"`
@@ -41,14 +38,7 @@ func viewsOfQueued(list []*aichat.QueuedMessage) []QueuedView {
 	return out
 }
 
-func (s *Service) SetQueue(queue aichat.QueueRepository) {
-	s.queue = queue
-}
-
 func (s *Service) Enqueue(thread *aichat.Thread, userID string, msg copilot.UserMessage) (*aichat.QueuedMessage, error) {
-	if s.queue == nil {
-		return nil, ErrQueueUnavailable
-	}
 	if err := aichat.ValidClientID(msg.ClientID); err != nil {
 		return nil, err
 	}
@@ -80,9 +70,6 @@ func (s *Service) Enqueue(thread *aichat.Thread, userID string, msg copilot.User
 }
 
 func (s *Service) Unqueue(thread *aichat.Thread, userID, clientID string) error {
-	if s.queue == nil {
-		return ErrQueueUnavailable
-	}
 	if err := s.queue.Remove(thread.ID, clientID); err != nil {
 		return err
 	}
@@ -93,9 +80,6 @@ func (s *Service) Unqueue(thread *aichat.Thread, userID, clientID string) error 
 }
 
 func (s *Service) Queued(threadID string) ([]QueuedView, error) {
-	if s.queue == nil {
-		return []QueuedView{}, nil
-	}
 	pending, err := s.queue.Pending(threadID)
 	if err != nil {
 		return nil, err
@@ -138,17 +122,11 @@ func (s *Service) awaitsAnswer(threadID string) bool {
 }
 
 func (s *Service) hasQueued(threadID string) (bool, error) {
-	if s.queue == nil {
-		return false, nil
-	}
 	pending, err := s.queue.Pending(threadID)
 	return len(pending) > 0, err
 }
 
 func (s *Service) deliverQueued(threadID string, emit agentloop.Emit) ([]*aichat.QueuedMessage, error) {
-	if s.queue == nil {
-		return nil, nil
-	}
 	delivered, err := s.queue.Deliver(threadID)
 	if err != nil || len(delivered) == 0 {
 		return nil, err

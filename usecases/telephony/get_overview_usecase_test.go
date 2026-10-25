@@ -55,7 +55,7 @@ func (s *stubLive) ListAvailable(string) []callsession.CallSession              
 func (s *stubLive) ListAll(string) []callsession.CallSession                    { return nil }
 func (s *stubLive) ListPresence(string) []callsession.MemberPresence            { return s.rows }
 func (s *stubLive) ListBrowserSessions(string) []callsession.CallSession        { return nil }
-func (s *stubLive) SetPresenceListener(callsession.PresenceListener)            {}
+func (s *stubLive) BindPresenceListener(callsession.PresenceListener) error     { return nil }
 func (s *stubLive) NotifyPresenceChanged(string)                                {}
 
 func TestGetOverview_ComposesPorts(t *testing.T) {

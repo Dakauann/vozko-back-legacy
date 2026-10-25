@@ -196,19 +196,21 @@ func TestRejectedDeliveriesSplitIntoCalledInactiveAndWebhookRejecting(t *testing
 	}
 }
 
-func TestFailedToolCallsNameTheirWorkflowFromTheBoundToolName(t *testing.T) {
+func TestFailedToolCallsAreKeyedByTheToolInstance(t *testing.T) {
 	groups := []FailedToolCallGroup{
-		{WorkspaceID: "ws", AgentID: "ag", ToolName: "run_workflow_wf-1", ErrorCode: WorkflowNotActiveCode, Count: 1, LastSeen: alertNow, Sample: "c-1"},
-		{WorkspaceID: "ws", AgentID: "ag", ToolName: "run_workflow_wf-2", Count: 3, LastSeen: alertNow, Sample: "c-2"},
-		{WorkspaceID: "ws", AgentID: "ag", ToolName: AgentHTTPRequestTool, Count: 4, LastSeen: alertNow, Sample: "c-3"},
-		{WorkspaceID: "ws", AgentID: "ag", ToolName: AgentHTTPRequestTool, ErrorCode: WorkflowNotActiveCode, Count: 1, LastSeen: alertNow},
-		{WorkspaceID: "ws", AgentID: "ag", ToolName: "transfer_to_human", Count: 9, LastSeen: alertNow},
+		{WorkspaceID: "ws", AgentID: "ag", ToolInstanceID: "t-1", ToolType: AgentRunWorkflowTool, TargetKey: "target:wf-1", ErrorCode: WorkflowNotActiveCode, Count: 1, LastSeen: alertNow, Sample: "c-1"},
+		{WorkspaceID: "ws", AgentID: "ag", ToolInstanceID: "t-2", ToolType: AgentRunWorkflowTool, TargetKey: "target:wf-2", Count: 3, LastSeen: alertNow, Sample: "c-2"},
+		{WorkspaceID: "ws", AgentID: "ag", ToolInstanceID: "t-3", ToolType: AgentHTTPRequestTool, Count: 4, LastSeen: alertNow, Sample: "c-3"},
+		{WorkspaceID: "ws", AgentID: "ag", ToolInstanceID: "t-3", ToolType: AgentHTTPRequestTool, ErrorCode: WorkflowNotActiveCode, Count: 1, LastSeen: alertNow},
+		{WorkspaceID: "ws", AgentID: "ag", ToolInstanceID: "t-4", ToolType: "transfer_to_human", TargetKey: "target:dep-1", Count: 9, LastSeen: alertNow},
+		{WorkspaceID: "ws", AgentID: "ag", ToolType: AgentHTTPRequestTool, Count: 9, LastSeen: alertNow},
 	}
 	signals := SignalsOfFailedToolCalls(groups)
 	want := []RuntimeAlertKey{
 		{WorkspaceID: "ws", WorkflowID: "wf-1", Kind: AlertWorkflowCalledInactive},
-		{WorkspaceID: "ws", WorkflowID: "wf-2", AgentID: "ag", Subject: "run_workflow_wf-2", Kind: AlertAgentToolFailing},
-		{WorkspaceID: "ws", AgentID: "ag", Subject: AgentHTTPRequestTool, Kind: AlertAgentToolFailing},
+		{WorkspaceID: "ws", WorkflowID: "wf-2", AgentID: "ag", Subject: "t-2", Kind: AlertAgentToolFailing},
+		{WorkspaceID: "ws", AgentID: "ag", Subject: "t-3", Kind: AlertAgentToolFailing},
+		{WorkspaceID: "ws", AgentID: "ag", Subject: "t-4", Kind: AlertAgentToolFailing},
 	}
 	if len(signals) != len(want) {
 		t.Fatalf("signals = %+v", signals)

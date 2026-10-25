@@ -19,6 +19,7 @@ func RegisterCampaignRoutes(
 
 	res := workspace_domain.ResourceUnofficialWhatsAppCampaigns
 	r := protected.PathPrefix("/unofficial-whatsapp/campaigns").Subrouter()
+	h.SetStartGuard(func(next http.HandlerFunc) http.HandlerFunc { return ac(res, workspace_domain.ActionStart, next) })
 
 	r.HandleFunc("", ac(res, workspace_domain.ActionRead, h.List)).Methods(http.MethodGet)
 	r.HandleFunc("/archived", ac(res, workspace_domain.ActionRead, h.ListArchived)).Methods(http.MethodGet)

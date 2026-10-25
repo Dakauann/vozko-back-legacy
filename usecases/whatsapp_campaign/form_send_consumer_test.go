@@ -95,7 +95,7 @@ func newFormConsumerRig(campID string, tmpl *template.Template, forms *consumerF
 	client := &recordingTemplateClient{mockWhatsAppClient: h.waClient}
 	h.consumer.WhatsAppClientFactory = recordingClientFactory{client: client}
 	if forms != nil {
-		h.consumer.SetFormSends(forms)
+		h.consumer.forms = forms
 	}
 	topic := setupCampaignWithCounter(h, campID, 1)
 	h.templateRepo.templates["tmpl-1"] = tmpl

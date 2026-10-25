@@ -58,7 +58,7 @@ func TestStepLogsAreRedactedWhileTheRunKeepsRealValues(t *testing.T) {
 	_ = runs.Create(run)
 	logs := NewMockWorkflowRunLogRepository()
 
-	if err := NewRunEngine(runs, logs, registry).Execute(run, w); err != nil {
+	if err := testEngine(runs, logs, registry).Execute(run, w); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := run.State.Get("_node_n55_accessToken"); got != "tok-123" {

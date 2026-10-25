@@ -79,12 +79,12 @@ func TestAGateServingAPinnedResultReplacesTheExecutorAndMarksTheStep(t *testing.
 	})
 	h.registerSetVariable()
 	w := pinnedHTTPWorkflow()
-	h.engine.SetStepGate(gateFunc(func(_ *workflow.WorkflowRun, node *workflow.Node) (*workflow.GatedStep, error) {
+	h.engine.gate = gateFunc(func(_ *workflow.WorkflowRun, node *workflow.Node) (*workflow.GatedStep, error) {
 		if node.Pinned == nil {
 			return nil, nil
 		}
 		return &workflow.GatedStep{Result: workflow.PinnedResult(&w.Graph, node, node.Pinned), Pinned: true}, nil
-	}))
+	})
 	run := h.start(w)
 
 	if calls != 0 {
@@ -109,12 +109,12 @@ func TestAGateErrorStopsTheRunAsCancelledBeforeTheNodeRuns(t *testing.T) {
 	})
 	h.registerSetVariable()
 	stop := errors.New("paused simulation abandoned")
-	h.engine.SetStepGate(gateFunc(func(_ *workflow.WorkflowRun, node *workflow.Node) (*workflow.GatedStep, error) {
+	h.engine.gate = gateFunc(func(_ *workflow.WorkflowRun, node *workflow.Node) (*workflow.GatedStep, error) {
 		if node.ID == "n55" {
 			return nil, stop
 		}
 		return nil, nil
-	}))
+	})
 	run := h.start(pinnedHTTPWorkflow())
 
 	if calls != 0 {
@@ -136,12 +136,12 @@ func TestAGateRefusalFailsTheNodeClosedWithItsKind(t *testing.T) {
 		return nil, nil
 	})
 	h.registerSetVariable()
-	h.engine.SetStepGate(gateFunc(func(_ *workflow.WorkflowRun, node *workflow.Node) (*workflow.GatedStep, error) {
+	h.engine.gate = gateFunc(func(_ *workflow.WorkflowRun, node *workflow.Node) (*workflow.GatedStep, error) {
 		if node.ID != "n55" {
 			return nil, nil
 		}
 		return &workflow.GatedStep{Result: &workflow.NodeResult{Error: "not confirmed", ErrorKind: workflow.ErrorKindRealCallNotConfirmed}}, nil
-	}))
+	})
 	run := h.start(pinnedHTTPWorkflow())
 
 	if run.Status != workflow.RunStatusError {
@@ -160,10 +160,10 @@ func TestAGateIsConsultedBeforeEveryNodeIncludingTheTrigger(t *testing.T) {
 		return &workflow.NodeResult{NextNodeID: "ok"}, nil
 	})
 	var seen []string
-	h.engine.SetStepGate(gateFunc(func(_ *workflow.WorkflowRun, node *workflow.Node) (*workflow.GatedStep, error) {
+	h.engine.gate = gateFunc(func(_ *workflow.WorkflowRun, node *workflow.Node) (*workflow.GatedStep, error) {
 		seen = append(seen, node.ID)
 		return nil, nil
-	}))
+	})
 	h.start(pinnedHTTPWorkflow())
 	want := []string{"t1", "n55", "ok", "end"}
 	if len(seen) != len(want) {

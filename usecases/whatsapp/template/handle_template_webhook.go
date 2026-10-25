@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"vozko/domain/shared/deps"
 	"vozko/domain/whatsapp/quality"
 	"vozko/domain/whatsapp/template"
 )
@@ -18,8 +19,15 @@ type handleTemplateWebhook struct {
 	signals  TemplateHealthSignals
 }
 
-func NewHandleTemplateWebhook(repo template.Repository, recorder quality.Recorder) template.HandleTemplateWebhookUseCase {
-	return &handleTemplateWebhook{repo: repo, recorder: recorder, now: time.Now}
+func NewHandleTemplateWebhook(repo template.Repository, recorder quality.Recorder, signals TemplateHealthSignals) (template.HandleTemplateWebhookUseCase, error) {
+	if err := deps.Require("template webhook", map[string]any{
+		"templates":      repo,
+		"quality":        recorder,
+		"health signals": signals,
+	}); err != nil {
+		return nil, err
+	}
+	return &handleTemplateWebhook{repo: repo, recorder: recorder, signals: signals, now: time.Now}, nil
 }
 
 func (h *handleTemplateWebhook) Execute(payload *template.TemplateWebhookPayload) error {
@@ -132,28 +140,31 @@ func (h *handleTemplateWebhook) handleStatusUpdate(wabaID string, v template.Tem
 		return
 	}
 
-	changed := false
-
-	if tmpl.Status != newStatus {
-		tmpl.Status = newStatus
-		changed = true
-	}
-
+	before := *tmpl
+	tmpl.Status = newStatus
 	if v.MessageTemplateCategory != "" {
 		cat := template.TemplateCategory(strings.ToUpper(v.MessageTemplateCategory))
-		if cat.IsValid() && tmpl.Category != cat {
+		if cat.IsValid() {
 			tmpl.Category = cat
-			changed = true
 		}
 	}
 
-	if changed {
-		if err := h.repo.Update(tmpl.ID, tmpl); err != nil {
-			log.Printf("[template-webhook] status_update: failed to update template %s: %v", externalID, err)
-		} else {
-			log.Printf("[template-webhook] status_update: template %s (%s) → %s", v.MessageTemplateName, externalID, newStatus)
-		}
+	changed, err := h.saveWhenChanged(&before, tmpl)
+	if !changed {
+		return
 	}
+	if err != nil {
+		log.Printf("[template-webhook] status_update: failed to update template %s: %v", externalID, err)
+	} else {
+		log.Printf("[template-webhook] status_update: template %s (%s) → %s", v.MessageTemplateName, externalID, newStatus)
+	}
+}
+
+func (h *handleTemplateWebhook) saveWhenChanged(before, after *template.Template) (bool, error) {
+	if after.SameContent(before) {
+		return false, nil
+	}
+	return true, h.repo.Update(after.ID, after)
 }
 
 func (h *handleTemplateWebhook) handleQualityUpdate(wabaID string, v template.TemplateWebhookValue) {
@@ -167,10 +178,12 @@ func (h *handleTemplateWebhook) handleQualityUpdate(wabaID string, v template.Te
 		v.MessageTemplateName, externalID, v.PreviousQualityScore, v.NewQualityScore)
 
 	tmpl := h.findTemplate(externalID, wabaID)
-	if tmpl == nil || !tmpl.RateQuality(v.NewQualityScore) {
+	if tmpl == nil {
 		return
 	}
-	if err := h.repo.Update(tmpl.ID, tmpl); err != nil {
+	before := *tmpl
+	tmpl.RateQuality(v.NewQualityScore)
+	if _, err := h.saveWhenChanged(&before, tmpl); err != nil {
 		log.Printf("[template-webhook] quality_update: failed to update template %s: %v", externalID, err)
 	}
 }
@@ -208,13 +221,16 @@ func (h *handleTemplateWebhook) handleCategoryUpdate(wabaID string, v template.T
 		return
 	}
 
-	if tmpl.Category != newCat {
-		tmpl.Category = newCat
-		if err := h.repo.Update(tmpl.ID, tmpl); err != nil {
-			log.Printf("[template-webhook] category_update: failed to update template %s: %v", externalID, err)
-		} else {
-			log.Printf("[template-webhook] category_update: template %s (%s) → %s", v.MessageTemplateName, externalID, newCat)
-		}
+	before := *tmpl
+	tmpl.Category = newCat
+	changed, err := h.saveWhenChanged(&before, tmpl)
+	if !changed {
+		return
+	}
+	if err != nil {
+		log.Printf("[template-webhook] category_update: failed to update template %s: %v", externalID, err)
+	} else {
+		log.Printf("[template-webhook] category_update: template %s (%s) → %s", v.MessageTemplateName, externalID, newCat)
 	}
 }
 

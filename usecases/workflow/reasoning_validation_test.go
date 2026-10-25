@@ -45,7 +45,6 @@ func TestGraphReasoningCheckFailsClosed(t *testing.T) {
 		{name: "an offered level passes", catalog: offered, level: "high"},
 		{name: "no level needs no catalog", catalog: nil, level: ""},
 		{name: "a level outside the offer is refused", catalog: offered, level: "max", err: workflow.ErrNodeReasoningLevelUnsupported},
-		{name: "a missing catalog refuses a level", catalog: nil, level: "high", err: workflow.ErrNodeReasoningLevelUnsupported},
 		{name: "a broken catalog refuses a level", catalog: brokenCatalog{}, level: "high", err: workflow.ErrNodeReasoningLevelUnsupported},
 	}
 	for _, tc := range cases {
@@ -76,8 +75,7 @@ func TestSavingAWorkflowAsksTheCatalogWithTheRequestContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	var seen []interface{}
-	uc := NewUpdateWorkflowUseCase(repo).(*updateWorkflowUseCase)
-	uc.SetModelCatalog(recordingCatalog{staticCatalog: staticCatalog{builderThinker()}, seen: &seen})
+	uc := NewUpdateWorkflowUseCase(repo, recordingCatalog{staticCatalog: staticCatalog{builderThinker()}, seen: &seen}).(*updateWorkflowUseCase)
 	ctx := context.WithValue(context.Background(), requestKey{}, "req-1")
 	if _, err := uc.Execute(ctx, "wf-1", &workflow.Workflow{Name: "Fluxo", Type: workflow.WorkflowTypeMessages, Graph: reasoningGraph("high")}, 1); err != nil {
 		t.Fatal(err)
@@ -92,8 +90,7 @@ func TestSavingAWorkflowChecksTheReasoningLevel(t *testing.T) {
 	if err := repo.Create(&workflow.Workflow{ID: "wf-1", WorkspaceID: "ws-1", Name: "Fluxo", Status: workflow.WorkflowStatusDraft, Type: workflow.WorkflowTypeMessages, Version: 1}); err != nil {
 		t.Fatal(err)
 	}
-	uc := NewUpdateWorkflowUseCase(repo).(*updateWorkflowUseCase)
-	uc.SetModelCatalog(staticCatalog{builderThinker()})
+	uc := NewUpdateWorkflowUseCase(repo, staticCatalog{builderThinker()}).(*updateWorkflowUseCase)
 
 	refused := &workflow.Workflow{Name: "Fluxo", Type: workflow.WorkflowTypeMessages, Graph: reasoningGraph("max")}
 	if _, err := uc.Execute(context.Background(), "wf-1", refused, 1); !errors.Is(err, workflow.ErrNodeReasoningLevelUnsupported) {

@@ -39,16 +39,6 @@ func (c *Container) launchCheck() *wc_usecase.LaunchCheck {
 	return c.launchCheckService
 }
 
-func (c *Container) wireLaunchCheck() {
-	gated, ok := c.useCases.dispatchWCCampaign.(interface {
-		SetLaunchGate(wc_usecase.LaunchGate)
-	})
-	if !ok {
-		log.Fatalf("[launch-check] the official campaign dispatch cannot take the launch gate")
-	}
-	gated.SetLaunchGate(c.launchCheck())
-}
-
 func (c *Container) campaignLaunchHandler() *campaignlaunchhttp.Handler {
 	return campaignlaunchhttp.NewHandler(c.useCases.wcCampaignAccess, c.launchCheck())
 }

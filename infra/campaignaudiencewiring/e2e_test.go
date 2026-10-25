@@ -46,6 +46,7 @@ import (
 	wce_repository "vozko/infra/repositories/whatsapp_campaign_entry"
 	wave_repository "vozko/infra/repositories/whatsapp_campaign_wave"
 	workspace_config_repository "vozko/infra/repositories/workspace_config"
+	workspace_phone_access_repository "vozko/infra/repositories/workspace_phone_access"
 	template_access_repository "vozko/infra/repositories/workspace_template_access"
 	"vozko/infra/testenv"
 	campaignaudience_usecase "vozko/usecases/campaignaudience"
@@ -250,34 +251,32 @@ func newWorld(t *testing.T) *world {
 
 	campaigns := wc_repository.NewRepository(db)
 	w.entries = wce_repository.NewRepository(db)
-	create := wcuc.NewCreateCampaignUseCase(campaigns, w.entries, w.leads, templates, phones, nil, eligibility)
-	configurable := create.(interface {
-		SetTemplateGrants(wcuc.TemplateGrants)
-		SetAutomation(wcuc.AutomationCheck)
-		SetIdempotentCampaigns(wcuc.IdempotentCampaigns)
-		SetExitRiskGate(wcuc.ExitRiskGate)
+	create, err := wcuc.NewCreateCampaignUseCase(wcuc.CreateCampaignDeps{
+		Campaigns: campaigns, Entries: w.entries, Leads: w.leads, Templates: templates, Phones: phones,
+		PhoneAccess: workspace_phone_access_repository.NewRepository(db), Eligibility: eligibility, Departments: noDepartmentRoute{},
+		TemplateGrants: access, Automation: step, Keyed: campaigns.(wcuc.IdempotentCampaigns), ExitRisk: noExitRisk{},
 	})
-	configurable.SetTemplateGrants(access)
-	configurable.SetAutomation(step)
-	configurable.SetIdempotentCampaigns(campaigns.(wcuc.IdempotentCampaigns))
-	configurable.SetExitRiskGate(noExitRisk{})
+	w.must(err)
 	w.waves = wave_repository.NewRepository(db)
 	w.official = smartcampaign_usecase.CreateWithPolicy(campaignaudience_usecase.OfficialCreate(create, w.audience), wavePolicies{w.waves}, nil)
 
 	uCampaigns := uwc_repository.NewRepository(db)
 	w.uEntries = uwc_repository.NewEntryRepository(db)
-	uCreate := uwcuc.NewCreateCampaignUseCase(uCampaigns, w.uEntries, w.leads, connectedNumber{workspaceID: w.ws}, eligibility, nil)
-	uConfigurable := uCreate.(interface {
-		SetAutomation(uwcuc.AutomationCheck)
-		SetLeadsByID(uwcuc.LeadsByID)
-		SetIdempotentCampaigns(uwcuc.IdempotentCampaigns)
+	uCreate, err := uwcuc.NewCreateCampaignUseCase(uwcuc.CreateCampaignDeps{
+		Campaigns: uCampaigns, Entries: w.uEntries, Leads: w.leads, Instances: connectedNumber{workspaceID: w.ws},
+		Eligibility: eligibility, Departments: noDepartmentRoute{}, LeadsByID: w.leads, Automation: step,
+		Keyed: uCampaigns.(uwcuc.IdempotentCampaigns), GroupSenders: noGroupSenders{},
 	})
-	uConfigurable.SetAutomation(step)
-	uConfigurable.SetLeadsByID(w.leads)
-	uConfigurable.SetIdempotentCampaigns(uCampaigns.(uwcuc.IdempotentCampaigns))
+	w.must(err)
 	w.unofficial = campaignaudience_usecase.UnofficialCreate(uCreate, w.audience)
 	return w
 }
+
+type noDepartmentRoute struct{}
+
+func (noDepartmentRoute) Resolve(context.Context, string) (string, error) { return "", nil }
+
+type noGroupSenders struct{ uwcuc.GroupSenderDirectory }
 
 type noNames struct{}
 

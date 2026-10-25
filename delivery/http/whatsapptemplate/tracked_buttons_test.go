@@ -38,9 +38,9 @@ func serveTrackedEdit(t *testing.T, tracking *fakeTracking, editor *fakeEditor, 
 	t.Helper()
 	h := &WhatsAppTemplateHandler{}
 	if tracking != nil {
-		h.SetClickTracking(tracking, "https://vz.co/r")
+		h.tracking, h.linkBase = tracking, "https://vz.co/r"
 	}
-	h.SetTemplateEditor(editor)
+	h.editor = editor
 	return serveEditWith(t, h, body).Code
 }
 
@@ -66,19 +66,13 @@ func TestAnEditWithoutTheFieldLeavesTrackingAlone(t *testing.T) {
 
 func TestTrackingRefusalsAreCoded(t *testing.T) {
 	h := &WhatsAppTemplateHandler{}
-	h.SetClickTracking(&fakeTracking{err: template.ErrTrackedButtonNotURL}, "https://vz.co/r")
-	h.SetTemplateEditor(&fakeEditor{})
+	h.tracking, h.linkBase = &fakeTracking{err: template.ErrTrackedButtonNotURL}, "https://vz.co/r"
+	h.editor = &fakeEditor{}
 	rec := serveEditWith(t, h, trackedEditBody)
 	if rec.Code != http.StatusBadRequest || errorCodeOf(t, rec) != template.CodeTrackedButtonNotURL {
 		t.Fatalf("status = %d body = %s", rec.Code, rec.Body)
 	}
 
-	unwired := &WhatsAppTemplateHandler{}
-	unwired.SetTemplateEditor(&fakeEditor{})
-	rec = serveEditWith(t, unwired, trackedEditBody)
-	if rec.Code != http.StatusServiceUnavailable || errorCodeOf(t, rec) != codeTrackingUnavailable {
-		t.Fatalf("an unwired tracking = %d %s", rec.Code, rec.Body)
-	}
 }
 
 func TestTheTemplateReadAlwaysCarriesItsTrackedButtons(t *testing.T) {
@@ -113,8 +107,8 @@ func (f *fakeCreator) CreateTemplate(_ context.Context, _ buttonaction_usecase.A
 func TestACreateWithTrackedButtonsSubmitsTheTrackedLinks(t *testing.T) {
 	tracking, creator := &fakeTracking{}, &fakeCreator{}
 	h := &WhatsAppTemplateHandler{}
-	h.SetClickTracking(tracking, "https://vz.co/r")
-	h.SetExitGuardedCreator(creator)
+	h.tracking, h.linkBase = tracking, "https://vz.co/r"
+	h.exitGuardedCreator = creator
 	body := `{"businessPhoneId":"bp-1","name":"oferta","language":"pt_BR","category":"MARKETING","components":[{"type":"BODY","text":"Oi"},{"type":"BUTTONS","buttons":[{"type":"URL","text":"Loja","url":"https://loja.com"}]}],"trackedUrlButtons":[0]}`
 	req := httptest.NewRequest(http.MethodPost, "/whatsapp/templates", strings.NewReader(body))
 	ctx := context.WithValue(req.Context(), middleware.WorkspaceIDContextKey, "ws-1")
@@ -128,8 +122,8 @@ func TestACreateWithTrackedButtonsSubmitsTheTrackedLinks(t *testing.T) {
 
 func TestATrackingRefusalNamesTheButtonSoTheEditorShowsItInline(t *testing.T) {
 	h := &WhatsAppTemplateHandler{}
-	h.SetClickTracking(&fakeTracking{err: template.TrackedButtonRefusal(2, template.ErrTrackedButtonDynamic)}, "https://vz.co/r")
-	h.SetTemplateEditor(&fakeEditor{})
+	h.tracking, h.linkBase = &fakeTracking{err: template.TrackedButtonRefusal(2, template.ErrTrackedButtonDynamic)}, "https://vz.co/r"
+	h.editor = &fakeEditor{}
 	rec := serveEditWith(t, h, trackedEditBody)
 	var body struct {
 		Expected map[string]string `json:"expected"`

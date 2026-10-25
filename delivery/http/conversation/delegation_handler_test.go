@@ -37,8 +37,7 @@ func delegationRequest(body string) *http.Request {
 
 func TestDelegatePassesTheCallerAndTheChosenAutomation(t *testing.T) {
 	svc := &stubDelegation{res: ia_usecase.OperatorAutomationResult{Owner: "workflow:wf-9"}}
-	h := &ConversationHandler{}
-	h.SetDelegationService(svc)
+	h := &ConversationHandler{delegationService: svc}
 
 	w := httptest.NewRecorder()
 	h.Delegate(w, delegationRequest(`{"kind":"workflow","id":"wf-9"}`))
@@ -71,8 +70,7 @@ func TestDelegateMapsRefusals(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			h := &ConversationHandler{}
-			h.SetDelegationService(&stubDelegation{err: tc.err})
+			h := &ConversationHandler{delegationService: &stubDelegation{err: tc.err}}
 
 			w := httptest.NewRecorder()
 			h.Delegate(w, delegationRequest(tc.body))

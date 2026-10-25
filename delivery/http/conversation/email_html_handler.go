@@ -21,18 +21,13 @@ type EmailHTMLViewer interface {
 }
 
 var (
-	refusalEmailHTMLUnavailable  = response.Refusal{Status: http.StatusServiceUnavailable, Code: "email_html_unavailable", Message: "A visualização do e-mail está indisponível"}
 	refusalEmailHTMLUnauthorized = response.Refusal{Status: http.StatusUnauthorized, Code: "unauthorized", Message: "Faça login de novo para continuar"}
 	refusalEmailHTMLHidden       = response.Refusal{Status: http.StatusNotFound, Code: "conversation_not_found", Message: "Conversa não encontrada"}
 	refusalEmailHTMLNotAnEmail   = response.Refusal{Status: http.StatusNotFound, Code: "email_message_not_found", Message: "Este e-mail não está nesta conversa"}
 	refusalEmailHTMLFailed       = response.Refusal{Status: http.StatusInternalServerError, Code: "email_html_failed", Message: "Não foi possível abrir este e-mail"}
 )
 
-var emailHTMLRefusals = []response.Refusal{refusalEmailHTMLUnavailable, refusalEmailHTMLUnauthorized, refusalEmailHTMLHidden, refusalEmailHTMLNotAnEmail, refusalEmailHTMLFailed}
-
-func (h *ConversationHandler) SetEmailHTML(viewer EmailHTMLViewer) {
-	h.emailHTML = viewer
-}
+var emailHTMLRefusals = []response.Refusal{refusalEmailHTMLUnauthorized, refusalEmailHTMLHidden, refusalEmailHTMLNotAnEmail, refusalEmailHTMLFailed}
 
 // @Summary		Ver um e-mail como foi enviado
 // @Description	Devolve o HTML de um e-mail da conversa, já higienizado: sem scripts, atributos de evento, formulários, iframes, links `javascript:` e meta refresh; os links abrem em outra aba com `rel="noopener noreferrer"`. Os e-mails enviados mostram o HTML como foi composto, antes do pixel de abertura e da troca de links do provedor, então ver o e-mail não registra abertura nem clique; os originais de campanha são montados na hora a partir do modelo da campanha e dos valores de mesclagem do destinatário. Nos e-mails recebidos as imagens remotas ficam bloqueadas por padrão (`images_blocked: true`) para que o pixel do remetente não saiba quando o e-mail foi lido; envie `images=show` para mostrá-las. Sem HTML, ou se a higienização falhar, `has_html` é `false` e só `text` vem preenchido. Segue a mesma permissão e o mesmo escopo de departamento de ler a conversa.
@@ -46,14 +41,9 @@ func (h *ConversationHandler) SetEmailHTML(viewer EmailHTMLViewer) {
 // @Failure		401	{object}	response.ErrorResponse
 // @Failure		404	{object}	response.ErrorResponse	"Conversa ou e-mail não encontrado"
 // @Failure		500	{object}	response.ErrorResponse
-// @Failure		503	{object}	response.ErrorResponse
 // @Security		BearerAuth
 // @Router			/conversations/{entryType}/{entryId}/messages/{messageId}/email-html [get]
 func (h *ConversationHandler) GetEmailHTML(w http.ResponseWriter, r *http.Request) {
-	if h.emailHTML == nil {
-		response.WriteRefusal(w, refusalEmailHTMLUnavailable)
-		return
-	}
 	claims := middleware.GetClaims(r)
 	if claims == nil {
 		response.WriteRefusal(w, refusalEmailHTMLUnauthorized)

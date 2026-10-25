@@ -10,8 +10,8 @@ import (
 )
 
 func updateWithAutomation(campaigns *fakeCampaignRepo, entries *fakeEntryRepo, gateway *fakeGateway) uwc.UpdateCampaignUseCase {
-	uc := NewUpdateCampaignUseCase(campaigns, entries, gateway)
-	uc.(*updateCampaignUseCase).SetAutomation(automationThatAllows{})
+	uc := updateWith(campaigns, entries, gateway)
+	uc.(*updateCampaignUseCase).automation = automationThatAllows{}
 	return uc
 }
 

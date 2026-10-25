@@ -13,6 +13,7 @@ import (
 	"vozko/domain/aichat"
 	"vozko/domain/copilot"
 	"vozko/domain/media"
+	"vozko/domain/shared/deps"
 	"vozko/usecases/agentloop"
 )
 
@@ -48,18 +49,52 @@ type AttachmentResolver interface {
 	GetMedia(workspaceID, mediaID string) (*media.Media, error)
 }
 
-func NewService(
-	engine agentloop.Engine,
-	reg *Registry,
-	access AccessChecker,
-	funds FundsChecker,
-	threads aichat.ThreadRepository,
-	messages aichat.MessageRepository,
-	files AttachmentResolver,
-	state readiness.SnapshotUseCase,
-	newID IDGenerator,
-) *Service {
-	return &Service{engine: engine, registry: reg, access: access, funds: funds, threads: threads, messages: messages, files: files, state: state, newID: newID, turns: NewTurnRegistry(copilot.DefaultTurnLimits())}
+type Deps struct {
+	Engine   agentloop.Engine
+	Registry *Registry
+	Access   AccessChecker
+	Funds    FundsChecker
+	Threads  aichat.ThreadRepository
+	Messages aichat.MessageRepository
+	Files    AttachmentResolver
+	State    readiness.SnapshotUseCase
+	NewID    IDGenerator
+	Screens  copilot.ScreenMailbox
+	Queue    aichat.QueueRepository
+	Adopter  aichat.ProjectAdopter
+}
+
+func NewService(d Deps) (*Service, error) {
+	if err := deps.Require("copilot", map[string]any{
+		"tool registry":    d.Registry,
+		"access checker":   d.Access,
+		"funds checker":    d.Funds,
+		"threads":          d.Threads,
+		"messages":         d.Messages,
+		"attachments":      d.Files,
+		"workspace state":  d.State,
+		"id generator":     d.NewID,
+		"screen mailbox":   d.Screens,
+		"message queue":    d.Queue,
+		"project adopter":  d.Adopter,
+	}); err != nil {
+		return nil, err
+	}
+	return &Service{
+		engine:   d.Engine,
+		registry: d.Registry,
+		access:   d.Access,
+		funds:    d.Funds,
+		threads:  d.Threads,
+		messages: d.Messages,
+		files:    d.Files,
+		state:    d.State,
+		newID:    d.NewID,
+		screens:  d.Screens,
+		queue:    d.Queue,
+		adopter:  d.Adopter,
+		turns:    NewTurnRegistry(copilot.DefaultTurnLimits()),
+	}, nil
 }
 
 func (s *Service) Stream(ctx context.Context, thread *aichat.Thread, msg copilot.UserMessage, cc copilot.Context, emit agentloop.Emit) error {
@@ -101,9 +136,6 @@ func (s *Service) resolveAttachments(workspaceID string, ids []string) ([]copilo
 	}
 	if len(ids) > copilot.MaxAttachments {
 		return nil, copilot.ErrTooManyAttachments
-	}
-	if s.files == nil {
-		return nil, copilot.ErrAttachmentNotFound
 	}
 	out := make([]copilot.Attachment, 0, len(ids))
 	for _, id := range ids {
@@ -251,7 +283,7 @@ func (s *Service) checkpointer(threadID string) func(text string) error {
 }
 
 func (s *Service) workspaceState(ctx context.Context, cc copilot.Context) *readiness.Snapshot {
-	if s.state == nil || cc.View.Focused() {
+	if cc.View.Focused() {
 		return nil
 	}
 	snap, err := s.state.Snapshot(ctx, readiness.Person{WorkspaceID: cc.WorkspaceID, UserID: cc.UserID, SystemAdmin: cc.SystemAdmin})

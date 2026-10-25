@@ -7,12 +7,7 @@ import (
 	ia "vozko/domain/inbox_assignment"
 )
 
-func (s *AssignmentService) SetPortfolio(p ia.PortfolioHolders) { s.portfolio = p }
-
 func (s *AssignmentService) portfolioHolder(workspaceID, entryID, entryType, departmentID string) (string, error) {
-	if s.portfolio == nil {
-		return "", nil
-	}
 	holder, err := s.portfolio.HolderOfConversation(workspaceID, entryID, entryType)
 	if err != nil {
 		return "", fmt.Errorf("carteira of %s (%s): %w", entryID, entryType, err)

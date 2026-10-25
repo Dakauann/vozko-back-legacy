@@ -24,8 +24,21 @@ func (r *repository) analytics(fn func(tx *gorm.DB) error) error {
 	return r.analyticsContext(context.Background(), fn)
 }
 
+func analyticsSettings() []string {
+	return []string{database.JITOff, database.StatementTimeout(analyticsStatementTimeout)}
+}
+
 func (r *repository) analyticsContext(ctx context.Context, fn func(tx *gorm.DB) error) error {
-	return database.InSession(ctx, r.db, []string{database.JITOff, database.StatementTimeout(analyticsStatementTimeout)}, fn)
+	if session := sessionOf(ctx); session != nil {
+		if handled, err := session.run(ctx, "", nil, fn); handled {
+			return err
+		}
+	}
+	return r.separateAnalytics(ctx, fn)
+}
+
+func (r *repository) separateAnalytics(ctx context.Context, fn func(tx *gorm.DB) error) error {
+	return database.InSession(ctx, r.db, analyticsSettings(), fn)
 }
 
 func (r *repository) withScope(
@@ -34,8 +47,17 @@ func (r *repository) withScope(
 	filter attendance.OverviewFilter,
 	fn func(tx *gorm.DB) error,
 ) error {
-	return r.analyticsContext(ctx, func(tx *gorm.DB) error {
-		if err := buildScope(tx, workspaceID, filter); err != nil {
+	selectBody, args := overviewEntrySelect(workspaceID, filter)
+	build := func(tx *gorm.DB) error {
+		return buildScopeFrom(tx, selectBody, args)
+	}
+	if session := sessionOf(ctx); session != nil {
+		if handled, err := session.run(ctx, scopeKey(selectBody, args), build, fn); handled {
+			return err
+		}
+	}
+	return r.separateAnalytics(ctx, func(tx *gorm.DB) error {
+		if err := build(tx); err != nil {
 			return err
 		}
 		return fn(tx)
@@ -44,6 +66,10 @@ func (r *repository) withScope(
 
 func buildScope(tx *gorm.DB, workspaceID string, filter attendance.OverviewFilter) error {
 	selectBody, args := overviewEntrySelect(workspaceID, filter)
+	return buildScopeFrom(tx, selectBody, args)
+}
+
+func buildScopeFrom(tx *gorm.DB, selectBody string, args []interface{}) error {
 	statements := []struct {
 		sql  string
 		args []interface{}

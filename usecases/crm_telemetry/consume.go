@@ -250,30 +250,10 @@ func (c *consumer) applyAssignmentHistory(p crm_telemetry.AssignmentHistoryPaylo
 	if c.history == nil {
 		return nil
 	}
-	at := p.StartedAt
-	if at.IsZero() {
-		at = time.Now().UTC()
+	if p.StartedAt.IsZero() {
+		p.StartedAt = time.Now().UTC()
 	}
-	if err := c.history.CloseOpen(p.WorkspaceID, p.EntryID, p.EntryType, at); err != nil {
-		return err
-	}
-	if p.AssignedActorID == "" {
-		return nil
-	}
-	return c.history.Append(&ia.AssignmentHistory{
-		ID:                p.ID,
-		WorkspaceID:       p.WorkspaceID,
-		EntryID:           p.EntryID,
-		EntryType:         p.EntryType,
-		ActorKind:         p.ActorKind,
-		AssignedActorID:   p.AssignedActorID,
-		PreviousActorID:   p.PreviousActorID,
-		Trigger:           p.Trigger,
-		AssignedByActorID: p.AssignedByActorID,
-		BusinessPhoneID:   p.BusinessPhoneID,
-		DepartmentID:      p.DepartmentID,
-		StartedAt:         at,
-	})
+	return ia.RecordInterval(c.history, p.Interval())
 }
 
 func (c *consumer) applyAISession(p crm_telemetry.AISessionPayload) error {

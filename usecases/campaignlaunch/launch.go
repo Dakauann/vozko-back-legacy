@@ -3,10 +3,10 @@ package campaignlaunch
 import (
 	"context"
 	"errors"
-	"time"
 
 	"vozko/domain/campaign"
 	"vozko/domain/campaign/launchcheck"
+	"vozko/domain/campaign/scheduledstart"
 )
 
 var (
@@ -17,7 +17,7 @@ type Plan[C any] struct {
 	Launch               campaign.Launch
 	ConfirmedFingerprint string
 	Check                func(ctx context.Context) (launchcheck.Report, error)
-	Create               func(ctx context.Context, scheduledStart time.Time) (C, error)
+	Create               func(ctx context.Context, schedule scheduledstart.Schedule) (C, error)
 	Settle               func(ctx context.Context, created C) []string
 	Start                func(ctx context.Context, created C) error
 }
@@ -30,7 +30,24 @@ type Outcome[C any] struct {
 }
 
 func (p Plan[C]) complete() bool {
-	return p.Create != nil && (!p.Launch.StartsNow() || (p.Check != nil && p.Start != nil))
+	if p.Create == nil || (p.Launch.Starts() && p.Check == nil) {
+		return false
+	}
+	return !p.Launch.StartsNow() || p.Start != nil
+}
+
+func (p Plan[C]) admit(ctx context.Context) (scheduledstart.Schedule, error) {
+	if !p.Launch.Starts() {
+		return scheduledstart.Schedule{}, nil
+	}
+	report, err := p.Check(ctx)
+	if err != nil {
+		return scheduledstart.Schedule{}, err
+	}
+	if p.Launch.StartsNow() {
+		return scheduledstart.Schedule{}, report.Admit(p.ConfirmedFingerprint)
+	}
+	return scheduledstart.Admit(p.Launch.At, report, p.ConfirmedFingerprint)
 }
 
 func Run[C any](ctx context.Context, p Plan[C]) (Outcome[C], error) {
@@ -38,20 +55,11 @@ func Run[C any](ctx context.Context, p Plan[C]) (Outcome[C], error) {
 	if !p.complete() {
 		return none, ErrPlanIncomplete
 	}
-	if p.Launch.StartsNow() {
-		report, err := p.Check(ctx)
-		if err != nil {
-			return none, err
-		}
-		if err := report.Admit(p.ConfirmedFingerprint); err != nil {
-			return none, err
-		}
+	schedule, err := p.admit(ctx)
+	if err != nil {
+		return none, err
 	}
-	var at time.Time
-	if p.Launch.Mode == campaign.LaunchSchedule {
-		at = p.Launch.At
-	}
-	created, err := p.Create(ctx, at)
+	created, err := p.Create(ctx, schedule)
 	if err != nil {
 		return none, err
 	}

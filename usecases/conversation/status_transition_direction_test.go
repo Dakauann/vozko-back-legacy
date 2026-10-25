@@ -32,7 +32,7 @@ func transitionWith(
 ) *statusEntryRepo {
 	t.Helper()
 	repo := &statusEntryRepo{status: string(from)}
-	svc := NewConversationStatusService(repo)
+	svc := statusWith(repo, StatusDeps{})
 	if err := svc.TransitionOnMessage("entry-1", string(shared.EntryTypeWhatsApp), msgType, direction); err != nil {
 		t.Fatalf("TransitionOnMessage: %v", err)
 	}

@@ -73,11 +73,9 @@ func outcomeServiceWith(
 	reader OutcomeCaptureReader,
 ) *ConversationStatusService {
 	t.Helper()
-	svc := NewConversationStatusService(repo)
-	svc.SetWorkspaceResolver(func(string, string) string { return "ws1" })
-	svc.SetClock(func() time.Time { return time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC) })
+	svc := statusWith(repo, StatusDeps{Now: func() time.Time { return time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC) }})
 	if reader != nil {
-		svc.SetOutcomeCaptureReader(reader)
+		svc.outcomes = reader
 	}
 	return svc
 }
@@ -173,8 +171,7 @@ func TestFinishFailsClosedWhenThePolicyCannotBeRead(t *testing.T) {
 
 func TestFinishFailsClosedWhenTheWorkspaceCannotBeResolved(t *testing.T) {
 	repo := &outcomeEntryRepo{status: string(conversation.ConversationStatusOngoing)}
-	svc := NewConversationStatusService(repo)
-	svc.SetOutcomeCaptureReader(&stubCaptureReader{capture: requiringCapture()})
+	svc := statusWith(repo, StatusDeps{WorkspaceOf: func(string, string) string { return "" }, Outcomes: &stubCaptureReader{capture: requiringCapture()}})
 
 	err := svc.Finish("entry-1", string(shared.EntryTypeWhatsApp), conversation.FinishOptions{
 		Source: conversation.CloseSourceHuman,
@@ -273,30 +270,6 @@ func TestAutomationFinishWithoutARequiredOutcomeIsRefused(t *testing.T) {
 	}
 }
 
-func TestDepartmentScopedCaptureNeedsAResolver(t *testing.T) {
-	capture := requiringCapture()
-	capture.DepartmentIDs = []string{"dept1"}
-
-	repo := &outcomeEntryRepo{status: string(conversation.ConversationStatusOngoing)}
-	svc := outcomeServiceWith(t, repo, &stubCaptureReader{capture: capture})
-
-	err := svc.Finish("entry-1", string(shared.EntryTypeWhatsApp), conversation.FinishOptions{
-		Source: conversation.CloseSourceHuman,
-		Reason: conversation.CloseReasonManual,
-	})
-	if !errors.Is(err, conversation.ErrOutcomeRequired) {
-		t.Fatalf("Finish() with no department resolver err = %v, want %v", err, conversation.ErrOutcomeRequired)
-	}
-
-	svc.SetEntryDepartmentResolver(stubDepartmentResolver{departmentID: "dept2"})
-	if err := svc.Finish("entry-1", string(shared.EntryTypeWhatsApp), conversation.FinishOptions{
-		Source: conversation.CloseSourceHuman,
-		Reason: conversation.CloseReasonManual,
-	}); err != nil {
-		t.Fatalf("Finish() outside the scoped departments err = %v, want nil", err)
-	}
-}
-
 func TestDepartmentResolverFailureFailsClosed(t *testing.T) {
 	capture := requiringCapture()
 	capture.DepartmentIDs = []string{"dept1"}
@@ -304,7 +277,7 @@ func TestDepartmentResolverFailureFailsClosed(t *testing.T) {
 	repo := &outcomeEntryRepo{status: string(conversation.ConversationStatusOngoing)}
 	svc := outcomeServiceWith(t, repo, &stubCaptureReader{capture: capture})
 	resolveErr := errors.New("department lookup failed")
-	svc.SetEntryDepartmentResolver(stubDepartmentResolver{err: resolveErr})
+	svc.departments = stubDepartmentResolver{err: resolveErr}
 
 	err := svc.Finish("entry-1", string(shared.EntryTypeWhatsApp), conversation.FinishOptions{
 		Source:      conversation.CloseSourceHuman,

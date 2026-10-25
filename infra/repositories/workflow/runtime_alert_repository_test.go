@@ -106,7 +106,7 @@ func TestSignalQueriesReadOnlyTheirRecentWindow(t *testing.T) {
 		must         []string
 	}{
 		{"deliveries", rejectedDeliveriesSQL, 2, []string{"received_at >= ?", "outcome = 'rejected'", "GROUP BY workspace_id, workflow_id, reason", "ORDER BY last_seen DESC LIMIT ?"}},
-		{"tool calls", failedToolCallsSQL, 2, []string{"created_at >= ?", "outcome = 'error'", "tool_name = 'http_request'", `tool_name LIKE 'run\_workflow\_%'`, "ORDER BY last_seen DESC LIMIT ?"}},
+		{"tool calls", failedToolCallsSQL, 3, []string{"c.created_at >= ?", "c.outcome = 'error'", "c.tool_instance_id <> ''", "c.source NOT IN ?", "LEFT JOIN agent_tools t", "ORDER BY last_seen DESC LIMIT ?"}},
 		{"failing nodes", failingNodesSQL, 5, []string{"l.executed_at >= ? AND l.status = 'failed'", "r.updated_at >= ?", "position <= ?", "PARTITION BY r.workflow_id, l.node_id", "ORDER BY last_seen DESC LIMIT ?"}},
 		{"node successes", nodeSuccessesAfterLastFailureSQL, 4, []string{"r.workflow_id IN ?", "r.updated_at >= ?", "f.failed_at IS NULL OR s.executed_at > f.failed_at"}},
 	}
@@ -128,9 +128,9 @@ func TestSignalGroupsAreReadIntoTheDomainShapes(t *testing.T) {
 	columns := []string{"workspace_id", "workflow_id", "reason", "count", "first_seen", "last_seen", "sample"}
 	mock.ExpectQuery(sqlPattern(rejectedDeliveriesSQL)).WithArgs(since, maxAlertSignalGroups).
 		WillReturnRows(sqlmock.NewRows(columns).AddRow("ws-1", "wf-1", "unauthorized", 6, since, alertAt, "d-9"))
-	mock.ExpectQuery(sqlPattern(failedToolCallsSQL)).WithArgs(since, maxAlertSignalGroups).
-		WillReturnRows(sqlmock.NewRows([]string{"workspace_id", "agent_id", "tool_name", "error_code", "count", "first_seen", "last_seen", "sample"}).
-			AddRow("ws-1", "ag-1", "run_workflow_wf-1", "workflow_not_active", 2, since, alertAt, "c-1"))
+	mock.ExpectQuery(strings.Replace(sqlPattern(failedToolCallsSQL), `NOT IN \$[0-9]+`, `NOT IN \(\$[0-9]+,\$[0-9]+\)`, 1)).WithArgs(since, "simulator", "scenario", maxAlertSignalGroups).
+		WillReturnRows(sqlmock.NewRows([]string{"workspace_id", "agent_id", "tool_instance_id", "tool_type", "target_key", "error_code", "count", "first_seen", "last_seen", "sample"}).
+			AddRow("ws-1", "ag-1", "t-1", "run_workflow", "target:wf-1", "workflow_not_active", 2, since, alertAt, "c-1"))
 	mock.ExpectQuery(sqlPattern(failingNodesSQL)).WithArgs(since, since, since, 10, maxAlertSignalGroups).
 		WillReturnRows(sqlmock.NewRows([]string{"workspace_id", "workflow_id", "node_id", "count", "first_seen", "last_seen", "sample"}).
 			AddRow("ws-1", "wf-1", "n55", 3, since, alertAt, "run-7"))
@@ -141,7 +141,7 @@ func TestSignalGroupsAreReadIntoTheDomainShapes(t *testing.T) {
 		t.Fatalf("deliveries = %+v, err = %v", deliveries, err)
 	}
 	calls, err := repo.FailedToolCalls(since)
-	if err != nil || len(calls) != 1 || calls[0].ErrorCode != "workflow_not_active" || calls[0].AgentID != "ag-1" {
+	if err != nil || len(calls) != 1 || calls[0].ErrorCode != "workflow_not_active" || calls[0].AgentID != "ag-1" || calls[0].ToolInstanceID != "t-1" || calls[0].TargetKey != "target:wf-1" {
 		t.Fatalf("calls = %+v, err = %v", calls, err)
 	}
 	nodes, err := repo.FailingNodes(since, 10)

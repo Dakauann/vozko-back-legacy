@@ -41,8 +41,7 @@ func newAllowanceReader(limit, used int) *InstanceEntitlementReader {
 	reader := NewInstanceEntitlementReader(&countingInstances{
 		fakeInstanceRepo: newFakeInstanceRepo(),
 		count:            used,
-	})
-	reader.SetSource(&fakeEntitlements{byKind: map[workspace_addon.EntitlementKind]int{
+	}, &fakeEntitlements{byKind: map[workspace_addon.EntitlementKind]int{
 		workspace_addon.EntitlementUnofficialWhatsAppInstances: limit,
 	}})
 	return reader
@@ -64,8 +63,7 @@ func TestAllowanceReaderCombinesLimitAndUsage(t *testing.T) {
 func TestUnknownKindResolvesToZeroNotAnError(t *testing.T) {
 	reader := NewInstanceEntitlementReader(&countingInstances{
 		fakeInstanceRepo: newFakeInstanceRepo(),
-	})
-	reader.SetSource(&fakeEntitlements{byKind: map[workspace_addon.EntitlementKind]int{
+	}, &fakeEntitlements{byKind: map[workspace_addon.EntitlementKind]int{
 		workspace_addon.EntitlementWhatsAppBusinessPhones: 10,
 		workspace_addon.EntitlementCallChannels:           4,
 	}})
@@ -80,28 +78,12 @@ func TestUnknownKindResolvesToZeroNotAnError(t *testing.T) {
 	}
 }
 
-func TestUnwiredSourceFailsClosed(t *testing.T) {
-	reader := NewInstanceEntitlementReader(&countingInstances{
-		fakeInstanceRepo: newFakeInstanceRepo(),
-	})
-	if reader.HasSource() {
-		t.Fatal("a freshly built reader must not claim a source")
-	}
-
-	allowance, err := reader.AllowanceFor(context.Background(), "ws-1")
-	if err != nil {
-		t.Fatalf("AllowanceFor: %v", err)
-	}
-	if allowance.CanProvision() {
-		t.Error("an unwired entitlement reader permitted provisioning")
-	}
-}
 
 func provisioningHarness(t *testing.T, limit, used int) (*ProvisionInstanceUseCase, *fakeServerRepo) {
 	t.Helper()
 	servers := newFakeServerRepo(healthyServer("srv-a", 10, 0))
-	uc := NewProvisionInstanceUseCase(servers, newFakeInstanceRepo(), &fakeProvider{}, testWebhookBase)
-	uc.SetEntitlements(newAllowanceReader(limit, used))
+	uc := provisionFor(servers, newFakeInstanceRepo(), &fakeProvider{}, testWebhookBase)
+	uc.entitlements = newAllowanceReader(limit, used)
 	return uc, servers
 }
 
@@ -144,11 +126,10 @@ func TestProvisionProceedsWithRoom(t *testing.T) {
 
 func TestProvisionFailsClosedWhenEntitlementsAreUnreadable(t *testing.T) {
 	servers := newFakeServerRepo(healthyServer("srv-a", 10, 0))
-	uc := NewProvisionInstanceUseCase(servers, newFakeInstanceRepo(), &fakeProvider{}, testWebhookBase)
+	uc := provisionFor(servers, newFakeInstanceRepo(), &fakeProvider{}, testWebhookBase)
 
-	reader := NewInstanceEntitlementReader(&countingInstances{fakeInstanceRepo: newFakeInstanceRepo()})
-	reader.SetSource(&fakeEntitlements{err: errors.New("billing is down")})
-	uc.SetEntitlements(reader)
+	reader := NewInstanceEntitlementReader(&countingInstances{fakeInstanceRepo: newFakeInstanceRepo()}, &fakeEntitlements{err: errors.New("billing is down")})
+	uc.entitlements = reader
 
 	_, err := uc.Execute(context.Background(), ProvisionInput{WorkspaceID: "ws-1"})
 	if !errors.Is(err, uw.ErrEntitlementUnavailable) {

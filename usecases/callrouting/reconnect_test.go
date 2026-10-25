@@ -163,7 +163,7 @@ func TestAWhatsAppCallInAQueueSkipsMembersWhoMayNotTakeIt(t *testing.T) {
 	caio := &operator{userID: "caio"}
 	f := newFixtureWith(answerPermission{"bia|whatsapp": false}, bia, caio)
 	f.activity.CallEnded("ws1", "caio", time.Now().Add(-time.Hour))
-	f.dispatcher.SetConversationHandoff(&handoffBook{})
+	f.dispatcher.handoff = &handoffBook{}
 	call := whatsAppCallOf(newHeldCall("wa-in-1"))
 	queue := testQueue("bia", "caio")
 	queue.WrapUpSeconds = 0

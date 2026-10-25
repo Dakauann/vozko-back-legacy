@@ -36,7 +36,7 @@ func TestAnUnofficialSelectionSendKeepsTheMessageItWasReviewedWith(t *testing.T)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			campaigns, entries, gateway := stoppedUnofficial(campaign.SourceLeadSelection)
-			_, err := NewUpdateCampaignUseCase(campaigns, entries, gateway).Execute(context.Background(), "camp-1", tc.input, uw.Unrestricted())
+			_, err := updateWith(campaigns, entries, gateway).Execute(context.Background(), "camp-1", tc.input, uw.Unrestricted())
 			if !errors.Is(err, tc.err) {
 				t.Fatalf("Execute = %v, want %v", err, tc.err)
 			}
@@ -48,11 +48,11 @@ func TestUnofficialUpdateRunsTheSharedAutomationStep(t *testing.T) {
 	campaigns, entries, gateway := stoppedUnofficial("")
 	in := edited("Olá {{1}}")
 	in.WorkflowID, in.EnableWorkflow = "wf-1", true
-	uc := NewUpdateCampaignUseCase(campaigns, entries, gateway)
+	uc := updateWith(campaigns, entries, gateway)
 	if _, err := uc.Execute(context.Background(), "camp-1", in, uw.Unrestricted()); !errors.Is(err, campaign.ErrAutomationUnavailable) {
 		t.Fatalf("Execute without the step = %v, want ErrAutomationUnavailable", err)
 	}
-	uc.(*updateCampaignUseCase).SetAutomation(automationThatRefuses{err: campaign.ErrWorkflowForbidden})
+	uc.(*updateCampaignUseCase).automation = automationThatRefuses{err: campaign.ErrWorkflowForbidden}
 	if _, err := uc.Execute(context.Background(), "camp-1", in, uw.Unrestricted()); !errors.Is(err, campaign.ErrWorkflowForbidden) {
 		t.Fatalf("Execute = %v, want ErrWorkflowForbidden", err)
 	}
@@ -63,7 +63,7 @@ func TestUnofficialUpdateRunsTheSharedAutomationStep(t *testing.T) {
 
 func TestEntriesCannotBeAddedToAnUnofficialSelectionSend(t *testing.T) {
 	campaigns, entries, _ := stoppedUnofficial(campaign.SourceLeadSelection)
-	_, err := NewAddEntriesUseCase(campaigns, entries, newFakeLeadRepo()).Execute(context.Background(), uwc.AddEntriesInput{
+	_, err := addEntriesWith(campaigns, entries, newFakeLeadRepo()).Execute(context.Background(), uwc.AddEntriesInput{
 		CampaignID: "camp-1", Numbers: []uwc.EntryInput{{Number: "5584999990001", Variables: []string{"Ana"}}},
 	})
 	if !errors.Is(err, campaign.ErrSelectionSendLocked) {
@@ -79,12 +79,9 @@ func TestUnofficialAddEntriesRunsTheSharedAutomationStep(t *testing.T) {
 	c, _ := campaigns.FindByID("camp-1")
 	c.WorkflowID = "wf-1"
 	campaigns.put(c)
-	uc := NewAddEntriesUseCase(campaigns, entries, newFakeLeadRepo())
+	uc := addEntriesWith(campaigns, entries, newFakeLeadRepo())
 	in := uwc.AddEntriesInput{CampaignID: "camp-1", Numbers: []uwc.EntryInput{{Number: "5584999990001", Variables: []string{"Ana"}}}}
-	if _, err := uc.Execute(context.Background(), in); !errors.Is(err, campaign.ErrAutomationUnavailable) {
-		t.Fatalf("Execute without the step = %v, want ErrAutomationUnavailable", err)
-	}
-	uc.(addEntriesAdapter).SetAutomation(automationThatRefuses{err: campaign.ErrWorkflowVarsMissing})
+	uc.(addEntriesAdapter).automation = automationThatRefuses{err: campaign.ErrWorkflowVarsMissing}
 	if _, err := uc.Execute(context.Background(), in); !errors.Is(err, campaign.ErrWorkflowVarsMissing) {
 		t.Fatalf("Execute = %v, want ErrWorkflowVarsMissing", err)
 	}
@@ -94,7 +91,7 @@ func TestAnUnofficialQuickSendNeverStartsASelectionSend(t *testing.T) {
 	campaigns, entries, _ := stoppedUnofficial(campaign.SourceLeadSelection)
 	entries.put(&uwc.Entry{ID: "entry-1", CampaignID: "camp-1", LeadID: "lead-1", Number: "5584999990001", Status: campaign.SendStatusPending})
 	dispatch := &dispatchRecorder{}
-	_, err := NewQuickSendUseCase(campaigns, entries, newFakeLeadRepo(), dispatch, nil).Execute(context.Background(), uwc.QuickSendInput{CampaignID: "camp-1"})
+	_, err := mustQuickSend(campaigns, entries, newFakeLeadRepo(), dispatch).Execute(context.Background(), uwc.QuickSendInput{CampaignID: "camp-1"})
 	if !errors.Is(err, campaign.ErrSelectionSendLocked) {
 		t.Fatalf("Execute = %v, want ErrSelectionSendLocked", err)
 	}

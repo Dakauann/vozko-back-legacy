@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"vozko/domain/campaign"
+	"vozko/domain/campaign/scheduledstart"
 	"vozko/domain/carriermessaging"
 	"vozko/domain/rcs"
 	"vozko/domain/shared"
@@ -27,6 +28,7 @@ type ListCampaignsInput struct {
 
 type CampaignRepository interface {
 	campaign.ScheduleClaimer
+	scheduledstart.Recorder
 	Create(ctx context.Context, c *Campaign) error
 	Update(ctx context.Context, c *Campaign, from Status) error
 	Delete(ctx context.Context, workspaceID, id string) error

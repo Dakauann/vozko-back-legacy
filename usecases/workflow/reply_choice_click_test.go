@@ -24,8 +24,8 @@ func wakeWithChoices(t *testing.T, wf *workflow.Workflow, promptKey string, data
 	run := waitingMenuRun()
 	run.State.Set(workflow.StateKeyChoicePrompt, promptKey)
 	runs := &recordingRunRepo{waitingReply: run}
-	engine := NewRunEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry())
-	engine.SetChoiceRecorder(spy)
+	engine := testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry())
+	engine.choices = spy
 	waiters := NewReplyWaiters(stubWorkflowRepo{byID: map[string]*workflow.Workflow{wf.ID: wf}}, runs, engine)
 	event := messageEvent()
 	event.Data = data

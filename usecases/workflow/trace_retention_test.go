@@ -69,6 +69,18 @@ func (s *retentionStore) PruneCounts(before time.Time, limit int) (int64, error)
 	return s.take("choice_counts", before, limit)
 }
 
+func (s *retentionStore) PrunePayloads(before time.Time, limit int) (int64, error) {
+	return s.take("agent_span_payloads", before, limit)
+}
+
+func (s *retentionStore) DeleteRunsStartedBefore(before time.Time, limit int) (int64, error) {
+	return s.take("scenario_runs", before, limit)
+}
+
+func (s *retentionStore) DeleteStartedBefore(before time.Time, limit int) (int64, error) {
+	return s.take("agent_runs", before, limit)
+}
+
 type retentionDeliveries struct {
 	fakeDeliveryLog
 	store *retentionStore
@@ -93,7 +105,7 @@ func (r *retentionToolCalls) DeleteCreatedBefore(before time.Time, limit int) (i
 }
 
 func retentionJob(store *retentionStore, now time.Time) *TraceRetention {
-	job := NewTraceRetention(store, &retentionDeliveries{store: store}, &retentionToolCalls{store: store}, store, store)
+	job := NewTraceRetention(store, &retentionDeliveries{store: store}, &retentionToolCalls{store: store}, store, store, store, store)
 	job.now = func() time.Time { return now }
 	return job
 }
@@ -105,16 +117,19 @@ func TestRetentionKeepsThirtyDaysOfPayloadsAndHalfAYearOfRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]time.Time{
-		"payloads":       now.AddDate(0, 0, -30),
-		"trigger_data":   now.AddDate(0, 0, -30),
-		"steps":          now.AddDate(0, 0, -180),
-		"runs":           now.AddDate(0, 0, -180),
-		"deliveries":     now.AddDate(0, 0, -30),
-		"tool_calls":     now.AddDate(0, 0, -180),
-		"runtime_alerts": now.AddDate(0, 0, -30),
-		"versions":       {},
-		"choice_prompts": now.AddDate(0, 0, -30),
-		"choice_counts":  now.AddDate(0, 0, -400),
+		"payloads":            now.AddDate(0, 0, -30),
+		"trigger_data":        now.AddDate(0, 0, -30),
+		"steps":               now.AddDate(0, 0, -180),
+		"runs":                now.AddDate(0, 0, -180),
+		"deliveries":          now.AddDate(0, 0, -30),
+		"tool_calls":          now.AddDate(0, 0, -180),
+		"agent_span_payloads": now.AddDate(0, 0, -30),
+		"agent_runs":          now.AddDate(0, 0, -180),
+		"scenario_runs":       now.AddDate(0, 0, -180),
+		"runtime_alerts":      now.AddDate(0, 0, -30),
+		"versions":            {},
+		"choice_prompts":      now.AddDate(0, 0, -30),
+		"choice_counts":       now.AddDate(0, 0, -400),
 	}
 	order := []string{}
 	for _, c := range store.calls {
@@ -123,7 +138,7 @@ func TestRetentionKeepsThirtyDaysOfPayloadsAndHalfAYearOfRuns(t *testing.T) {
 			t.Errorf("%s cut at %v limit %d, want %v limit %d", c.name, c.before, c.limit, want[c.name], retentionBatchSize)
 		}
 	}
-	if strings.Join(order, ",") != "payloads,trigger_data,steps,runs,deliveries,tool_calls,runtime_alerts,versions,choice_prompts,choice_counts" {
+	if strings.Join(order, ",") != "payloads,trigger_data,steps,runs,deliveries,agent_span_payloads,tool_calls,agent_runs,scenario_runs,runtime_alerts,versions,choice_prompts,choice_counts" {
 		t.Fatalf("order = %v, steps must go before their runs", order)
 	}
 	if store.keptVersions != workflow.VersionsKeptPerWorkflow {

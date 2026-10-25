@@ -183,14 +183,6 @@ func TestBilling_NoChargeOnAnyPreDebitRefusal(t *testing.T) {
 			wantAck:    true,
 			wantStatus: wce.SendStatusFailed,
 		},
-		"reserver not wired": {
-			arrange:  func(r *billingRig) { r.consumer.InflightReserver = nil },
-			wantNack: true,
-		},
-		"balance checker not wired": {
-			arrange:  func(r *billingRig) { r.consumer.CachedBalanceChecker = nil },
-			wantNack: true,
-		},
 		"balance unreadable": {
 			arrange: func(r *billingRig) {
 				r.cachedBalanceChecker.getBalanceErr = errors.New("redis down")

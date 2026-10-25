@@ -21,6 +21,7 @@ var campaignEditRefusals = []response.ErrorRefusal{
 	{Err: wc.ErrCampaignBusinessPhoneNotFound, Refusal: response.Refusal{Status: http.StatusUnprocessableEntity, Code: "campaign_phone_unavailable", Message: "O número escolhido não está disponível."}},
 	{Err: wc.ErrCampaignBusinessPhoneNoAccess, Refusal: response.Refusal{Status: http.StatusForbidden, Code: "campaign_phone_unavailable", Message: "O número escolhido não está disponível."}},
 	{Err: wc.ErrReceptiveManagedByNumber, Refusal: response.Refusal{Status: http.StatusConflict, Code: "campaign_receptive_managed_by_number", Message: "O receptivo é configurado no próprio número."}},
+	{Err: wc.ErrLaunchCheckUnavailable, Refusal: response.Refusal{Status: http.StatusServiceUnavailable, Code: "campaign_launch_check_unavailable", Message: "A verificação de disparo não está disponível agora, então o agendamento não foi salvo."}},
 }
 
 var templateNotReadyRefusal = response.Refusal{Status: http.StatusUnprocessableEntity, Code: "campaign_template_not_ready", Message: "O template escolhido não está pronto para envio."}

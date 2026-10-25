@@ -33,6 +33,9 @@ type WhatsAppCampaign struct {
 	UpdatedAt            time.Time      `gorm:"autoUpdateTime"`
 	DeletedAt            gorm.DeletedAt `gorm:"index;index:idx_wa_campaign_ws_del,priority:2"`
 	ScheduledStart       time.Time      `gorm:"type:timestamptz;index"`
+	ScheduledBy          string         `gorm:"column:scheduled_by;type:varchar(64);not null;default:''"`
+	ScheduleFingerprint  string         `gorm:"column:schedule_fingerprint;type:varchar(64);not null;default:''"`
+	ScheduleFailure      string         `gorm:"column:schedule_failure;type:varchar(40);not null;default:''"`
 	Source               OptionalText   `gorm:"column:source;type:varchar(32)"`
 	IdempotencyKey       OptionalText   `gorm:"column:idempotency_key;type:varchar(200)"`
 

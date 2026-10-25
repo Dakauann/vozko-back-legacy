@@ -10,7 +10,6 @@ import (
 	"vozko/domain/callrouting"
 	"vozko/domain/conversation"
 	"vozko/domain/voip"
-	callsession_usecase "vozko/usecases/callsession"
 )
 
 type activityLog struct {
@@ -62,14 +61,13 @@ func (m *messageLog) types() []WSEventType {
 
 func operatorSession(userID string, activity callrouting.AgentActivity) (*callSession, *messageLog) {
 	messages := &messageLog{}
-	s := newCallSession("sess-"+userID, userID, "ws-1", messages.send, nil, log.Default(), 0)
-	s.SetActivity(activity)
+	s := newCallSession("sess-"+userID, userID, "ws-1", messages.send, nil, log.Default(), 0, callSessionPorts{Activity: activity})
 	return s, messages
 }
 
 func newChannels(t *testing.T, activity callrouting.AgentActivity) *CallChannels {
 	t.Helper()
-	lifecycle, err := callsession_usecase.NewOutboundCallLifecycleRunner(nil, nil, nil, noopBillingPub{}, log.Default())
+	lifecycle, err := lifecycleFor(nil, noopBillingPub{}, log.Default(), nil)
 	if err != nil {
 		t.Fatalf("lifecycle: %v", err)
 	}

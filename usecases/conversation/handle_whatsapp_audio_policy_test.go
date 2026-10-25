@@ -107,7 +107,7 @@ func (m *fallbackPolicyWhatsAppClient) UploadMediaForTemplate(context.Context, c
 }
 
 func TestSendWhatsAppFallbackTextIfEligible_SuppressesWithoutEligibleContext(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	client := &fallbackPolicyWhatsAppClient{}
 
 	testCases := []struct {
@@ -151,7 +151,7 @@ func TestSendWhatsAppFallbackTextIfEligible_SuppressesWithoutEligibleContext(t *
 }
 
 func TestSendWhatsAppFallbackTextIfEligible_SendsForEligibleAgentContext(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	client := &fallbackPolicyWhatsAppClient{}
 
 	err := uc.sendWhatsAppFallbackTextIfEligible(

@@ -3,10 +3,10 @@ package unofficial_whatsapp_campaign
 import (
 	"context"
 	"errors"
-	"time"
 
 	"vozko/domain/campaign"
 	"vozko/domain/campaign/launchcheck"
+	"vozko/domain/campaign/scheduledstart"
 	"vozko/domain/campaignaudience"
 	uw "vozko/domain/unofficial_whatsapp"
 	uwc "vozko/domain/unofficial_whatsapp_campaign"
@@ -131,9 +131,9 @@ func (u *DraftLaunch) Launch(ctx context.Context, in DraftLaunchInput) (campaign
 			review, err := u.Review(ctx, in.Campaign, in.Scope)
 			return review.Report, err
 		},
-		Create: func(ctx context.Context, scheduledStart time.Time) (*uwc.Campaign, error) {
+		Create: func(ctx context.Context, schedule scheduledstart.Schedule) (*uwc.Campaign, error) {
 			draft := *in.Campaign
-			draft.ScheduledStart = scheduledStart
+			draft.ScheduledStart = schedule.At
 			return u.d.Create.Execute(ctx, &draft, in.Scope)
 		},
 		Settle: in.Settle,

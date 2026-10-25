@@ -186,7 +186,7 @@ func TestEntrySourceDepartmentScopeBindsDepartments(t *testing.T) {
 
 	ig := sourceFor(t, shared.EntryTypeInstagram)
 	sql, args := ig.inboxSelect(scope, "ws-1")
-	if !strings.Contains(sql, ig.Department+" = ANY(?::uuid[])") {
+	if !strings.Contains(sql, ig.department()+" = ANY(?::uuid[])") {
 		t.Errorf("Instagram should scope by its account's department:\n%s", sql)
 	}
 	assertPlaceholdersMatchArgs(t, sql, args)
@@ -401,7 +401,7 @@ func TestEmailSourceScopesByTheInboxDepartmentAndBothWorkspaces(t *testing.T) {
 	}
 	scope := entrySourceScope{DepartmentIDs: []string{"d1"}, RestrictDepartments: true}
 	sql, args := em.inboxSelect(scope, "ws-1")
-	if !strings.Contains(sql, "emi.department_id = ANY(?::uuid[])") {
+	if !strings.Contains(sql, em.department()+" = ANY(?::uuid[])") {
 		t.Errorf("email should scope by its inbox department:\n%s", sql)
 	}
 	if !strings.Contains(sql, "emi.workspace_id = emc.workspace_id") {
@@ -426,7 +426,7 @@ func TestCarrierSourcesScopeBySenderDepartmentAndBothWorkspaces(t *testing.T) {
 		}
 		scope := entrySourceScope{DepartmentIDs: []string{"d1"}, RestrictDepartments: true}
 		sql, args := src.inboxSelect(scope, "ws-1")
-		if !strings.Contains(sql, tc.department+" = ANY(?::uuid[])") || !strings.Contains(sql, tc.sameTenant) {
+		if !strings.Contains(sql, src.department()+" = ANY(?::uuid[])") || !strings.Contains(sql, tc.sameTenant) {
 			t.Errorf("%s scope:\n%s", tc.entryType, sql)
 		}
 		assertPlaceholdersMatchArgs(t, sql, args)

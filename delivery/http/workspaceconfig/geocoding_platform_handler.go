@@ -14,17 +14,9 @@ type GeocodingPlatformService interface {
 	List(ctx context.Context, caller geocoding.Caller, query geocoding.PlatformQuery) (geocoding.PlatformPage, error)
 }
 
-func (h *WorkspaceConfigHandler) SetGeocodingPlatformCoverage(service GeocodingPlatformService) {
-	h.geocodingPlatform = service
-}
-
 func (h *WorkspaceConfigHandler) ListGeocodingPlatformCoverage(w http.ResponseWriter, r *http.Request) {
 	caller, ok := sessionCaller(w, r)
 	if !ok {
-		return
-	}
-	if h.geocodingPlatform == nil {
-		response.WriteErrorWithCode(w, http.StatusServiceUnavailable, "geocoding_unavailable", "A geolocalização de endereços não está disponível neste servidor", nil)
 		return
 	}
 	values := r.URL.Query()

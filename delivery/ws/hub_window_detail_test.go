@@ -14,7 +14,7 @@ func (p *providerBlockedHistory) GetWindowStatusForEntry(string, string) convers
 
 func TestSubscribedCarriesTheProviderDetailOfAClosedWindow(t *testing.T) {
 	hub, conn, _ := historyHub(t, true)
-	hub.SetHistoryProvider(&providerBlockedHistory{})
+	hub.historyProvider = &providerBlockedHistory{}
 
 	hub.handleSubscribe(conn, payloadOf(t, SubscribePayload{EntryID: "e1", EntryType: "instagram"}))
 

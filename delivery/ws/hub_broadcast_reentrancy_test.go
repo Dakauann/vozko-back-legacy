@@ -19,8 +19,7 @@ func newReentrancyHub(t *testing.T, userIDs ...string) (*ConversationHub, []*WSC
 	}
 
 	authorizer := &hubDepartmentTestAuthorizer{entryAccess: access}
-	hub := NewConversationHub(authorizer, nil, nil, &eligibilityFakeSharedState{}, "test-replica", "")
-	hub.SetWSMetrics(noopWSMetricsRecorder{})
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer, SharedState: &eligibilityFakeSharedState{}})
 
 	conns := make([]*WSConnection, 0, len(userIDs))
 	for i, id := range userIDs {
@@ -98,7 +97,7 @@ func TestHandleSetConversationStatus_DoesNotBlockWhenBroadcastChannelIsFull(t *t
 	hub, conns := newReentrancyHub(t, "user-1")
 	statusMock := newMockStatusUpdater()
 	statusMock.statuses["entry-1|whatsapp"] = conversation.ConversationStatusNew
-	hub.statusUpdater = statusMock
+	hub.cmds().Status = statusMock
 	subscribeToEntry(hub, "entry-1", "whatsapp", conns[0])
 	saturateBroadcast(hub)
 

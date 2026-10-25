@@ -31,8 +31,8 @@ func updateFixture(t *testing.T, source string) (*mockCampaignRepo, wc.UpdateCam
 	templates := newMockTemplateRepo()
 	templates.templates["tmpl-1"] = &template.Template{ID: "tmpl-1", Status: template.TemplateStatusApproved, WABAId: "waba-1"}
 	templates.templates["tmpl-2"] = &template.Template{ID: "tmpl-2", Status: template.TemplateStatusApproved, WABAId: "waba-1"}
-	uc := NewUpdateCampaignUseCase(campaigns, newMockEntryRepo(), templates, phones, nil)
-	uc.(*updateCampaignUseCase).SetTemplateGrants(allowGrants{})
+	uc := updateWith(UpdateCampaignDeps{Campaigns: campaigns, Entries: newMockEntryRepo(), Templates: templates, Phones: phones})
+	uc.(*updateCampaignUseCase).templateGrants = allowGrants{}
 	return campaigns, uc
 }
 
@@ -72,7 +72,7 @@ func TestASelectionSendKeepsTheTemplateAndNumberItWasReviewedWith(t *testing.T) 
 
 func TestAPlainCampaignMayChangeItsTemplate(t *testing.T) {
 	_, uc := updateFixture(t, "")
-	uc.(*updateCampaignUseCase).SetExitRiskGate(admittingGate{})
+	uc.(*updateCampaignUseCase).exitRisk = admittingGate{}
 	if _, err := uc.Execute(context.Background(), "camp-1", &wc.Campaign{Name: "Matrículas", TemplateID: "tmpl-2"}); err != nil {
 		t.Fatalf("Execute = %v", err)
 	}
@@ -84,7 +84,7 @@ func TestUpdateRunsTheSharedWorkflowStepItself(t *testing.T) {
 		t.Fatalf("Execute without the step = %v, want ErrAutomationUnavailable", err)
 	}
 	_, withStep := updateFixture(t, "")
-	withStep.(*updateCampaignUseCase).SetAutomation(foreignWorkflowStep(t))
+	withStep.(*updateCampaignUseCase).automation = foreignWorkflowStep(t)
 	if _, err := withStep.Execute(context.Background(), "camp-1", &wc.Campaign{Name: "Matrículas", WorkflowID: "wf-other", EnableWorkflow: true}); !errors.Is(err, campaign.ErrWorkflowForbidden) {
 		t.Fatalf("Execute = %v, want ErrWorkflowForbidden", err)
 	}
@@ -93,7 +93,7 @@ func TestUpdateRunsTheSharedWorkflowStepItself(t *testing.T) {
 func TestEntriesCannotBeAddedToASelectionSend(t *testing.T) {
 	campaigns := newMockCampaignRepo()
 	stoppedSelectionSend(campaigns, campaign.SourceLeadSelection)
-	uc := NewAddEntriesUseCase(campaigns, newMockEntryRepo(), &qsLeadRepo{})
+	uc := addEntriesWith(campaigns, newMockEntryRepo(), &qsLeadRepo{})
 	_, err := uc.Execute(wc.AddEntriesInput{CampaignID: "camp-1", PhoneNumbers: validPhones(1)})
 	if !errors.Is(err, campaign.ErrSelectionSendLocked) {
 		t.Fatalf("Execute = %v, want ErrSelectionSendLocked", err)
@@ -104,11 +104,8 @@ func TestAddEntriesRunsTheSharedWorkflowStepItself(t *testing.T) {
 	campaigns := newMockCampaignRepo()
 	stoppedSelectionSend(campaigns, "")
 	campaigns.campaigns["camp-1"].WorkflowID = "wf-other"
-	uc := NewAddEntriesUseCase(campaigns, newMockEntryRepo(), &qsLeadRepo{})
-	if _, err := uc.Execute(wc.AddEntriesInput{CampaignID: "camp-1", PhoneNumbers: validPhones(1)}); !errors.Is(err, campaign.ErrAutomationUnavailable) {
-		t.Fatalf("Execute without the step = %v, want ErrAutomationUnavailable", err)
-	}
-	uc.(*addEntriesUseCase).SetAutomation(foreignWorkflowStep(t))
+	uc := addEntriesWith(campaigns, newMockEntryRepo(), &qsLeadRepo{})
+	uc.(*addEntriesUseCase).automation = foreignWorkflowStep(t)
 	if _, err := uc.Execute(wc.AddEntriesInput{CampaignID: "camp-1", PhoneNumbers: validPhones(1)}); !errors.Is(err, campaign.ErrWorkflowForbidden) {
 		t.Fatalf("Execute = %v, want ErrWorkflowForbidden", err)
 	}
@@ -132,10 +129,7 @@ func TestQuickSendRunsTheSharedWorkflowStepItself(t *testing.T) {
 	c, _ := h.camp.FindByID("c-1")
 	c.WorkflowID = "wf-other"
 	h.camp.put(c)
-	if _, err := h.uc.Execute(wc.QuickSendInput{CampaignID: "c-1", PhoneNumbers: validPhones(1)}); !errors.Is(err, campaign.ErrAutomationUnavailable) {
-		t.Fatalf("Execute without the step = %v, want ErrAutomationUnavailable", err)
-	}
-	h.uc.(*quickSendUseCase).SetAutomation(foreignWorkflowStep(t))
+	h.uc.(*quickSendUseCase).automation = foreignWorkflowStep(t)
 	if _, err := h.uc.Execute(wc.QuickSendInput{CampaignID: "c-1", PhoneNumbers: validPhones(1)}); !errors.Is(err, campaign.ErrWorkflowForbidden) {
 		t.Fatalf("Execute = %v, want ErrWorkflowForbidden", err)
 	}
@@ -205,10 +199,7 @@ func TestTheRecipientsOfASelectionSendCannotBeEdited(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			entries := &lockedEntries{entry: &wce.WhatsAppCampaignEntry{ID: "e-1", CampaignID: "c-1", LeadID: "l-1"}}
 			leads := &entryEditLeads{current: &lead.Lead{ID: "l-1", WorkspaceID: "ws-1", Number: "5511987654321"}}
-			uc := NewUpdateEntryUseCase(
-				entryEditCampaigns{campaign: &wc.Campaign{ID: "c-1", WorkspaceID: "ws-1", Status: wc.CampaignStatusStopped, Source: tc.source}},
-				entries, leads, &entryEditMerger{},
-			)
+			uc := entryUpdateWith(entryEditCampaigns{campaign: &wc.Campaign{ID: "c-1", WorkspaceID: "ws-1", Status: wc.CampaignStatusStopped, Source: tc.source}}, entries, leads, &entryEditMerger{})
 			tc.input.CampaignID, tc.input.EntryID = "c-1", "e-1"
 
 			_, err := uc.Execute(tc.input)

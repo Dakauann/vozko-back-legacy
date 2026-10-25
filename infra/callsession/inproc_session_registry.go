@@ -238,12 +238,21 @@ func (r *InProcSessionRegistry) sortByRegistrationOrder(sessions []callsession_d
 	})
 }
 
-func (r *InProcSessionRegistry) SetPresenceListener(listener callsession_domain.PresenceListener) {
+var ErrPresenceListenerMissing = errors.New("call sessions: the presence listener is missing")
+
+func (r *InProcSessionRegistry) BindPresenceListener(listener callsession_domain.PresenceListener) error {
 	if listener == nil {
-		r.listener.Store(nil)
-		return
+		return ErrPresenceListenerMissing
 	}
 	r.listener.Store(&listener)
+	return nil
+}
+
+func (r *InProcSessionRegistry) PresenceListenerBound() error {
+	if r.listener.Load() == nil {
+		return ErrPresenceListenerMissing
+	}
+	return nil
 }
 
 func (r *InProcSessionRegistry) NotifyPresenceChanged(workspaceID string) {
@@ -254,7 +263,7 @@ func (r *InProcSessionRegistry) NotifyPresenceChanged(workspaceID string) {
 }
 
 func (r *InProcSessionRegistry) notifyPresenceChanged(workspaceID string) {
-	if lp := r.listener.Load(); lp != nil && *lp != nil {
+	if lp := r.listener.Load(); lp != nil {
 		(*lp).OnPresenceChanged(workspaceID)
 	}
 }

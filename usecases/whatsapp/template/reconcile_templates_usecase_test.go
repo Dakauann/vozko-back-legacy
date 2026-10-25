@@ -1,6 +1,7 @@
 package template_usecase
 
 import (
+	"strings"
 	"testing"
 
 	"vozko/domain/shared"
@@ -130,3 +131,55 @@ func TestReconcileTemplates_IgnoresIndividualSyncFailures(t *testing.T) {
 }
 
 func (m *reconcilePhoneRepoMock) UpdateCallsEnabled(string, bool) error { return nil }
+
+func TestReconcileTemplates_SyncsEachBusinessAccountOnce(t *testing.T) {
+	connected := func(id, waba string) *businessphone.WhatsAppBusinessPhoneNumber {
+		return &businessphone.WhatsAppBusinessPhoneNumber{ID: id, WABAId: waba, AccessToken: "token-" + id, Status: businessphone.StatusConnected}
+	}
+	cases := []struct {
+		name     string
+		phones   []*businessphone.WhatsAppBusinessPhoneNumber
+		failing  map[string]error
+		wantSync []string
+	}{
+		{
+			name:     "two numbers on one account sync through the first",
+			phones:   []*businessphone.WhatsAppBusinessPhoneNumber{connected("p1", "waba-1"), connected("p2", "waba-1"), connected("p3", "waba-2")},
+			wantSync: []string{"p1", "p3"},
+		},
+		{
+			name:     "a failing number falls back to the next number of the same account",
+			phones:   []*businessphone.WhatsAppBusinessPhoneNumber{connected("p1", "waba-1"), connected("p2", "waba-1"), connected("p3", "waba-1")},
+			failing:  map[string]error{"p1": businessphone.ErrInvalidAccessToken},
+			wantSync: []string{"p1", "p2"},
+		},
+		{
+			name:     "every number of the account failing tries them all",
+			phones:   []*businessphone.WhatsAppBusinessPhoneNumber{connected("p1", "waba-1"), connected("p2", "waba-1")},
+			failing:  map[string]error{"p1": businessphone.ErrInvalidAccessToken, "p2": businessphone.ErrInvalidAccessToken},
+			wantSync: []string{"p1", "p2"},
+		},
+		{
+			name:     "an ineligible number does not stand for its account",
+			phones:   []*businessphone.WhatsAppBusinessPhoneNumber{{ID: "p0", WABAId: "waba-1", Status: businessphone.StatusConnected}, connected("p1", "waba-1")},
+			wantSync: []string{"p1"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			syncUC := &reconcileSyncUseCaseMock{errByPhone: tc.failing}
+			uc := NewReconcileTemplatesUseCase(&reconcilePhoneRepoMock{phones: tc.phones}, syncUC)
+
+			if err := uc.Execute(); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			got := make([]string, 0, len(syncUC.inputs))
+			for _, in := range syncUC.inputs {
+				got = append(got, in.BusinessPhoneID)
+			}
+			if strings.Join(got, ",") != strings.Join(tc.wantSync, ",") {
+				t.Fatalf("synced %v, want %v", got, tc.wantSync)
+			}
+		})
+	}
+}

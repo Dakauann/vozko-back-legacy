@@ -400,3 +400,17 @@ func TestBRTNow_IsBillingZoneAndTracksWallClock(t *testing.T) {
 		t.Fatalf("brtNow should track the wall clock, delta=%s", d)
 	}
 }
+
+func TestEmit_OutsideTheEmitWindowNothingIsEmitted(t *testing.T) {
+	subs := &fakeSubs{subs: []*workspace_plan.WorkspaceSubscription{activeSub("ws-1", "plan-1")}}
+	plans := &fakePlans{plans: map[string]*workspace_plan.PlanDefinition{"plan-1": {ID: "plan-1", BasePriceBRLCents: 109_900}}}
+	wss := &fakeWorkspaces{byWS: map[string]*workspace.Workspace{"ws-1": owner("ws-1", "user-1")}}
+	inv := &fakeCreateInvoice{}
+	uc := emitFixture(subs, plans, &fakeAddons{}, wss, inv)
+	uc.now = func() time.Time { return time.Date(2026, 3, 24, 12, 0, 0, 0, time.UTC) }
+
+	n, err := uc.Execute()
+	if err != nil || n != 0 || len(inv.calls) != 0 {
+		t.Fatalf("n = %d err = %v invoices = %d, want nothing emitted after the due day", n, err, len(inv.calls))
+	}
+}

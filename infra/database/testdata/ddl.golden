@@ -3,9 +3,6 @@
 -- idx_cm_inbox_whatsapp
 CREATE INDEX IF NOT EXISTS idx_cm_inbox_whatsapp ON conversation_messages (entry_id, created_at DESC) WHERE entry_type = 'whatsapp' AND deleted_at IS NULL;
 
--- idx_cm_entry_del_created
-CREATE INDEX IF NOT EXISTS idx_cm_entry_del_created ON conversation_messages (entry_id, entry_type, created_at DESC) WHERE deleted_at IS NULL;
-
 -- idx_cm_wamid_partial
 CREATE INDEX IF NOT EXISTS idx_cm_wamid_partial ON conversation_messages (whatsapp_message_id) WHERE whatsapp_message_id IS NOT NULL AND whatsapp_message_id != '' AND deleted_at IS NULL;
 
@@ -53,9 +50,6 @@ CREATE INDEX IF NOT EXISTS idx_wa_campaign_ws_del ON whatsapp_campaigns (workspa
 
 -- idx_wa_campaign_ws_created
 CREATE INDEX IF NOT EXISTS idx_wa_campaign_ws_created ON whatsapp_campaigns (workspace_id, created_at) WHERE deleted_at IS NULL;
-
--- idx_wce_campaign_created_active
-CREATE INDEX IF NOT EXISTS idx_wce_campaign_created_active ON whatsapp_campaign_entries (campaign_id, created_at) WHERE deleted_at IS NULL;
 
 -- idx_cm_type_created_active
 CREATE INDEX IF NOT EXISTS idx_cm_type_created_active ON conversation_messages (entry_type, created_at) INCLUDE (entry_id) WHERE deleted_at IS NULL;
@@ -165,6 +159,18 @@ CREATE INDEX IF NOT EXISTS idx_aitc_created ON ai_tool_calls (created_at);
 -- idx_aitc_failed_created
 CREATE INDEX IF NOT EXISTS idx_aitc_failed_created ON ai_tool_calls (created_at) WHERE outcome = 'error';
 
+-- idx_aitc_agent_run
+CREATE INDEX IF NOT EXISTS idx_aitc_agent_run ON ai_tool_calls (agent_run_id, sequence) WHERE agent_run_id IS NOT NULL;
+
+-- idx_aitc_payload_created
+CREATE INDEX IF NOT EXISTS idx_aitc_payload_created ON ai_tool_calls (created_at) WHERE args IS NOT NULL OR model_result IS NOT NULL OR http IS NOT NULL OR mapped_output IS NOT NULL OR error_chain IS NOT NULL;
+
+-- idx_agent_runs_agent_started
+CREATE INDEX IF NOT EXISTS idx_agent_runs_agent_started ON agent_runs (workspace_id, agent_id, started_at DESC);
+
+-- idx_agent_runs_started
+CREATE INDEX IF NOT EXISTS idx_agent_runs_started ON agent_runs (started_at);
+
 -- idx_wfwd_rejected_received
 CREATE INDEX IF NOT EXISTS idx_wfwd_rejected_received ON workflow_webhook_deliveries (received_at) WHERE outcome = 'rejected';
 
@@ -177,8 +183,8 @@ CREATE INDEX IF NOT EXISTS idx_wfra_workspace_open ON workflow_runtime_alerts (w
 -- idx_wfra_resolved
 CREATE INDEX IF NOT EXISTS idx_wfra_resolved ON workflow_runtime_alerts (resolved_at) WHERE status = 'resolved';
 
--- idx_agents_run_workflow_bindings
-CREATE INDEX IF NOT EXISTS idx_agents_run_workflow_bindings ON agents (workspace_id) WHERE deleted_at IS NULL AND tool_bindings @> CAST('{"bindings":[{"name":"run_workflow"}]}' AS jsonb);
+-- idx_agent_tools_workspace_type
+CREATE INDEX IF NOT EXISTS idx_agent_tools_workspace_type ON agent_tools (workspace_id, type) WHERE deleted_at IS NULL;
 
 -- idx_wce_campaign_lastmsg
 CREATE INDEX IF NOT EXISTS idx_wce_campaign_lastmsg ON whatsapp_campaign_entries (campaign_id, last_message_at DESC) WHERE deleted_at IS NULL AND last_message_at IS NOT NULL;
@@ -267,7 +273,27 @@ CREATE INDEX IF NOT EXISTS idx_ml_conv_account_shipment ON mercadolivre_conversa
 -- idx_ml_contact_questions_blocked
 CREATE INDEX IF NOT EXISTS idx_ml_contact_questions_blocked ON mercadolivre_contacts (account_id, questions_blocked_at) WHERE questions_blocked_at IS NOT NULL AND deleted_at IS NULL;
 
+## choice stats indexes
+
+-- idx_choice_prompts_sent_at
+CREATE INDEX IF NOT EXISTS idx_choice_prompts_sent_at ON choice_prompts (sent_at);
+
+-- idx_choice_prompts_message
+CREATE INDEX IF NOT EXISTS idx_choice_prompts_message ON choice_prompts (workspace_id, provider_message_id) WHERE provider_message_id <> '';
+
+-- idx_choice_counts_template_day
+CREATE INDEX IF NOT EXISTS idx_choice_counts_template_day ON choice_daily_counts (workspace_id, template_id, day) WHERE template_id <> '';
+
+-- idx_choice_counts_day
+CREATE INDEX IF NOT EXISTS idx_choice_counts_day ON choice_daily_counts (day);
+
 ## schema constraints
+
+-- ux_agent_tools_name
+CREATE UNIQUE INDEX IF NOT EXISTS ux_agent_tools_name ON agent_tools (agent_id, lower(name)) WHERE deleted_at IS NULL;
+
+-- ux_agent_tools_target
+CREATE UNIQUE INDEX IF NOT EXISTS ux_agent_tools_target ON agent_tools (agent_id, type, target_key) WHERE deleted_at IS NULL AND target_key <> '';
 
 -- idx_short_links_code_active
 CREATE UNIQUE INDEX IF NOT EXISTS idx_short_links_code_active ON short_links (code) WHERE deleted_at IS NULL;
@@ -630,8 +656,23 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_calls_ws_counterpart_unlinked ON cal
 -- idx_call_list_items_agenda
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_call_list_items_agenda ON call_list_items (list_id, (COALESCE(callback_at, 'infinity'::timestamptz)), position) WHERE state = 'pending';
 
--- idx_wce_campaign_status_live
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_wce_campaign_status_live ON whatsapp_campaign_entries (campaign_id, status) INCLUDE (lead_id) WHERE deleted_at IS NULL;
+-- idx_wce_campaign_status_id_live
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_wce_campaign_status_id_live ON whatsapp_campaign_entries (campaign_id, status) INCLUDE (lead_id, id) WHERE deleted_at IS NULL;
+
+-- idx_wce_campaign_lastmsg_open
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_wce_campaign_lastmsg_open ON whatsapp_campaign_entries (campaign_id, last_message_at DESC) INCLUDE (lead_id, conversation_status, awaiting_reply_since) WHERE deleted_at IS NULL AND last_message_at IS NOT NULL AND conversation_status IS DISTINCT FROM 'finished';
+
+-- idx_wce_campaign_created_cover
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_wce_campaign_created_cover ON whatsapp_campaign_entries (campaign_id, created_at) INCLUDE (id, conversation_status, last_message_at, closed_at) WHERE deleted_at IS NULL;
+
+-- idx_uwc_instance_lastmsg_live
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_uwc_instance_lastmsg_live ON unofficial_whatsapp_conversations (instance_id, last_message_at DESC) INCLUDE (contact_id, conversation_status, awaiting_reply_since) WHERE deleted_at IS NULL AND last_message_at IS NOT NULL;
+
+-- idx_cm_entry_sender_created
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cm_entry_sender_created ON conversation_messages (entry_id, entry_type, sender_id, created_at) WHERE deleted_at IS NULL;
+
+-- idx_bt_charge_campaign_unresolved
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_bt_charge_campaign_unresolved ON balance_transactions (id) WHERE service_type = 'whatsapp_campaign' AND charge_campaign_id IS NULL;
 
 -- idx_uwce_campaign_status_live
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_uwce_campaign_status_live ON unofficial_whatsapp_campaign_entries (campaign_id, status) WHERE deleted_at IS NULL;
@@ -729,6 +770,62 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cm_search_text_trgm ON conversation_
 -- ux_cm_entry_client_request
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ux_cm_entry_client_request ON conversation_messages (entry_type, entry_id, client_request_id) WHERE client_request_id IS NOT NULL;
 
+## retired indexes
+
+-- whatsapp_campaign_entries_campaign_id_lead_id_key
+ALTER TABLE whatsapp_campaign_entries DROP CONSTRAINT IF EXISTS whatsapp_campaign_entries_campaign_id_lead_id_key;
+
+-- idx_whatsapp_campaign_entries_unique
+DROP INDEX CONCURRENTLY IF EXISTS idx_whatsapp_campaign_entries_unique;
+
+-- idx_whatsapp_campaign_entries_campaign_id
+DROP INDEX CONCURRENTLY IF EXISTS idx_whatsapp_campaign_entries_campaign_id;
+
+-- idx_whatsapp_campaign_entries_lead_id
+DROP INDEX CONCURRENTLY IF EXISTS idx_whatsapp_campaign_entries_lead_id;
+
+-- idx_wce_campaign_status_live
+DROP INDEX CONCURRENTLY IF EXISTS idx_wce_campaign_status_live;
+
+-- idx_wce_campaign_created_active
+DROP INDEX CONCURRENTLY IF EXISTS idx_wce_campaign_created_active;
+
+-- idx_entry_tags_tag_entry
+DROP INDEX CONCURRENTLY IF EXISTS idx_entry_tags_tag_entry;
+
+-- idx_entry_tags_tag_ws_del
+DROP INDEX CONCURRENTLY IF EXISTS idx_entry_tags_tag_ws_del;
+
+-- idx_entry_tags_entry
+DROP INDEX CONCURRENTLY IF EXISTS idx_entry_tags_entry;
+
+-- idx_entry_tags_ws_del
+DROP INDEX CONCURRENTLY IF EXISTS idx_entry_tags_ws_del;
+
+-- idx_entry_tags_deleted_at
+DROP INDEX CONCURRENTLY IF EXISTS idx_entry_tags_deleted_at;
+
+-- idx_entry_tag_entry
+DROP INDEX CONCURRENTLY IF EXISTS idx_entry_tag_entry;
+
+-- idx_entry_tag_tag
+DROP INDEX CONCURRENTLY IF EXISTS idx_entry_tag_tag;
+
+-- idx_balance_transactions_user_id
+DROP INDEX CONCURRENTLY IF EXISTS idx_balance_transactions_user_id;
+
+-- idx_balance_transactions_created_at
+DROP INDEX CONCURRENTLY IF EXISTS idx_balance_transactions_created_at;
+
+-- idx_bt_ws_created_svc
+DROP INDEX CONCURRENTLY IF EXISTS idx_bt_ws_created_svc;
+
+-- idx_message_entry
+DROP INDEX CONCURRENTLY IF EXISTS idx_message_entry;
+
+-- idx_cm_entry_del_created
+DROP INDEX CONCURRENTLY IF EXISTS idx_cm_entry_del_created;
+
 ## data repairs
 
 wc_consume_used_schedules
@@ -744,3 +841,8 @@ wf_canonical_structured_configs
 wf_canonical_node_types
 inv_external_id_per_provider
 em_recheck_unconfirmed_no_mail
+ag_tool_instances
+ag_drop_agent_bindings_index
+ag_canonical_http_configs
+ag_mcp_collection_instances
+bl_balance_read_model

@@ -23,7 +23,6 @@ func TestEveryToolCallRefusalWritesItsStableCode(t *testing.T) {
 		r    *http.Request
 		want response.Refusal
 	}{
-		{"no tool call registry", func() *ConversationHandler { return &ConversationHandler{} }, toolCallsRequest("user"), refusalToolCallsUnavailable},
 		{"a hidden conversation", withToolCalls(aa_usecase.ErrConversationNotVisible), toolCallsRequest("user"), refusalToolCallConversationHidden},
 		{"an unreadable list", withToolCalls(errors.New("db down")), toolCallsRequest("user"), refusalToolCallsFailed},
 		{"no caller", withToolCalls(nil), httptest.NewRequest(http.MethodGet, "/conversations/whatsapp/e/ai-tool-calls", nil), refusalToolCallsUnauthorized},
@@ -41,8 +40,7 @@ func TestEveryToolCallRefusalWritesItsStableCode(t *testing.T) {
 
 func withToolCalls(err error) func() *ConversationHandler {
 	return func() *ConversationHandler {
-		h := &ConversationHandler{}
-		h.SetToolCalls(&stubToolCalls{err: err})
+		h := &ConversationHandler{toolCalls: &stubToolCalls{err: err}}
 		return h
 	}
 }

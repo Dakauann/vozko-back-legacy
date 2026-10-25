@@ -1,13 +1,13 @@
 package conversation
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
 	"vozko/domain/cache"
 	"vozko/domain/inbox_assignment"
 	"vozko/domain/workspace"
-	workspace_department "vozko/domain/workspace/workspace_department"
 )
 
 const (
@@ -32,6 +32,17 @@ func (s *stubShared) Exists(key string) (bool, error) {
 func (s *stubShared) SetString(key, value string, _ time.Duration) error {
 	s.data[key] = value
 	return nil
+}
+
+func (s *stubShared) GetString(key string) (string, error) {
+	return s.data[key], nil
+}
+
+func (s *stubShared) Incr(key string) (int64, error) {
+	n, _ := strconv.ParseInt(s.data[key], 10, 64)
+	n++
+	s.data[key] = strconv.FormatInt(n, 10)
+	return n, nil
 }
 
 type stubEntryAccess struct{}
@@ -59,8 +70,8 @@ func (m stubMembership) HasPermission(_ string, resource workspace.Resource, act
 
 type stubDepartments struct{}
 
-func (stubDepartments) ListDepartments(workspaceID string) ([]workspace_department.Department, error) {
-	return []workspace_department.Department{{ID: testDepartment, WorkspaceID: workspaceID}}, nil
+func (stubDepartments) HasDepartments(string) (bool, error) {
+	return true, nil
 }
 
 func (stubDepartments) GetMemberDepartmentIDs(string, string) ([]string, error) {

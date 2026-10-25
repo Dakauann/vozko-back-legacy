@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"vozko/domain/agent/mcp"
+	"vozko/domain/agenttool"
 	"vozko/domain/copilot"
 	"vozko/domain/rag"
 	"vozko/usecases/copilot/copilottools"
@@ -15,14 +15,11 @@ import (
 
 const knowledgeBaseLookupPageSize = 500
 
-type agentCollections interface {
-	ListByIDs(ctx context.Context, workspaceID string, ids []string) ([]*mcp.MCPCollection, error)
-}
-
 type AgentDeps struct {
 	KnowledgeBases rag.ListKnowledgeBasesUseCase
-	Collections    agentCollections
 	Catalog        ToolCatalog
+	ToolCheck      agenttool.ToolsValidation
+	Publishing     AgentPublisher
 }
 
 func (d AgentDeps) secrets() toolSecrets {
@@ -46,37 +43,12 @@ func (d AgentDeps) knowledgeBaseNames(ctx context.Context, workspaceID string) m
 	return names
 }
 
-func (d AgentDeps) collectionNames(ctx context.Context, workspaceID string, ids []string) map[string]string {
-	names := map[string]string{}
-	if d.Collections == nil || len(ids) == 0 {
-		return names
-	}
-	collections, err := d.Collections.ListByIDs(ctx, workspaceID, ids)
-	if err != nil {
-		return names
-	}
-	for _, c := range collections {
-		if c != nil && c.WorkspaceID == workspaceID {
-			names[c.ID] = c.Name
-		}
-	}
-	return names
-}
-
-func (d AgentDeps) requireLinks(ctx context.Context, workspaceID string, knowledgeBaseIDs, collectionIDs []string) error {
+func (d AgentDeps) requireLinks(ctx context.Context, workspaceID string, knowledgeBaseIDs []string) error {
 	if len(knowledgeBaseIDs) > 0 {
 		known := d.knowledgeBaseNames(ctx, workspaceID)
 		for _, id := range knowledgeBaseIDs {
 			if _, ok := known[id]; !ok {
 				return fmt.Errorf("%w: base de conhecimento desconhecida; use os ids de list_knowledge_bases", copilottools.ErrInvalidArgs)
-			}
-		}
-	}
-	if len(collectionIDs) > 0 {
-		known := d.collectionNames(ctx, workspaceID, collectionIDs)
-		for _, id := range collectionIDs {
-			if _, ok := known[id]; !ok {
-				return fmt.Errorf("%w: coleção MCP desconhecida neste workspace", copilottools.ErrInvalidArgs)
 			}
 		}
 	}
@@ -105,10 +77,6 @@ func (d AgentDeps) knowledgeBaseField(ctx context.Context, cc copilot.Context, k
 	})
 }
 
-func (d AgentDeps) collectionField(ctx context.Context, cc copilot.Context, key string, ids []string) []copilot.Field {
-	return d.linkField(ctx, cc, key, ids, d.collectionNames)
-}
-
 func agentFieldCard(f agentFields) []copilot.Field {
 	var out []copilot.Field
 	text := func(key string, value *string) {
@@ -127,9 +95,6 @@ func agentFieldCard(f agentFields) []copilot.Field {
 	text("provider", f.Provider)
 	flag("isActive", f.IsActive)
 	text("avatarUrl", f.AvatarURL)
-	if f.BusinessPhoneID != nil {
-		out = append(out, copilot.Field{Key: "phone", Value: "muda o número de WhatsApp em que o agente responde"})
-	}
 	text("messagingPrompt", f.MessagingPrompt)
 	return out
 }

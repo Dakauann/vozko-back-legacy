@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"vozko/domain/shared/deps"
 	"vozko/domain/webhook"
 	businessphone "vozko/domain/whatsapp/business_phone"
 	whatsapptemplate "vozko/domain/whatsapp/template"
@@ -34,7 +35,34 @@ func (m *mockPublishWebhook) Publish(topic string, payload []byte) error {
 const testAppSecret = "test-app-secret"
 
 func newHandler(pub *mockPublishWebhook, asaasToken, waVerifyToken string) *WebhookHandler {
-	return NewWebhookHandler(pub, asaasToken, waVerifyToken, testAppSecret)
+	return webhookHandler(WebhookHandlerDeps{Publish: pub, AsaasToken: asaasToken, WhatsAppVerifyToken: waVerifyToken, WhatsAppAppSecrets: []string{testAppSecret}})
+}
+
+type recordingCallWebhooks struct{ calls, messages int }
+
+func (r *recordingCallWebhooks) HandleCallsWebhook([]byte) error    { r.calls++; return nil }
+func (r *recordingCallWebhooks) HandleMessagesWebhook([]byte) error { r.messages++; return nil }
+
+func webhookHandler(d WebhookHandlerDeps) *WebhookHandler {
+	calls := &recordingCallWebhooks{}
+	if d.Calls == nil {
+		d.Calls = calls
+	}
+	if d.CallPermissions == nil {
+		d.CallPermissions = calls
+	}
+	h, err := NewWebhookHandler(d)
+	if err != nil {
+		panic(err)
+	}
+	return h
+}
+
+func TestTheWebhookHandlerRefusesMissingCallHandlers(t *testing.T) {
+	h, err := NewWebhookHandler(WebhookHandlerDeps{Publish: &mockPublishWebhook{}})
+	if h != nil || !errors.Is(err, deps.ErrMissing) {
+		t.Fatalf("h = %v err = %v", h, err)
+	}
 }
 
 func signedWhatsAppPost(body string) *http.Request {
@@ -587,9 +615,7 @@ func TestSecureCompare(t *testing.T) {
 const dialog360MessageBody = `{"entry":[{"changes":[{"field":"messages","value":{"messaging_product":"whatsapp","metadata":{"phone_number_id":"123"},"messages":[{"from":"5511999998888","id":"wamid.X","type":"text","text":{"body":"oi"}}]}}]}]}`
 
 func newDialog360Handler(pub *mockPublishWebhook, secret string) *WebhookHandler {
-	h := NewWebhookHandler(pub, "", "", "")
-	h.SetDialog360WebhookSecret(secret)
-	return h
+	return webhookHandler(WebhookHandlerDeps{Publish: pub, WhatsAppAppSecrets: []string{""}, Dialog360Secret: secret})
 }
 
 func TestDialog360MessageWebhook_AuthenticatedRoutesToMessageTopic(t *testing.T) {
@@ -690,7 +716,7 @@ func TestDialog360MessageWebhook_GetProbeReturns200(t *testing.T) {
 
 func TestHandleWhatsAppWebhook_WithoutAnAppSecretRefusesEveryEvent(t *testing.T) {
 	pub := &mockPublishWebhook{}
-	h := NewWebhookHandler(pub, "", "verify")
+	h := webhookHandler(WebhookHandlerDeps{Publish: pub, WhatsAppVerifyToken: "verify"})
 	body := `{"object":"whatsapp_business_account","entry":[{"changes":[{"field":"messages","value":{"statuses":[{"id":"wamid.X","status":"sent"}]}}]}]}`
 	req := httptest.NewRequest(http.MethodPost, "/webhooks/whatsapp", strings.NewReader(body))
 	rec := httptest.NewRecorder()

@@ -98,7 +98,21 @@ func funnelHandlerWith(repo *funnelRepo, access entryAccess) *StageHandler {
 		nil,
 		stage_usecase.NewReorderStagesUseCase(repo),
 		nil,
+		noFunnels{},
 	)
+}
+
+type noFunnels struct{}
+
+func (noFunnels) Execute(string) ([]stagedomain.FunnelStages, error) { return nil, nil }
+
+func TestTheStageHandlerRefusesAMissingFunnelLister(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("a stage handler without the funnel lister must fail boot")
+		}
+	}()
+	NewStageHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func authed(req *http.Request) *http.Request {

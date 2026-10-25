@@ -112,3 +112,41 @@ func TestReadingAnAgentHidesItsStoredHeaderValues(t *testing.T) {
 		t.Fatal("hiding values for the model must not touch the agent itself")
 	}
 }
+
+func TestAHeaderThatAlreadyReferencesASecretNeedsNoCardField(t *testing.T) {
+	tool := NewUpdateAgentTool(fakeGetAgent{a: boundAgent()}, &fakeUpdateAgent{}, AgentDeps{Catalog: httpCatalog()})
+	secrets := tool.(copilot.SecretAsker).Secrets(httpBindingArgs(map[string]interface{}{"Authorization": "{{secret.api_token}}", "X-Api-Key": ""}))
+	if len(secrets) != 1 || secrets[0].Key != "tool:http_request:headers:X-Api-Key" {
+		t.Fatalf("secrets = %+v", secrets)
+	}
+}
+
+func TestASecretReferenceSurvivesTheCardUntouched(t *testing.T) {
+	upd := &fakeUpdateAgent{}
+	tool := NewUpdateAgentTool(fakeGetAgent{a: boundAgent()}, upd, AgentDeps{Catalog: httpCatalog()})
+	args := tool.(copilot.SecretConcealer).Conceal(httpBindingArgs(map[string]interface{}{"Authorization": "{{secret.api_token}}"}))
+	if res := tool.Execute(nil, okContext(), args); res.Status != copilot.StatusOK {
+		t.Fatalf("res = %+v", res)
+	}
+	for _, b := range upd.got.InternalTools {
+		if b.Name == "http_request" {
+			if b.Config["headers"].(map[string]interface{})["Authorization"] != "{{secret.api_token}}" {
+				t.Fatalf("saved %+v", b)
+			}
+			return
+		}
+	}
+	t.Fatal("no http_request saved")
+}
+
+func TestReadingAnAgentShowsSecretReferencesButNeverPlainValues(t *testing.T) {
+	a := boundAgent()
+	a.InternalTools = append(a.InternalTools, agent.ToolBinding{Name: "http_request", Config: map[string]interface{}{
+		"url": "https://api.exemplo.com", "headers": map[string]interface{}{"Authorization": "{{secret.api_token}}", "X-Legacy": "plain"},
+	}})
+	res := NewGetAgentTool(fakeGetAgent{a: a}, httpCatalog()).Execute(nil, okContext(), map[string]interface{}{"id": "ag-1"})
+	raw, _ := json.Marshal(res.Data)
+	if !strings.Contains(string(raw), "{{secret.api_token}}") || strings.Contains(string(raw), `"plain"`) {
+		t.Fatalf("data %s", raw)
+	}
+}

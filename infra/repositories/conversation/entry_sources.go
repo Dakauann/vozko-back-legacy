@@ -6,6 +6,7 @@ import (
 	"vozko/domain/conversation"
 	"vozko/domain/shared"
 	"vozko/infra/database/sqlexpr"
+	"vozko/infra/repositories/departmentscope"
 )
 
 type entrySource struct {
@@ -29,6 +30,10 @@ type entrySource struct {
 
 	WhatsAppCampaignScoped bool
 	CampaignKind           string
+}
+
+func (src entrySource) department() string {
+	return departmentscope.Routed(src.EntryID, string(src.EntryType), src.Department)
 }
 
 func (src entrySource) joinClause(scope entrySourceScope, workspaceID string) (string, []interface{}) {
@@ -259,7 +264,7 @@ var entrySources = []entrySource{
 		LastMessageAt: "uwc.last_message_at",
 		Deleted:       "uwc.deleted_at IS NULL",
 
-		Department: "uwi.department_id",
+		Department: UnofficialDepartment("uwc", "uwi"),
 	},
 }
 
@@ -330,7 +335,7 @@ func (src entrySource) visibilityConditions(visibility conversation.VisibilitySc
 	var args []interface{}
 
 	if src.Department != "" {
-		clause, deptArgs := departmentScopeClause(src.Department, src.EntryID, visibility.DepartmentIDs, visibility.RestrictDepartments, visibility.AssigneeOverrideUserID)
+		clause, deptArgs := departmentScopeClause(src.department(), src.EntryID, visibility.DepartmentIDs, visibility.RestrictDepartments, visibility.AssigneeOverrideUserID)
 		sql.WriteString(clause)
 		args = append(args, deptArgs...)
 	} else if visibility.RestrictDepartments {

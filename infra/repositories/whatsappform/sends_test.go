@@ -151,7 +151,7 @@ func TestSendListPagesWithinTheReadersScope(t *testing.T) {
 			query: whatsappform.SendQuery{WorkspaceID: wsID, FormID: formID, Limit: 2, After: cursor,
 				Scope: whatsappform.ReadScope{Resolved: true, Restrict: true, DepartmentIDs: []string{deptID}, AssigneeUserID: userID}},
 			sql: sendsFrom + " WHERE s.workspace_id = ? AND s.form_id = ?" +
-				" AND (wc.department_id = ANY(?::uuid[]) OR EXISTS (SELECT 1 FROM inbox_assignments ia_d WHERE ia_d.entry_id = wce.id AND ia_d.assigned_user_id = ?))" +
+				" AND (" + routedFormDepartment + " = ANY(?::uuid[]) OR EXISTS (SELECT 1 FROM inbox_assignments ia_d WHERE ia_d.entry_id = wce.id AND ia_d.assigned_user_id = ?))" +
 				" AND (s.created_at, s.id) < (?, ?::uuid) ORDER BY s.created_at DESC, s.id DESC LIMIT ?",
 			args: []driver.Value{wsID, formID, "{\"" + deptID + "\"}", userID, at, sendID, int64(3)},
 		},

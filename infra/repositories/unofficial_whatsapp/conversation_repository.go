@@ -146,10 +146,9 @@ func (r *conversationRepository) DepartmentIDForEntry(ctx context.Context, entry
 	if err := r.db.WithContext(ctx).
 		Table("unofficial_whatsapp_conversations uwc").
 		Joins("JOIN unofficial_whatsapp_instances uwi ON uwi.id = uwc.instance_id").
-		Joins(conversation_repository.UnofficialCampaignJoin("uwc", "camp")).
 		Where("uwc.id = ?", entryID).
 		Limit(1).
-		Pluck("COALESCE(camp.department_id, uwi.department_id)", &departmentIDs).Error; err != nil {
+		Pluck(conversation_repository.UnofficialDepartment("uwc", "uwi"), &departmentIDs).Error; err != nil {
 		return "", err
 	}
 	if len(departmentIDs) == 0 || !departmentIDs[0].Valid {

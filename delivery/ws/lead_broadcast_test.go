@@ -38,7 +38,7 @@ func (s *capturingSharedState) Publish(_ string, data []byte) error {
 
 func leadHub(t *testing.T, readers map[string]bool, state *capturingSharedState) *ConversationHub {
 	t.Helper()
-	hub := NewConversationHub(leadReadAuthorizer{readers: readers}, nil, nil, state, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: leadReadAuthorizer{readers: readers}, SharedState: state})
 	for _, c := range []struct{ id, user, workspace string }{
 		{"c-reader", "u-reader", "ws-1"},
 		{"c-subscriber", "u-subscriber", "ws-1"},

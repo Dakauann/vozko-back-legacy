@@ -17,12 +17,12 @@ func (s *stubLogout) Execute(userID, sessionID, callerJTI string) error { return
 
 func newTestHandlerWithCookies() *AuthHandler {
 	h := newTestHandler()
-	h.SetCookieConfig(CookieConfig{
+	h.cookieCfg = CookieConfig{
 		Domain:        ".vozko.com.br",
 		Secure:        true,
 		AccessMaxAge:  15 * time.Minute,
 		RefreshMaxAge: 30 * 24 * time.Hour,
-	})
+	}
 	return h
 }
 
@@ -246,14 +246,14 @@ func TestLogout_ClearsCookies(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		&stubLogout{},
-		nil, nil, nil)
+		nil, nil, nil, CookieConfig{})
 
-	h.SetCookieConfig(CookieConfig{
+	h.cookieCfg = CookieConfig{
 		Domain:        ".vozko.com.br",
 		Secure:        true,
 		AccessMaxAge:  15 * time.Minute,
 		RefreshMaxAge: 30 * 24 * time.Hour,
-	})
+	}
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/logout", bytes.NewReader([]byte("{}")))
 	req.Header.Set("X-User-ID", "user-1")

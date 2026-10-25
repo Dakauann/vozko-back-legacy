@@ -99,12 +99,12 @@ func NewCampaigns(db *gorm.DB, a CampaignAdapters) (*Campaigns, error) {
 		Shared:        a.Shared,
 		Memo:          a.Memo,
 		Notifications: a.Notifications,
+		Audience:      a.Audience,
 		PublicBaseURL: a.PublicBaseURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("emailwiring: campaigns: %w", err)
 	}
 	a.Audience.AddChannel(service.AudienceChannel())
-	service.SetAudience(a.Audience)
 	return &Campaigns{Service: service, Consent: consent}, nil
 }

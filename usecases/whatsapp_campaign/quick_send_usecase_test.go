@@ -229,6 +229,9 @@ func (r *qsEntryRepo) ListByLeadID(_ string) ([]wce.WhatsAppCampaignEntry, error
 func (r *qsEntryRepo) ListRecentlyUpdated(_ string, _ int) ([]wce.WhatsAppCampaignEntry, error) {
 	return nil, nil
 }
+func (r *qsEntryRepo) ListRecentlyUpdatedForCampaigns(_ []string, _ int) (map[string][]wce.WhatsAppCampaignEntry, error) {
+	return nil, nil
+}
 func (r *qsEntryRepo) CountByStatus(_ string) (*wce.StatusCounts, error) { return nil, nil }
 func (r *qsEntryRepo) CountByStatusForCampaigns(_ []string) (map[string]*wce.StatusCounts, error) {
 	return nil, nil
@@ -301,10 +304,12 @@ func (r *qsLeadRepo) Create(_ *lead.Lead) error                            { ret
 func (r *qsLeadRepo) FindByID(_ string, _ string) (*lead.Lead, error)      { return nil, nil }
 func (r *qsLeadRepo) FindByIDs(_ string, _ []string) ([]*lead.Lead, error) { return nil, nil }
 func (r *qsLeadRepo) FindByNumber(_ string, _ string) (*lead.Lead, error)  { return nil, nil }
-func (r *qsLeadRepo) FindByEmail(_ string, _ string) (*lead.Lead, error)   { return nil, lead.ErrLeadNotFound }
-func (r *qsLeadRepo) Update(_ string, _ string, _ lead.LeadUpdate) error   { return nil }
-func (r *qsLeadRepo) Rename(_ string, _ string, _ string) error            { return nil }
-func (r *qsLeadRepo) Delete(_ string, _ string) error                      { return nil }
+func (r *qsLeadRepo) FindByEmail(_ string, _ string) (*lead.Lead, error) {
+	return nil, lead.ErrLeadNotFound
+}
+func (r *qsLeadRepo) Update(_ string, _ string, _ lead.LeadUpdate) error { return nil }
+func (r *qsLeadRepo) Rename(_ string, _ string, _ string) error          { return nil }
+func (r *qsLeadRepo) Delete(_ string, _ string) error                    { return nil }
 func (r *qsLeadRepo) List(_ lead.ListLeadsInput) (*shared.PaginatedResult[*lead.Lead], error) {
 	return nil, nil
 }
@@ -874,23 +879,6 @@ func TestQuickSend_RaceLostCAS_FallsThroughToRunningPath(t *testing.T) {
 	}
 }
 
-func TestQuickSend_NilSharedState_StillWorks_NoLockNoCounter(t *testing.T) {
-	h := newHarness(t, wc.CampaignStatusStopped, "c-1")
-
-	uc := mustQuickSend(t, h.camp, h.entry, h.leadRepo, h.pub, h.cons, nil)
-
-	out, err := uc.Execute(wc.QuickSendInput{
-		CampaignID:   "c-1",
-		PhoneNumbers: validPhones(1),
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if out.DispatchedCount != 1 {
-		t.Fatalf("expected 1 dispatched, got %d", out.DispatchedCount)
-	}
-}
-
 func TestQuickSend_LeadRepoFails_ReturnsErrorEarly(t *testing.T) {
 	h := newHarness(t, wc.CampaignStatusStopped, "c-1")
 	h.leadRepo.createErr = errors.New("db down")
@@ -957,7 +945,7 @@ func mustQuickSend(
 	shared cache.SharedState,
 ) wc.QuickSendUseCase {
 	t.Helper()
-	uc, err := NewQuickSendUseCase(campaignRepo, entryRepo, leadRepo, pub, consumer, shared)
+	uc, err := NewQuickSendUseCase(campaignRepo, entryRepo, leadRepo, pub, consumer, shared, automationThatAllows{})
 	if err != nil {
 		t.Fatalf("NewQuickSendUseCase() = %v", err)
 	}
@@ -966,7 +954,7 @@ func mustQuickSend(
 
 func TestNewQuickSendUseCaseRequiresAConsumer(t *testing.T) {
 	h := newHarness(t, wc.CampaignStatusStopped, "c-1")
-	if _, err := NewQuickSendUseCase(h.camp, h.entry, h.leadRepo, h.pub, nil, h.shared); err == nil {
+	if _, err := NewQuickSendUseCase(h.camp, h.entry, h.leadRepo, h.pub, nil, h.shared, automationThatAllows{}); err == nil {
 		t.Fatal("NewQuickSendUseCase() = nil error with no consumer, want a refusal")
 	}
 }

@@ -35,7 +35,7 @@ func (j *RescueJob) resolveSchedules(policies []wsc.RoulettePolicy) *tickSchedul
 		s.workspaces[p.WorkspaceID] = compiled
 	}
 
-	if j.departments == nil || len(workspaceIDs) == 0 {
+	if len(workspaceIDs) == 0 {
 		return s
 	}
 	overrides, err := j.departments.ListWorkingHours(workspaceIDs)

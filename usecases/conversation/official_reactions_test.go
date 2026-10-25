@@ -24,12 +24,12 @@ type closedWindowRepo struct{ lmw.Repository }
 func (closedWindowRepo) IsWindowOpen(string, string) (bool, error) { return false, nil }
 
 func officialReactionSender(client conversation.WhatsAppClient, windows lmw.Repository) *MessageSenderService {
-	return &MessageSenderService{
+	return senderWith(&MessageSenderService{
 		whatsappRepo:          stubAudioEntryRepo{},
 		leadRepo:              stubAudioLeadRepo{},
 		messageWindowRepo:     windows,
 		whatsappClientFactory: stubAudioClientFactory{client: client},
-	}
+	})
 }
 
 func TestOfficialWhatsAppReactsThroughTheCloudAPI(t *testing.T) {

@@ -112,7 +112,10 @@ func TestRollupJob_RebuildsTouchedDaysAndAuthors(t *testing.T) {
 			Counters: ca.Counters{StanceHostile: 3, SeverityHighCount: 3}}}, nil
 	}
 	authors, rollups, state := &fakeAuthors{}, &fakeRollups{}, newFakeState()
-	job := NewRollupJob(repo, newFakeSettings(enabledSettings()), authors, rollups, state, fixedClock{now})
+	job, err := NewRollupJob(RollupDeps{Repo: repo, Settings: newFakeSettings(enabledSettings()), Authors: authors, Rollups: rollups, State: state, Clock: fixedClock{now}, Roles: &countingRoles{}})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if err := job.Execute(context.Background()); err != nil {
 		t.Fatal(err)

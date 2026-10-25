@@ -68,13 +68,7 @@ func EnsureCompositeLeadKeys(db *gorm.DB) error {
 }
 
 func ensureCompositeLeadKey(db *gorm.DB, key compositeLeadKey) error {
-	err := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec("SELECT set_config('lock_timeout', ?, true)", leadKeyLockTimeout).Error; err != nil {
-			return err
-		}
-		return tx.Exec(key.addSQL()).Error
-	})
-	if err != nil {
+	if err := execUnderLockTimeout(db, leadKeyLockTimeout, key.addSQL()); err != nil {
 		return err
 	}
 	var pending bool

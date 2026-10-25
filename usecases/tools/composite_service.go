@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	domainagent "vozko/domain/agent"
 	domainmcp "vozko/domain/agent/mcp"
 	"vozko/domain/tools"
 	ucmcp "vozko/usecases/agent/mcp"
@@ -107,61 +108,78 @@ func (c *CompositeToolService) mcpDefinitionsForAgent(ctx context.Context) []too
 		log.Printf("[MCP-Tool] SourcesForCollections failed: %v", err)
 		return nil
 	}
-	if len(sources) == 0 {
+	picks := make([]mcpPick, 0, len(sources))
+	for _, s := range sources {
+		picks = append(picks, mcpPick{source: s, allows: func(string) bool { return true }})
+	}
+	return byName(c.definitionsOf(ctx, domainmcp.WorkspaceID(agent.WorkspaceID), picks))
+}
+
+func (c *CompositeToolService) MCPDefinitionsForBindings(ctx context.Context, workspaceID string, bindings []domainagent.ToolBinding) []tools.Definition {
+	if len(bindings) == 0 || workspaceID == "" {
 		return nil
 	}
-
-	type item struct {
-		sanitizedName string
-		displayName   string
-		description   string
-		params        map[string]tools.Parameter
-		required      []string
+	ws := domainmcp.WorkspaceID(workspaceID)
+	sources, err := c.mcpReg.Sources(ctx, ws)
+	if err != nil {
+		log.Printf("[MCP-Tool] Sources failed: %v", err)
+		return nil
 	}
-
-	var mu sync.Mutex
-	var items []item
-
-	g, gctx := errgroup.WithContext(ctx)
+	byID := make(map[string]domainmcp.ToolSource, len(sources))
 	for _, s := range sources {
-		s := s
+		byID[s.ID()] = s
+	}
+	picks := make([]mcpPick, 0, len(bindings))
+	for _, b := range bindings {
+		selection := MCPSelectionOf(b.Config)
+		source, connected := byID[selection.SourceID]
+		if !connected {
+			continue
+		}
+		picks = append(picks, mcpPick{source: source, allows: selection.Allows, instance: &tools.InstanceRef{ID: b.ID, Type: MCPSourceToolName, Revision: b.Revision}})
+	}
+	return byName(c.definitionsOf(ctx, ws, picks))
+}
+
+type mcpPick struct {
+	source   domainmcp.ToolSource
+	allows   func(tool string) bool
+	instance *tools.InstanceRef
+}
+
+func (c *CompositeToolService) definitionsOf(ctx context.Context, ws domainmcp.WorkspaceID, picks []mcpPick) []tools.Definition {
+	var mu sync.Mutex
+	var defs []tools.Definition
+	g, gctx := errgroup.WithContext(ctx)
+	for _, p := range picks {
+		p := p
 		g.Go(func() error {
-			ts, err := s.ListTools(gctx, domainmcp.WorkspaceID(agent.WorkspaceID))
+			listed, err := p.source.ListTools(gctx, ws)
 			if err != nil {
-				log.Printf("[MCP-Tool] ListTools failed for source %s: %v", s.ID(), err)
+				log.Printf("[MCP-Tool] ListTools failed for source %s: %v", p.source.ID(), err)
 				return nil
 			}
 			mu.Lock()
-			for _, t := range ts {
-				qualifiedName := s.ID() + "." + t.Name
+			defer mu.Unlock()
+			for _, t := range listed {
+				if !p.allows(t.Name) {
+					continue
+				}
 				params, required := parseSchemaToParams(t.InputSchema)
-				sanitizedName := sanitizeToolName(qualifiedName)
-				log.Printf("[MCP-Tool] definition: name=%s params=%d required=%d schema_len=%d", sanitizedName, len(params), len(required), len(t.InputSchema))
-				items = append(items, item{
-					sanitizedName: sanitizedName,
-					displayName:   "[" + s.DisplayName() + "] " + t.Title,
-					description:   t.Description,
-					params:        params,
-					required:      required,
+				defs = append(defs, tools.Definition{
+					Name:        sanitizeToolName(p.source.ID() + "." + t.Name),
+					DisplayName: "[" + p.source.DisplayName() + "] " + t.Title,
+					Description: t.Description,
+					Parameters:  params,
+					Required:    required,
+					Instance:    p.instance,
 				})
 			}
-			mu.Unlock()
 			return nil
 		})
 	}
 	_ = g.Wait()
-
-	defs := make([]tools.Definition, 0, len(items))
-	for _, it := range items {
-		defs = append(defs, tools.Definition{
-			Name:        it.sanitizedName,
-			DisplayName: it.displayName,
-			Description: it.description,
-			Parameters:  it.params,
-			Required:    it.required,
-		})
-	}
-	return byName(defs)
+	return defs
 }
 
 const mcpMaxResultChars = 10000
@@ -192,7 +210,7 @@ func (c *CompositeToolService) executeMCP(ctx context.Context, qn domainmcp.Qual
 		return tools.ExecutionResult{IsError: true, Result: errMsg, ContextUpdateText: errMsg}, nil
 	}
 	if result.IsError {
-		log.Printf("[MCP-Tool] tool error: source=%s tool=%s content=%+v", source.ID(), localName, result.Content)
+		log.Printf("[MCP-Tool] tool error: source=%s tool=%s parts=%d", source.ID(), localName, len(result.Content))
 		msg := ""
 		if len(result.Content) > 0 {
 			msg = truncateText(result.Content[0].Text, mcpMaxResultChars)

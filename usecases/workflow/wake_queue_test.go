@@ -144,11 +144,11 @@ func TestRunEngine_EnqueuesWakeOnWait(t *testing.T) {
 	logRepo := NewMockWorkflowRunLogRepository()
 	registry := NewNodeExecutorRegistry()
 	RegisterDefaultExecutors(registry, ExecutorDeps{})
-	engine := NewRunEngine(runRepo, logRepo, registry)
-	engine.SetAutomationGate(SandboxAutomationGate{})
+	engine := testEngine(runRepo, logRepo, registry)
+	engine.automationGate = SandboxAutomationGate{}
 
 	scheduler := &mockWakeScheduler{}
-	engine.SetWakeScheduler(scheduler)
+	engine.wakeScheduler = scheduler
 
 	w := &workflow.Workflow{
 		ID:          "w1",
@@ -208,8 +208,8 @@ func TestConsumeRunWake_ResumesMatchingRun(t *testing.T) {
 	logRepo := NewMockWorkflowRunLogRepository()
 	registry := NewNodeExecutorRegistry()
 	RegisterDefaultExecutors(registry, ExecutorDeps{})
-	engine := NewRunEngine(runRepo, logRepo, registry)
-	engine.SetAutomationGate(SandboxAutomationGate{})
+	engine := testEngine(runRepo, logRepo, registry)
+	engine.automationGate = SandboxAutomationGate{}
 
 	w := &workflow.Workflow{
 		ID:          "w1",
@@ -275,8 +275,8 @@ func TestConsumeRunWake_IgnoresStaleWakeMessage(t *testing.T) {
 	logRepo := NewMockWorkflowRunLogRepository()
 	registry := NewNodeExecutorRegistry()
 	RegisterDefaultExecutors(registry, ExecutorDeps{})
-	engine := NewRunEngine(runRepo, logRepo, registry)
-	engine.SetAutomationGate(SandboxAutomationGate{})
+	engine := testEngine(runRepo, logRepo, registry)
+	engine.automationGate = SandboxAutomationGate{}
 
 	w := &workflow.Workflow{
 		ID:          "w1",

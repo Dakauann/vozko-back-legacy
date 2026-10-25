@@ -47,7 +47,7 @@ func (uc *HandleWebhookUseCase) ingestHistoryBatch(ctx context.Context, instance
 	if !uw.HasItems(env.Data) {
 		return nil
 	}
-	if uc.historyOff || !instance.ImportHistory {
+	if !instance.ImportHistory {
 		log.Printf("[unofficial-whatsapp][history] instance %s: history batch %d/%d dropped, import is disabled",
 			instance.ID, env.Batch.Number, env.Batch.Total)
 		return nil
@@ -320,8 +320,5 @@ func (t *historyTally) seen(sub *chatContext) {
 }
 
 func (uc *HandleWebhookUseCase) historyWindowStart() time.Time {
-	if uc.historyWindow <= 0 {
-		return time.Time{}
-	}
 	return time.Now().UTC().Add(-uc.historyWindow)
 }

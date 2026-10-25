@@ -94,7 +94,11 @@ func (c *LaunchCheck) Run(ctx context.Context, campaignID string) (launchcheck.R
 	if err != nil {
 		return launchcheck.Report{}, err
 	}
-	counts, err := c.d.Counts.CountByStatus(campaignID)
+	return c.RunOn(ctx, camp)
+}
+
+func (c *LaunchCheck) RunOn(ctx context.Context, camp *wc.Campaign) (launchcheck.Report, error) {
+	counts, err := c.d.Counts.CountByStatus(camp.ID)
 	if err != nil {
 		return launchcheck.Report{}, fmt.Errorf("count the campaign's contacts: %w", err)
 	}

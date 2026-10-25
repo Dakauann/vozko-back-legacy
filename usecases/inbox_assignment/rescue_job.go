@@ -12,6 +12,7 @@ import (
 	"vozko/domain/actor"
 	"vozko/domain/conversation"
 	ia "vozko/domain/inbox_assignment"
+	"vozko/domain/shared/deps"
 	wd "vozko/domain/workspace/workspace_department"
 	wsc "vozko/domain/workspace_config"
 )
@@ -24,49 +25,59 @@ const (
 	TriggerRescueExhausted = "rescue_exhausted"
 )
 
-type rescueConfigReader interface {
+type RescueConfigReader interface {
 	ListRoulettePolicies(ctx context.Context) ([]wsc.RoulettePolicy, error)
 	GetByWorkspaceID(ctx context.Context, workspaceID string) (*wsc.WorkspaceConfig, error)
 }
 
-type rescueHistoryReader interface {
+type RescueHistoryReader interface {
 	ListOpenOlderThan(workspaceIDs []string, triggers []string, olderThan time.Time, limit int) ([]*ia.AssignmentHistory, error)
 	CountRescuesSinceHandout(workspaceID, entryID, entryType string) (int, error)
 }
 
-type rescueStatusReader interface {
+type RescueStatusReader interface {
 	GetConversationStatus(entryID, entryType string) conversation.ConversationStatus
 }
 
-type rescueDepartmentScheduleReader interface {
+type DepartmentScheduleReader interface {
 	ListWorkingHours(workspaceIDs []string) ([]wd.DepartmentSchedule, error)
 }
 
 type RescueJob struct {
-	cfg         rescueConfigReader
-	history     rescueHistoryReader
+	cfg         RescueConfigReader
+	history     RescueHistoryReader
 	attention   ia.EntryAttentionReader
-	status      rescueStatusReader
+	status      RescueStatusReader
 	assign      *AssignmentService
-	departments rescueDepartmentScheduleReader
+	departments DepartmentScheduleReader
 	batch       int
-	disabled    bool
 	now         func() time.Time
 }
 
-func (j *RescueJob) SetDepartmentSchedules(r rescueDepartmentScheduleReader) {
-	if j != nil {
-		j.departments = r
-	}
+type RescueDeps struct {
+	Config      RescueConfigReader
+	History     RescueHistoryReader
+	Attention   ia.EntryAttentionReader
+	Status      RescueStatusReader
+	Assign      *AssignmentService
+	Departments DepartmentScheduleReader
+	Now         func() time.Time
 }
 
-func NewRescueJob(
-	cfg rescueConfigReader,
-	history rescueHistoryReader,
-	attention ia.EntryAttentionReader,
-	status rescueStatusReader,
-	assign *AssignmentService,
-) *RescueJob {
+func NewRescueJob(d RescueDeps) (*RescueJob, error) {
+	if err := deps.Require("assignment rescue", map[string]any{
+		"config":      d.Config,
+		"history":     d.History,
+		"attention":   d.Attention,
+		"status":      d.Status,
+		"assign":      d.Assign,
+		"departments": d.Departments,
+	}); err != nil {
+		return nil, err
+	}
+	if d.Now == nil {
+		d.Now = time.Now
+	}
 	batch := DefaultRescueBatch
 	if v := strings.TrimSpace(os.Getenv("ASSIGNMENT_RESCUE_BATCH")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -76,34 +87,19 @@ func NewRescueJob(
 			batch = n
 		}
 	}
-	disabled := false
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("ASSIGNMENT_RESCUE_DISABLED"))) {
-	case "1", "true", "yes", "on":
-		disabled = true
-	}
 	return &RescueJob{
-		cfg:       cfg,
-		history:   history,
-		attention: attention,
-		status:    status,
-		assign:    assign,
-		batch:     batch,
-		disabled:  disabled,
-		now:       time.Now,
-	}
-}
-
-func (j *RescueJob) SetClock(now func() time.Time) {
-	if now != nil {
-		j.now = now
-	}
+		cfg:         d.Config,
+		history:     d.History,
+		attention:   d.Attention,
+		status:      d.Status,
+		assign:      d.Assign,
+		departments: d.Departments,
+		batch:       batch,
+		now:         d.Now,
+	}, nil
 }
 
 func (j *RescueJob) Execute(ctx context.Context) error {
-	if j == nil || j.disabled || j.cfg == nil || j.history == nil || j.assign == nil {
-		return nil
-	}
-
 	policies, err := j.cfg.ListRoulettePolicies(ctx)
 	if err != nil {
 		log.Printf("[assignment_rescue] policy list error: %v", err)
@@ -183,7 +179,7 @@ type rescueTick struct {
 	configErr map[string]bool
 }
 
-func (t *rescueTick) config(ctx context.Context, cfg rescueConfigReader, workspaceID string) (*wsc.WorkspaceConfig, error) {
+func (t *rescueTick) config(ctx context.Context, cfg RescueConfigReader, workspaceID string) (*wsc.WorkspaceConfig, error) {
 	if c, ok := t.configs[workspaceID]; ok {
 		return c, nil
 	}
@@ -227,6 +223,10 @@ func (j *RescueJob) rescueOne(ctx context.Context, h *ia.AssignmentHistory, poli
 	if h == nil || h.EntryID == "" || h.AssignedActorID == "" {
 		return outcomeSkipped
 	}
+	if h.DepartmentUnresolved {
+		log.Printf("[assignment_rescue] entry %s (%s) was handed out with an unreadable department; leaving it with %s", h.EntryID, h.EntryType, h.AssignedActorID)
+		return outcomeSkipped
+	}
 	schedule := tick.schedules.forEntry(h.WorkspaceID, h.DepartmentID)
 	if schedule.Elapsed(h.StartedAt, now) <= policy.RescueAfter {
 		return outcomeSkipped
@@ -237,18 +237,16 @@ func (j *RescueJob) rescueOne(ctx context.Context, h *ia.AssignmentHistory, poli
 	if actor.IsAutomation(h.AssignedActorID) {
 		return outcomeSkipped
 	}
-	if j.status != nil && j.status.GetConversationStatus(h.EntryID, h.EntryType) == conversation.ConversationStatusFinished {
+	if j.status.GetConversationStatus(h.EntryID, h.EntryType) == conversation.ConversationStatusFinished {
 		return outcomeSkipped
 	}
-	if j.attention != nil {
-		attended, err := j.attention.AttendedSince(h.EntryID, h.EntryType, h.AssignedActorID, h.StartedAt)
-		if err != nil {
-			log.Printf("[assignment_rescue] attention check failed for %s (%s): %v", h.EntryID, h.EntryType, err)
-			return outcomeSkipped
-		}
-		if attended {
-			return outcomeSkipped
-		}
+	attended, err := j.attention.AttendedSince(h.EntryID, h.EntryType, h.AssignedActorID, h.StartedAt)
+	if err != nil {
+		log.Printf("[assignment_rescue] attention check failed for %s (%s): %v", h.EntryID, h.EntryType, err)
+		return outcomeSkipped
+	}
+	if attended {
+		return outcomeSkipped
 	}
 
 	cfg, err := tick.config(ctx, j.cfg, h.WorkspaceID)

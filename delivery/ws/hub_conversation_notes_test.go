@@ -11,7 +11,7 @@ import (
 
 func noteHub(t *testing.T, state *capturingSharedState) *ConversationHub {
 	t.Helper()
-	hub := NewConversationHub(&hubDepartmentTestAuthorizer{}, nil, nil, state, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: &hubDepartmentTestAuthorizer{}, SharedState: state})
 	for _, c := range []struct{ id, user string }{
 		{"c-viewer", "u-viewer"},
 		{"c-viewer-popout", "u-viewer"},

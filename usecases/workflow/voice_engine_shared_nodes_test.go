@@ -64,7 +64,7 @@ func runCallStep(t *testing.T, step workflow.NodeExecutor, runtime interface{}) 
 	w := callStepWorkflow()
 	run := voiceRun(w)
 	_ = runs.Create(run)
-	if err := NewRunEngine(runs, NewMockWorkflowRunLogRepository(), registry).ExecuteWithRuntime(run, w, runtime); err != nil {
+	if err := testEngine(runs, NewMockWorkflowRunLogRepository(), registry).ExecuteWithRuntime(run, w, runtime); err != nil {
 		t.Fatalf("ExecuteWithRuntime: %v", err)
 	}
 	return run
@@ -222,7 +222,7 @@ func TestAVoiceMenuCanBranchOnAnAPIAnswerAboutTheCaller(t *testing.T) {
 	})
 	runs := NewMockWorkflowRunRepository()
 	_ = runs.Create(run)
-	if err := NewRunEngine(runs, NewMockWorkflowRunLogRepository(), registry).ExecuteWithRuntime(run, flow, caller); err != nil {
+	if err := testEngine(runs, NewMockWorkflowRunLogRepository(), registry).ExecuteWithRuntime(run, flow, caller); err != nil {
 		t.Fatalf("ExecuteWithRuntime: %v", err)
 	}
 
@@ -261,7 +261,7 @@ func TestAVoiceWorkflowWithAnAPILookupActivatesButAPauseDoesNot(t *testing.T) {
 		"duration": float64(1), "unit": "minutes",
 	}}))
 	uc := voiceActivation(repo, inboundTrunksStub{"ws1|trunk-1": true, "ws1|trunk-2": true})
-	uc.SetCatalogFn(registry.Catalog)
+	uc.catalogFn = registry.Catalog
 
 	if _, err := uc.Execute(context.Background(), "wf-api"); err != nil {
 		t.Fatalf("a voice flow that looks the caller up must activate: %v", err)

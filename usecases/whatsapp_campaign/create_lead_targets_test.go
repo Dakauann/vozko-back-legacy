@@ -144,12 +144,12 @@ func newLeadTargetFixture() *leadTargetFixture {
 func (f *leadTargetFixture) build(t *testing.T, automation AutomationCheck) wc.CreateCampaignUseCase {
 	t.Helper()
 	phones, templates := createPhonesAndTemplates()
-	uc := NewCreateCampaignUseCase(f.campaigns, f.entries, f.leads, templates, phones, &ownershipWorkspacePhoneAccessRepo{hasAccess: true}, f.screener)
+	uc := createWith(CreateCampaignDeps{Campaigns: f.campaigns, Entries: f.entries, Leads: f.leads, Templates: templates, Phones: phones, PhoneAccess: &ownershipWorkspacePhoneAccessRepo{hasAccess: true}, Eligibility: f.screener})
 	concrete := uc.(*createCampaignUseCase)
-	concrete.SetTemplateGrants(allowGrants{})
-	concrete.SetAutomation(automation)
-	concrete.SetExitRiskGate(admittingGate{})
-	concrete.SetIdempotentCampaigns(f.keys)
+	concrete.templateGrants = allowGrants{}
+	concrete.automation = automation
+	concrete.exitRisk = admittingGate{}
+	concrete.keyed = f.keys
 	return uc
 }
 
@@ -339,20 +339,6 @@ func TestAKeyedCreationWhoseEntriesFailLeavesNothingForTheRetryToReturn(t *testi
 	}
 }
 
-func TestAKeyedCreationRefusesWithoutTheKeyStore(t *testing.T) {
-	f := newLeadTargetFixture()
-	uc := f.build(t, permissiveAutomation(t))
-	uc.(*createCampaignUseCase).SetIdempotentCampaigns(nil)
-	in := leadCampaign(wc.PhoneInput{LeadID: "lead-a"})
-	in.IdempotencyKey = "send-key:1/1"
-	if _, err := uc.Execute(context.Background(), in); !errors.Is(err, campaign.ErrIdempotencyUnavailable) {
-		t.Fatalf("Execute = %v, want ErrIdempotencyUnavailable", err)
-	}
-	if len(f.campaigns.campaigns) != 0 {
-		t.Fatal("a campaign was written without the key store")
-	}
-}
-
 func TestCreateRefusesAMissingWorkflowVariableWithoutTheHandler(t *testing.T) {
 	f := newLeadTargetFixture()
 	workflows := noWorkflows{byID: map[string]*workflow.Workflow{"wf-1": {ID: "wf-1", WorkspaceID: "ws-1", Graph: workflow.Graph{Nodes: []workflow.Node{
@@ -378,12 +364,5 @@ func TestCreateRefusesAnAgentItCannotRead(t *testing.T) {
 	in.AgentID, in.EnableAgentResponses = "agent-1", true
 	if _, err := f.build(t, permissiveAutomation(t)).Execute(context.Background(), in); !errors.Is(err, campaign.ErrAgentNotFound) {
 		t.Fatalf("Execute = %v, want ErrAgentNotFound", err)
-	}
-}
-
-func TestCreateRefusesWithoutTheAutomationStep(t *testing.T) {
-	f := newLeadTargetFixture()
-	if _, err := f.build(t, nil).Execute(context.Background(), leadCampaign(wc.PhoneInput{LeadID: "lead-a"})); !errors.Is(err, campaign.ErrAutomationUnavailable) {
-		t.Fatalf("Execute = %v, want ErrAutomationUnavailable", err)
 	}
 }

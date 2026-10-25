@@ -10,16 +10,16 @@ import (
 	"time"
 
 	"vozko/domain/workflow"
-	"vozko/domain/workflowsecret"
+	"vozko/domain/workspacesecret"
 	"vozko/usecases/workflow/scriptvm"
 )
 
 type codeExecutor struct {
 	sandbox *scriptvm.Sandbox
-	secrets workflowsecret.Resolver
+	secrets workspacesecret.Resolver
 }
 
-func NewCodeExecutor(secrets workflowsecret.Resolver) workflow.NodeExecutor {
+func NewCodeExecutor(secrets workspacesecret.Resolver) workflow.NodeExecutor {
 	limits := scriptvm.DefaultLimits()
 	limits.Wallclock = workflow.CodeNodeMaxTimeout
 	return &codeExecutor{sandbox: scriptvm.New(limits), secrets: secrets}

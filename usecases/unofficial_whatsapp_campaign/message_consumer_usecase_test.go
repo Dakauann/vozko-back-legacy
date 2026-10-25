@@ -49,8 +49,8 @@ func newHarness(t *testing.T) *harness {
 		Campaigns: h.campaigns, Entries: h.entries, Instances: h.gateway,
 		Sender: h.sender, Budget: NewSendBudget(h.shared), Spam: h.spam, Eligibility: h.spam,
 		Assignments: h.assigner, Metrics: h.metrics,
-		PauseAll: h.pauser,
-	}}
+		Groups: &fakeGroupSending{}, Broadcaster: quietEntryBroadcaster{}, Choices: &spyChoices{},
+	}, pauseAll: h.pauser}
 	uc.attachRunner()
 	h.consumer = uc
 	return h

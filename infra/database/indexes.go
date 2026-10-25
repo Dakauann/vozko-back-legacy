@@ -9,12 +9,11 @@ import (
 
 	"vozko/domain/balance"
 	ia "vozko/domain/inbox_assignment"
-	"vozko/domain/workflow"
 	"vozko/infra/database/sqlexpr"
 )
 
 const (
-	AgentRunWorkflowBindingsIndex    = "idx_agents_run_workflow_bindings"
+	AgentRunWorkflowBindingsIndex    = "idx_agent_tools_workspace_type"
 	WorkflowRunOriginIndex           = "idx_wfr_workflow_origin_started"
 	WorkflowRunTriggerDataPruneIndex = "idx_wfr_trigger_data_prune"
 	WorkflowRunLogNodeIndex          = "idx_wfrl_run_node_executed"
@@ -29,12 +28,6 @@ func performanceIndexes() []ddl {
 			sql: `CREATE INDEX IF NOT EXISTS idx_cm_inbox_whatsapp
 				ON conversation_messages (entry_id, created_at DESC)
 				WHERE entry_type = 'whatsapp' AND deleted_at IS NULL`,
-		},
-		{
-			name: "idx_cm_entry_del_created",
-			sql: `CREATE INDEX IF NOT EXISTS idx_cm_entry_del_created
-				ON conversation_messages (entry_id, entry_type, created_at DESC)
-				WHERE deleted_at IS NULL`,
 		},
 		{
 			name: "idx_cm_wamid_partial",
@@ -129,12 +122,6 @@ func performanceIndexes() []ddl {
 			name: "idx_wa_campaign_ws_created",
 			sql: `CREATE INDEX IF NOT EXISTS idx_wa_campaign_ws_created
 				ON whatsapp_campaigns (workspace_id, created_at)
-				WHERE deleted_at IS NULL`,
-		},
-		{
-			name: "idx_wce_campaign_created_active",
-			sql: `CREATE INDEX IF NOT EXISTS idx_wce_campaign_created_active
-				ON whatsapp_campaign_entries (campaign_id, created_at)
 				WHERE deleted_at IS NULL`,
 		},
 		{
@@ -356,6 +343,28 @@ func performanceIndexes() []ddl {
 				WHERE outcome = 'error'`,
 		},
 		{
+			name: "idx_aitc_agent_run",
+			sql: `CREATE INDEX IF NOT EXISTS idx_aitc_agent_run
+				ON ai_tool_calls (agent_run_id, sequence)
+				WHERE agent_run_id IS NOT NULL`,
+		},
+		{
+			name: "idx_aitc_payload_created",
+			sql: `CREATE INDEX IF NOT EXISTS idx_aitc_payload_created
+				ON ai_tool_calls (created_at)
+				WHERE args IS NOT NULL OR model_result IS NOT NULL OR http IS NOT NULL OR mapped_output IS NOT NULL OR error_chain IS NOT NULL`,
+		},
+		{
+			name: "idx_agent_runs_agent_started",
+			sql: `CREATE INDEX IF NOT EXISTS idx_agent_runs_agent_started
+				ON agent_runs (workspace_id, agent_id, started_at DESC)`,
+		},
+		{
+			name: "idx_agent_runs_started",
+			sql: `CREATE INDEX IF NOT EXISTS idx_agent_runs_started
+				ON agent_runs (started_at)`,
+		},
+		{
 			name: "idx_wfwd_rejected_received",
 			sql: `CREATE INDEX IF NOT EXISTS idx_wfwd_rejected_received
 				ON workflow_webhook_deliveries (received_at)
@@ -381,8 +390,8 @@ func performanceIndexes() []ddl {
 		{
 			name: AgentRunWorkflowBindingsIndex,
 			sql: `CREATE INDEX IF NOT EXISTS ` + AgentRunWorkflowBindingsIndex + `
-				ON agents (workspace_id)
-				WHERE deleted_at IS NULL AND ` + sqlexpr.AgentBindsTool("", workflow.AgentRunWorkflowTool),
+				ON agent_tools (workspace_id, type)
+				WHERE deleted_at IS NULL`,
 		},
 
 		{
@@ -578,12 +587,25 @@ func CreatePerformanceIndexes(db *gorm.DB) {
 		}
 	}
 	createConcurrentIndexes(db)
+	retireIndexes(db)
 	createCompositeLeadKeys(db)
 	runIndexedRepairs(db)
 }
 
 func schemaConstraints() []ddl {
 	return []ddl{
+		{
+			name: "ux_agent_tools_name",
+			sql: `CREATE UNIQUE INDEX IF NOT EXISTS ux_agent_tools_name
+				ON agent_tools (agent_id, lower(name))
+				WHERE deleted_at IS NULL`,
+		},
+		{
+			name: "ux_agent_tools_target",
+			sql: `CREATE UNIQUE INDEX IF NOT EXISTS ux_agent_tools_target
+				ON agent_tools (agent_id, type, target_key)
+				WHERE deleted_at IS NULL AND target_key <> ''`,
+		},
 		{
 			name: "idx_short_links_code_active",
 			sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_short_links_code_active

@@ -26,8 +26,10 @@ type fixedWorkspace struct {
 	workspaceID string
 }
 
-func (f fixedWorkspace) GetEntryWorkspaceID(string, string) (string, error) { return f.workspaceID, nil }
-func (f fixedWorkspace) GetEntryCampaignID(string, string) (string, error)  { return "", nil }
+func (f fixedWorkspace) GetEntryWorkspaceID(string, string) (string, error) {
+	return f.workspaceID, nil
+}
+func (f fixedWorkspace) GetEntryCampaignID(string, string) (string, error) { return "", nil }
 
 func refreshHub(t *testing.T) (*ConversationHub, *WSConnection, *countingHistory) {
 	t.Helper()
@@ -35,7 +37,7 @@ func refreshHub(t *testing.T) (*ConversationHub, *WSConnection, *countingHistory
 		entryAccess: map[string]bool{"viewer": true},
 		viewOthers:  map[string]bool{"viewer": true},
 	}
-	hub := NewConversationHub(authorizer, nil, nil, nil, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer})
 	hub.refreshWindow = 20 * time.Millisecond
 	history := &countingHistory{statusTestHistoryProvider: &statusTestHistoryProvider{
 		entries: map[string]*conversation.InboxEntry{
@@ -43,6 +45,7 @@ func refreshHub(t *testing.T) (*ConversationHub, *WSConnection, *countingHistory
 		},
 	}}
 	hub.historyProvider = history
+	hub.cmds().Inbox = historyInbox{history: history}
 	hub.workspaceResolver = fixedWorkspace{workspaceID: "ws-1"}
 	viewer := &WSConnection{ID: "conn-viewer", UserID: "viewer", WorkspaceID: "ws-1", Send: make(chan []byte, 8)}
 	hub.connections[viewer.ID] = viewer
@@ -52,17 +55,23 @@ func refreshHub(t *testing.T) (*ConversationHub, *WSConnection, *countingHistory
 
 func awaitEntryUpdate(t *testing.T, conn *WSConnection) EntryUpdatePayload {
 	t.Helper()
-	select {
-	case raw := <-conn.Send:
-		var env wsEventEnvelope
-		require.NoError(t, json.Unmarshal(raw, &env))
-		require.Equal(t, WSEventEntryUpdate, env.Type)
-		var payload EntryUpdatePayload
-		require.NoError(t, json.Unmarshal(env.Payload, &payload))
-		return payload
-	case <-time.After(2 * time.Second):
-		t.Fatal("no entry update arrived")
-		return EntryUpdatePayload{}
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case raw := <-conn.Send:
+			var env wsEventEnvelope
+			require.NoError(t, json.Unmarshal(raw, &env))
+			if env.Type == WSEventStageUpdate {
+				continue
+			}
+			require.Equal(t, WSEventEntryUpdate, env.Type)
+			var payload EntryUpdatePayload
+			require.NoError(t, json.Unmarshal(env.Payload, &payload))
+			return payload
+		case <-deadline:
+			t.Fatal("no entry update arrived")
+			return EntryUpdatePayload{}
+		}
 	}
 }
 
@@ -88,7 +97,7 @@ func TestARefreshReachesListViewersWithoutTheConversationOpen(t *testing.T) {
 func TestAnEntryUpdateForANewMessageStillRings(t *testing.T) {
 	hub, viewer, _ := refreshHub(t)
 
-	hub.broadcastEntryUpdateLocal("entry-1", "whatsapp", nil, false)
+	hub.broadcastEntryUpdateLocal("entry-1", "whatsapp", entryChanged)
 
 	require.False(t, awaitEntryUpdate(t, viewer).Silent)
 }
@@ -133,7 +142,7 @@ func TestNobodyWatchingTheWorkspaceMeansNoRebuild(t *testing.T) {
 	hub.workspaceResolver = fixedWorkspace{workspaceID: "ws-elsewhere"}
 
 	hub.RefreshEntry("entry-1", "whatsapp")
-	hub.broadcastEntryUpdateLocal("entry-1", "whatsapp", nil, false)
+	hub.broadcastEntryUpdateLocal("entry-1", "whatsapp", entryChanged)
 
 	requireQuiet(t, viewer)
 	require.Equal(t, int32(0), history.builds.Load(), "a replica with no viewer in that workspace must not query the entry")

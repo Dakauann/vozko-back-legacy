@@ -51,7 +51,7 @@ func TestCreateAsksTheExitRiskGateWithTheAcknowledgement(t *testing.T) {
 	f := newCreateFixture()
 	uc := f.useCase(f.screener)
 	gate := &recordingGate{}
-	uc.(*createCampaignUseCase).SetExitRiskGate(gate)
+	uc.(*createCampaignUseCase).exitRisk = gate
 
 	in := selectionCampaign()
 	in.ExitRiskAcknowledgedBy = "user-1"
@@ -67,21 +67,12 @@ func TestCreateAsksTheExitRiskGateWithTheAcknowledgement(t *testing.T) {
 func TestCreateRefusedByTheExitRiskGateStoresNothing(t *testing.T) {
 	f := newCreateFixture()
 	uc := f.useCase(f.screener)
-	uc.(*createCampaignUseCase).SetExitRiskGate(&recordingGate{err: buttonaction.ErrExitRiskNotAcknowledged})
+	uc.(*createCampaignUseCase).exitRisk = &recordingGate{err: buttonaction.ErrExitRiskNotAcknowledged}
 
 	if _, err := uc.Execute(context.Background(), selectionCampaign()); !errors.Is(err, buttonaction.ErrExitRiskNotAcknowledged) {
 		t.Fatalf("got %v, want ErrExitRiskNotAcknowledged", err)
 	}
 	if len(f.campaigns.campaigns) != 0 {
 		t.Fatalf("a refused campaign must not be stored: %+v", f.campaigns.campaigns)
-	}
-}
-
-func TestCreateWithoutAnExitRiskGateIsRefused(t *testing.T) {
-	f := newCreateFixture()
-	uc := f.useCase(f.screener)
-	uc.(*createCampaignUseCase).SetExitRiskGate(nil)
-	if _, err := uc.Execute(context.Background(), selectionCampaign()); !errors.Is(err, buttonaction.ErrUnavailable) {
-		t.Fatalf("got %v, want ErrUnavailable", err)
 	}
 }

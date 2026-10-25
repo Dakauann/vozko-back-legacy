@@ -21,7 +21,7 @@ type ownerResolverSetter interface {
 }
 
 func TestResolverSatisfiesTheAssertionTheContainerUses(t *testing.T) {
-	var held interface{} = NewCampaignWorkspaceResolver(nil, nil)
+	var held interface{} = NewCampaignWorkspaceResolver(nil, nil, stubRoutes{})
 
 	if _, ok := held.(ownerResolverSetter); !ok {
 		t.Fatal("the container's assertion does not match: every channel's tenant lookup " +
@@ -30,7 +30,7 @@ func TestResolverSatisfiesTheAssertionTheContainerUses(t *testing.T) {
 }
 
 func TestAnInlineInterfaceLiteralParameterDoesNotMatch(t *testing.T) {
-	var held interface{} = NewCampaignWorkspaceResolver(nil, nil)
+	var held interface{} = NewCampaignWorkspaceResolver(nil, nil, stubRoutes{})
 
 	_, ok := held.(interface {
 		SetEntryOwnerResolver(shared.EntryType, interface {
@@ -45,7 +45,7 @@ func TestAnInlineInterfaceLiteralParameterDoesNotMatch(t *testing.T) {
 }
 
 func TestRegisteredChannelsResolveTheirOwnWorkspace(t *testing.T) {
-	resolver := NewCampaignWorkspaceResolver(nil, nil)
+	resolver := NewCampaignWorkspaceResolver(nil, nil, stubRoutes{})
 	setter, ok := resolver.(ownerResolverSetter)
 	if !ok {
 		t.Fatal("resolver does not expose SetEntryOwnerResolver")
@@ -80,7 +80,7 @@ func TestRegisteredChannelsResolveTheirOwnWorkspace(t *testing.T) {
 }
 
 func TestAnUnregisteredChannelIsRefusedByName(t *testing.T) {
-	resolver := NewCampaignWorkspaceResolver(nil, nil)
+	resolver := NewCampaignWorkspaceResolver(nil, nil, stubRoutes{})
 
 	if _, err := resolver.GetEntryWorkspaceID("conv-1", "carrier-pigeon"); err == nil {
 		t.Error("an unregistered channel must not resolve to an empty workspace")
@@ -99,7 +99,7 @@ func (s stubContainerResolver) CampaignIDForEntry(context.Context, string) (stri
 }
 
 func TestAnAccountChannelResolvesItsConversationsContainer(t *testing.T) {
-	resolver := NewCampaignWorkspaceResolver(nil, nil)
+	resolver := NewCampaignWorkspaceResolver(nil, nil, stubRoutes{})
 	asked := 0
 	resolver.(ownerResolverSetter).SetEntryOwnerResolver(shared.EntryTypeEmail,
 		stubContainerResolver{stubOwnerResolver: stubOwnerResolver{workspace: "ws", department: "dep-1"}, container: "sender-1", asked: &asked})

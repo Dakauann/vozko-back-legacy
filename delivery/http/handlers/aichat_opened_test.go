@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"vozko/domain/aichat"
-	"vozko/usecases/agentloop"
 	aichat_usecase "vozko/usecases/aichat"
 	copilot_usecase "vozko/usecases/copilot"
 )
@@ -16,8 +15,8 @@ const openedProject = "6a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
 
 func openedHandler(owner, bound string) (*AIChatHandler, *copilot_usecase.Service) {
 	threads := screenThreads{thread: &aichat.Thread{ID: "th1", WorkspaceID: "ws1", UserID: owner, ProjectID: bound}}
-	copilot := copilot_usecase.NewService(agentloop.Engine{}, copilot_usecase.NewRegistry(), nil, nil, threads, turnMessages{}, nil, nil, nil)
-	return NewAIChatHandler(aichat_usecase.NewService(threads, turnMessages{}, nil, nil), copilot), copilot
+	copilot := copilotService(copilot_usecase.Deps{Threads: threads})
+	return NewAIChatHandler(chatService(aichat_usecase.Deps{Threads: threads}), copilot), copilot
 }
 
 func openedBody(project string) string {

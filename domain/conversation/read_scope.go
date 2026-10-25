@@ -22,7 +22,7 @@ func (s DepartmentAccessScope) ReadScope(actorID string, isAdmin bool, selectedD
 		read.DepartmentIDs = []string{selectedDepartmentID}
 		read.RestrictDepartments = true
 	}
-	if !isAdmin && read.RestrictDepartments {
+	if !isAdmin && s.Restrict {
 		read.AssigneeOverrideUserID = actorID
 	}
 	return read, nil

@@ -38,7 +38,7 @@ func TestSearchKnowledgeBaseTool_Success(t *testing.T) {
 		{DocumentName: "precos.md", Content: "Plano anual: R$ 500", Score: 0.91},
 		{Content: "Sem fonte", Score: 0.42},
 	}}
-	kt := NewSearchKnowledgeBaseToolUseCase(st).(*searchKnowledgeBaseTool)
+	kt := NewSearchKnowledgeBaseToolUseCase(st, kbBook{}).(*searchKnowledgeBaseTool)
 	out, err := kt.ExecuteWithConfig(context.Background(), map[string]interface{}{
 		"__agent_id": "ag-1",
 	}, map[string]interface{}{"query": "preço do plano anual"})
@@ -59,7 +59,7 @@ func TestSearchKnowledgeBaseTool_Success(t *testing.T) {
 
 func TestSearchKnowledgeBaseTool_AgentFromContext(t *testing.T) {
 	st := &ragServiceStub{results: []rag.QueryResult{{Content: "x", Score: 0.5}}}
-	kt := NewSearchKnowledgeBaseToolUseCase(st).(*searchKnowledgeBaseTool)
+	kt := NewSearchKnowledgeBaseToolUseCase(st, kbBook{}).(*searchKnowledgeBaseTool)
 	ctx := agentctx.WithAgent(context.Background(), &agent.Agent{
 		ID:        "ag-ctx",
 		RAGConfig: &agent.RAGConfig{MaxChunks: 8, MinScore: 0.6},
@@ -74,7 +74,7 @@ func TestSearchKnowledgeBaseTool_AgentFromContext(t *testing.T) {
 
 func TestSearchKnowledgeBaseTool_EmptyResults(t *testing.T) {
 	st := &ragServiceStub{}
-	kt := NewSearchKnowledgeBaseToolUseCase(st).(*searchKnowledgeBaseTool)
+	kt := NewSearchKnowledgeBaseToolUseCase(st, kbBook{}).(*searchKnowledgeBaseTool)
 	out, err := kt.ExecuteWithConfig(context.Background(), map[string]interface{}{
 		"__agent_id": "ag-1",
 	}, map[string]interface{}{"query": "assunto inexistente"})
@@ -85,7 +85,7 @@ func TestSearchKnowledgeBaseTool_EmptyResults(t *testing.T) {
 
 func TestSearchKnowledgeBaseTool_MissingQuery(t *testing.T) {
 	st := &ragServiceStub{}
-	kt := NewSearchKnowledgeBaseToolUseCase(st).(*searchKnowledgeBaseTool)
+	kt := NewSearchKnowledgeBaseToolUseCase(st, kbBook{}).(*searchKnowledgeBaseTool)
 	out, err := kt.ExecuteWithConfig(context.Background(), map[string]interface{}{
 		"__agent_id": "ag-1",
 	}, map[string]interface{}{"query": "   "})
@@ -96,7 +96,7 @@ func TestSearchKnowledgeBaseTool_MissingQuery(t *testing.T) {
 
 func TestSearchKnowledgeBaseTool_MissingAgent(t *testing.T) {
 	st := &ragServiceStub{}
-	kt := NewSearchKnowledgeBaseToolUseCase(st).(*searchKnowledgeBaseTool)
+	kt := NewSearchKnowledgeBaseToolUseCase(st, kbBook{}).(*searchKnowledgeBaseTool)
 	out, err := kt.ExecuteWithConfig(context.Background(), nil, map[string]interface{}{"query": "preço"})
 	require.NoError(t, err)
 	require.True(t, out.IsError)
@@ -105,7 +105,7 @@ func TestSearchKnowledgeBaseTool_MissingAgent(t *testing.T) {
 
 func TestSearchKnowledgeBaseTool_ServiceError(t *testing.T) {
 	st := &ragServiceStub{err: errors.New("boom")}
-	kt := NewSearchKnowledgeBaseToolUseCase(st).(*searchKnowledgeBaseTool)
+	kt := NewSearchKnowledgeBaseToolUseCase(st, kbBook{}).(*searchKnowledgeBaseTool)
 	out, err := kt.ExecuteWithConfig(context.Background(), map[string]interface{}{
 		"__agent_id": "ag-1",
 	}, map[string]interface{}{"query": "preço"})
@@ -115,11 +115,11 @@ func TestSearchKnowledgeBaseTool_ServiceError(t *testing.T) {
 }
 
 func TestSearchKnowledgeBaseTool_NilService(t *testing.T) {
-	require.Nil(t, NewSearchKnowledgeBaseToolUseCase(nil))
+	require.Nil(t, NewSearchKnowledgeBaseToolUseCase(nil, kbBook{}))
 }
 
 func TestSearchKnowledgeBaseTool_Definition(t *testing.T) {
-	kt := NewSearchKnowledgeBaseToolUseCase(&ragServiceStub{}).(*searchKnowledgeBaseTool)
+	kt := NewSearchKnowledgeBaseToolUseCase(&ragServiceStub{}, kbBook{}).(*searchKnowledgeBaseTool)
 	def := kt.Definition()
 	require.Equal(t, SearchKnowledgeBaseToolName, def.Name)
 	require.Contains(t, def.Required, "query")

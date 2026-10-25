@@ -107,7 +107,7 @@ var viewedEntry = entrySubscription{entryID: "e-1", entryType: "whatsapp"}
 func viewersHub(t *testing.T, state *setSharedState) *ConversationHub {
 	t.Helper()
 	users := namedUsers{names: map[string]string{"u-ana": "Ana", "u-bia": "Bia", "u-rui": "Rui"}}
-	hub := NewConversationHub(&hubDepartmentTestAuthorizer{entryAccess: map[string]bool{"u-ana": true, "u-bia": true, "u-new": true}}, users, nil, state, "replica-1", "")
+	hub := testHub(ConversationHubDeps{Authorizer: &hubDepartmentTestAuthorizer{entryAccess: map[string]bool{"u-ana": true, "u-bia": true, "u-new": true}}, Users: users, SharedState: state, ReplicaID: "replica-1"})
 	hub.viewersDelay = 0
 	for _, c := range []struct{ id, user string }{
 		{"c-ana", "u-ana"},

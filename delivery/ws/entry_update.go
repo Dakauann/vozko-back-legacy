@@ -14,60 +14,67 @@ type entryUpdate struct {
 	campaignID  string
 	entry       *conversation.InboxEntry
 	data        []byte
+	alertData   []byte
 }
 
 func (h *ConversationHub) entryWorkspaceID(entryID, entryType string) string {
-	if h.workspaceResolver == nil {
-		return ""
-	}
 	workspaceID, _ := h.workspaceResolver.GetEntryWorkspaceID(entryID, entryType)
 	return workspaceID
 }
 
-func (h *ConversationHub) buildEntryUpdate(entryID, entryType, workspaceID string, silent bool) (*entryUpdate, bool) {
-	var entry *conversation.InboxEntry
-	var err error
-	switch {
-	case h.inboxService != nil:
-		entry, err = h.inboxService.BuildInboxEntry(entryID, entryType)
-	case h.historyProvider != nil:
-		entry, err = h.historyProvider.GetInboxEntry(entryID, entryType)
-	default:
+func (h *ConversationHub) inboxEntry(entryID, entryType string) (*conversation.InboxEntry, bool) {
+	commands := h.cmds()
+	if commands == nil {
+		log.Printf("[ConversationHub] inbox entry %s (%s) not built: %v", entryID, entryType, ErrHubCommandsUnbound)
 		return nil, false
 	}
+	entry, err := commands.Inbox.BuildInboxEntry(entryID, entryType)
 	if err != nil {
 		log.Printf("[ConversationHub] Error building inbox entry %s (%s): %v", entryID, entryType, err)
 		return nil, false
 	}
 	if entry == nil {
-		log.Printf("[ConversationHub] BroadcastEntryUpdate: entry %s (%s) not found", entryID, entryType)
+		log.Printf("[ConversationHub] inbox entry %s (%s) not found", entryID, entryType)
+		return nil, false
+	}
+	return entry, true
+}
+
+func (h *ConversationHub) buildEntryUpdate(entryID, entryType, workspaceID string, change entryChange) (*entryUpdate, bool) {
+	entry, ok := h.inboxEntry(entryID, entryType)
+	if !ok {
 		return nil, false
 	}
 
 	var campaignID string
-	if h.workspaceResolver != nil {
-		campaignID, _ = h.workspaceResolver.GetEntryCampaignID(entryID, entryType)
-	}
+	campaignID, _ = h.workspaceResolver.GetEntryCampaignID(entryID, entryType)
 
-	data, err := json.Marshal(&WSOutgoingMessage{
-		Type:    WSEventEntryUpdate,
-		Payload: EntryUpdatePayload{Entry: *entry, Silent: silent},
-	})
+	payload := EntryUpdatePayload{Entry: *entry, Silent: change == entryRefreshed}
+	data, err := json.Marshal(&WSOutgoingMessage{Type: WSEventEntryUpdate, Payload: payload})
 	if err != nil {
 		log.Printf("[ConversationHub] Error marshaling entry update: %v", err)
 		return nil, false
 	}
-	return &entryUpdate{
+	update := &entryUpdate{
 		entryID: entryID, entryType: entryType, workspaceID: workspaceID,
 		campaignID: campaignID, entry: entry, data: data,
-	}, true
+	}
+	if change == customerWrote {
+		payload.Alert = true
+		if update.alertData, err = json.Marshal(&WSOutgoingMessage{Type: WSEventEntryUpdate, Payload: payload}); err != nil {
+			log.Printf("[ConversationHub] Error marshaling entry update alert: %v", err)
+			return nil, false
+		}
+	}
+	return update, true
+}
+
+func connInOtherWorkspace(conn *WSConnection, workspaceID string) bool {
+	return workspaceID != "" && conn.WorkspaceID != "" && conn.WorkspaceID != workspaceID
 }
 
 func (h *ConversationHub) entryUpdateReaches(update *entryUpdate, allowEntry func(*WSConnection) bool, conn *WSConnection) bool {
-	if !allowEntry(conn) {
-		return false
-	}
-	if update.workspaceID != "" && conn.WorkspaceID != "" && conn.WorkspaceID != update.workspaceID {
+	if connInOtherWorkspace(conn, update.workspaceID) {
 		return false
 	}
 	if update.campaignID != "" && conn.CampaignID != "" && conn.CampaignID != update.campaignID {
@@ -79,6 +86,9 @@ func (h *ConversationHub) entryUpdateReaches(update *entryUpdate, allowEntry fun
 	if conn.ConversationStatus != "" && string(update.entry.ConversationStatus) != conn.ConversationStatus {
 		return false
 	}
+	if !allowEntry(conn) {
+		return false
+	}
 	assignedUserID := update.entry.AssignedUserID
 	if assignedUserID != "" && conn.UserID != assignedUserID && !conn.IsAdmin {
 		return h.authorizer.HasWorkspacePermission(conn.UserID, conn.WorkspaceID, "conversations", "view_others", conn.IsAdmin)
@@ -86,9 +96,13 @@ func (h *ConversationHub) entryUpdateReaches(update *entryUpdate, allowEntry fun
 	return true
 }
 
-func (h *ConversationHub) deliverEntryUpdate(conn *WSConnection, update *entryUpdate) {
+func (h *ConversationHub) deliverEntryUpdate(conn *WSConnection, update *entryUpdate, alert bool) {
+	data := update.data
+	if alert && update.alertData != nil {
+		data = update.alertData
+	}
 	select {
-	case conn.Send <- update.data:
+	case conn.Send <- data:
 	default:
 		log.Printf("[ConversationHub] Send buffer full for user %s (connection %s)", conn.UserID, conn.ID)
 	}

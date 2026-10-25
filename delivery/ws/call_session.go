@@ -224,12 +224,20 @@ var (
 
 const callSessionReservationTTL = callsession_domain.CallSessionReservationTTL
 
+type callSessionPorts struct {
+	Activity         callrouting.AgentActivity
+	Reconnects       CallReconnects
+	OnPresenceChange func()
+	Telemetry        func(workspaceID, userID, state, source string)
+}
+
 func newCallSession(
 	id, userID, workspaceID string,
 	send func(*WSOutgoingMessage),
 	endUseCase callsession_domain.EndOutboundCallUseCase,
 	logger *log.Logger,
 	forcedShutdownTimeout time.Duration,
+	ports callSessionPorts,
 ) *callSession {
 	if logger == nil {
 		logger = log.Default()
@@ -246,6 +254,10 @@ func newCallSession(
 		logger:                logger,
 		forcedShutdownTimeout: forcedShutdownTimeout,
 		now:                   time.Now,
+		activity:              ports.Activity,
+		reconnects:            ports.Reconnects,
+		onPresenceChange:      ports.OnPresenceChange,
+		presenceTelemetry:     ports.Telemetry,
 	}
 }
 
@@ -306,18 +318,6 @@ func (s *callSession) afterDetach(lc *liveCall) {
 	}
 	if tel := s.presenceTelemetry; tel != nil {
 		tel(s.workspaceID, s.userID, "online", "call_session")
-	}
-}
-
-func (s *callSession) SetActivity(activity callrouting.AgentActivity) {
-	if s != nil {
-		s.activity = activity
-	}
-}
-
-func (s *callSession) SetReconnects(reconnects CallReconnects) {
-	if s != nil {
-		s.reconnects = reconnects
 	}
 }
 
@@ -390,20 +390,6 @@ func (s *callSession) ActiveCallID() string {
 func (s *callSession) ID() string          { return s.id }
 func (s *callSession) UserID() string      { return s.userID }
 func (s *callSession) WorkspaceID() string { return s.workspaceID }
-
-func (s *callSession) SetPresenceCallback(cb func()) {
-	if s == nil {
-		return
-	}
-	s.onPresenceChange = cb
-}
-
-func (s *callSession) SetPresenceTelemetry(fn func(workspaceID, userID, state, source string)) {
-	if s == nil {
-		return
-	}
-	s.presenceTelemetry = fn
-}
 
 func (s *callSession) Notify(msg callsession_domain.CallSessionControlMessage) error {
 	if s == nil || s.send == nil {

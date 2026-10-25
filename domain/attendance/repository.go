@@ -62,4 +62,6 @@ type Repository interface {
 	GetRevenue(ctx context.Context, workspaceID string, from, to time.Time, scope RevenueScope) ([]RevenueTally, int64, error)
 
 	GetRevenueByMonth(ctx context.Context, workspaceID string, from, to time.Time, loc *time.Location, ownerID string, scope RevenueScope) ([]RevenueMonthRow, error)
+
+	ShareScope(ctx context.Context, fn func(ctx context.Context) error) error
 }

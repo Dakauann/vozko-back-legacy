@@ -69,8 +69,8 @@ func TestAHistoryPageCarriesItsMediaFromOneQuery(t *testing.T) {
 		{ID: "m1", EntryID: "e1", EntryType: shared.EntryTypeWhatsApp, URL: "https://cdn/1.jpg", MimeType: "image/jpeg", Layout: conversation.MediaLayout{Width: 800, Height: 600, Thumbhash: "abc"}},
 		{ID: "m2", EntryID: "e1", EntryType: shared.EntryTypeWhatsApp, URL: "https://cdn/2.ogg"},
 	}}}
-	s := &HistoryProviderService{}
-	s.SetMediaRepo(rows)
+	s := historyWith(HistoryProviderService{})
+	s.mediaRepo = rows
 	page := []*conversation.Message{mediaMessage("a", "m1"), {ID: "b", EntryID: "e1", Text: "oi"}, mediaMessage("c", "m2"), mediaMessage("d", "m1")}
 
 	s.attachMedia("e1", shared.EntryTypeWhatsApp, page)
@@ -88,8 +88,8 @@ func TestAHistoryPageCarriesItsMediaFromOneQuery(t *testing.T) {
 
 func TestMediaOfAnotherConversationIsNeverAttached(t *testing.T) {
 	rows := &mediaRows{rows: []*conversation.ConversationMedia{{ID: "m1", EntryID: "other", EntryType: shared.EntryTypeWhatsApp, URL: "https://cdn/x.jpg"}}}
-	s := &HistoryProviderService{}
-	s.SetMediaRepo(rows)
+	s := historyWith(HistoryProviderService{})
+	s.mediaRepo = rows
 	page := []*conversation.Message{mediaMessage("a", "m1")}
 	s.attachMedia("e1", shared.EntryTypeWhatsApp, page)
 	if page[0].Media != nil {
@@ -99,8 +99,8 @@ func TestMediaOfAnotherConversationIsNeverAttached(t *testing.T) {
 
 func TestAPageWithoutMediaDoesNotQuery(t *testing.T) {
 	rows := &countingMediaRows{}
-	s := &HistoryProviderService{}
-	s.SetMediaRepo(rows)
+	s := historyWith(HistoryProviderService{})
+	s.mediaRepo = rows
 	s.attachMedia("e1", shared.EntryTypeWhatsApp, []*conversation.Message{{ID: "a", Text: "oi"}})
 	if rows.queries != 0 {
 		t.Fatal("no media, no query")
@@ -109,8 +109,8 @@ func TestAPageWithoutMediaDoesNotQuery(t *testing.T) {
 
 func TestALiveMessageIsPresentedWithItsMedia(t *testing.T) {
 	rows := &mediaRows{rows: []*conversation.ConversationMedia{{ID: "m1", EntryID: "e1", EntryType: shared.EntryTypeWhatsApp, URL: "https://cdn/1.jpg"}}}
-	s := &HistoryProviderService{}
-	s.SetMediaRepo(rows)
+	s := historyWith(HistoryProviderService{})
+	s.mediaRepo = rows
 	live := mediaMessage("a", "m1")
 	s.PresentMessage("e1", string(shared.EntryTypeWhatsApp), live)
 	if live.Media == nil || live.Media.URL != "https://cdn/1.jpg" {
@@ -119,8 +119,8 @@ func TestALiveMessageIsPresentedWithItsMedia(t *testing.T) {
 }
 
 func TestAnUnreadableMediaTableLeavesTheMessagesAsTheyWere(t *testing.T) {
-	s := &HistoryProviderService{}
-	s.SetMediaRepo(&mediaRows{fail: errors.New("db down")})
+	s := historyWith(HistoryProviderService{})
+	s.mediaRepo = &mediaRows{fail: errors.New("db down")}
 	page := []*conversation.Message{mediaMessage("a", "m1")}
 	s.attachMedia("e1", shared.EntryTypeWhatsApp, page)
 	if page[0].Media != nil || page[0].MediaID == nil {

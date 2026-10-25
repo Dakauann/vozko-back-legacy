@@ -111,10 +111,29 @@ func NewSIPTrunkManager(cfg TrunkManagerConfig, store sip_trunk.EngineStore) (*S
 	}, nil
 }
 
-func (m *SIPTrunkManager) SetInboundInviteHandler(handler sip_trunk.InboundInviteHandler) {
+var (
+	ErrInboundHandlerMissing = errors.New("sip trunks: the inbound invite handler is missing")
+	ErrInboundHandlerBound   = errors.New("sip trunks: the inbound invite handler is already bound")
+)
+
+func (m *SIPTrunkManager) BindInboundInviteHandler(handler sip_trunk.InboundInviteHandler) error {
+	if handler == nil {
+		return ErrInboundHandlerMissing
+	}
 	m.inboundMu.Lock()
+	defer m.inboundMu.Unlock()
+	if m.inboundHandler != nil {
+		return ErrInboundHandlerBound
+	}
 	m.inboundHandler = handler
-	m.inboundMu.Unlock()
+	return nil
+}
+
+func (m *SIPTrunkManager) InboundBound() error {
+	if m.currentInboundHandler() == nil {
+		return ErrInboundHandlerMissing
+	}
+	return nil
 }
 
 func (m *SIPTrunkManager) currentInboundHandler() sip_trunk.InboundInviteHandler {

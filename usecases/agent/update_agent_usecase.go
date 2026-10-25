@@ -4,34 +4,28 @@ import (
 	"context"
 
 	"vozko/domain/agent"
-	mcpdomain "vozko/domain/agent/mcp"
 	"vozko/domain/rag"
 	"vozko/domain/tools"
-	businessphone "vozko/domain/whatsapp/business_phone"
 )
 
 type updateAgentUseCase struct {
 	toolBindingGuard
+	toolSecretSealing
+	toolValidation
 	repo              agent.Repository
-	businessPhoneRepo businessphone.Repository
 	toolRegistry      tools.Service
 	knowledgeBaseRepo rag.KnowledgeBaseRepository
-	mcpCollectionRepo mcpdomain.CollectionRepository
 }
 
 func NewUpdateAgentUseCase(
 	repo agent.Repository,
-	businessPhoneRepo businessphone.Repository,
 	toolRegistry tools.Service,
 	knowledgeBaseRepo rag.KnowledgeBaseRepository,
-	mcpCollectionRepo mcpdomain.CollectionRepository,
 ) agent.UpdateAgentUseCase {
 	return &updateAgentUseCase{
 		repo:              repo,
-		businessPhoneRepo: businessPhoneRepo,
 		toolRegistry:      toolRegistry,
 		knowledgeBaseRepo: knowledgeBaseRepo,
-		mcpCollectionRepo: mcpCollectionRepo,
 	}
 }
 
@@ -52,6 +46,7 @@ func (uc *updateAgentUseCase) Execute(ctx context.Context, agentID string, in ag
 	existingTools := make([]agent.ToolBinding, len(current.InternalTools))
 	copy(existingTools, current.InternalTools)
 
+	wasActive := current.IsActive
 	current.ApplyUpdate(in)
 
 	current.Normalize()
@@ -59,14 +54,7 @@ func (uc *updateAgentUseCase) Execute(ctx context.Context, agentID string, in ag
 		return nil, err
 	}
 
-	if err := validateBusinessPhoneOwnership(uc.businessPhoneRepo, current.WorkspaceID, current.BusinessPhoneID); err != nil {
-		return nil, err
-	}
-
 	if err := validateKnowledgeBaseOwnership(ctx, uc.knowledgeBaseRepo, current.WorkspaceID, current.KnowledgeBaseIDs); err != nil {
-		return nil, err
-	}
-	if err := validateMCPCollectionOwnership(ctx, uc.mcpCollectionRepo, current.WorkspaceID, current.MCPCollectionIDs); err != nil {
 		return nil, err
 	}
 
@@ -77,9 +65,13 @@ func (uc *updateAgentUseCase) Execute(ctx context.Context, agentID string, in ag
 	if err := uc.refuseUngrantedBindings(ctx, uc.toolRegistry, current.WorkspaceID, in.RequestedBy, existingTools, selectedTools); err != nil {
 		return nil, err
 	}
-	current.InternalTools = selectedTools
-
-	if err := syncAgentTools(uc.toolRegistry, current); err != nil {
+	sealedTools, err := uc.sealBindings(ctx, uc.toolRegistry, current.WorkspaceID, in.RequestedBy.UserID, agentID, existingTools, selectedTools)
+	if err != nil {
+		return nil, err
+	}
+	current.InternalTools = sealedTools
+	current.ChangedBy = in.RequestedBy.UserID
+	if err := uc.refuseBrokenActivation(ctx, wasActive, current); err != nil {
 		return nil, err
 	}
 

@@ -2,6 +2,7 @@ package unofficial_whatsapp
 
 import (
 	"context"
+	"vozko/domain/shared/deps"
 
 	uw "vozko/domain/unofficial_whatsapp"
 	workspace_addon "vozko/domain/workspace/workspace_addon"
@@ -16,15 +17,12 @@ type InstanceEntitlementReader struct {
 	instances    uw.InstanceRepository
 }
 
-func NewInstanceEntitlementReader(instances uw.InstanceRepository) *InstanceEntitlementReader {
-	return &InstanceEntitlementReader{instances: instances}
+func NewInstanceEntitlementReader(instances uw.InstanceRepository, entitlements WorkspaceEntitlementReader) *InstanceEntitlementReader {
+	if err := deps.Require("unofficial whatsapp entitlements", map[string]any{"instances": instances, "entitlements": entitlements}); err != nil {
+		panic(err.Error())
+	}
+	return &InstanceEntitlementReader{instances: instances, entitlements: entitlements}
 }
-
-func (r *InstanceEntitlementReader) SetSource(entitlements WorkspaceEntitlementReader) {
-	r.entitlements = entitlements
-}
-
-func (r *InstanceEntitlementReader) HasSource() bool { return r != nil && r.entitlements != nil }
 
 func (r *InstanceEntitlementReader) AllowanceFor(
 	ctx context.Context,
@@ -43,9 +41,6 @@ func (r *InstanceEntitlementReader) AllowanceFor(
 }
 
 func (r *InstanceEntitlementReader) limitFor(workspaceID string) (uw.InstanceAllowance, error) {
-	if r.entitlements == nil {
-		return uw.InstanceAllowance{}, nil
-	}
 	ents, err := r.entitlements.Execute(workspaceID)
 	if err != nil {
 		return uw.InstanceAllowance{}, err

@@ -5,6 +5,7 @@ import (
 	"log"
 
 	conversation "vozko/domain/conversation"
+	"vozko/domain/shared/deps"
 )
 
 type inboxService struct {
@@ -21,14 +22,8 @@ type inboxService struct {
 	statusProvider       conversation.ConversationStatusUpdater
 }
 
-func (s *inboxService) SetLiveReadProvider(p conversation.LiveReadProvider) {
-	if s != nil {
-		s.liveReads = p
-	}
-}
-
 func (s *inboxService) attachLiveReads(workspaceID string, entries []conversation.InboxEntry, groups map[string][]int) {
-	if s.liveReads == nil || workspaceID == "" {
+	if workspaceID == "" {
 		return
 	}
 	for entryType, indices := range groups {
@@ -49,10 +44,10 @@ func (s *inboxService) attachLiveReads(workspaceID string, entries []conversatio
 	}
 }
 
-func (s *inboxService) SetAnalysisScheduleReader(r conversation.AnalysisScheduleReader) {
-	if s != nil {
-		s.analysisSchedule = r
-	}
+type InboxSources struct {
+	Schedules conversation.AnalysisScheduleReader
+	Templates conversation.TemplateSender
+	LiveReads conversation.LiveReadProvider
 }
 
 func NewInboxService(
@@ -64,8 +59,20 @@ func NewInboxService(
 	authorizer conversation.ConversationAuthorizer,
 	analysisProvider conversation.AnalysisProvider,
 	statusProvider conversation.ConversationStatusUpdater,
+	sources InboxSources,
 ) conversation.InboxService {
+	if err := deps.Require("inbox", map[string]any{
+		"authorizer":         authorizer,
+		"analysis schedules": sources.Schedules,
+		"templates":          sources.Templates,
+		"live reads":         sources.LiveReads,
+	}); err != nil {
+		panic(err.Error())
+	}
 	return &inboxService{
+		analysisSchedule:     sources.Schedules,
+		templateSender:       sources.Templates,
+		liveReads:            sources.LiveReads,
 		historyProvider:      historyProvider,
 		StageProvider:        StageProvider,
 		labelProvider:        labelProvider,
@@ -75,10 +82,6 @@ func NewInboxService(
 		analysisProvider:     analysisProvider,
 		statusProvider:       statusProvider,
 	}
-}
-
-func (s *inboxService) SetTemplateSender(sender conversation.TemplateSender) {
-	s.templateSender = sender
 }
 
 func (s *inboxService) GetInboxPage(userID, campaignID, campaignType, campaignWorkspaceID string, page, pageSize int, isAdmin bool) ([]conversation.InboxEntry, int64, error) {
@@ -117,61 +120,11 @@ func (s *inboxService) SearchInbox(userID string, input conversation.SearchInbox
 	if s.historyProvider == nil {
 		return nil, 0, nil
 	}
-	input.UserID = userID
-
-	workspaceForOwnerCheck := input.WorkspaceID
-	if workspaceForOwnerCheck == "" && input.CampaignID != "" && s.workspaceResolver != nil {
-		workspaceForOwnerCheck, _ = s.workspaceResolver.GetCampaignWorkspaceID(input.CampaignID, input.CampaignType)
+	input, err := s.resolveInboxScope(userID, input)
+	if err != nil {
+		return nil, 0, err
 	}
-
-	if input.WorkspaceID == "" {
-		input.WorkspaceID = workspaceForOwnerCheck
-	}
-	if input.CampaignID != "" && input.CampaignType != "" && s.authorizer != nil {
-		if !s.authorizer.CanAccessCampaign(userID, workspaceForOwnerCheck, input.CampaignID, input.CampaignType, input.IsAdmin) {
-			return nil, 0, fmt.Errorf("%w: you don't have access to this inbox", conversation.ErrUnauthorized)
-		}
-	}
-	if s.authorizer != nil && input.WorkspaceID != "" {
-		scope, allowed := s.authorizer.GetDepartmentScope(userID, input.WorkspaceID, input.IsAdmin)
-		if !allowed {
-			return nil, 0, fmt.Errorf("%w: you don't have access to this inbox", conversation.ErrUnauthorized)
-		}
-		input.DepartmentIDs = scope.DepartmentIDs
-		input.RestrictDepartments = scope.Restrict
-
-		if input.SelectedDepartmentID != "" && (scope.Restrict || scope.WorkspaceHasDepartments) {
-			if scope.Restrict {
-
-				found := false
-				for _, id := range scope.DepartmentIDs {
-					if id == input.SelectedDepartmentID {
-						found = true
-						break
-					}
-				}
-				if !found {
-					return nil, 0, fmt.Errorf("%w: you don't have access to this department", conversation.ErrUnauthorized)
-				}
-			}
-			input.DepartmentIDs = []string{input.SelectedDepartmentID}
-			input.RestrictDepartments = true
-		}
-	}
-	if input.IsAdmin || (s.authorizer != nil && workspaceForOwnerCheck != "" && conversation.SeesOthers(s.authorizer, userID, workspaceForOwnerCheck)) {
-		input.AssignedUserID = ""
-	}
-
-	if !input.IsAdmin && input.RestrictDepartments {
-		input.AssigneeOverrideUserID = userID
-	}
-
-	var stageWorkspaceID string
-	if input.WorkspaceID != "" {
-		stageWorkspaceID = input.WorkspaceID
-	} else if s.workspaceResolver != nil && input.CampaignID != "" {
-		stageWorkspaceID, _ = s.workspaceResolver.GetCampaignWorkspaceID(input.CampaignID, input.CampaignType)
-	}
+	stageWorkspaceID := input.StageWorkspaceID
 
 	if s.StageProvider != nil && (input.StageID != "" || input.StageName != "" || len(input.StageIDs) > 0) {
 		if input.StageID != "" {
@@ -187,8 +140,6 @@ func (s *inboxService) SearchInbox(userID string, input conversation.SearchInbox
 
 	}
 
-	input.StageWorkspaceID = stageWorkspaceID
-
 	entries, totalItems, err := s.historyProvider.SearchInboxEntries(input)
 	if err != nil {
 		return nil, 0, err
@@ -198,6 +149,65 @@ func (s *inboxService) SearchInbox(userID string, input conversation.SearchInbox
 	s.decorateEntries(entries, stageWorkspaceID)
 
 	return entries, totalItems, nil
+}
+
+func (s *inboxService) CountInboxByStages(userID string, input conversation.SearchInboxInput, stageIDs []string) (map[string]int64, error) {
+	if s.historyProvider == nil {
+		return nil, nil
+	}
+	input, err := s.resolveInboxScope(userID, input)
+	if err != nil {
+		return nil, err
+	}
+	input.StageID, input.StageName, input.StageIDs = "", "", nil
+	if s.StageProvider == nil {
+		input.StageWorkspaceID = ""
+	}
+	return s.historyProvider.CountInboxEntriesByStages(input, stageIDs)
+}
+
+func (s *inboxService) resolveInboxScope(userID string, input conversation.SearchInboxInput) (conversation.SearchInboxInput, error) {
+	input.UserID = userID
+
+	workspaceForOwnerCheck := input.WorkspaceID
+	if workspaceForOwnerCheck == "" && input.CampaignID != "" && s.workspaceResolver != nil {
+		workspaceForOwnerCheck, _ = s.workspaceResolver.GetCampaignWorkspaceID(input.CampaignID, input.CampaignType)
+	}
+
+	if input.WorkspaceID == "" {
+		input.WorkspaceID = workspaceForOwnerCheck
+	}
+	if input.CampaignID != "" && input.CampaignType != "" {
+		if !s.authorizer.CanAccessCampaign(userID, workspaceForOwnerCheck, input.CampaignID, input.CampaignType, input.IsAdmin) {
+			return input, fmt.Errorf("%w: you don't have access to this inbox", conversation.ErrUnauthorized)
+		}
+	}
+	if input.WorkspaceID != "" {
+		scope, allowed := s.authorizer.GetDepartmentScope(userID, input.WorkspaceID, input.IsAdmin)
+		if !allowed {
+			return input, fmt.Errorf("%w: you don't have access to this inbox", conversation.ErrUnauthorized)
+		}
+		read, err := scope.ReadScope(userID, input.IsAdmin, input.SelectedDepartmentID)
+		if err != nil {
+			return input, fmt.Errorf("%w: you don't have access to this department", conversation.ErrUnauthorized)
+		}
+		input.DepartmentIDs = read.DepartmentIDs
+		input.RestrictDepartments = read.RestrictDepartments
+		input.AssigneeOverrideUserID = read.AssigneeOverrideUserID
+	}
+	if input.IsAdmin || (workspaceForOwnerCheck != "" && conversation.SeesOthers(s.authorizer, userID, workspaceForOwnerCheck)) {
+		input.AssignedUserID = ""
+	}
+
+	var stageWorkspaceID string
+	if input.WorkspaceID != "" {
+		stageWorkspaceID = input.WorkspaceID
+	} else if s.workspaceResolver != nil && input.CampaignID != "" {
+		stageWorkspaceID, _ = s.workspaceResolver.GetCampaignWorkspaceID(input.CampaignID, input.CampaignType)
+	}
+	input.StageWorkspaceID = stageWorkspaceID
+
+	return input, nil
 }
 
 func (s *inboxService) BuildInboxEntry(entryID, entryType string) (*conversation.InboxEntry, error) {
@@ -220,10 +230,7 @@ func (s *inboxService) BuildInboxEntry(entryID, entryType string) (*conversation
 }
 
 func (s *inboxService) SendTemplateForEntry(entryID, entryType, templateID string, parameters []string, userID, workspaceID string, isAdmin bool) (string, error) {
-	if s.templateSender == nil {
-		return "", fmt.Errorf("template sender not configured")
-	}
-	if s.authorizer != nil && !s.authorizer.CanAccessEntry(userID, workspaceID, entryID, entryType, isAdmin) {
+	if !s.authorizer.CanAccessEntry(userID, workspaceID, entryID, entryType, isAdmin) {
 		return "", fmt.Errorf("unauthorized: you don't have access to this entry")
 	}
 	return s.templateSender.SendTemplate(entryID, entryType, templateID, parameters, nil, userID, workspaceID)
@@ -325,13 +332,11 @@ func (s *inboxService) decorateEntries(entries []conversation.InboxEntry, campai
 					}
 				}
 			}
-			if s.analysisSchedule != nil {
-				awaiting, err := s.analysisSchedule.AwaitingAnalysis(entryIDs, entryType)
-				if err == nil {
-					for _, idx := range indices {
-						if awaiting[entries[idx].EntryID] && entries[idx].AnalysisPhase == conversation.AnalysisPhaseNone {
-							entries[idx].AnalysisPhase = conversation.AnalysisPhaseAwaiting
-						}
+			awaiting, err := s.analysisSchedule.AwaitingAnalysis(entryIDs, entryType)
+			if err == nil {
+				for _, idx := range indices {
+					if awaiting[entries[idx].EntryID] && entries[idx].AnalysisPhase == conversation.AnalysisPhaseNone {
+						entries[idx].AnalysisPhase = conversation.AnalysisPhaseAwaiting
 					}
 				}
 			}

@@ -22,7 +22,7 @@ func TestTheCarrierAudienceLeadsMatchTheCountUnderEachReason(t *testing.T) {
 	params := campaignaudience_usecase.Params{Kind: string(cc.KindMarketing)}
 	picked := selection.Selection{Mode: selection.ModeIDs, IDs: []string{"lead-a", "lead-b", "lead-c", "lead-d"}}
 	spec := audience.Spec{Source: audience.SourceLeads, Selection: &picked}
-	count, err := h.svc.audience.Count(context.Background(), actor, audience.ChannelCarrier, params, spec)
+	count, err := h.svc.deps.Audience.Count(context.Background(), actor, audience.ChannelCarrier, params, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,12 +32,12 @@ func TestTheCarrierAudienceLeadsMatchTheCountUnderEachReason(t *testing.T) {
 		string(cc.SkipSuppressed): {Reason: string(cc.SkipSuppressed)},
 	}
 	for reason, filter := range filters {
-		page, err := h.svc.audience.Leads(context.Background(), actor, audience.ChannelCarrier, params, spec, campaignaudience_usecase.LeadsQuery{Filter: filter, Page: 1, Limit: 50})
+		page, err := h.svc.deps.Audience.Leads(context.Background(), actor, audience.ChannelCarrier, params, spec, campaignaudience_usecase.LeadsQuery{Filter: filter, Page: 1, Limit: 50})
 		if err != nil || page.Total != count.Out[reason] || page.Total != 1 || page.Items[0].Reason != reason {
 			t.Fatalf("%s = %+v, count %d (%v)", reason, page, count.Out[reason], err)
 		}
 	}
-	ready, err := h.svc.audience.Leads(context.Background(), actor, audience.ChannelCarrier, params, spec, campaignaudience_usecase.LeadsQuery{Filter: audience.LeadFilter{Status: audience.LeadReady}, Page: 1, Limit: 50})
+	ready, err := h.svc.deps.Audience.Leads(context.Background(), actor, audience.ChannelCarrier, params, spec, campaignaudience_usecase.LeadsQuery{Filter: audience.LeadFilter{Status: audience.LeadReady}, Page: 1, Limit: 50})
 	if err != nil || ready.Total != *count.Sendable || ready.Items[0].LeadID != "lead-a" {
 		t.Fatalf("ready = %+v, %v", ready, err)
 	}

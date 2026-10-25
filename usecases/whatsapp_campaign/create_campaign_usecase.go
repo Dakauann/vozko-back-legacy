@@ -10,6 +10,7 @@ import (
 	"vozko/domain/buttonaction"
 	"vozko/domain/campaign"
 	"vozko/domain/lead"
+	"vozko/domain/shared/deps"
 	businessphone "vozko/domain/whatsapp/business_phone"
 	"vozko/domain/whatsapp/template"
 	wc "vozko/domain/whatsapp_campaign"
@@ -41,10 +42,6 @@ type ExitRiskGate interface {
 	RecordCampaignAdmission(ctx context.Context, workspaceID, campaignID string, admission buttonaction.CampaignAdmission) error
 }
 
-func (uc *createCampaignUseCase) SetExitRiskGate(gate ExitRiskGate) {
-	uc.exitRisk = gate
-}
-
 type TemplateGrants interface {
 	HasAccess(workspaceID, templateID string) (bool, error)
 }
@@ -56,42 +53,52 @@ type IdempotentCampaigns interface {
 	CreateWithEntries(c *wc.Campaign, entries []wce.WhatsAppCampaignEntry) error
 }
 
-func (uc *createCampaignUseCase) SetTemplateGrants(grants TemplateGrants) {
-	uc.templateGrants = grants
+type CreateCampaignDeps struct {
+	Campaigns      wc.Repository
+	Entries        wce.Repository
+	Leads          lead.Repository
+	Templates      template.Repository
+	Phones         businessphone.Repository
+	PhoneAccess    workspace_phone_access.Repository
+	Eligibility    campaignguard.Screener
+	Departments    workspace_department.CreationDepartmentResolver
+	TemplateGrants TemplateGrants
+	Automation     AutomationCheck
+	Keyed          IdempotentCampaigns
+	ExitRisk       ExitRiskGate
 }
 
-func (uc *createCampaignUseCase) SetAutomation(automation AutomationCheck) {
-	uc.automation = automation
-}
-
-func (uc *createCampaignUseCase) SetIdempotentCampaigns(keyed IdempotentCampaigns) {
-	uc.keyed = keyed
-}
-
-func NewCreateCampaignUseCase(
-	campaignRepo wc.Repository,
-	entryRepo wce.Repository,
-	leadRepo lead.Repository,
-	templateRepo template.Repository,
-	businessPhoneRepo businessphone.Repository,
-	phoneAccessRepo workspace_phone_access.Repository,
-	eligibility campaignguard.Screener,
-	departmentResolver ...workspace_department.CreationDepartmentResolver,
-) wc.CreateCampaignUseCase {
-	var resolver workspace_department.CreationDepartmentResolver
-	if len(departmentResolver) > 0 {
-		resolver = departmentResolver[0]
+func NewCreateCampaignUseCase(d CreateCampaignDeps) (wc.CreateCampaignUseCase, error) {
+	if err := deps.Require("official campaign creation", map[string]any{
+		"campaigns":           d.Campaigns,
+		"entries":             d.Entries,
+		"leads":               d.Leads,
+		"templates":           d.Templates,
+		"phones":              d.Phones,
+		"phone access":        d.PhoneAccess,
+		"eligibility":         d.Eligibility,
+		"department resolver": d.Departments,
+		"template grants":     d.TemplateGrants,
+		"automation":          d.Automation,
+		"idempotency keys":    d.Keyed,
+		"exit risk gate":      d.ExitRisk,
+	}); err != nil {
+		return nil, err
 	}
 	return &createCampaignUseCase{
-		campaignRepo:       campaignRepo,
-		entryRepo:          entryRepo,
-		leadRepo:           leadRepo,
-		templateRepo:       templateRepo,
-		businessPhoneRepo:  businessPhoneRepo,
-		phoneAccessRepo:    phoneAccessRepo,
-		eligibility:        eligibility,
-		departmentResolver: resolver,
-	}
+		campaignRepo:       d.Campaigns,
+		entryRepo:          d.Entries,
+		leadRepo:           d.Leads,
+		templateRepo:       d.Templates,
+		businessPhoneRepo:  d.Phones,
+		phoneAccessRepo:    d.PhoneAccess,
+		eligibility:        d.Eligibility,
+		departmentResolver: d.Departments,
+		templateGrants:     d.TemplateGrants,
+		automation:         d.Automation,
+		keyed:              d.Keyed,
+		exitRisk:           d.ExitRisk,
+	}, nil
 }
 
 func (uc *createCampaignUseCase) Execute(ctx context.Context, input *wc.Campaign) (*wc.Campaign, error) {
@@ -107,13 +114,11 @@ func (uc *createCampaignUseCase) Execute(ctx context.Context, input *wc.Campaign
 		return nil, err
 	}
 
-	if uc.departmentResolver != nil {
-		departmentID, err := uc.departmentResolver.Resolve(ctx, input.WorkspaceID)
-		if err != nil {
-			return nil, err
-		}
-		input.DepartmentID = departmentID
+	departmentID, err := uc.departmentResolver.Resolve(ctx, input.WorkspaceID)
+	if err != nil {
+		return nil, err
 	}
+	input.DepartmentID = departmentID
 
 	existing, err := uc.existing(input)
 	if err != nil || existing != nil {
@@ -142,13 +147,7 @@ func (uc *createCampaignUseCase) Execute(ctx context.Context, input *wc.Campaign
 		}
 	}
 
-	if uc.templateGrants == nil {
-		return nil, wc.ErrCampaignTemplateNotFound
-	}
 	if granted, err := uc.templateGrants.HasAccess(input.WorkspaceID, input.TemplateID); err != nil || !granted {
-		return nil, wc.ErrCampaignTemplateNotFound
-	}
-	if uc.templateRepo == nil {
 		return nil, wc.ErrCampaignTemplateNotFound
 	}
 	tmpl, err := uc.templateRepo.FindByID(input.TemplateID)
@@ -177,24 +176,14 @@ func (uc *createCampaignUseCase) Execute(ctx context.Context, input *wc.Campaign
 		return nil, err
 	}
 
-	if uc.automation == nil {
-		return nil, campaign.ErrAutomationUnavailable
-	}
 	if err := uc.automation.Check(input.WorkspaceID, input.Automation(), input.EntryMetadata()); err != nil {
 		return nil, err
-	}
-
-	if uc.eligibility == nil {
-		return nil, campaignguard.ErrUnavailable
 	}
 
 	if input.ID == "" {
 		input.ID = uuid.New().String()
 	}
 
-	if uc.exitRisk == nil {
-		return nil, buttonaction.ErrUnavailable
-	}
 	admission, err := uc.exitRisk.AdmitCampaign(ctx, input.WorkspaceID, tmpl, input.ExitRiskAcknowledgedBy)
 	if err != nil {
 		return nil, err
@@ -249,9 +238,6 @@ func (uc *createCampaignUseCase) Execute(ctx context.Context, input *wc.Campaign
 
 func (uc *createCampaignUseCase) save(input *wc.Campaign, entries []wce.WhatsAppCampaignEntry) error {
 	if input.IdempotencyKey != "" {
-		if uc.keyed == nil {
-			return campaign.ErrIdempotencyUnavailable
-		}
 		return uc.keyed.CreateWithEntries(input, entries)
 	}
 	if err := uc.campaignRepo.Create(input); err != nil {

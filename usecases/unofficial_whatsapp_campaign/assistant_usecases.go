@@ -8,6 +8,7 @@ import (
 	"vozko/domain/sheet"
 	uw "vozko/domain/unofficial_whatsapp"
 	uwc "vozko/domain/unofficial_whatsapp_campaign"
+	"vozko/usecases/campaignschedule"
 	uwuc "vozko/usecases/unofficial_whatsapp"
 )
 
@@ -42,10 +43,11 @@ func (uc *campaignInstance) Usable(ctx context.Context, workspaceID string, scop
 type campaignAction struct {
 	access   uwc.CampaignAccessUseCase
 	dispatch uwc.DispatchCampaignUseCase
+	reporter *campaignschedule.Reporter
 }
 
-func NewCampaignActionUseCase(access uwc.CampaignAccessUseCase, dispatch uwc.DispatchCampaignUseCase) uwc.CampaignActionUseCase {
-	return &campaignAction{access: access, dispatch: dispatch}
+func NewCampaignActionUseCase(access uwc.CampaignAccessUseCase, dispatch uwc.DispatchCampaignUseCase, reporter *campaignschedule.Reporter) uwc.CampaignActionUseCase {
+	return &campaignAction{access: access, dispatch: dispatch, reporter: reporter}
 }
 
 func (uc *campaignAction) Act(ctx context.Context, workspaceID string, scope uw.DepartmentScope, campaignID string, action campaign.Action) (*uwc.Campaign, error) {
@@ -64,6 +66,9 @@ func (uc *campaignAction) act(ctx context.Context, workspaceID string, scope uw.
 	in.CampaignID = owned.ID
 	if err := uc.dispatch.Dispatch(ctx, in); err != nil {
 		return nil, err
+	}
+	if in.Action == campaign.ActionStart {
+		uc.reporter.Cleared(ctx, owned.ID, owned.ScheduleFailure)
 	}
 	return owned, nil
 }

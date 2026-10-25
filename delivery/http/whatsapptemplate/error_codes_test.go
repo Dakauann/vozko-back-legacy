@@ -9,7 +9,7 @@ import (
 )
 
 func TestTemplateErrorCodesMatchTheGoldenSoTheFrontTranslatesThem(t *testing.T) {
-	codes := append(template.ErrorCodes(), codeTrackingUnavailable)
+	codes := template.ErrorCodes()
 	codegolden.Compare(t, filepath.Join("testdata", "error_codes.golden"), codes,
 		"update testdata/error_codes.golden, and also add the code to vozko-front src/lib/whatsapp-templates/errors.ts and translate whatsappTemplates.errors.<code> in the pt, en, es and de catalogs")
 }

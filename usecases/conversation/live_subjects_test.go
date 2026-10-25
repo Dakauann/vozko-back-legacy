@@ -95,10 +95,10 @@ func TestLiveSubjectsFailClosed(t *testing.T) {
 }
 
 func TestLiveModeIsReadThroughTheGate(t *testing.T) {
-	if (&handleWhatsAppMessageUseCase{}).liveActs("ws-1") {
+	if (whatsappDefaults(&handleWhatsAppMessageUseCase{})).liveActs("ws-1") {
 		t.Fatal("no gate, no live mode")
 	}
-	if !(&handleWhatsAppMessageUseCase{live: liveMode(true)}).liveActs("ws-1") {
+	if !(whatsappDefaults(&handleWhatsAppMessageUseCase{live: liveMode(true)})).liveActs("ws-1") {
 		t.Fatal("the gate says whether decisions run live")
 	}
 }

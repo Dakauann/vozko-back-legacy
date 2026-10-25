@@ -16,11 +16,9 @@ func TestSearchEntriesByFilter_RefusesWhenAPageCannotBeHydrated(t *testing.T) {
 	mock.MatchExpectationsInOrder(true)
 
 	boom := errors.New("hydration failed")
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM entries_with_msg`).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(`SELECT entry_id, entry_type, lead_name, lead_number FROM entries_with_msg`).
-		WillReturnRows(sqlmock.NewRows([]string{"entry_id", "entry_type", "lead_name", "lead_number"}).
-			AddRow("e-1", string(shared.EntryTypeWhatsApp), "Ana", "5511999999999"))
+	mock.ExpectQuery(`SELECT entry_id, entry_type, lead_name, lead_number, COUNT\(\*\) OVER \(\) AS page_total FROM entries_with_msg`).
+		WillReturnRows(sqlmock.NewRows([]string{"entry_id", "entry_type", "lead_name", "lead_number", "page_total"}).
+			AddRow("e-1", string(shared.EntryTypeWhatsApp), "Ana", "5511999999999", 1))
 	mock.ExpectQuery(`.`).WillReturnError(boom)
 
 	entries, total, err := (&repository{db: db}).SearchEntriesByFilter(selectionInput())
@@ -38,11 +36,9 @@ func TestSearchEntriesWithMessages_WorkspaceSearchRefusesWhenAPageCannotBeHydrat
 	mock.MatchExpectationsInOrder(true)
 
 	boom := errors.New("hydration failed")
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM entries_with_msg`).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(`SELECT entry_id, entry_type FROM entries_with_msg`).
-		WillReturnRows(sqlmock.NewRows([]string{"entry_id", "entry_type"}).
-			AddRow("e-1", string(shared.EntryTypeWhatsApp)))
+	mock.ExpectQuery(`SELECT entry_id, entry_type, COUNT\(\*\) OVER \(\) AS page_total FROM entries_with_msg`).
+		WillReturnRows(sqlmock.NewRows([]string{"entry_id", "entry_type", "page_total"}).
+			AddRow("e-1", string(shared.EntryTypeWhatsApp), 1))
 	mock.ExpectQuery(`.`).WillReturnError(boom)
 
 	entries, total, err := (&repository{db: db}).SearchEntriesWithMessages(conversation.SearchEntriesInput{WorkspaceID: "ws-1"})

@@ -14,11 +14,3 @@ func TestBulkForwardsTheCloseOutcome(t *testing.T) {
 		t.Fatalf("status %d, input %+v", rec.Code, svc.got)
 	}
 }
-
-func TestBulkUnavailableActionIsAServiceError(t *testing.T) {
-	svc := &stubService{err: crmbulk_usecase.ErrActionUnavailable}
-	rec := call(t, NewCRMBulkHandler(svc).Bulk, `{"action":"close","targets":[{"entryId":"e1","entryType":"telegram"}]}`)
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status %d", rec.Code)
-	}
-}

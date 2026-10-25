@@ -97,8 +97,7 @@ func TestEmailE2E_ProviderEventsReachMessagesSuppressionsConsentAndTheConversati
 		t.Fatalf("the conversation row was announced %d times, want once", updates)
 	}
 
-	sender := conversation_usecase.NewMessageSenderService(conversation_repository.NewRepository(w.db), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	sender.SetChannelAdapters(conversation.NewAdapterRegistry(w.inbox.Adapter))
+	sender := conversation_usecase.NewMessageSenderService(conversation_repository.NewRepository(w.db), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, conversation.NewAdapterRegistry(w.inbox.Adapter))
 	reply, err := sender.SendTextMessage(conversations[ana.ID], string(shared.EntryTypeEmail), "Que bom que chegou!", conversation.SendOrigin{SenderUserID: ws.Actor.UserID})
 	w.must(err)
 	operatorReplies := w.ses.SentTo(emailaddress.Address(ana.Email))

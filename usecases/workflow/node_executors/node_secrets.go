@@ -2,12 +2,11 @@ package node_executors
 
 import (
 	"errors"
-	"fmt"
-	"strings"
 
 	"vozko/domain/redact"
 	"vozko/domain/workflow"
-	"vozko/domain/workflowsecret"
+	"vozko/domain/workspacesecret"
+	httpcall_usecase "vozko/usecases/httpcall"
 	"vozko/usecases/workflow/scriptvm"
 )
 
@@ -16,29 +15,21 @@ type nodeSecrets struct {
 	scrub  redact.Redactor
 }
 
-func resolveNodeSecrets(ctx *workflow.NodeContext, resolver workflowsecret.Resolver, names []string) (nodeSecrets, error) {
-	if len(names) == 0 {
-		return nodeSecrets{scrub: redact.SecretsOnly()}, nil
-	}
-	if resolver == nil {
-		return nodeSecrets{}, fmt.Errorf("%w: %s", workflowsecret.ErrUnavailable, strings.Join(names, ", "))
-	}
-	if ctx.Run == nil || strings.TrimSpace(ctx.Run.WorkspaceID) == "" {
-		return nodeSecrets{}, workflowsecret.ErrWorkspaceRequired
+func resolveNodeSecrets(ctx *workflow.NodeContext, resolver workspacesecret.Resolver, names []string) (nodeSecrets, error) {
+	workspaceID := ""
+	if ctx.Run != nil {
+		workspaceID = ctx.Run.WorkspaceID
 	}
 	callCtx, release := ctx.CallContext()
 	defer release()
-	values, err := resolver.Resolve(callCtx, ctx.Run.WorkspaceID, names)
+	revealed, err := httpcall_usecase.RevealSecrets(callCtx, resolver, workspaceID, names)
 	if err != nil {
 		return nodeSecrets{}, err
 	}
-	revealed := make([]string, 0, len(values))
-	for _, v := range values {
-		revealed = append(revealed, v)
+	if len(names) > 0 {
+		ctx.Trace.ScrubWith(revealed.Scrub)
 	}
-	scrub := redact.SecretsOnly(revealed...)
-	ctx.Trace.ScrubWith(scrub)
-	return nodeSecrets{values: values, scrub: scrub}, nil
+	return nodeSecrets{values: revealed.Values, scrub: revealed.Scrub}, nil
 }
 
 type scrubbedError struct {
@@ -59,16 +50,16 @@ func (s nodeSecrets) scrubError(err error) error {
 }
 
 func requireAllSecrets(names []string, secrets nodeSecrets) error {
-	if missing := workflowsecret.MissingNames(names, secrets.values); len(missing) > 0 {
-		return &workflowsecret.MissingError{Names: missing}
+	if missing := workspacesecret.MissingNames(names, secrets.values); len(missing) > 0 {
+		return &workspacesecret.MissingError{Names: missing}
 	}
 	return nil
 }
 
 func secretFailure(err error) (*workflow.NodeResult, error) {
-	if errors.Is(err, workflowsecret.ErrMissing) ||
-		errors.Is(err, workflowsecret.ErrUnavailable) ||
-		errors.Is(err, workflowsecret.ErrWorkspaceRequired) {
+	if errors.Is(err, workspacesecret.ErrMissing) ||
+		errors.Is(err, workspacesecret.ErrUnavailable) ||
+		errors.Is(err, workspacesecret.ErrWorkspaceRequired) {
 		return &workflow.NodeResult{Error: err.Error(), ErrorKind: workflow.ErrorKindConfig}, nil
 	}
 	return nil, err

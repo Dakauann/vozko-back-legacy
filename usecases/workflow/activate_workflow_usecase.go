@@ -18,6 +18,7 @@ import (
 	"vozko/domain/lead"
 	media_domain "vozko/domain/media"
 	rag_domain "vozko/domain/rag"
+	"vozko/domain/shared/deps"
 	stage_domain "vozko/domain/stage"
 	businessphone_domain "vozko/domain/whatsapp/business_phone"
 	template_domain "vozko/domain/whatsapp/template"
@@ -27,12 +28,62 @@ import (
 	opportunity_usecase "vozko/usecases/opportunity"
 )
 
-type workspaceMemberLookup interface {
+type MemberLookup interface {
 	GetMember(workspaceID, userID string) (*workspace_domain.Member, error)
 }
 
-type businessPhoneLookup interface {
+type BusinessPhoneLookup interface {
 	FindByID(id string) (*businessphone_domain.WhatsAppBusinessPhoneNumber, error)
+}
+
+type KnowledgeBaseLookup interface {
+	FindByIDs(ctx context.Context, ids []string) ([]*rag_domain.KnowledgeBase, error)
+}
+
+type CustomFieldLister interface {
+	ListByObject(workspaceID string, objectType customfield.ObjectType) ([]*customfield.Definition, error)
+}
+
+type CallQueueLookup interface {
+	FindInWorkspace(ctx context.Context, workspaceID, id string) (*callrouting.Queue, error)
+}
+
+type InboundTrunkLookup interface {
+	ReceivesCalls(workspaceID, trunkID string) (bool, error)
+}
+
+type ModelLookup interface {
+	IsValidModel(ctx context.Context, modelID string) (bool, error)
+}
+
+type StageLookup interface {
+	FindByID(id string) (*stage_domain.Stage, error)
+}
+
+type DealFunnels interface {
+	PipelineStages(workspaceID, pipelineID string) ([]*stage_domain.Stage, error)
+}
+
+type ActivateWorkflowDeps struct {
+	Workflows      workflow.WorkflowRepository
+	Catalog        func() []workflow.NodeDefinition
+	Templates      template_domain.Repository
+	Agents         agent.Repository
+	Media          media_domain.MediaRepository
+	Labels         label_domain.Repository
+	Stages         StageLookup
+	DealFunnels    DealFunnels
+	Departments    dept_domain.Repository
+	Members        MemberLookup
+	BusinessPhones BusinessPhoneLookup
+	MCPCollections domainmcp.CollectionRepository
+	KnowledgeBases KnowledgeBaseLookup
+	CustomFields   CustomFieldLister
+	Sheets         GoogleSheetLookup
+	Models         ModelLookup
+	ModelCatalog   ModelCatalog
+	InboundTrunks  InboundTrunkLookup
+	CallQueues     CallQueueLookup
 }
 
 type activateWorkflowUseCase struct {
@@ -45,10 +96,10 @@ type activateWorkflowUseCase struct {
 	stageRepo         StageLookup
 	dealFunnels       DealFunnels
 	departmentRepo    dept_domain.Repository
-	workspaceRepo     workspaceMemberLookup
-	businessPhoneRepo businessPhoneLookup
+	workspaceRepo     MemberLookup
+	businessPhoneRepo BusinessPhoneLookup
 	mcpCollectionRepo domainmcp.CollectionRepository
-	knowledgeBaseRepo knowledgeBaseLookup
+	knowledgeBaseRepo KnowledgeBaseLookup
 	customFields      CustomFieldLister
 	googleSheets      GoogleSheetLookup
 
@@ -59,104 +110,51 @@ type activateWorkflowUseCase struct {
 	callQueues    CallQueueLookup
 }
 
-type CustomFieldLister interface {
-	ListByObject(workspaceID string, objectType customfield.ObjectType) ([]*customfield.Definition, error)
-}
-
-func (uc *activateWorkflowUseCase) SetCustomFieldRepo(repo CustomFieldLister) {
-	uc.customFields = repo
-}
-
-type CallQueueLookup interface {
-	FindInWorkspace(ctx context.Context, workspaceID, id string) (*callrouting.Queue, error)
-}
-
-func (uc *activateWorkflowUseCase) SetCallQueues(queues CallQueueLookup) {
-	uc.callQueues = queues
-}
-
-type InboundTrunkLookup interface {
-	ReceivesCalls(workspaceID, trunkID string) (bool, error)
-}
-
-func (uc *activateWorkflowUseCase) SetInboundTrunks(trunks InboundTrunkLookup) {
-	uc.inboundTrunks = trunks
-}
-
-type knowledgeBaseLookup interface {
-	FindByIDs(ctx context.Context, ids []string) ([]*rag_domain.KnowledgeBase, error)
-}
-
-type ModelLookup interface {
-	IsValidModel(ctx context.Context, modelID string) (bool, error)
-}
-
-func NewActivateWorkflowUseCase(repo workflow.WorkflowRepository) workflow.ActivateWorkflowUseCase {
-	return &activateWorkflowUseCase{repo: repo}
-}
-
-func (uc *activateWorkflowUseCase) SetCatalogFn(fn func() []workflow.NodeDefinition) {
-	uc.catalogFn = fn
-}
-
-func (uc *activateWorkflowUseCase) SetTemplateRepo(repo template_domain.Repository) {
-	uc.templateRepo = repo
-}
-
-func (uc *activateWorkflowUseCase) SetAgentRepo(repo agent.Repository) {
-	uc.agentRepo = repo
-}
-
-func (uc *activateWorkflowUseCase) SetMediaRepo(repo media_domain.MediaRepository) {
-	uc.mediaRepo = repo
-}
-
-type StageLookup interface {
-	FindByID(id string) (*stage_domain.Stage, error)
-}
-
-func (uc *activateWorkflowUseCase) SetStageRepo(repo StageLookup) {
-	uc.stageRepo = repo
-}
-
-type DealFunnels interface {
-	PipelineStages(workspaceID, pipelineID string) ([]*stage_domain.Stage, error)
-}
-
-func (uc *activateWorkflowUseCase) SetDealFunnels(funnels DealFunnels) {
-	uc.dealFunnels = funnels
-}
-
-func (uc *activateWorkflowUseCase) SetLabelRepo(repo label_domain.Repository) {
-	uc.labelRepo = repo
-}
-
-func (uc *activateWorkflowUseCase) SetDepartmentRepo(repo dept_domain.Repository) {
-	uc.departmentRepo = repo
-}
-
-func (uc *activateWorkflowUseCase) SetWorkspaceRepo(repo workspace_domain.Repository) {
-	uc.workspaceRepo = repo
-}
-
-func (uc *activateWorkflowUseCase) SetBusinessPhoneRepo(repo businessphone_domain.Repository) {
-	uc.businessPhoneRepo = repo
-}
-
-func (uc *activateWorkflowUseCase) SetMCPCollectionRepo(repo domainmcp.CollectionRepository) {
-	uc.mcpCollectionRepo = repo
-}
-
-func (uc *activateWorkflowUseCase) SetKnowledgeBaseRepo(repo rag_domain.KnowledgeBaseRepository) {
-	uc.knowledgeBaseRepo = repo
-}
-
-func (uc *activateWorkflowUseCase) SetModelLookup(lookup ModelLookup) {
-	uc.modelLookup = lookup
-}
-
-func (uc *activateWorkflowUseCase) SetModelCatalog(catalog ModelCatalog) {
-	uc.modelCatalog = catalog
+func NewActivateWorkflowUseCase(d ActivateWorkflowDeps) (workflow.ActivateWorkflowUseCase, error) {
+	if err := deps.Require("workflow activation", map[string]any{
+		"workflows":       d.Workflows,
+		"catalog":         d.Catalog,
+		"templates":       d.Templates,
+		"agents":          d.Agents,
+		"media":           d.Media,
+		"labels":          d.Labels,
+		"stages":          d.Stages,
+		"deal funnels":    d.DealFunnels,
+		"departments":     d.Departments,
+		"members":         d.Members,
+		"business phones": d.BusinessPhones,
+		"mcp collections": d.MCPCollections,
+		"knowledge bases": d.KnowledgeBases,
+		"custom fields":   d.CustomFields,
+		"google sheets":   d.Sheets,
+		"models":          d.Models,
+		"model catalog":   d.ModelCatalog,
+		"inbound trunks":  d.InboundTrunks,
+		"call queues":     d.CallQueues,
+	}); err != nil {
+		return nil, err
+	}
+	return &activateWorkflowUseCase{
+		repo:              d.Workflows,
+		catalogFn:         d.Catalog,
+		templateRepo:      d.Templates,
+		agentRepo:         d.Agents,
+		mediaRepo:         d.Media,
+		labelRepo:         d.Labels,
+		stageRepo:         d.Stages,
+		dealFunnels:       d.DealFunnels,
+		departmentRepo:    d.Departments,
+		workspaceRepo:     d.Members,
+		businessPhoneRepo: d.BusinessPhones,
+		mcpCollectionRepo: d.MCPCollections,
+		knowledgeBaseRepo: d.KnowledgeBases,
+		customFields:      d.CustomFields,
+		googleSheets:      d.Sheets,
+		modelLookup:       d.Models,
+		modelCatalog:      d.ModelCatalog,
+		inboundTrunks:     d.InboundTrunks,
+		callQueues:        d.CallQueues,
+	}, nil
 }
 
 func (uc *activateWorkflowUseCase) Execute(ctx context.Context, workflowID string) (*workflow.Workflow, error) {
@@ -237,11 +235,9 @@ func (uc *activateWorkflowUseCase) publish(ctx context.Context, w *workflow.Work
 }
 
 func (uc *activateWorkflowUseCase) graphProblems(ctx context.Context, w *workflow.Workflow) (workflow.LintReport, []error) {
-	var catalog []workflow.NodeDefinition
-	if uc.catalogFn != nil {
-		catalog = uc.catalogFn()
-	}
+	catalog := uc.catalogFn()
 	report := LintWorkflowGraph(catalog, w)
+	report.Issues = append(report.Issues, workflow.HTTPSIssues(&w.Graph, uc.runningGraph(w))...)
 
 	var problems []error
 	if err := checkGraphReasoning(ctx, uc.modelCatalog, &w.Graph); err != nil {
@@ -293,44 +289,23 @@ func (uc *activateWorkflowUseCase) validateRunnable(ctx context.Context, w *work
 
 func (uc *activateWorkflowUseCase) referenceValidators(w *workflow.Workflow) []workflow.ConfigValidator {
 	workflowWorkspaceID := strings.TrimSpace(w.WorkspaceID)
-	var validators []workflow.ConfigValidator
-	if uc.businessPhoneRepo != nil {
-		validators = append(validators, &businessPhoneValidator{repo: uc.businessPhoneRepo, workspaceID: workflowWorkspaceID})
-	}
-	if uc.templateRepo != nil {
-		validators = append(validators, &templateValidator{repo: uc.templateRepo, businessPhoneRepo: uc.businessPhoneRepo, workspaceID: workflowWorkspaceID})
-	}
-	if uc.agentRepo != nil {
-		validators = append(validators, &agentValidator{repo: uc.agentRepo, workspaceID: workflowWorkspaceID})
-	}
-	if uc.mediaRepo != nil {
-		validators = append(validators, &mediaValidator{repo: uc.mediaRepo, workspaceID: workflowWorkspaceID})
-	}
-	if uc.labelRepo != nil {
-		validators = append(validators, &labelValidator{repo: uc.labelRepo, workspaceID: workflowWorkspaceID})
-	}
-	if uc.customFields != nil {
-		validators = append(validators, &customFieldValidator{repo: uc.customFields, workspaceID: workflowWorkspaceID})
-	}
-	if uc.stageRepo != nil {
-		validators = append(validators, &stageValidator{repo: uc.stageRepo, workspaceID: workflowWorkspaceID})
-	}
-	if uc.dealFunnels != nil {
-		validators = append(validators, &dealValidator{funnels: uc.dealFunnels, workspaceID: workflowWorkspaceID})
-	}
-	if uc.departmentRepo != nil {
-		validators = append(validators, &departmentValidator{repo: uc.departmentRepo, workspaceID: workflowWorkspaceID})
-	}
-	if uc.workspaceRepo != nil {
-		validators = append(validators, &memberValidator{repo: uc.workspaceRepo, workspaceID: workflowWorkspaceID})
-	}
-	return append(validators,
+	return []workflow.ConfigValidator{
+		&businessPhoneValidator{repo: uc.businessPhoneRepo, workspaceID: workflowWorkspaceID},
+		&templateValidator{repo: uc.templateRepo, businessPhoneRepo: uc.businessPhoneRepo, workspaceID: workflowWorkspaceID},
+		&agentValidator{repo: uc.agentRepo, workspaceID: workflowWorkspaceID},
+		&mediaValidator{repo: uc.mediaRepo, workspaceID: workflowWorkspaceID},
+		&labelValidator{repo: uc.labelRepo, workspaceID: workflowWorkspaceID},
+		&customFieldValidator{repo: uc.customFields, workspaceID: workflowWorkspaceID},
+		&stageValidator{repo: uc.stageRepo, workspaceID: workflowWorkspaceID},
+		&dealValidator{funnels: uc.dealFunnels, workspaceID: workflowWorkspaceID},
+		&departmentValidator{repo: uc.departmentRepo, workspaceID: workflowWorkspaceID},
+		&memberValidator{repo: uc.workspaceRepo, workspaceID: workflowWorkspaceID},
 		&mcpCollectionValidator{repo: uc.mcpCollectionRepo, workspaceID: workflowWorkspaceID},
 		&knowledgeBaseValidator{repo: uc.knowledgeBaseRepo, workspaceID: workflowWorkspaceID},
 		&modelValidator{lookup: uc.modelLookup},
 		&googleSheetValidator{sheets: uc.googleSheets, workspaceID: workflowWorkspaceID},
 		&workflowReferenceValidator{repo: uc.repo, workspaceID: workflowWorkspaceID},
-	)
+	}
 }
 
 func collectExecuteModeLeafNodes(g *workflow.Graph) map[string]bool {
@@ -378,7 +353,7 @@ func collectExecuteModeLeafNodes(g *workflow.Graph) map[string]bool {
 
 type templateValidator struct {
 	repo              template_domain.Repository
-	businessPhoneRepo businessPhoneLookup
+	businessPhoneRepo BusinessPhoneLookup
 	workspaceID       string
 }
 
@@ -467,9 +442,6 @@ func (v *mcpCollectionValidator) Validate(n *workflow.Node) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	if v.repo == nil {
-		return lookupNotWired("mcp collections")
-	}
 	found, err := v.repo.ListByIDs(context.Background(), v.workspaceID, ids)
 	if err != nil {
 		return err
@@ -487,7 +459,7 @@ func (v *mcpCollectionValidator) Validate(n *workflow.Node) error {
 }
 
 type knowledgeBaseValidator struct {
-	repo        knowledgeBaseLookup
+	repo        KnowledgeBaseLookup
 	workspaceID string
 }
 
@@ -498,9 +470,6 @@ func (v *knowledgeBaseValidator) Validate(n *workflow.Node) error {
 	ids := extractStringSlice(n.Config["knowledge_base_ids"])
 	if len(ids) == 0 {
 		return nil
-	}
-	if v.repo == nil {
-		return lookupNotWired("knowledge bases")
 	}
 	found, err := v.repo.FindByIDs(context.Background(), ids)
 	if err != nil {
@@ -552,9 +521,6 @@ func (v *modelValidator) Validate(n *workflow.Node) error {
 	if model == "" || strings.Contains(model, "{{") {
 		return nil
 	}
-	if v.lookup == nil {
-		return lookupNotWired("ai models")
-	}
 	valid, err := v.lookup.IsValidModel(context.Background(), model)
 	if err != nil {
 		return err
@@ -573,7 +539,7 @@ func (uc *activateWorkflowUseCase) callQueueProblems(w *workflow.Workflow) []err
 		}
 		queueID, _ := n.Config["queue_id"].(string)
 		queueID = strings.TrimSpace(queueID)
-		if uc.callQueues == nil || queueID == "" {
+		if queueID == "" {
 			problems = append(problems, fmt.Errorf("%w: node %q", workflow.ErrNodeInvalidQueueID, n.ID))
 			continue
 		}
@@ -588,9 +554,6 @@ func (uc *activateWorkflowUseCase) validateVoiceTrunk(w *workflow.Workflow) erro
 	trunkID := w.VoiceTrunkID()
 	if trunkID == "" {
 		return workflow.ErrVoiceTrunkRequired
-	}
-	if uc.inboundTrunks == nil {
-		return workflow.ErrVoiceTrunkInvalid
 	}
 	receives, err := uc.inboundTrunks.ReceivesCalls(w.WorkspaceID, trunkID)
 	if err != nil {
@@ -764,7 +727,7 @@ func (v *departmentValidator) Validate(n *workflow.Node) error {
 }
 
 type memberValidator struct {
-	repo        workspaceMemberLookup
+	repo        MemberLookup
 	workspaceID string
 }
 
@@ -787,7 +750,7 @@ func (v *memberValidator) Validate(n *workflow.Node) error {
 }
 
 type businessPhoneValidator struct {
-	repo        businessPhoneLookup
+	repo        BusinessPhoneLookup
 	workspaceID string
 }
 
@@ -830,31 +793,13 @@ func sameWorkspaceID(workflowWorkspaceID, resourceWorkspaceID string) bool {
 	return strings.TrimSpace(workflowWorkspaceID) != "" && strings.TrimSpace(workflowWorkspaceID) == strings.TrimSpace(resourceWorkspaceID)
 }
 
-func (uc *activateWorkflowUseCase) MissingDependencies() []string {
-	required := []struct {
-		name  string
-		wired bool
-	}{
-		{"catalog", uc.catalogFn != nil},
-		{"templates", uc.templateRepo != nil},
-		{"agents", uc.agentRepo != nil},
-		{"media", uc.mediaRepo != nil},
-		{"labels", uc.labelRepo != nil},
-		{"custom_fields", uc.customFields != nil},
-		{"stages", uc.stageRepo != nil},
-		{"deal_funnels", uc.dealFunnels != nil},
-		{"departments", uc.departmentRepo != nil},
-		{"members", uc.workspaceRepo != nil},
-		{"business_phones", uc.businessPhoneRepo != nil},
-		{"google_sheets", uc.googleSheets != nil},
-		{"model_catalog", uc.modelCatalog != nil},
-		{"call_queues", uc.callQueues != nil},
+func (uc *activateWorkflowUseCase) runningGraph(w *workflow.Workflow) *workflow.Graph {
+	if uc.repo == nil || w == nil || w.PublishedVersion == nil {
+		return nil
 	}
-	var missing []string
-	for _, dependency := range required {
-		if !dependency.wired {
-			missing = append(missing, dependency.name)
-		}
+	running, err := workflow.PublishedOf(uc.repo, w)
+	if err != nil || running == nil {
+		return nil
 	}
-	return missing
+	return &running.Graph
 }

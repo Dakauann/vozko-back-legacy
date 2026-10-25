@@ -8,6 +8,7 @@ import (
 
 	"vozko/domain/cache"
 	"vozko/domain/campaign"
+	"vozko/domain/shared/deps"
 	uwc "vozko/domain/unofficial_whatsapp_campaign"
 )
 
@@ -23,23 +24,31 @@ type quickSendUseCase struct {
 	automation AutomationCheck
 }
 
-func (uc *quickSendUseCase) SetAutomation(automation AutomationCheck) {
-	uc.automation = automation
-}
-
 func NewQuickSendUseCase(
 	campaigns uwc.Repository,
 	entries uwc.EntryRepository,
 	leads LeadResolver,
 	dispatch uwc.DispatchCampaignUseCase,
 	sharedState cache.SharedState,
-) uwc.QuickSendUseCase {
-	return &quickSendUseCase{
-		repos:    campaignRepos{campaigns: campaigns, entries: entries},
-		leads:    leads,
-		dispatch: dispatch,
-		shared:   sharedState,
+	automation AutomationCheck,
+) (uwc.QuickSendUseCase, error) {
+	if err := deps.Require("unofficial quick send", map[string]any{
+		"campaigns":    campaigns,
+		"entries":      entries,
+		"leads":        leads,
+		"dispatch":     dispatch,
+		"shared state": sharedState,
+		"automation":   automation,
+	}); err != nil {
+		return nil, err
 	}
+	return &quickSendUseCase{
+		repos:      campaignRepos{campaigns: campaigns, entries: entries},
+		leads:      leads,
+		dispatch:   dispatch,
+		shared:     sharedState,
+		automation: automation,
+	}, nil
 }
 
 func (uc *quickSendUseCase) Execute(ctx context.Context, in uwc.QuickSendInput) (*uwc.QuickSendOutput, error) {
@@ -47,17 +56,15 @@ func (uc *quickSendUseCase) Execute(ctx context.Context, in uwc.QuickSendInput) 
 		return nil, uwc.ErrCampaignNotFound
 	}
 
-	if uc.shared != nil {
-		key := uwc.QueueNamespace.QuickSendLockKey(in.CampaignID)
-		acquired, err := uc.shared.SetNX(key, "1", quickSendLockTTL)
-		if err != nil {
-			return nil, fmt.Errorf("unofficial whatsapp campaign quick send: could not take the lock: %w", err)
-		}
-		if !acquired {
-			return nil, ErrQuickSendBusy
-		}
-		defer func() { _ = uc.shared.Del(key) }()
+	key := uwc.QueueNamespace.QuickSendLockKey(in.CampaignID)
+	acquired, err := uc.shared.SetNX(key, "1", quickSendLockTTL)
+	if err != nil {
+		return nil, fmt.Errorf("unofficial whatsapp campaign quick send: could not take the lock: %w", err)
 	}
+	if !acquired {
+		return nil, ErrQuickSendBusy
+	}
+	defer func() { _ = uc.shared.Del(key) }()
 
 	camp, err := uc.repos.campaigns.FindByID(in.CampaignID)
 	if err != nil {
@@ -117,6 +124,6 @@ func (uc *quickSendUseCase) addNumbers(
 	numbers []uwc.EntryInput,
 ) (*uwc.AddEntriesOutput, error) {
 	adder := newEntryManagement(uc.repos.campaigns, uc.repos.entries, uc.leads)
-	adder.SetAutomation(uc.automation)
+	adder.automation = uc.automation
 	return adder.add(ctx, uwc.AddEntriesInput{CampaignID: camp.ID, Numbers: numbers}, true)
 }

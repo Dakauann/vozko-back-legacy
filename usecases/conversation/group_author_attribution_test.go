@@ -44,9 +44,9 @@ func (l *authorLookup) AuthorsByAccount(context.Context, map[string][]string) (m
 const groupEntryType = shared.EntryTypeUnofficialWhatsApp
 
 func serviceWith(lookup ContactIdentityLookup) *HistoryProviderService {
-	return &HistoryProviderService{
+	return historyWith(HistoryProviderService{
 		contactIdentities: map[shared.EntryType]ContactIdentityLookup{groupEntryType: lookup},
-	}
+	})
 }
 
 func inbound(from string) *conversation.Message {
@@ -177,7 +177,7 @@ func TestLookupFailureDoesNotBreakTheRead(t *testing.T) {
 }
 
 func TestChannelWithoutAnIdentityLookupIsUntouched(t *testing.T) {
-	svc := &HistoryProviderService{}
+	svc := historyWith(HistoryProviderService{})
 
 	if got := svc.authorsFor(shared.EntryTypeWhatsApp, "entry-1", "", []*conversation.Message{
 		inbound("+5511900000001"),

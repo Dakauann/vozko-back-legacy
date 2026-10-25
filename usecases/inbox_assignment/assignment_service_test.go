@@ -234,10 +234,6 @@ func (c *mockWorkspaceConfig) GetByWorkspaceID(context.Context, string) (*wsc.Wo
 	return &wsc.WorkspaceConfig{SkipAdminAssignment: c.skipAdmins}, nil
 }
 
-func newService(repo ia.Repository, eligible conversation.EligibleUserProvider, resolver conversation.CampaignWorkspaceResolver, cfg WorkspaceConfigProvider) *AssignmentService {
-	return NewAssignmentService(repo, eligible, resolver, cfg)
-}
-
 func defaultEligible(users ...string) *mockEligible {
 	return &mockEligible{workspaceUsers: users}
 }

@@ -111,26 +111,14 @@ func (m *WorkspaceMiddleware) RequireAccess(resource workspace.Resource, action 
 				return
 			}
 
-			wsID := mux.Vars(r)["workspaceId"]
+			wsID := accessWorkspaceID(r)
 			if wsID == "" {
-				wsID = r.Header.Get("X-Workspace-ID")
-			}
-			if wsID == "" {
-				wsID = r.URL.Query().Get("workspace_id")
-			}
-
-			if wsID == "" {
-				wsID, _ = r.Context().Value(WorkspaceIDContextKey).(string)
-			}
-			if wsID == "" {
-				response.WriteError(w, http.StatusBadRequest, "workspace_id is required", map[string]string{
-					"X-Workspace-ID": "string (required, as path param or header)",
-				})
+				writeWorkspaceRequired(w)
 				return
 			}
 
 			if err := m.accessChecker.Execute(claims.UserID, wsID, resource, action); err != nil {
-				response.WriteError(w, http.StatusForbidden,
+				response.WriteErrorWithCode(w, http.StatusForbidden, workspace.PermissionRequiredCode(action),
 					"Insufficient permissions: requires "+string(resource)+":"+string(action)+" in this workspace",
 					map[string]string{
 						"required_permission": string(resource) + ":" + string(action),
@@ -142,6 +130,26 @@ func (m *WorkspaceMiddleware) RequireAccess(resource workspace.Resource, action 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func accessWorkspaceID(r *http.Request) string {
+	wsID := mux.Vars(r)["workspaceId"]
+	if wsID == "" {
+		wsID = r.Header.Get("X-Workspace-ID")
+	}
+	if wsID == "" {
+		wsID = r.URL.Query().Get("workspace_id")
+	}
+	if wsID == "" {
+		wsID, _ = r.Context().Value(WorkspaceIDContextKey).(string)
+	}
+	return wsID
+}
+
+func writeWorkspaceRequired(w http.ResponseWriter) {
+	response.WriteError(w, http.StatusBadRequest, "workspace_id is required", map[string]string{
+		"X-Workspace-ID": "string (required, as path param or header)",
+	})
 }
 
 func (m *WorkspaceMiddleware) CheckAccess(resource workspace.Resource, action workspace.Action, handler http.HandlerFunc) http.HandlerFunc {

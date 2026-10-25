@@ -16,6 +16,7 @@ var retiredSettingColumns = []retiredColumn{
 	{"unofficial_whatsapp_campaigns", "prefer_audio"},
 	{"agents", "initial_message"},
 	{"agents", "use_initial_message"},
+	{"agents", "business_phone_id"},
 	{"unofficial_whatsapp_instances", "auto_reject_calls"},
 	{"template_exit_settings", "exit_words"},
 	{"template_exit_settings", "exit_risk_acknowledged_by"},

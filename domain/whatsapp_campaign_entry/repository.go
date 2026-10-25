@@ -33,6 +33,8 @@ type Repository interface {
 
 	ListRecentlyUpdated(campaignID string, limit int) ([]WhatsAppCampaignEntry, error)
 
+	ListRecentlyUpdatedForCampaigns(campaignIDs []string, limit int) (map[string][]WhatsAppCampaignEntry, error)
+
 	EachStored(campaignID string, visit func(StoredEntry) error) error
 
 	CountByCampaignID(campaignID string) (int64, error)

@@ -85,7 +85,7 @@ type unofficialFinisherFixture struct {
 
 func newUnofficialFinisher(status uw.Status) unofficialFinisherFixture {
 	f := unofficialFinisherFixture{create: &capturingCreate{}, actions: &draftActions{}, deals: &draftDeals{}}
-	h := NewCampaignHandler(CampaignHandlerDeps{Create: f.create, Departments: openScope{}})
+	h := campaignHandler(CampaignHandlerDeps{Create: f.create, Departments: openScope{}})
 	launch := uwcuc.NewDraftLaunch(uwcuc.DraftLaunchDeps{
 		Create: f.create, Actions: f.actions, Estimate: draftEstimate{}, Audience: draftAudience{}, Preflight: uwcuc.NewStartPreflight(draftGateway{status: status}),
 	})

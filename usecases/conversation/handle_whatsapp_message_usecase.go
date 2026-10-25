@@ -23,9 +23,9 @@ import (
 	lmw "vozko/domain/lead_message_window"
 	"vozko/domain/leadexit"
 	"vozko/domain/media"
-	"vozko/domain/messaging"
 	"vozko/domain/rag"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/domain/stage"
 	toolsdomain "vozko/domain/tools"
 	businessphone "vozko/domain/whatsapp/business_phone"
@@ -37,7 +37,6 @@ import (
 	"vozko/infra/whisper"
 	"vozko/usecases/agentturn"
 	balance_usecase "vozko/usecases/balance"
-	ia_usecase "vozko/usecases/inbox_assignment"
 	shared_usecase "vozko/usecases/shared"
 	tools_usecase "vozko/usecases/tools"
 
@@ -69,7 +68,7 @@ type handleWhatsAppMessageUseCase struct {
 	messageWindowRepo       lmw.Repository
 	mediaStore              conversation.MediaStore
 	hub                     conversation.EventBroadcaster
-	assignmentService       *ia_usecase.AssignmentService
+	assignmentService       InboundAssigner
 	aiAttendance            AIAttendanceRecorder
 	triggerEvaluator        workflow_domain.TriggerEvaluator
 	inboundRouter           *InboundRouter
@@ -89,8 +88,6 @@ type handleWhatsAppMessageUseCase struct {
 	statusEvents            messagestatus.Recorder
 	balanceLedger           balance.Repository
 
-	billingPub messaging.MessageQueuePub
-
 	loopGuard   loopguard.Guard
 	delegations conversation.DelegationRepository
 	live        LiveMode
@@ -103,61 +100,20 @@ const failedStatusRefundTTL = 30 * 24 * time.Hour
 const failedStatusRefundLockTTL = 1 * time.Minute
 const failedStatusRefundAttempts = 3
 
-func (uc *handleWhatsAppMessageUseCase) SetAssignmentService(svc *ia_usecase.AssignmentService) {
-	uc.assignmentService = svc
-}
-
 type AIAttendanceRecorder interface {
 	RecordAIReply(in aa.StartInput, messageID string)
-}
-
-func (uc *handleWhatsAppMessageUseCase) SetAIAttendance(svc AIAttendanceRecorder) {
-	uc.aiAttendance = svc
-}
-
-func (uc *handleWhatsAppMessageUseCase) SetTriggerEvaluator(eval workflow_domain.TriggerEvaluator) {
-	uc.triggerEvaluator = eval
-	uc.inboundRouter = InboundRouterOf(eval)
-}
-
-func (uc *handleWhatsAppMessageUseCase) SetAgentTurnLock(lock *AgentTurnLock) {
-	uc.turnLock = lock
-}
-
-func (uc *handleWhatsAppMessageUseCase) SetBillingPub(pub messaging.MessageQueuePub) {
-	uc.billingPub = pub
-}
-
-func (uc *handleWhatsAppMessageUseCase) SetDelegations(delegations conversation.DelegationRepository) {
-	uc.delegations = delegations
-}
-
-func (uc *handleWhatsAppMessageUseCase) SetReceptiveContainers(receptive wc.EnsureReceptiveContainerUseCase) {
-	uc.receptive = receptive
-}
-
-func (uc *handleWhatsAppMessageUseCase) SetLoopGuard(g loopguard.Guard) {
-	uc.loopGuard = g
 }
 
 type LiveMode interface {
 	Acts(ctx context.Context, workspaceID string) bool
 }
 
-func (uc *handleWhatsAppMessageUseCase) SetLiveGate(g LiveMode) {
-	uc.live = g
-}
-
-func (uc *handleWhatsAppMessageUseCase) SetAnalysisScheduler(scheduler *AnalysisScheduler) {
-	uc.analysis = scheduler
-}
-
 func (uc *handleWhatsAppMessageUseCase) liveActs(workspaceID string) bool {
-	return uc.live != nil && uc.live.Acts(context.Background(), workspaceID)
+	return uc.live.Acts(context.Background(), workspaceID)
 }
 
 func (uc *handleWhatsAppMessageUseCase) recordAIAttendance(agentCtx *agentContext, entryID string, entryType shared.EntryType, messageID string) {
-	if uc == nil || uc.aiAttendance == nil || agentCtx == nil || agentCtx.agent == nil || entryID == "" {
+	if agentCtx == nil || agentCtx.agent == nil || entryID == "" {
 		return
 	}
 	wsID := agentCtx.getWorkspaceID()
@@ -178,21 +134,15 @@ func (uc *handleWhatsAppMessageUseCase) recordAIAttendance(agentCtx *agentContex
 }
 
 func (uc *handleWhatsAppMessageUseCase) guardCheckInbound(ctx context.Context, workspaceID, conversationID, text string) loopguard.Decision {
-	if uc == nil || uc.loopGuard == nil {
-		return loopguard.Decision{}
-	}
 	return uc.loopGuard.CheckInbound(ctx, workspaceID, conversationID, text)
 }
 
 func (uc *handleWhatsAppMessageUseCase) guardRecordAIResponse(ctx context.Context, workspaceID, conversationID string) loopguard.Decision {
-	if uc == nil || uc.loopGuard == nil {
-		return loopguard.Decision{}
-	}
 	return uc.loopGuard.RecordAIResponse(ctx, workspaceID, conversationID)
 }
 
 func (uc *handleWhatsAppMessageUseCase) fireWorkflowTriggers(agentCtx *agentContext, event workflow_domain.TriggerEvent, history []*conversation.Message) {
-	if uc.triggerEvaluator == nil || event.EntryID == "" {
+	if event.EntryID == "" {
 		return
 	}
 
@@ -468,46 +418,130 @@ const (
 	AnalysisDebounceRedisKey = "analysis:debounce:pending"
 )
 
-func NewHandleWhatsAppMessageUseCase(aiService ai.Service, whatsappClientFactory conversation.WhatsAppClientFactory, leadRepo lead.Repository, agentRepo agent.Repository, toolRegistry toolsdomain.Service, historyManager conversation.MessageHistoryManager, messageRepo conversation.MessageRepository, configRepo config.SystemConfigRepository, whisperPool *whisper.Pool, wcCampaignRepo wc.Repository, wcEntryRepo wce.Repository, businessPhoneRepo businessphone.Repository, messageWindowRepo lmw.Repository, mediaStore conversation.MediaStore, hub conversation.EventBroadcaster, stageRepo stage.Repository, textExtractor media.TextExtractor, sharedState cache.SharedState, ragService rag.RAGService, cachedBalanceChecker balance.CachedBalanceChecker, llmPriceFetcher workspace_pricing.LLMPriceFetcher, consumeWhatsappTemplate balance.ConsumeWhatsappTemplateUseCase, serviceMessageBilling conversation.ServiceMessageBilling, statusEvents messagestatus.Recorder) (conversation.HandleWhatsAppMessageUseCase, error) {
-	if consumeWhatsappTemplate == nil {
-		return nil, fmt.Errorf("%w: whatsapp template billing", conversation.ErrRefundNotConfigured)
-	}
-	if wcCampaignRepo == nil {
-		return nil, fmt.Errorf("%w: whatsapp campaign repository", conversation.ErrRefundNotConfigured)
-	}
-	if serviceMessageBilling == nil {
-		return nil, fmt.Errorf("%w: whatsapp service message billing", conversation.ErrRefundNotConfigured)
-	}
-	if statusEvents == nil {
-		return nil, errors.New("whatsapp message status recorder is required")
-	}
+type InboundAssigner interface {
+	EnsureAssignment(entryID, entryType, businessPhoneID string) string
+}
 
+type InboundTriggers interface {
+	workflow_domain.TriggerEvaluator
+	workflow_domain.ReplyWaiters
+}
+
+type HandleWhatsAppMessageDeps struct {
+	AI              ai.Service
+	Clients         conversation.WhatsAppClientFactory
+	Leads           lead.Repository
+	Agents          agent.Repository
+	Tools           toolsdomain.Service
+	History         conversation.MessageHistoryManager
+	Messages        conversation.MessageRepository
+	Config          config.SystemConfigRepository
+	Whisper         *whisper.Pool
+	Campaigns       wc.Repository
+	Entries         wce.Repository
+	Phones          businessphone.Repository
+	Windows         lmw.Repository
+	MediaStore      conversation.MediaStore
+	Broadcaster     conversation.EventBroadcaster
+	Stages          stage.Repository
+	TextExtractor   media.TextExtractor
+	SharedState     cache.SharedState
+	RAG             rag.RAGService
+	Balance         balance.CachedBalanceChecker
+	LLMPrices       workspace_pricing.LLMPriceFetcher
+	TemplateBilling balance.ConsumeWhatsappTemplateUseCase
+	ServiceBilling  conversation.ServiceMessageBilling
+	StatusEvents    messagestatus.Recorder
+	Assignment      InboundAssigner
+	Attendance      AIAttendanceRecorder
+	Triggers        InboundTriggers
+	TurnLock        *AgentTurnLock
+	Delegations     conversation.DelegationRepository
+	Receptive       wc.EnsureReceptiveContainerUseCase
+	LoopGuard       loopguard.Guard
+	Live            LiveMode
+	Analysis        *AnalysisScheduler
+	Assembler       *agentturn.Assembler
+	WorkflowNames   ActorNameResolver
+	FormReplies     FormReplyReceiver
+	ExitStep        leadexit.Step
+}
+
+func NewHandleWhatsAppMessageUseCase(d HandleWhatsAppMessageDeps) (conversation.HandleWhatsAppMessageUseCase, error) {
+	if err := deps.Require("official whatsapp inbound", map[string]any{
+		"ai":               d.AI,
+		"clients":          d.Clients,
+		"leads":            d.Leads,
+		"agents":           d.Agents,
+		"tools":            d.Tools,
+		"history":          d.History,
+		"messages":         d.Messages,
+		"campaigns":        d.Campaigns,
+		"entries":          d.Entries,
+		"phones":           d.Phones,
+		"windows":          d.Windows,
+		"broadcaster":      d.Broadcaster,
+		"shared state":     d.SharedState,
+		"balance":          d.Balance,
+		"template billing": d.TemplateBilling,
+		"service billing":  d.ServiceBilling,
+		"status events":    d.StatusEvents,
+		"assignment":       d.Assignment,
+		"attendance":       d.Attendance,
+		"triggers":         d.Triggers,
+		"turn lock":        d.TurnLock,
+		"delegations":      d.Delegations,
+		"receptive":        d.Receptive,
+		"loop guard":       d.LoopGuard,
+		"live":             d.Live,
+		"analysis":         d.Analysis,
+		"assembler":        d.Assembler,
+		"workflow names":   d.WorkflowNames,
+		"form replies":     d.FormReplies,
+		"exit step":        d.ExitStep,
+	}); err != nil {
+		return nil, err
+	}
 	return &handleWhatsAppMessageUseCase{
-		statusEvents:            statusEvents,
-		aiService:               aiService,
-		leadRepo:                leadRepo,
-		agentRepo:               agentRepo,
-		toolRegistry:            toolRegistry,
-		whatsappClientFactory:   whatsappClientFactory,
-		historyManager:          historyManager,
-		messageRepo:             messageRepo,
-		configRepo:              configRepo,
-		whisperPool:             whisperPool,
-		wcCampaignRepo:          wcCampaignRepo,
-		wcEntryRepo:             wcEntryRepo,
-		businessPhoneRepo:       businessPhoneRepo,
-		messageWindowRepo:       messageWindowRepo,
-		mediaStore:              mediaStore,
-		hub:                     hub,
-		stageRepo:               stageRepo,
-		textExtractor:           textExtractor,
-		sharedState:             sharedState,
-		ragService:              ragService,
-		cachedBalanceChecker:    cachedBalanceChecker,
-		spendGuard:              balance_usecase.NewRequiredSpendGuard(cachedBalanceChecker, "whatsapp ai reply"),
-		llmPriceFetcher:         llmPriceFetcher,
-		consumeWhatsappTemplate: consumeWhatsappTemplate,
-		serviceMessageBilling:   serviceMessageBilling,
+		statusEvents:            d.StatusEvents,
+		aiService:               d.AI,
+		leadRepo:                d.Leads,
+		agentRepo:               d.Agents,
+		toolRegistry:            d.Tools,
+		whatsappClientFactory:   d.Clients,
+		historyManager:          d.History,
+		messageRepo:             d.Messages,
+		configRepo:              d.Config,
+		whisperPool:             d.Whisper,
+		wcCampaignRepo:          d.Campaigns,
+		wcEntryRepo:             d.Entries,
+		businessPhoneRepo:       d.Phones,
+		messageWindowRepo:       d.Windows,
+		mediaStore:              d.MediaStore,
+		hub:                     d.Broadcaster,
+		stageRepo:               d.Stages,
+		textExtractor:           d.TextExtractor,
+		sharedState:             d.SharedState,
+		ragService:              d.RAG,
+		cachedBalanceChecker:    d.Balance,
+		spendGuard:              balance_usecase.NewRequiredSpendGuard(d.Balance, "whatsapp ai reply"),
+		llmPriceFetcher:         d.LLMPrices,
+		consumeWhatsappTemplate: d.TemplateBilling,
+		serviceMessageBilling:   d.ServiceBilling,
+		assignmentService:       d.Assignment,
+		aiAttendance:            d.Attendance,
+		triggerEvaluator:        d.Triggers,
+		inboundRouter:           NewInboundRouter(d.Triggers),
+		turnLock:                d.TurnLock,
+		delegations:             d.Delegations,
+		receptive:               d.Receptive,
+		loopGuard:               d.LoopGuard,
+		live:                    d.Live,
+		analysis:                d.Analysis,
+		turnAssembler:           d.Assembler,
+		workflowNames:           d.WorkflowNames,
+		formReplies:             d.FormReplies,
+		exitStep:                d.ExitStep,
 	}, nil
 }
 
@@ -647,7 +681,7 @@ func (uc *handleWhatsAppMessageUseCase) Execute(ctx context.Context, payload *co
 		}
 	}
 
-	if uc.assignmentService != nil && entryID != "" {
+	if entryID != "" {
 		phoneForAssignment := receivedBusinessPhoneID
 		if phoneForAssignment == "" {
 			phoneForAssignment = replyPhoneID(agentCtx, receivedBusinessPhoneID)
@@ -971,7 +1005,7 @@ func (uc *handleWhatsAppMessageUseCase) maybeRunWhatsAppCampaignTools(ctx contex
 
 	for _, toolCall := range response.ToolCalls {
 		if toolCall.Name == tools_usecase.ManageEntryStageToolName && toolCall.Result != nil {
-			log.Printf("[whatsapp-usecase] auto-stage result: %v", toolCall.Result.Result)
+			log.Printf("[whatsapp-usecase] auto-stage %s finished (error=%v)", toolCall.Name, toolCall.Result.IsError)
 		}
 	}
 }
@@ -1716,7 +1750,7 @@ func (uc *handleWhatsAppMessageUseCase) existingConversation(normalized string, 
 }
 
 func (uc *handleWhatsAppMessageUseCase) openReceptiveConversation(normalized string, phone *businessphone.WhatsAppBusinessPhoneNumber) (*agentContext, *lead.Lead) {
-	if phone == nil || uc.receptive == nil || uc.leadRepo == nil || uc.wcEntryRepo == nil {
+	if phone == nil || uc.leadRepo == nil || uc.wcEntryRepo == nil {
 		log.Printf("[whatsapp-usecase] no conversation for number %s and no receptive to open one", normalized)
 		return nil, nil
 	}
@@ -1875,7 +1909,7 @@ func (uc *handleWhatsAppMessageUseCase) handleMediaMessage(
 		log.Printf("[whatsapp-media] Cannot resolve WhatsApp client for media download: %v", mediaClientErr)
 	}
 
-	if uc.assignmentService != nil && entryID != "" && receivedPhoneID != "" {
+	if entryID != "" && receivedPhoneID != "" {
 		assignedUID := uc.assignmentService.EnsureAssignment(entryID, string(entryType), receivedPhoneID)
 		if assignedUID != "" {
 			log.Printf("[whatsapp-media] inbox assigned to user %s for entry %s", assignedUID, entryID)
@@ -2087,7 +2121,7 @@ func (uc *handleWhatsAppMessageUseCase) handleAudioMessage(ctx context.Context, 
 	}
 
 	audioEntryID, audioEntryType := agentCtx.getEntryInfo()
-	if uc.assignmentService != nil && audioEntryID != "" && audioReceivedBusinessPhoneID != "" {
+	if audioEntryID != "" && audioReceivedBusinessPhoneID != "" {
 		assignedUID := uc.assignmentService.EnsureAssignment(audioEntryID, string(audioEntryType), audioReceivedBusinessPhoneID)
 		if assignedUID != "" {
 			log.Printf("[whatsapp-audio] inbox assigned to user %s for entry %s", assignedUID, audioEntryID)
@@ -2444,18 +2478,7 @@ func (uc *handleWhatsAppMessageUseCase) assembleWhatsAppTurn(ctx context.Context
 }
 
 func (uc *handleWhatsAppMessageUseCase) assembler() *agentturn.Assembler {
-	if uc.turnAssembler != nil {
-		return uc.turnAssembler
-	}
-	return agentturn.New(uc.toolRegistry, uc.ragService, nil)
-}
-
-func (uc *handleWhatsAppMessageUseCase) SetTurnAssembler(a *agentturn.Assembler) {
-	uc.turnAssembler = a
-}
-
-func (uc *handleWhatsAppMessageUseCase) SetWorkflowNames(names ActorNameResolver) {
-	uc.workflowNames = names
+	return uc.turnAssembler
 }
 
 func (uc *handleWhatsAppMessageUseCase) storeInboundMedia(entryID string, entryType shared.EntryType, kind conversation.MediaType, mimeType string, data []byte, filename, whatsappMediaID string) *conversation.ConversationMedia {

@@ -6,8 +6,10 @@ import (
 	"log"
 	"strings"
 
+	"vozko/domain/agenttool"
 	ia "vozko/domain/inbox_assignment"
 	"vozko/domain/tools"
+	wd "vozko/domain/workspace/workspace_department"
 	ia_usecase "vozko/usecases/inbox_assignment"
 )
 
@@ -17,15 +19,35 @@ type ConversationRouletteHandOff interface {
 	HandOffToRoulette(in ia.RouletteHandOff) (string, error)
 }
 
-type transferToHumanTool struct {
-	handOff ConversationRouletteHandOff
+type DepartmentFinder interface {
+	GetDepartmentByID(id string) (*wd.Department, error)
 }
 
-func NewTransferToHumanToolUseCase(handOff ConversationRouletteHandOff) tools.Handler {
+type transferToHumanTool struct {
+	handOff     ConversationRouletteHandOff
+	departments DepartmentFinder
+}
+
+func (t *transferToHumanTool) ValidateBinding(_ context.Context, workspaceID string, config map[string]interface{}) error {
+	departmentID := configString(config, "department_id")
+	if departmentID == "" {
+		return nil
+	}
+	dept, err := t.departments.GetDepartmentByID(departmentID)
+	if errors.Is(err, wd.ErrDepartmentNotFound) || (err == nil && (dept == nil || dept.WorkspaceID != workspaceID)) {
+		return tools.Invalid(agenttool.CodeDepartmentInvalid, "o departamento não existe neste workspace")
+	}
+	return err
+}
+
+func NewTransferToHumanToolUseCase(handOff ConversationRouletteHandOff, departments DepartmentFinder) tools.Handler {
 	if handOff == nil {
 		return nil
 	}
-	return &transferToHumanTool{handOff: handOff}
+	if departments == nil {
+		panic("transfer_to_human: missing department finder")
+	}
+	return &transferToHumanTool{handOff: handOff, departments: departments}
 }
 
 func (t *transferToHumanTool) Definition() tools.Definition {
@@ -65,6 +87,7 @@ Depois de transferir você não responde mais nesta conversa. Avise o cliente, e
 		},
 		Visibility: []tools.ToolVisibility{tools.VisibilityMessaging},
 		Category:   tools.CategoryAgentUtility,
+		Instances:  tools.PerTarget("department_id"),
 	}
 }
 

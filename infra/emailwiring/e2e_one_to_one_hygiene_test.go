@@ -28,8 +28,7 @@ func TestEmailE2E_AReplyToADomainThatStoppedAcceptingMailIsRefusedAndRefunded(t 
 	w.resolver.set(domain, h.DNSAnswer{MX: h.LookupTimedOut})
 	w.must(w.db.Exec(`UPDATE email_domain_checks SET expires_at = now() - interval '1 hour' WHERE domain = ?`, domain).Error)
 
-	sender := conversation_usecase.NewMessageSenderService(conversation_repository.NewRepository(w.db), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	sender.SetChannelAdapters(conversation.NewAdapterRegistry(w.inbox.Adapter))
+	sender := conversation_usecase.NewMessageSenderService(conversation_repository.NewRepository(w.db), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, conversation.NewAdapterRegistry(w.inbox.Adapter))
 	_, err = sender.SendTextMessage(first.ConversationID, string(shared.EntryTypeEmail), "Seguem as fotos.", conversation.SendOrigin{SenderUserID: ws.Actor.UserID})
 
 	if code := conversation.SendFailureCode(err, "send_failed"); code != h.CodeDomainUnknown {

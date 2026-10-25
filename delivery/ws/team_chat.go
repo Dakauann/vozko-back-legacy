@@ -41,10 +41,6 @@ type TeamChatTypingPayload struct {
 	ThreadID string `json:"thread_id"`
 }
 
-func (h *ConversationHub) SetTeamChat(chat teamChatTyping) {
-	h.teamChat = chat
-}
-
 func (h *ConversationHub) AnnounceTeamMessage(workspaceID string, recipients []string, m teamchat.AuthoredMessage) {
 	h.pushTeamChat(workspaceID, recipients, WSEventTeamChatMessage, TeamChatMessageEvent{ThreadID: m.ThreadID, Message: teamchatview.MessageOf(m)})
 }
@@ -88,7 +84,7 @@ func (h *ConversationHub) pushTeamChat(workspaceID string, recipients []string, 
 
 func (h *ConversationHub) handleTeamChatTyping(conn *WSConnection, payload json.RawMessage) {
 	var p TeamChatTypingPayload
-	if h.teamChat == nil || json.Unmarshal(payload, &p) != nil {
+	if json.Unmarshal(payload, &p) != nil {
 		return
 	}
 	threadID := strings.TrimSpace(p.ThreadID)
@@ -102,6 +98,6 @@ func (h *ConversationHub) handleTeamChatTyping(conn *WSConnection, payload json.
 				log.Printf("[ConversationHub] PANIC in team chat typing (thread=%s user=%s): %v\n%s", threadID, conn.UserID, r, debug.Stack())
 			}
 		}()
-		_ = h.teamChat.Typing(context.Background(), by, workspaceID, threadID)
+		_ = h.cmds().TeamChat.Typing(context.Background(), by, workspaceID, threadID)
 	}()
 }

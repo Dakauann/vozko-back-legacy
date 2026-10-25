@@ -22,7 +22,7 @@ func (c refusingCreate) Execute(context.Context, *uwc.Campaign, uw.DepartmentSco
 }
 
 func TestACampaignWhoseMessageHidesTheExitIsRefusedWithItsCode(t *testing.T) {
-	h := NewCampaignHandler(CampaignHandlerDeps{Create: refusingCreate{err: fmt.Errorf("validate: %w", uwc.ErrCampaignNeedsExit)}, Departments: openScope{}})
+	h := campaignHandler(CampaignHandlerDeps{Create: refusingCreate{err: fmt.Errorf("validate: %w", uwc.ErrCampaignNeedsExit)}, Departments: openScope{}})
 	r := httptest.NewRequest(http.MethodPost, "/unofficial-whatsapp/campaigns", bytes.NewBufferString(
 		`{"name":"demo","instanceId":"inst-1","message":{"kind":"text","bodies":["oi"]},"targets":[{"number":"5584999990001"}]}`))
 	ctx := context.WithValue(r.Context(), middleware.WorkspaceIDContextKey, "ws-1")

@@ -25,9 +25,21 @@ type ddlSection struct {
 	statements []ddl
 }
 
+const retiredIndexesSection = "retired indexes"
+
+func retiredDDL() []ddl {
+	retired := retiredIndexes()
+	statements := make([]ddl, len(retired))
+	for i, idx := range retired {
+		statements[i] = ddl{name: idx.name, sql: idx.dropSQL()}
+	}
+	return statements
+}
+
 func declaredDDL() []ddlSection {
 	return []ddlSection{
 		{"performance indexes", performanceIndexes()},
+		{"choice stats indexes", choiceStatsPerformanceIndexes()},
 		{"schema constraints", schemaConstraints()},
 		{"lead collection keys", leadCollectionConstraints()},
 		{"call list keys", callListConstraints()},
@@ -37,6 +49,7 @@ func declaredDDL() []ddlSection {
 		{"google constraints", googleSchemaConstraints()},
 		{"composite lead keys", compositeLeadKeyDDL()},
 		{"concurrent indexes", concurrentIndexes()},
+		{retiredIndexesSection, retiredDDL()},
 	}
 }
 

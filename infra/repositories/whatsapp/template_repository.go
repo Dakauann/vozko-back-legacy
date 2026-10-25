@@ -48,10 +48,7 @@ func (r *repository) Create(t *template.Template) error {
 }
 
 func (r *repository) Update(templateID string, t *template.Template) error {
-	paramFormat := string(t.ParameterFormat)
-	if paramFormat == "" {
-		paramFormat = "positional"
-	}
+	paramFormat := string(t.ParameterFormat.OrDefault())
 	update := map[string]interface{}{
 		"waba_id":          t.WABAId,
 		"name":             t.Name,
@@ -305,10 +302,7 @@ func applySorts(query *gorm.DB, sorts []shared.Sort) *gorm.DB {
 }
 
 func mapToSchema(t *template.Template) *schema.WhatsAppTemplate {
-	paramFormat := string(t.ParameterFormat)
-	if paramFormat == "" {
-		paramFormat = "positional"
-	}
+	paramFormat := string(t.ParameterFormat.OrDefault())
 	return &schema.WhatsAppTemplate{
 		ID:              t.ID,
 		ExternalID:      t.ExternalID,

@@ -175,8 +175,17 @@ type GateHandle struct {
 	gate atomic.Pointer[Gate]
 }
 
+var ErrGateUnbound = errors.New("live decisions: the gate is not bound")
+
 func (h *GateHandle) Bind(gate *Gate) {
 	h.gate.Store(gate)
+}
+
+func (h *GateHandle) Bound() error {
+	if h.current() == nil {
+		return ErrGateUnbound
+	}
+	return nil
 }
 
 func (h *GateHandle) current() *Gate {

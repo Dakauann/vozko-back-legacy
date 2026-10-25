@@ -12,7 +12,7 @@ import (
 func TestSearchInboxSearchesAsTheRequesterWhateverTheInputSays(t *testing.T) {
 	historyProvider := &inboxServiceTestHistoryProvider{}
 	authorizer := &inboxServiceTestAuthorizer{canAccessCampaign: true, departmentScopeOkay: true}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("user-1", conversation.SearchInboxInput{
 		UserID:      "someone-else",
@@ -38,7 +38,7 @@ func (c *capturedSearch) SearchEntriesWithMessages(input conversation.SearchEntr
 
 func TestSearchInboxEntriesPassesThePersonalViewSortAndLabelToTheRepository(t *testing.T) {
 	repo := &capturedSearch{}
-	svc := &HistoryProviderService{messageRepo: repo}
+	svc := historyWith(HistoryProviderService{messageRepo: repo})
 
 	_, _, err := svc.SearchInboxEntries(conversation.SearchInboxInput{
 		UserID:      "user-1",

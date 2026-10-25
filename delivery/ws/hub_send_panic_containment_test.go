@@ -35,7 +35,7 @@ func newSendHub(t *testing.T, operatorSend conversation.OperatorSendUseCase) (*C
 	t.Helper()
 
 	authorizer := &hubDepartmentTestAuthorizer{entryAccess: map[string]bool{"user-1": true}}
-	hub := NewConversationHub(authorizer, nil, operatorSend, nil, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer, OperatorSend: operatorSend})
 
 	conn := &WSConnection{ID: "conn-1", UserID: "user-1", WorkspaceID: "ws-1", Send: make(chan []byte, 4)}
 	hub.connections[conn.ID] = conn

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"vozko/domain/shared/deps"
 
 	uw "vozko/domain/unofficial_whatsapp"
 )
@@ -13,11 +14,14 @@ type LineHandover struct {
 }
 
 func NewLineHandover(lines uw.LineRepository) *LineHandover {
+	if err := deps.Require("unofficial whatsapp line handover", map[string]any{"lines": lines}); err != nil {
+		panic(err.Error())
+	}
 	return &LineHandover{lines: lines}
 }
 
 func (h *LineHandover) Adopt(ctx context.Context, successor *uw.Instance) error {
-	if h == nil || h.lines == nil || successor == nil || !successor.SessionLive() {
+	if successor == nil || !successor.SessionLive() {
 		return nil
 	}
 	siblings, err := h.lines.ListSameNumber(ctx, successor)

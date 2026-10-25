@@ -1,7 +1,6 @@
 package container
 
 import (
-	stagehttp "vozko/delivery/http/stage"
 	pipeline_domain "vozko/domain/pipeline"
 	stage_domain "vozko/domain/stage"
 	stage_usecase "vozko/usecases/stage"
@@ -32,18 +31,8 @@ func (l conversationFunnelLister) ListConversationFunnels(workspaceID string) ([
 }
 
 func (c *Container) funnelStages() stage_domain.ListFunnelStagesUseCase {
-	if c.repositories == nil || c.repositories.stage == nil || c.repositories.pipeline == nil {
-		return nil
-	}
 	return stage_usecase.NewListFunnelStagesUseCase(
 		c.repositories.stage,
 		conversationFunnelLister{pipelines: c.repositories.pipeline},
 	)
-}
-
-func withFunnelStages(c *Container, h *stagehttp.StageHandler) *stagehttp.StageHandler {
-	if lister := c.funnelStages(); lister != nil {
-		h.SetFunnelStagesLister(lister)
-	}
-	return h
 }

@@ -9,8 +9,8 @@ import (
 
 type ConversationMessage struct {
 	ID                string     `gorm:"primaryKey;type:text"`
-	EntryID           string     `gorm:"index:idx_message_entry;index:idx_cm_entry_composite,priority:1;index:idx_cm_unread,priority:1;index:idx_cm_type_entry_created,priority:2;index:idx_cm_entry_del_created,priority:1;type:uuid;not null"`
-	EntryType         string     `gorm:"index:idx_message_entry_type;index:idx_cm_entry_composite,priority:2;index:idx_cm_unread,priority:2;index:idx_cm_type_entry_created,priority:1;index:idx_cm_entry_del_created,priority:2;type:varchar(20);not null"`
+	EntryID           string     `gorm:"index:idx_cm_entry_composite,priority:1;index:idx_cm_unread,priority:1;index:idx_cm_type_entry_created,priority:2;type:uuid;not null"`
+	EntryType         string     `gorm:"index:idx_message_entry_type;index:idx_cm_entry_composite,priority:2;index:idx_cm_unread,priority:2;index:idx_cm_type_entry_created,priority:1;type:varchar(20);not null"`
 	Channel           string     `gorm:"type:varchar(20)"`
 	MessageType       string     `gorm:"type:varchar(30);index:idx_cm_unread,priority:4"`
 	Direction         string     `gorm:"type:varchar(10);default:''"`
@@ -45,9 +45,9 @@ type ConversationMessage struct {
 	EditedAt    *time.Time `gorm:"type:timestamptz"`
 	RetractedAt *time.Time `gorm:"type:timestamptz"`
 
-	CreatedAt time.Time      `gorm:"autoCreateTime;index:idx_cm_entry_composite,priority:3;index:idx_cm_type_entry_created,priority:3;index:idx_cm_entry_del_created,priority:4"`
+	CreatedAt time.Time      `gorm:"autoCreateTime;index:idx_cm_entry_composite,priority:3;index:idx_cm_type_entry_created,priority:3"`
 	UpdatedAt time.Time      `gorm:"autoUpdateTime"`
-	DeletedAt gorm.DeletedAt `gorm:"index;index:idx_cm_entry_del_created,priority:3"`
+	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
 func (ConversationMessage) TableName() string {

@@ -11,6 +11,7 @@ import (
 	"vozko/domain/conversation"
 	conv_event "vozko/domain/conversation_event"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	wce "vozko/domain/whatsapp_campaign_entry"
 )
 
@@ -48,12 +49,6 @@ type AgentRunCanceller interface {
 	CancelAgentRunsOfFinishedConversation(entryID, entryType string) error
 }
 
-func (s *ConversationStatusService) SetAgentRunCanceller(c AgentRunCanceller) {
-	if s != nil {
-		s.agentRuns = c
-	}
-}
-
 type ConversationStatusCounter func(ctx context.Context, workspaceID, accountID string) (map[string]int64, error)
 
 func (s *ConversationStatusService) SetConversationCounter(entryType shared.EntryType, counter ConversationStatusCounter) {
@@ -84,76 +79,63 @@ func (s *ConversationStatusService) storeFor(entryType string) (ConversationStat
 	return store, ok && store != nil
 }
 
-func NewConversationStatusService(whatsappRepo wce.Repository) *ConversationStatusService {
+var ErrStatusStoreMissing = errors.New("conversation: no status store is registered for this channel")
+
+type StatusDeps struct {
+	WhatsApp    wce.Repository
+	Delegations conversation.DelegationRepository
+	Events      conv_event.Logger
+	WorkspaceOf func(entryID, entryType string) string
+	AISessions  AISessionEnder
+	Outcomes    OutcomeCaptureReader
+	Announcer   StatusAnnouncer
+	Departments EntryDepartmentResolver
+	AgentRuns   AgentRunCanceller
+	Now         func() time.Time
+}
+
+func NewConversationStatusService(d StatusDeps) (*ConversationStatusService, error) {
+	if err := deps.Require("conversation status", map[string]any{
+		"whatsapp entries": d.WhatsApp,
+		"delegations":      d.Delegations,
+		"events":           d.Events,
+		"workspace of":     d.WorkspaceOf,
+		"ai sessions":      d.AISessions,
+		"outcomes":         d.Outcomes,
+		"announcer":        d.Announcer,
+		"departments":      d.Departments,
+		"agent runs":       d.AgentRuns,
+	}); err != nil {
+		return nil, err
+	}
+	if d.Now == nil {
+		d.Now = func() time.Time { return time.Now().UTC() }
+	}
 	return &ConversationStatusService{
-		whatsappRepo: whatsappRepo,
-	}
-}
-
-func (s *ConversationStatusService) SetEventLogger(l conv_event.Logger) {
-	s.events = l
-}
-
-func (s *ConversationStatusService) SetWorkspaceResolver(fn func(entryID, entryType string) string) {
-	s.resolveWorkspace = fn
-}
-
-func (s *ConversationStatusService) SetAISessionEnder(e AISessionEnder) {
-	if s != nil {
-		s.aiSessions = e
-	}
+		whatsappRepo:     d.WhatsApp,
+		delegations:      d.Delegations,
+		events:           d.Events,
+		resolveWorkspace: d.WorkspaceOf,
+		aiSessions:       d.AISessions,
+		outcomes:         d.Outcomes,
+		announcer:        d.Announcer,
+		departments:      d.Departments,
+		agentRuns:        d.AgentRuns,
+		now:              d.Now,
+	}, nil
 }
 
 type StatusAnnouncer interface {
 	AnnounceStatus(entryID, entryType string, status conversation.ConversationStatus, close conversation.CloseRecord)
 }
 
-func (s *ConversationStatusService) SetDelegations(d conversation.DelegationRepository) {
-	if s != nil {
-		s.delegations = d
-	}
-}
-
-func (s *ConversationStatusService) SetStatusAnnouncer(a StatusAnnouncer) {
-	if s != nil {
-		s.announcer = a
-	}
-}
-
-func (s *ConversationStatusService) SetOutcomeCaptureReader(r OutcomeCaptureReader) {
-	if s != nil {
-		s.outcomes = r
-	}
-}
-
-func (s *ConversationStatusService) SetEntryDepartmentResolver(r EntryDepartmentResolver) {
-	if s != nil {
-		s.departments = r
-	}
-}
-
-func (s *ConversationStatusService) SetClock(clock func() time.Time) {
-	if s != nil && clock != nil {
-		s.now = clock
-	}
-}
-
 func (s *ConversationStatusService) clock() time.Time {
-	if s == nil || s.now == nil {
-		return time.Now().UTC()
-	}
 	return s.now()
 }
 
 var ErrOutcomeWorkspaceUnknown = errors.New("conversation: cannot resolve the workspace that owns this conversation")
 
 func (s *ConversationStatusService) OutcomeCapture(entryID, entryType string) (*conversation.OutcomeCapture, error) {
-	if s == nil || s.outcomes == nil {
-		return nil, nil
-	}
-	if s.resolveWorkspace == nil {
-		return nil, ErrOutcomeWorkspaceUnknown
-	}
 	workspaceID := s.resolveWorkspace(entryID, entryType)
 	if workspaceID == "" {
 		return nil, ErrOutcomeWorkspaceUnknown
@@ -182,9 +164,6 @@ func (s *ConversationStatusService) resolveOutcome(
 
 	departmentID := ""
 	if len(capture.DepartmentIDs) > 0 {
-		if s.departments == nil {
-			return closedOutcome{}, conversation.ErrOutcomeRequired
-		}
 		departmentID, err = s.departments.DepartmentIDForEntry(context.Background(), entryID, entryType)
 		if err != nil {
 			return closedOutcome{}, fmt.Errorf("conversation: resolving the entry department for outcome capture: %w", err)
@@ -259,9 +238,6 @@ func (s *ConversationStatusService) Finish(entryID, entryType string, opts conve
 }
 
 func (s *ConversationStatusService) endDelegation(entryID, entryType string) {
-	if s.delegations == nil {
-		return
-	}
 	if err := s.delegations.Delete(context.Background(), entryID, shared.EntryType(entryType)); err != nil {
 		log.Printf("[conversation-status] %s %s finished but its delegation could not be ended: %v", entryType, entryID, err)
 	}
@@ -314,7 +290,7 @@ func (s *ConversationStatusService) applyStatusActor(
 	default:
 		store, ok := s.storeFor(entryType)
 		if !ok {
-			return nil
+			return fmt.Errorf("%w: %s", ErrStatusStoreMissing, entryType)
 		}
 		write := conversation.StatusWrite{
 			Status:         status,
@@ -333,18 +309,13 @@ func (s *ConversationStatusService) applyStatusActor(
 		return err
 	}
 	if string(from) != string(status) {
-		wsID := ""
-		if s.resolveWorkspace != nil {
-			wsID = s.resolveWorkspace(entryID, entryType)
-		}
+		wsID := s.resolveWorkspace(entryID, entryType)
 		s.emitStatusChanged(entryID, entryType, string(from), string(status), source, reason, outcome, wsID, actorID)
-		if s.announcer != nil {
-			var record conversation.CloseRecord
-			if setClose {
-				record = conversation.CloseRecord{Source: source, Reason: reason, Outcome: outcome.code, ClosedAt: &closedAt}
-			}
-			s.announcer.AnnounceStatus(entryID, entryType, status, record)
+		var record conversation.CloseRecord
+		if setClose {
+			record = conversation.CloseRecord{Source: source, Reason: reason, Outcome: outcome.code, ClosedAt: &closedAt}
 		}
+		s.announcer.AnnounceStatus(entryID, entryType, status, record)
 		if status == conversation.ConversationStatusFinished {
 			s.endAISessionContained(entryID, entryType, wsID, actorID)
 			s.cancelAgentRuns(entryID, entryType)
@@ -354,18 +325,12 @@ func (s *ConversationStatusService) applyStatusActor(
 }
 
 func (s *ConversationStatusService) cancelAgentRuns(entryID, entryType string) {
-	if s.agentRuns == nil {
-		return
-	}
 	if err := s.agentRuns.CancelAgentRunsOfFinishedConversation(entryID, entryType); err != nil {
 		log.Printf("[conversation-status] %s %s finished but its agent-started runs could not be cancelled: %v", entryType, entryID, err)
 	}
 }
 
 func (s *ConversationStatusService) endAISessionContained(entryID, entryType, workspaceID, closedBy string) {
-	if s == nil || s.aiSessions == nil {
-		return
-	}
 	if workspaceID == "" {
 		return
 	}
@@ -380,9 +345,6 @@ func (s *ConversationStatusService) endAISessionContained(entryID, entryType, wo
 }
 
 func (s *ConversationStatusService) emitStatusChanged(entryID, entryType, from, to string, source conversation.CloseSource, reason conversation.CloseReason, outcome closedOutcome, workspaceID, actorID string) {
-	if s.events == nil {
-		return
-	}
 	wsID := workspaceID
 	if wsID == "" {
 		return

@@ -15,7 +15,7 @@ func (s *enrichmentRecorder) ScheduleAnalysis(string, shared.EntryType) { s.call
 func TestCampaignControlsEnrichmentScheduling(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		scheduler := &enrichmentRecorder{}
-		uc := &HandleWebhookUseCase{analysis: scheduler}
+		uc := webhookDefaults(&HandleWebhookUseCase{analysis: scheduler})
 		instance := &uw.Instance{EnableAnalysis: !enabled, EnableAutoStaging: !enabled, EnableAutoMemory: !enabled}
 		uc.scheduleAnalysis(instance, &uw.Conversation{ID: "conv"}, &CampaignAutomation{EnableAnalysis: enabled, EnableAutoMemory: enabled, EnableAutoStaging: enabled})
 		if (scheduler.calls == 1) != enabled {
@@ -36,7 +36,7 @@ func (r *receiptMessages) UpdateDeliveryStatus(string, conversation.DeliveryStat
 
 func TestReceiptWithoutChatDoesNotQueryConversations(t *testing.T) {
 	messages := &receiptMessages{}
-	uc := &HandleWebhookUseCase{messages: messages}
+	uc := webhookDefaults(&HandleWebhookUseCase{messages: messages})
 	err := uc.handleMessageUpdate(context.Background(), &uw.Instance{ID: "inst"}, &uw.Event{ProviderMessageID: "message", DeliveryStatus: uw.DeliveryRead})
 	if err != nil || !messages.updated {
 		t.Fatalf("receipt not persisted: %v", err)

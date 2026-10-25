@@ -44,11 +44,11 @@ func uploadIn(id, entryID string, entryType shared.EntryType, purpose conversati
 
 func newAdapterMediaSender(uploads *entryScopedMedia) (*MessageSenderService, *campaignSendAdapter) {
 	adapter := &campaignSendAdapter{entryType: shared.EntryTypeUnofficialWhatsApp}
-	return &MessageSenderService{
+	return senderWith(&MessageSenderService{
 		messageRepo:     &campaignMessageRepo{},
 		mediaRepo:       uploads,
 		channelAdapters: conversation.NewAdapterRegistry(adapter),
-	}, adapter
+	}), adapter
 }
 
 func assertMediaNotSendable(t *testing.T, err error) {

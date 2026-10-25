@@ -199,9 +199,10 @@ const areasPrompt = `
 - Antes de criar ou editar, resolva valores válidos: modelos (list_models), ferramentas
   internas (list_agent_tools) e departamentos (list_departments). Reúna os campos obrigatórios com o usuário antes de
   chamar create_agent ou update_agent.
-- Para incluir ou tirar ferramentas, bases de conhecimento ou coleções MCP de um agente existente, use os parâmetros
+- Para incluir ou tirar ferramentas ou bases de conhecimento de um agente existente, use os parâmetros
   incrementais de update_agent (addTools, removeTools, addKnowledgeBaseIds e similares); os itens atuais são
-  preservados, então não reenvie a lista inteira.
+  preservados, então não reenvie a lista inteira. Um servidor MCP entra como ferramenta do tipo mcp_source, com
+  source_id e as ferramentas permitidas (tools) ou all_tools.
 - Ferramenta que exige configuração (por exemplo http_request, que pede url e method) vai com o config no mesmo item;
   dos cabeçalhos protegidos, informe só os nomes.
 

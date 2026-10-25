@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"vozko/domain/agenttool"
 	"vozko/domain/tools"
 	"vozko/domain/workflow"
 	"vozko/usecases/agentctx"
@@ -80,7 +81,7 @@ O fluxo roda em segundo plano: o resultado não volta nesta chamada. Depois de c
 		},
 		RequiredConfig: []string{runWorkflowConfigKey},
 		RequiresConfig: true,
-		BindingKey:     runWorkflowConfigKey,
+		Instances:      tools.PerTarget(runWorkflowConfigKey),
 		Visibility:     []tools.ToolVisibility{tools.VisibilityMessaging},
 		Category:       tools.CategoryAgentAction,
 	}
@@ -230,3 +231,23 @@ func refusal(text string) tools.ExecutionResult {
 }
 
 var _ tools.ContextualHandler = (*runWorkflowTool)(nil)
+
+func (t *runWorkflowTool) ValidateBinding(_ context.Context, workspaceID string, config map[string]interface{}) error {
+	workflowID := configString(config, runWorkflowConfigKey)
+	if workflowID == "" {
+		return tools.Invalid(agenttool.CodeWorkflowNotCallable, "escolha o fluxo que a ferramenta executa")
+	}
+	w, err := workflow.LoadPublished(t.workflows, workflowID)
+	switch {
+	case errors.Is(err, workflow.ErrWorkflowNotFound), errors.Is(err, workflow.ErrWorkflowNotPublished), err == nil && w == nil:
+		return tools.Invalid(agenttool.CodeWorkflowNotCallable, "o fluxo não existe ou não está publicado")
+	case err != nil:
+		return err
+	}
+	if _, err := w.CallableByAgentIn(workspaceID); err != nil {
+		return tools.Invalid(agenttool.CodeWorkflowNotCallable, "o fluxo não está ativo neste workspace ou não tem o gatilho Chamado por agente IA")
+	}
+	return nil
+}
+
+var _ tools.BindingValidator = (*runWorkflowTool)(nil)

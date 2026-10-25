@@ -55,12 +55,7 @@ func (m *entryEditMerger) MergeIncoming(_ context.Context, workspaceID, leadID s
 
 func entryEditFixture(current *lead.Lead, merger LeadMerger) (*updateEntryUseCase, *entryEditLeads) {
 	leads := &entryEditLeads{current: current}
-	return NewUpdateEntryUseCase(
-		entryEditCampaigns{campaign: &wc.Campaign{ID: "c-1", WorkspaceID: "ws-1"}},
-		entryEditEntries{entry: &wce.WhatsAppCampaignEntry{ID: "e-1", CampaignID: "c-1", LeadID: "l-1"}},
-		leads,
-		merger,
-	), leads
+	return entryUpdateWith(entryEditCampaigns{campaign: &wc.Campaign{ID: "c-1", WorkspaceID: "ws-1"}}, entryEditEntries{entry: &wce.WhatsAppCampaignEntry{ID: "e-1", CampaignID: "c-1", LeadID: "l-1"}}, leads, merger), leads
 }
 
 func TestUpdateEntry_ANameEditIsMergedIntoTheKnownLeadAsImportedData(t *testing.T) {
@@ -97,14 +92,6 @@ func TestUpdateEntry_AFailedMergeFailsTheEdit(t *testing.T) {
 	name := "Aninha"
 	if _, err := uc.Execute(wc.UpdateEntryInput{CampaignID: "c-1", EntryID: "e-1", Name: &name}); !errors.Is(err, lead.ErrLeadNotFound) {
 		t.Fatalf("err = %v, want ErrLeadNotFound", err)
-	}
-}
-
-func TestUpdateEntry_WithoutAMergerANameEditIsRefused(t *testing.T) {
-	uc, _ := entryEditFixture(&lead.Lead{ID: "l-1", WorkspaceID: "ws-1", Number: "5511987654321"}, nil)
-	name := "Aninha"
-	if _, err := uc.Execute(wc.UpdateEntryInput{CampaignID: "c-1", EntryID: "e-1", Name: &name}); err == nil {
-		t.Fatal("a name edit without the lead merge must be refused")
 	}
 }
 

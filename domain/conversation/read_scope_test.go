@@ -24,7 +24,8 @@ func TestDepartmentAccessScope_ReadScope(t *testing.T) {
 		{"restricted member narrows to an own department", restricted, false, "d2", ReadScope{DepartmentIDs: []string{"d2"}, RestrictDepartments: true, AssigneeOverrideUserID: "u1"}, nil},
 		{"restricted member cannot pick a foreign department", restricted, false, "d9", ReadScope{}, ErrDepartmentOutsideScope},
 		{"unrestricted member reads everything", open, false, "", ReadScope{}, nil},
-		{"unrestricted member narrows to a picked department", open, false, "d9", ReadScope{DepartmentIDs: []string{"d9"}, RestrictDepartments: true, AssigneeOverrideUserID: "u1"}, nil},
+		{"unrestricted member viewing a picked department sees only that department", open, false, "d9", ReadScope{DepartmentIDs: []string{"d9"}, RestrictDepartments: true}, nil},
+		{"unrestricted admin viewing a picked department sees only that department", open, true, "d9", ReadScope{DepartmentIDs: []string{"d9"}, RestrictDepartments: true}, nil},
 		{"a workspace without departments ignores the pick", flat, false, "d9", ReadScope{}, nil},
 	}
 	for _, tc := range cases {

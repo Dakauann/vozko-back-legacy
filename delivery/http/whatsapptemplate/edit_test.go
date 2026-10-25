@@ -40,7 +40,7 @@ func serveEditWith(t *testing.T, h *WhatsAppTemplateHandler, body string) *httpt
 func serveEdit(t *testing.T, editor ExitGuardedEditor, body string, withClaims bool) *httptest.ResponseRecorder {
 	t.Helper()
 	h := &WhatsAppTemplateHandler{}
-	h.SetTemplateEditor(editor)
+	h.editor = editor
 	return serveEditAs(t, h, body, withClaims)
 }
 
@@ -120,18 +120,5 @@ func TestTheEditWindowSaysWhenTheNextEditIsAllowed(t *testing.T) {
 	rec := serveEdit(t, &fakeEditor{err: &template.EditWindowError{NextAt: time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)}}, `{"components":[]}`, true)
 	if !strings.Contains(rec.Body.String(), `"nextEditAt":"2026-10-18T12:00:00Z"`) {
 		t.Fatalf("body = %s", rec.Body)
-	}
-}
-
-func TestAnUnwiredEditorFailsClosed(t *testing.T) {
-	h := &WhatsAppTemplateHandler{}
-	router := mux.NewRouter()
-	router.HandleFunc("/whatsapp/templates/{id}/content", h.EditForWorkspace).Methods(http.MethodPut)
-	req := httptest.NewRequest(http.MethodPut, "/whatsapp/templates/tpl-1/content", strings.NewReader(`{"components":[]}`))
-	ctx := context.WithValue(context.WithValue(req.Context(), middleware.WorkspaceIDContextKey, "ws-1"), middleware.ClaimsContextKey, &auth.Claims{UserID: "user-1"})
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req.WithContext(ctx))
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d", rec.Code)
 	}
 }

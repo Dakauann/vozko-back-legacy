@@ -56,7 +56,7 @@ func TestStartCampaignRouteMapsEveryRefusal(t *testing.T) {
 	for _, c := range cases {
 		h := &WhatsAppCampaignHandler{}
 		start := &startStub{err: c.err}
-		h.SetStartCampaign(start)
+		h.start = start
 		rec := httptest.NewRecorder()
 		h.StartCampaign(rec, scopedRequest(http.MethodPost, "", map[string]string{"id": "c1"}, "d-sales"))
 		if rec.Code != c.want {
@@ -71,20 +71,12 @@ func TestStartCampaignRouteMapsEveryRefusal(t *testing.T) {
 func TestStartCampaignRouteCarriesThePersonsConfirmation(t *testing.T) {
 	h := &WhatsAppCampaignHandler{}
 	start := &startStub{}
-	h.SetStartCampaign(start)
+	h.start = start
 
 	h.StartCampaign(httptest.NewRecorder(), scopedRequest(http.MethodPost, `{"confirmedFingerprint":"fp-1"}`, map[string]string{"id": "c1"}, "d-sales"))
 
 	if !start.started || start.confirmed != "fp-1" {
 		t.Fatalf("started %v confirmed %q", start.started, start.confirmed)
-	}
-}
-
-func TestStartCampaignRouteFailsClosedWithoutTheUseCase(t *testing.T) {
-	rec := httptest.NewRecorder()
-	(&WhatsAppCampaignHandler{}).StartCampaign(rec, scopedRequest(http.MethodPost, "", map[string]string{"id": "c1"}, "d-sales"))
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("status %d", rec.Code)
 	}
 }
 

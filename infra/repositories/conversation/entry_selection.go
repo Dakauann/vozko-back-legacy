@@ -75,9 +75,50 @@ func filteredEntriesCTE(input conversation.SearchByFilterInput, extra ...entryCo
 	return cte, append(append([]interface{}{}, entryArgs...), whereArgs...), nil
 }
 
+func filteredCountSQL(cte string) string {
+	return cte + " SELECT COUNT(*) FROM entries_with_msg"
+}
+
+type filteredEntryRow struct {
+	EntryID    string `gorm:"column:entry_id"`
+	EntryType  string `gorm:"column:entry_type"`
+	LeadName   string `gorm:"column:lead_name"`
+	LeadNumber string `gorm:"column:lead_number"`
+	PageTotal
+}
+
+func filteredPageQueries(input conversation.SearchByFilterInput) (countedPage, error) {
+	cte, args, err := filteredEntriesCTE(input)
+	if err != nil {
+		return countedPage{}, err
+	}
+	pageSize, offset := inboxPage(input.Page, input.PageSize)
+
+	sortDirection := "DESC"
+	if input.SortOrder == "asc" {
+		sortDirection = "ASC"
+	}
+	sortColumn := "lm_created_at"
+	if input.SortField == "created" {
+		sortColumn = "created_at"
+	}
+
+	return countedPage{
+		countSQL:  filteredCountSQL(cte),
+		countArgs: args,
+		pageSQL: fmt.Sprintf(`%s
+		SELECT entry_id, entry_type, lead_name, lead_number, %s FROM entries_with_msg
+		ORDER BY %s %s
+		LIMIT ? OFFSET ?
+	`, cte, pageTotalColumn, sortColumn, sortDirection),
+		pageArgs: append(append([]interface{}{}, args...), pageSize, offset),
+		offset:   offset,
+	}, nil
+}
+
 func (r *repository) countFilteredEntries(cte string, args []interface{}) (int64, error) {
 	var total int64
-	if err := r.db.Raw(cte+" SELECT COUNT(*) FROM entries_with_msg", args...).Scan(&total).Error; err != nil {
+	if err := r.db.Raw(filteredCountSQL(cte), args...).Scan(&total).Error; err != nil {
 		return 0, fmt.Errorf("error counting filtered board results: %w", err)
 	}
 	return total, nil

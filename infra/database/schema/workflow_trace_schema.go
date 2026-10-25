@@ -22,21 +22,35 @@ type WorkflowWebhookDeliverySchema struct {
 func (WorkflowWebhookDeliverySchema) TableName() string { return "workflow_webhook_deliveries" }
 
 type AIToolCallSchema struct {
-	ID          string    `gorm:"primaryKey;type:uuid"`
-	ToolCallID  *string   `gorm:"size:200"`
-	WorkspaceID string    `gorm:"type:uuid;not null"`
-	EntryID     string    `gorm:"not null;size:100"`
-	EntryType   string    `gorm:"not null;size:40"`
-	AgentID     string    `gorm:"not null;size:100"`
-	SessionID   string    `gorm:"size:200"`
-	ToolName    string    `gorm:"not null;size:120"`
-	Args        *string   `gorm:"type:jsonb"`
-	Outcome     string    `gorm:"not null;size:20"`
-	Error       string    `gorm:"type:text"`
-	ErrorCode   string    `gorm:"size:60"`
-	DurationMs  int64     `gorm:"not null"`
-	RunID       *string   `gorm:"type:uuid"`
-	CreatedAt   time.Time `gorm:"not null"`
+	ID             string    `gorm:"primaryKey;type:uuid"`
+	ToolCallID     *string   `gorm:"size:200"`
+	WorkspaceID    string    `gorm:"type:uuid;not null"`
+	EntryID        string    `gorm:"not null;size:100"`
+	EntryType      string    `gorm:"not null;size:40"`
+	AgentID        string    `gorm:"not null;size:100"`
+	SessionID      string    `gorm:"size:200"`
+	ToolName       string    `gorm:"not null;size:120"`
+	Args           *string   `gorm:"type:jsonb"`
+	Outcome        string    `gorm:"not null;size:20"`
+	Error          string    `gorm:"type:text"`
+	ErrorCode      string    `gorm:"size:60"`
+	DurationMs     int64     `gorm:"not null"`
+	RunID          *string   `gorm:"type:uuid"`
+	CreatedAt      time.Time `gorm:"not null"`
+	AgentRunID     *string   `gorm:"type:uuid"`
+	Source         string    `gorm:"type:varchar(20);not null;default:''"`
+	ToolInstanceID string    `gorm:"type:varchar(64);not null;default:''"`
+	ToolType       string    `gorm:"type:varchar(120);not null;default:''"`
+	ToolRevision   int       `gorm:"not null;default:0"`
+	Sequence       int       `gorm:"not null;default:0"`
+	ModelCallIndex int       `gorm:"not null;default:0"`
+	ErrorKind      string    `gorm:"type:varchar(30);not null;default:''"`
+	ErrorChain     *string   `gorm:"type:jsonb"`
+	HTTP           *string   `gorm:"column:http;type:jsonb"`
+	ModelResult    *string   `gorm:"type:text"`
+	MappedOutput   *string   `gorm:"type:jsonb"`
+	FollowedBy     string    `gorm:"type:varchar(20);not null;default:''"`
+	Simulated      bool      `gorm:"not null;default:false"`
 }
 
 func (AIToolCallSchema) TableName() string { return "ai_tool_calls" }

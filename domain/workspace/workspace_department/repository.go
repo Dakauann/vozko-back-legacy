@@ -4,6 +4,7 @@ type Repository interface {
 	CreateDepartment(dept *Department) error
 	GetDepartmentByID(id string) (*Department, error)
 	ListDepartments(workspaceID string) ([]Department, error)
+	HasDepartments(workspaceID string) (bool, error)
 	ListDepartmentsByIDs(ids []string) ([]Department, error)
 	UpdateDepartment(dept *Department) error
 	DeleteDepartment(id string) error

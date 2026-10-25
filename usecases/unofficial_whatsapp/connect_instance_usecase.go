@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"vozko/domain/shared/deps"
 
 	uw "vozko/domain/unofficial_whatsapp"
 )
@@ -19,12 +20,17 @@ func NewConnectInstanceUseCase(
 	instances uw.InstanceRepository,
 	servers uw.ServerRepository,
 	provider uw.ProviderAPI,
+	gate LinkGate,
+	listener ConnectionListener,
 ) *ConnectInstanceUseCase {
+	if err := deps.Require("unofficial whatsapp connect", map[string]any{"link gate": gate, "connection listener": listener}); err != nil {
+		panic(err.Error())
+	}
 	return &ConnectInstanceUseCase{
 		instances:   instances,
 		servers:     servers,
 		provider:    provider,
-		sessionHost: sessionHost{sync: sessionSync{instances: instances}},
+		sessionHost: newSessionHost(instances, gate, listener),
 	}
 }
 

@@ -101,7 +101,7 @@ func newAudioSender(t *testing.T, out *conversation.SendTextMessageOutput, sendE
 	t.Cleanup(func() { convertAudioToOGGOpusFn = original })
 
 	msgRepo := &stubAudioMessageRepo{}
-	return &MessageSenderService{
+	return senderWith(&MessageSenderService{
 		whatsappRepo:          stubAudioEntryRepo{},
 		leadRepo:              stubAudioLeadRepo{},
 		messageWindowRepo:     stubAudioWindowRepo{},
@@ -109,7 +109,7 @@ func newAudioSender(t *testing.T, out *conversation.SendTextMessageOutput, sendE
 		whatsappClientFactory: stubAudioClientFactory{client: stubAudioClient{out: out, err: sendErr}},
 		messageRepo:           msgRepo,
 		mediaDownloads:        remotefile.NewDownloader(cdn.Client()),
-	}, msgRepo
+	}), msgRepo
 }
 
 func TestSendMediaMessage_AudioSendFailure_ReturnsErrorWithoutPanic(t *testing.T) {

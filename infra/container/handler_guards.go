@@ -4,28 +4,24 @@ import (
 	"log"
 
 	"vozko/delivery/http/handlers"
-	whatsappbusinessphonehttp "vozko/delivery/http/whatsappbusinessphone"
 	wc_domain "vozko/domain/whatsapp_campaign"
 	"vozko/infra/repositories/campaignstamp"
 	wc_usecase "vozko/usecases/whatsapp_campaign"
 )
 
-func withCampaignAccess(c *Container, h *handlers.WhatsAppCampaignHandler) *handlers.WhatsAppCampaignHandler {
-	h.SetCampaignAccess(c.useCases.wcCampaignAccess)
+func (c *Container) officialCampaignLaunch() handlers.CampaignLaunchDeps {
 	start, ok := c.useCases.startWCCampaign.(wc_domain.ConfirmedStartUseCase)
 	if !ok {
 		log.Fatalf("[launch-check] the official campaign start cannot carry the confirmed launch check")
 	}
-	h.SetStartCampaign(start)
 	live := c.campaignLive("whatsapp_campaign", c.repositories.wcEntry, campaignstamp.OfficialEntries)
-	h.SetLive(live.progress, live.timeline)
-	return h
-}
-
-func withWorkspacePhones(c *Container, h *whatsappbusinessphonehttp.WhatsAppBusinessPhoneHandler) *whatsappbusinessphonehttp.WhatsAppBusinessPhoneHandler {
-	h.SetWorkspacePhones(c.useCases.workspacePhones)
-	h.SetReceptive(c.numberReceptive())
-	return h
+	return handlers.CampaignLaunchDeps{
+		Access:    c.useCases.wcCampaignAccess,
+		Start:     start,
+		Progress:  live.progress,
+		Timeline:  live.timeline,
+		Scheduled: c.officialDraftLaunch(),
+	}
 }
 
 func (c *Container) numberReceptive() *wc_usecase.NumberReceptive {

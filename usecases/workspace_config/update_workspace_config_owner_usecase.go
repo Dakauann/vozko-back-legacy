@@ -18,24 +18,14 @@ type workspaceOwnerFetcher interface {
 type updateWorkspaceConfigOwnerUseCase struct {
 	repo   wsc.Repository
 	wsRepo workspaceOwnerFetcher
-	clock  func() time.Time
 }
 
 func NewUpdateWorkspaceConfigOwnerUseCase(repo wsc.Repository, wsRepo workspaceOwnerFetcher) wsc.UpdateWorkspaceConfigOwnerUseCase {
 	return &updateWorkspaceConfigOwnerUseCase{repo: repo, wsRepo: wsRepo}
 }
 
-func (uc *updateWorkspaceConfigOwnerUseCase) SetClock(clock func() time.Time) {
-	if uc != nil && clock != nil {
-		uc.clock = clock
-	}
-}
-
 func (uc *updateWorkspaceConfigOwnerUseCase) now() time.Time {
-	if uc == nil || uc.clock == nil {
-		return time.Now().UTC()
-	}
-	return uc.clock()
+	return time.Now().UTC()
 }
 
 func (uc *updateWorkspaceConfigOwnerUseCase) Execute(ctx context.Context, workspaceID, callerID, callerRole string, input wsc.UpdateWorkspaceConfigOwnerInput) (*wsc.WorkspaceConfig, error) {

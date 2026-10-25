@@ -10,21 +10,20 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"vozko/domain/actor"
 	"vozko/domain/cache"
 	"vozko/domain/conversation"
-	ce "vozko/domain/conversation_event"
 	inbox_assignment "vozko/domain/inbox_assignment"
-	"vozko/domain/messaging"
 	"vozko/domain/metrics"
 	"vozko/domain/personalinbox"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/domain/user"
 	"vozko/domain/whatsapp_campaign"
 	workspace_department "vozko/domain/workspace/workspace_department"
-	wsc "vozko/domain/workspace_config"
 )
 
 type workspaceDepartmentMemberLister interface {
@@ -32,7 +31,7 @@ type workspaceDepartmentMemberLister interface {
 }
 
 type conversationAssigner interface {
-	AssignOnOpen(entryID, entryType, businessPhoneID, workspaceID, userID string) (bool, error)
+	AssignOnOpen(entryID, entryType, userID string, isSystemAdmin bool) (bool, error)
 	AssignManual(entryID, entryType, businessPhoneID, workspaceID, toUserID, assignedBy, trigger string) error
 }
 
@@ -62,37 +61,23 @@ type broadcastMessage struct {
 const maxSentIDsPerSubscription = 1000
 
 type ConversationHub struct {
-	authorizer           conversation.ConversationAuthorizer
-	userRepo             user.UserRepository
-	waCampaignRepo       whatsapp_campaign.Repository
-	workspaceResolver    conversation.CampaignWorkspaceResolver
-	historyProvider      conversation.HistoryProvider
-	historyReader        conversation.HistoryReader
-	personAssign         inbox_assignment.PersonAssignUseCase
-	messageMarker        conversation.MessageMarker
-	StageProvider        conversation.StageProvider
-	labelProvider        conversation.LabelProvider
-	InitialStageAssigner conversation.InitialStageAssigner
-	templateSender       conversation.TemplateSender
-	callSource           conversation.CallSource
-	billingPub           messaging.MessageQueuePub
-	inboxService         conversation.InboxService
-	messageRepo          conversation.MessageRepository
-	assignmentRepo       inbox_assignment.Repository
-	assignmentService    conversationAssigner
-	presence             presenceRecorder
-	analysisProvider     conversation.AnalysisProvider
-	eventLogger          ce.Logger
-	workspaceConfigRepo  wsc.Repository
-	departmentRepo       workspaceDepartmentMemberLister
-	statusUpdater        conversation.ConversationStatusUpdater
-	wsMetrics            metrics.WSMetricsRecorder
-	operatorSend         conversation.OperatorSendUseCase
-	messageActions       conversation.MessageActionUseCases
-	mediaLimits          conversation.MediaLimitsReader
-	personalMarks        personalinbox.UseCases
-	personFinish         conversation.PersonFinishUseCase
-	teamChat             teamChatTyping
+	authorizer        conversation.ConversationAuthorizer
+	userRepo          user.UserRepository
+	campaigns         whatsapp_campaign.Repository
+	workspaceResolver conversation.CampaignWorkspaceResolver
+	historyProvider   conversation.HistoryProvider
+	historyReader     conversation.HistoryReader
+	messageMarker     conversation.MessageMarker
+	stageProvider     conversation.StageProvider
+	labelProvider     conversation.LabelProvider
+	templateSender    conversation.TemplateSender
+	messageRepo       conversation.MessageRepository
+	presence          presenceRecorder
+	departmentRepo    workspaceDepartmentMemberLister
+	wsMetrics         metrics.WSMetricsRecorder
+	operatorSend      conversation.OperatorSendUseCase
+	mediaLimits       conversation.MediaLimitsReader
+	commands          atomic.Pointer[HubCommands]
 
 	connections map[string]*WSConnection
 	connMu      sync.RWMutex
@@ -113,8 +98,11 @@ type ConversationHub struct {
 
 	connUserDebounce   map[string]*time.Timer
 	refreshWindow      time.Duration
-	pendingRefresh     sync.Map
+	pendingRefresh     trailingCoalescer
 	connUserDebounceMu sync.Mutex
+
+	statusCountsWindow  time.Duration
+	pendingStatusCounts trailingCoalescer
 
 	viewersDelay     time.Duration
 	viewerTimers     map[entrySubscription]*time.Timer
@@ -127,108 +115,133 @@ type ConversationHub struct {
 	publicAddress string
 }
 
-func NewConversationHub(
-	authorizer conversation.ConversationAuthorizer,
-	userRepo user.UserRepository,
-	operatorSend conversation.OperatorSendUseCase,
-	sharedState cache.SharedState,
-	replicaID, publicAddress string,
-) *ConversationHub {
-	hub := &ConversationHub{
-		authorizer:        authorizer,
-		userRepo:          userRepo,
-		operatorSend:      operatorSend,
-		connections:       make(map[string]*WSConnection),
-		userConnections:   make(map[string]map[string]bool),
-		connSubscriptions: make(map[string]map[entrySubscription]bool),
-		entrySubscribers:  make(map[entrySubscription]map[string]bool),
-		sentMessageIDs:    make(map[string]map[entrySubscription]map[string]bool),
-		register:          make(chan *WSConnection, 1024),
-		unregister:        make(chan *WSConnection, 1024),
-		incoming:          make(chan *incomingMessage, 8192),
-		broadcast:         make(chan *broadcastMessage, 4096),
-		done:              make(chan struct{}),
-		connUserDebounce:  make(map[string]*time.Timer),
-		refreshWindow:     entryRefreshWindow,
-		viewersDelay:      broadcastDebounceDelay,
-		viewerTimers:      make(map[entrySubscription]*time.Timer),
-		publishedViewers:  make(map[entrySubscription]map[string]bool),
-		sharedState:       sharedState,
-		replicaID:         replicaID,
-		publicAddress:     publicAddress,
+type ConversationHubDeps struct {
+	Authorizer    conversation.ConversationAuthorizer
+	Users         user.UserRepository
+	OperatorSend  conversation.OperatorSendUseCase
+	SharedState   cache.SharedState
+	Metrics       metrics.WSMetricsRecorder
+	ReplicaID     string
+	PublicAddress string
+	History       conversation.HistoryProvider
+	HistoryReader conversation.HistoryReader
+	Marker        conversation.MessageMarker
+	Stages        conversation.StageProvider
+	Labels        conversation.LabelProvider
+	Templates     conversation.TemplateSender
+	Workspaces    conversation.CampaignWorkspaceResolver
+	Messages      conversation.MessageRepository
+	Campaigns     whatsapp_campaign.Repository
+	Departments   workspaceDepartmentMemberLister
+	Presence      presenceRecorder
+	MediaLimits   conversation.MediaLimitsReader
+}
+
+type HubCommands struct {
+	Assigner       conversationAssigner
+	Attention      conversation.MessageAttentionReader
+	PersonAssign   inbox_assignment.PersonAssignUseCase
+	Status         conversation.ConversationStatusUpdater
+	PersonFinish   conversation.PersonFinishUseCase
+	MessageActions conversation.MessageActionUseCases
+	PersonalMarks  personalinbox.UseCases
+	TeamChat       teamChatTyping
+	Inbox          conversation.InboxService
+}
+
+var (
+	ErrHubCommandsBound   = errors.New("conversation hub: commands are already bound")
+	ErrHubCommandsUnbound = errors.New("conversation hub: commands are not bound")
+)
+
+func NewConversationHub(d ConversationHubDeps) (*ConversationHub, error) {
+	if err := deps.Require("conversation hub", map[string]any{
+		"authorizer":     d.Authorizer,
+		"ws metrics":     d.Metrics,
+		"history":        d.History,
+		"history reader": d.HistoryReader,
+		"marker":         d.Marker,
+		"stages":         d.Stages,
+		"labels":         d.Labels,
+		"templates":      d.Templates,
+		"workspaces":     d.Workspaces,
+		"messages":       d.Messages,
+		"campaigns":      d.Campaigns,
+		"departments":    d.Departments,
+		"presence":       d.Presence,
+		"media limits":   d.MediaLimits,
+	}); err != nil {
+		return nil, err
 	}
-	return hub
+	hub := &ConversationHub{
+		authorizer:         d.Authorizer,
+		userRepo:           d.Users,
+		operatorSend:       d.OperatorSend,
+		wsMetrics:          d.Metrics,
+		historyProvider:    d.History,
+		historyReader:      d.HistoryReader,
+		messageMarker:      d.Marker,
+		stageProvider:      d.Stages,
+		labelProvider:      d.Labels,
+		templateSender:     d.Templates,
+		workspaceResolver:  d.Workspaces,
+		messageRepo:        d.Messages,
+		campaigns:          d.Campaigns,
+		departmentRepo:     d.Departments,
+		presence:           d.Presence,
+		mediaLimits:        d.MediaLimits,
+		connections:        make(map[string]*WSConnection),
+		userConnections:    make(map[string]map[string]bool),
+		connSubscriptions:  make(map[string]map[entrySubscription]bool),
+		entrySubscribers:   make(map[entrySubscription]map[string]bool),
+		sentMessageIDs:     make(map[string]map[entrySubscription]map[string]bool),
+		register:           make(chan *WSConnection, 1024),
+		unregister:         make(chan *WSConnection, 1024),
+		incoming:           make(chan *incomingMessage, 8192),
+		broadcast:          make(chan *broadcastMessage, 4096),
+		done:               make(chan struct{}),
+		connUserDebounce:   make(map[string]*time.Timer),
+		refreshWindow:      entryRefreshWindow,
+		statusCountsWindow: statusCountsDebounceWindow,
+		viewersDelay:       broadcastDebounceDelay,
+		viewerTimers:       make(map[entrySubscription]*time.Timer),
+		publishedViewers:   make(map[entrySubscription]map[string]bool),
+		sharedState:        d.SharedState,
+		replicaID:          d.ReplicaID,
+		publicAddress:      d.PublicAddress,
+	}
+	return hub, nil
 }
 
-func (h *ConversationHub) SetHistoryProvider(provider conversation.HistoryProvider) {
-	h.historyProvider = provider
-}
-func (h *ConversationHub) SetHistoryReader(reader conversation.HistoryReader) {
-	h.historyReader = reader
-}
-func (h *ConversationHub) SetPersonAssign(assign inbox_assignment.PersonAssignUseCase) {
-	h.personAssign = assign
-}
-func (h *ConversationHub) SetMessageMarker(marker conversation.MessageMarker) {
-	h.messageMarker = marker
-}
-func (h *ConversationHub) SetStageProvider(provider conversation.StageProvider) {
-	h.StageProvider = provider
-}
-func (h *ConversationHub) SetLabelProvider(provider conversation.LabelProvider) {
-	h.labelProvider = provider
-}
-func (h *ConversationHub) SetAnalysisProvider(provider conversation.AnalysisProvider) {
-	h.analysisProvider = provider
-}
-func (h *ConversationHub) SetInitialStageAssigner(assigner conversation.InitialStageAssigner) {
-	h.InitialStageAssigner = assigner
-}
-func (h *ConversationHub) SetTemplateSender(sender conversation.TemplateSender) {
-	h.templateSender = sender
-}
-func (h *ConversationHub) SetCallSource(cs conversation.CallSource)    { h.callSource = cs }
-func (h *ConversationHub) SetBillingPub(pub messaging.MessageQueuePub) { h.billingPub = pub }
-
-func (h *ConversationHub) SetCampaignWorkspaceResolver(resolver conversation.CampaignWorkspaceResolver) {
-	h.workspaceResolver = resolver
-}
-func (h *ConversationHub) SetInboxService(svc conversation.InboxService)      { h.inboxService = svc }
-func (h *ConversationHub) SetMessageRepo(repo conversation.MessageRepository) { h.messageRepo = repo }
-func (h *ConversationHub) SetWACampaignRepo(repo whatsapp_campaign.Repository) {
-	h.waCampaignRepo = repo
-}
-func (h *ConversationHub) SetAssignmentRepo(repo inbox_assignment.Repository) {
-	h.assignmentRepo = repo
+func (h *ConversationHub) BindCommands(c HubCommands) error {
+	if err := deps.Require("conversation hub commands", map[string]any{
+		"assigner":       c.Assigner,
+		"attention":      c.Attention,
+		"person assign":  c.PersonAssign,
+		"status":         c.Status,
+		"person finish":  c.PersonFinish,
+		"personal marks": c.PersonalMarks,
+		"team chat":      c.TeamChat,
+		"inbox":          c.Inbox,
+	}); err != nil {
+		return err
+	}
+	if !h.commands.CompareAndSwap(nil, &c) {
+		return ErrHubCommandsBound
+	}
+	return nil
 }
 
-func (h *ConversationHub) SetAssignmentService(svc conversationAssigner) {
-	h.assignmentService = svc
+func (h *ConversationHub) CommandsBound() error {
+	if h.commands.Load() == nil {
+		return ErrHubCommandsUnbound
+	}
+	return nil
 }
 
-func (h *ConversationHub) SetPresenceRecorder(p presenceRecorder) {
-	h.presence = p
+func (h *ConversationHub) cmds() *HubCommands {
+	return h.commands.Load()
 }
-
-func (h *ConversationHub) SetEventLogger(logger ce.Logger) {
-	h.eventLogger = logger
-}
-
-func (h *ConversationHub) SetWorkspaceConfigRepo(repo wsc.Repository) {
-	h.workspaceConfigRepo = repo
-}
-func (h *ConversationHub) SetWorkspaceDepartmentRepo(repo workspaceDepartmentMemberLister) {
-	h.departmentRepo = repo
-}
-func (h *ConversationHub) SetConversationStatusUpdater(u conversation.ConversationStatusUpdater) {
-	h.statusUpdater = u
-}
-
-func (h *ConversationHub) SetPersonFinish(finish conversation.PersonFinishUseCase) {
-	h.personFinish = finish
-}
-
-func (h *ConversationHub) SetWSMetrics(rec metrics.WSMetricsRecorder) { h.wsMetrics = rec }
 
 func (h *ConversationHub) GetEligibleUsersForWorkspace(workspaceID string, skipAdmins bool) []string {
 	return h.collectEligibleUsers(workspaceID, nil, skipAdmins)
@@ -238,10 +251,6 @@ func (h *ConversationHub) GetEligibleUsersForWorkspaceDepartment(workspaceID, de
 	departmentID = strings.TrimSpace(departmentID)
 	if departmentID == "" {
 		return h.GetEligibleUsersForWorkspace(workspaceID, skipAdmins)
-	}
-	if h.departmentRepo == nil {
-		log.Printf("[ConversationHub] missing department repository for workspace %s department %s", workspaceID, departmentID)
-		return nil
 	}
 
 	members, err := h.departmentRepo.ListMembers(departmentID)
@@ -274,10 +283,6 @@ func (h *ConversationHub) collectEligibleUsers(workspaceID string, allowedUsers 
 		if allowedUsers != nil && !allowedUsers[conn.UserID] {
 			continue
 		}
-		if h.authorizer == nil {
-			continue
-		}
-
 		if conn.IsAdmin && !h.authorizer.IsWorkspaceMember(conn.UserID, workspaceID) {
 			continue
 		}
@@ -298,7 +303,7 @@ func (h *ConversationHub) collectEligibleUsers(workspaceID string, allowedUsers 
 			if allowedUsers != nil && !allowedUsers[uid] {
 				continue
 			}
-			if eligible[uid] || h.authorizer == nil {
+			if eligible[uid] {
 				continue
 			}
 			if inbox_assignment.CanReceiveRoulette(h.authorizer, uid, workspaceID, skipAdmins) {
@@ -353,38 +358,9 @@ func (h *ConversationHub) HandleMessage(conn *WSConnection, msg *WSIncomingMessa
 	h.incoming <- &incomingMessage{conn: conn, message: msg}
 }
 
-func (h *ConversationHub) ensureInitialTag(entryID, entryType string) {
-	if h.workspaceResolver == nil || h.InitialStageAssigner == nil {
-		return
-	}
-	workspaceID, err := h.workspaceResolver.GetEntryWorkspaceID(entryID, entryType)
-	if err != nil {
-		log.Printf("[ConversationHub] ensureInitialTag: error resolving workspace for %s (%s): %v", entryID, entryType, err)
-		return
-	}
-	if workspaceID == "" {
-		log.Printf("[ConversationHub] ensureInitialTag: empty workspaceID for %s (%s)", entryID, entryType)
-		return
-	}
-	campaignID, _ := h.workspaceResolver.GetEntryCampaignID(entryID, entryType)
-	if campaignID == "" {
-		log.Printf("[ConversationHub] ensureInitialTag: empty campaignID for %s (%s)", entryID, entryType)
-		return
-	}
-	h.InitialStageAssigner.AutoAssignInitialStage(workspaceID, campaignID, entryType, entryID, entryType)
-}
-
 func (h *ConversationHub) BroadcastNewMessage(entryID, entryType string, message *conversation.Message) {
-	h.ensureInitialTag(entryID, entryType)
-
-	if h.historyProvider != nil && message != nil {
+	if message != nil {
 		h.historyProvider.PresentMessage(entryID, entryType, message)
-	}
-
-	if h.statusUpdater != nil && message != nil {
-		if err := h.statusUpdater.TransitionOnMessage(entryID, entryType, message.MessageType, message.ResolvedDirection()); err != nil {
-			log.Printf("[ConversationHub] Error transitioning conversation status for %s (%s): %v", entryID, entryType, err)
-		}
 	}
 
 	h.broadcast <- &broadcastMessage{
@@ -467,9 +443,7 @@ func (h *ConversationHub) BroadcastMessageUpdated(entryID, entryType string, mes
 	if message == nil {
 		return
 	}
-	if h.historyProvider != nil {
-		h.historyProvider.PresentMessage(entryID, entryType, message)
-	}
+	h.historyProvider.PresentMessage(entryID, entryType, message)
 	h.broadcast <- &broadcastMessage{
 		entryID:   entryID,
 		entryType: entryType,
@@ -526,7 +500,7 @@ func (h *ConversationHub) entryAccessMemo(entryID, entryType string) func(conn *
 	resolved := make(map[string]func(string, bool) bool, 1)
 
 	return func(conn *WSConnection) bool {
-		if conn == nil || h.authorizer == nil {
+		if conn == nil {
 			return false
 		}
 		allow, ok := resolved[conn.WorkspaceID]
@@ -546,11 +520,8 @@ func (h *ConversationHub) entryAccessMemo(entryID, entryType string) func(conn *
 }
 
 func (h *ConversationHub) broadcastStageUpdateLocal(workspaceID, entryID, entryType string) {
-	if h.StageProvider == nil || h.authorizer == nil {
-		return
-	}
 
-	stage, err := h.StageProvider.GetEntryStage(entryID, entryType, workspaceID)
+	stage, err := h.stageProvider.GetEntryStage(entryID, entryType, workspaceID)
 	if err != nil {
 		log.Printf("[ConversationHub] Error getting stage for entry %s: %v", entryID, err)
 		return
@@ -571,6 +542,10 @@ func (h *ConversationHub) broadcastStageUpdateLocal(workspaceID, entryID, entryT
 		return
 	}
 
+	h.sendToEntryAudience(workspaceID, entryID, entryType, data)
+}
+
+func (h *ConversationHub) sendToEntryAudience(workspaceID, entryID, entryType string, data []byte) {
 	h.connMu.RLock()
 	defer h.connMu.RUnlock()
 
@@ -578,15 +553,20 @@ func (h *ConversationHub) broadcastStageUpdateLocal(workspaceID, entryID, entryT
 
 	for _, connIDs := range h.userConnections {
 		for connID := range connIDs {
-			if conn, exists := h.connections[connID]; exists {
-				if !allowEntry(conn) {
-					continue
-				}
-				select {
-				case conn.Send <- data:
-				default:
-					log.Printf("[ConversationHub] Send buffer full for user %s (connection %s)", conn.UserID, connID)
-				}
+			conn, exists := h.connections[connID]
+			if !exists {
+				continue
+			}
+			if !conn.IsAdmin && connInOtherWorkspace(conn, workspaceID) {
+				continue
+			}
+			if !allowEntry(conn) {
+				continue
+			}
+			select {
+			case conn.Send <- data:
+			default:
+				log.Printf("[ConversationHub] Send buffer full for user %s (connection %s)", conn.UserID, connID)
 			}
 		}
 	}
@@ -598,9 +578,6 @@ func (h *ConversationHub) BroadcastLabelUpdate(workspaceID, entryID, entryType s
 }
 
 func (h *ConversationHub) broadcastLabelUpdateLocal(workspaceID, entryID, entryType string) {
-	if h.labelProvider == nil || h.authorizer == nil {
-		return
-	}
 
 	labels, err := h.labelProvider.GetEntryLabels(entryID, entryType, workspaceID)
 	if err != nil {
@@ -623,42 +600,20 @@ func (h *ConversationHub) broadcastLabelUpdateLocal(workspaceID, entryID, entryT
 		return
 	}
 
-	h.connMu.RLock()
-	defer h.connMu.RUnlock()
-
-	allowEntry := h.entryAccessMemo(entryID, entryType)
-
-	for _, connIDs := range h.userConnections {
-		for connID := range connIDs {
-			if conn, exists := h.connections[connID]; exists {
-				if !allowEntry(conn) {
-					continue
-				}
-				select {
-				case conn.Send <- data:
-				default:
-					log.Printf("[ConversationHub] Send buffer full for user %s (connection %s)", conn.UserID, connID)
-				}
-			}
-		}
-	}
+	h.sendToEntryAudience(workspaceID, entryID, entryType, data)
 }
 
 func (h *ConversationHub) BroadcastEntryUpdate(entryID, entryType string, message *conversation.Message) {
-	h.broadcastEntryUpdateLocal(entryID, entryType, message, false)
-	h.publishWorkspaceBroadcast("entry_update", entryID, entryType, "", "", "")
+	change := changeFor(message)
+	h.broadcastEntryUpdateLocal(entryID, entryType, change)
+	h.publishEntryChange(entryID, entryType, change)
 }
 
 const entryRefreshWindow = 150 * time.Millisecond
 
 func (h *ConversationHub) RefreshEntry(entryID, entryType string) {
-	key := entryType + "|" + entryID
-	if _, waiting := h.pendingRefresh.LoadOrStore(key, struct{}{}); waiting {
-		return
-	}
-	time.AfterFunc(h.refreshWindow, func() {
-		h.pendingRefresh.Delete(key)
-		h.broadcastEntryUpdateLocal(entryID, entryType, nil, true)
+	h.pendingRefresh.schedule(entryType+"|"+entryID, h.refreshWindow, func() {
+		h.broadcastEntryUpdateLocal(entryID, entryType, entryRefreshed)
 		h.publishWorkspaceBroadcast("entry_refresh", entryID, entryType, "", "", "")
 	})
 }
@@ -677,20 +632,17 @@ func (h *ConversationHub) hasViewersIn(workspaceID string) bool {
 	return false
 }
 
-func (h *ConversationHub) broadcastEntryUpdateLocal(entryID, entryType string, message *conversation.Message, silent bool) {
-	if h.authorizer == nil {
-		return
-	}
-
+func (h *ConversationHub) broadcastEntryUpdateLocal(entryID, entryType string, change entryChange) {
 	workspaceID := h.entryWorkspaceID(entryID, entryType)
 	if !h.hasViewersIn(workspaceID) {
 		return
 	}
 
-	update, ok := h.buildEntryUpdate(entryID, entryType, workspaceID, silent)
+	update, ok := h.buildEntryUpdate(entryID, entryType, workspaceID, change)
 	if !ok {
 		return
 	}
+	attention := h.messageAttention(update, change)
 
 	h.connMu.RLock()
 
@@ -699,19 +651,30 @@ func (h *ConversationHub) broadcastEntryUpdateLocal(entryID, entryType string, m
 	for _, connIDs := range h.userConnections {
 		for connID := range connIDs {
 			if conn, exists := h.connections[connID]; exists && h.entryUpdateReaches(update, allowEntry, conn) {
-				h.deliverEntryUpdate(conn, update)
+				h.deliverEntryUpdate(conn, update, attention.Alerts(conn.UserID))
 			}
 		}
 	}
 
 	h.connMu.RUnlock()
-	if !silent {
-		h.broadcastConversationStatusCountsUpdateLocal(workspaceID, update.campaignID, entryType)
+	if change != entryRefreshed {
+		h.scheduleStatusCounts(workspaceID, update.campaignID, entryType)
 	}
 }
 
+const statusCountsDebounceWindow = time.Second
+
+func (h *ConversationHub) scheduleStatusCounts(workspaceID, entryCampaignID, entryType string) {
+	key := workspaceID + "|" + entryCampaignID + "|" + entryType
+	h.pendingStatusCounts.schedule(key, h.statusCountsWindow, func() {
+		h.broadcastConversationStatusCountsUpdateLocal(workspaceID, entryCampaignID, entryType)
+	})
+}
+
 func (h *ConversationHub) broadcastConversationStatusCountsUpdateLocal(workspaceID, entryCampaignID, entryType string) {
-	if h.inboxService == nil {
+	commands := h.cmds()
+	if commands == nil {
+		log.Printf("[ConversationHub] status counts for workspace %s skipped: %v", workspaceID, ErrHubCommandsUnbound)
 		return
 	}
 
@@ -732,7 +695,7 @@ func (h *ConversationHub) broadcastConversationStatusCountsUpdateLocal(workspace
 			if !exists {
 				continue
 			}
-			if workspaceID != "" && conn.WorkspaceID != "" && conn.WorkspaceID != workspaceID {
+			if connInOtherWorkspace(conn, workspaceID) {
 				continue
 			}
 			if entryCampaignID != "" && conn.ViewMode == "campaign" && conn.CampaignID != "" && conn.CampaignID != entryCampaignID {
@@ -752,7 +715,7 @@ func (h *ConversationHub) broadcastConversationStatusCountsUpdateLocal(workspace
 			counts, ok := countsCache[key]
 			if !ok {
 				var err error
-				counts, err = h.inboxService.GetConversationStatusCounts(key.workspaceID, key.campaignID, key.entryType)
+				counts, err = commands.Inbox.GetConversationStatusCounts(key.workspaceID, key.campaignID, key.entryType)
 				if err != nil {
 					log.Printf("[ConversationHub] Error loading conversation status counts for workspace=%s campaign=%s type=%s: %v", key.workspaceID, key.campaignID, key.entryType, err)
 					continue
@@ -771,84 +734,13 @@ func (h *ConversationHub) broadcastConversationStatusCountsUpdateLocal(workspace
 }
 
 func (h *ConversationHub) tryAssignOnOpen(conn *WSConnection, entryID, entryType string) {
-	if h.workspaceResolver == nil {
+	claimed, err := h.cmds().Assigner.AssignOnOpen(entryID, entryType, conn.UserID, conn.IsAdmin)
+	if err != nil {
+		log.Printf("[ConversationHub] Error assigning entry %s to user %s on open: %v", entryID, conn.UserID, err)
 		return
 	}
-	if h.assignmentService == nil && h.assignmentRepo == nil {
-		return
-	}
-
-	workspaceID, err := h.workspaceResolver.GetEntryWorkspaceID(entryID, entryType)
-	if err != nil || workspaceID == "" {
-		return
-	}
-
-	if h.assignmentRepo != nil {
-		existing, err := h.assignmentRepo.FindByEntry(workspaceID, entryID, entryType)
-		if err != nil || existing != nil {
-			return
-		}
-	}
-
-	if conn.IsAdmin && h.authorizer != nil && !h.authorizer.IsWorkspaceMember(conn.UserID, workspaceID) {
-		return
-	}
-
-	skipAdmins := false
-	if h.workspaceConfigRepo != nil && h.authorizer != nil && h.authorizer.IsWorkspaceOwnerOrAdmin(conn.UserID, workspaceID) {
-		if cfg, err := h.workspaceConfigRepo.GetByWorkspaceID(context.Background(), workspaceID); err == nil && cfg != nil {
-			skipAdmins = cfg.SkipAdminAssignment
-		}
-	}
-
-	if h.authorizer != nil && !inbox_assignment.CanReceiveRoulette(h.authorizer, conn.UserID, workspaceID, skipAdmins) {
-		return
-	}
-
-	businessPhoneID := ""
-	if entryType == "whatsapp" && h.waCampaignRepo != nil {
-		campaignID, _ := h.workspaceResolver.GetEntryCampaignID(entryID, entryType)
-		if campaignID != "" {
-			if wc, err := h.waCampaignRepo.FindByID(campaignID); err == nil && wc != nil {
-				businessPhoneID = wc.BusinessPhoneID
-			}
-		}
-	}
-
-	if h.assignmentService != nil {
-		ok, err := h.assignmentService.AssignOnOpen(entryID, entryType, businessPhoneID, workspaceID, conn.UserID)
-		if err != nil {
-			log.Printf("[ConversationHub] Error assigning entry %s to user %s on open: %v", entryID, conn.UserID, err)
-			return
-		}
-		if !ok {
-			return
-		}
-	} else {
-		assignment := &inbox_assignment.InboxAssignment{
-			WorkspaceID:     workspaceID,
-			BusinessPhoneID: businessPhoneID,
-			EntryID:         entryID,
-			EntryType:       entryType,
-			AssignedUserID:  conn.UserID,
-		}
-		if err := h.assignmentRepo.Assign(assignment); err != nil {
-			log.Printf("[ConversationHub] Error assigning entry %s to user %s on open: %v", entryID, conn.UserID, err)
-			return
-		}
-		if h.eventLogger != nil {
-			h.eventLogger.Log(ce.New(workspaceID, entryID, entryType, ce.EventAutoAssigned).
-				WithActorHuman(conn.UserID).
-				WithChannel(shared.EntryType(entryType).EventChannel()).
-				WithDetails(map[string]string{"to_user_id": conn.UserID, "trigger": "open"}).
-				Build())
-		}
-	}
-
-	log.Printf("[ConversationHub] Auto-assigned entry %s (%s) → user %s (opened)", entryID, entryType, conn.UserID)
-
-	if h.assignmentService == nil {
-		go h.AnnounceOwnerChange(workspaceID, entryID, entryType, "")
+	if claimed {
+		log.Printf("[ConversationHub] Auto-assigned entry %s (%s) → user %s (opened)", entryID, entryType, conn.UserID)
 	}
 }
 
@@ -863,7 +755,7 @@ func (h *ConversationHub) BroadcastEntryRemoved(entryID, entryType, workspaceID,
 }
 
 func (h *ConversationHub) broadcastEntryRemovedLocal(entryID, entryType, workspaceID, previousOwner string) {
-	if h.authorizer == nil || actor.IsAutomation(previousOwner) {
+	if actor.IsAutomation(previousOwner) {
 		return
 	}
 
@@ -960,7 +852,7 @@ func (h *ConversationHub) BroadcastAnalysisUpdate(entryID, entryType string, ana
 }
 
 func (h *ConversationHub) handleRegister(conn *WSConnection) {
-	if conn.CampaignID != "" && conn.CampaignWorkspaceID == "" && h.workspaceResolver != nil {
+	if conn.CampaignID != "" && conn.CampaignWorkspaceID == "" {
 		if wsID, err := h.workspaceResolver.GetCampaignWorkspaceID(conn.CampaignID, conn.CampaignType); err == nil && wsID != "" {
 			conn.CampaignWorkspaceID = wsID
 		}
@@ -971,7 +863,7 @@ func (h *ConversationHub) handleRegister(conn *WSConnection) {
 
 	conn.WorkspaceID = conn.CampaignWorkspaceID
 
-	if h.authorizer != nil && !conn.IsAdmin {
+	if !conn.IsAdmin {
 		if !h.authorizer.HasWorkspacePermission(conn.UserID, conn.WorkspaceID, "conversations", "read", false) {
 			log.Printf("[ConversationHub] User %s denied access to workspace %s conversations", conn.UserID, conn.WorkspaceID)
 			h.sendToConnection(conn, &WSOutgoingMessage{
@@ -989,7 +881,7 @@ func (h *ConversationHub) handleRegister(conn *WSConnection) {
 			return
 		}
 	}
-	if h.authorizer != nil && conn.CampaignID != "" && conn.CampaignType != "" {
+	if conn.CampaignID != "" && conn.CampaignType != "" {
 		if !h.authorizer.CanAccessCampaign(conn.UserID, conn.WorkspaceID, conn.CampaignID, conn.CampaignType, conn.IsAdmin) {
 			log.Printf("[ConversationHub] User %s denied access to campaign %s (%s)", conn.UserID, conn.CampaignID, conn.CampaignType)
 			h.sendToConnection(conn, &WSOutgoingMessage{
@@ -1023,7 +915,7 @@ func (h *ConversationHub) handleRegister(conn *WSConnection) {
 	_ = h.sharedState.SAdd("hub:connected_users:"+conn.WorkspaceID, member)
 	_ = h.sharedState.SAdd("hub:workspaces", conn.WorkspaceID)
 
-	if firstConn && h.presence != nil {
+	if firstConn {
 		_ = h.presence.Transition(conn.WorkspaceID, conn.UserID, "online", "ws_hub")
 	}
 
@@ -1038,28 +930,26 @@ func (h *ConversationHub) handleRegister(conn *WSConnection) {
 		Payload: map[string]string{"user_id": conn.UserID, "connection_id": conn.ID},
 	})
 
-	if h.inboxService != nil {
-		view := inboxViewOf(conn)
-		go func() {
-			payload, err := h.loadInboxPage(view, 1, conversation.DefaultInboxPageSize)
-			if err != nil {
-				log.Printf("[ConversationHub] Error getting inbox for user %s: %v", view.userID, err)
-				return
-			}
-			if conn.viewSeq != view.seq {
-				log.Printf("[ConversationHub] Discarding stale initial inbox for connection %s (seq %d < %d)", conn.ID, view.seq, conn.viewSeq)
-				return
-			}
-			h.connMu.RLock()
-			_, stillExists := h.connections[conn.ID]
-			h.connMu.RUnlock()
-			if !stillExists {
-				log.Printf("[ConversationHub] Skipping inbox send for connection %s (already closed)", conn.ID)
-				return
-			}
-			h.sendToConnection(conn, &WSOutgoingMessage{Type: WSEventInbox, Payload: payload})
-		}()
-	}
+	view := inboxViewOf(conn)
+	go func() {
+		payload, err := h.loadInboxPage(view, 1, conversation.DefaultInboxPageSize)
+		if err != nil {
+			log.Printf("[ConversationHub] Error getting inbox for user %s: %v", view.userID, err)
+			return
+		}
+		if conn.viewSeq != view.seq {
+			log.Printf("[ConversationHub] Discarding stale initial inbox for connection %s (seq %d < %d)", conn.ID, view.seq, conn.viewSeq)
+			return
+		}
+		h.connMu.RLock()
+		_, stillExists := h.connections[conn.ID]
+		h.connMu.RUnlock()
+		if !stillExists {
+			log.Printf("[ConversationHub] Skipping inbox send for connection %s (already closed)", conn.ID)
+			return
+		}
+		h.sendToConnection(conn, &WSOutgoingMessage{Type: WSEventInbox, Payload: payload})
+	}()
 
 	h.sendConnectedUsersUpdate(conn)
 	h.scheduleBroadcastConnectedUsers(conn.WorkspaceID)
@@ -1106,7 +996,7 @@ type connectedUsersScope struct {
 	departmentIDs []string
 }
 
-func (h *ConversationHub) buildConnectedUsersScope(conn *WSConnection) connectedUsersScope {
+func (h *ConversationHub) buildConnectedUsersScope(conn *WSConnection, scopes *departmentScopeMemo) connectedUsersScope {
 	if conn == nil {
 		return connectedUsersScope{key: "invalid", allowed: false}
 	}
@@ -1121,15 +1011,11 @@ func (h *ConversationHub) buildConnectedUsersScope(conn *WSConnection) connected
 		}
 	}
 
-	if h.authorizer == nil {
-		return connectedUsersScope{key: "global:workspace", allowed: true, fullWorkspace: true}
-	}
-
 	if conn.IsAdmin || h.authorizer.IsWorkspaceOwnerOrAdmin(conn.UserID, conn.WorkspaceID) {
 		return connectedUsersScope{key: "global:workspace", allowed: true, fullWorkspace: true}
 	}
 
-	scope, allowed := h.authorizer.GetDepartmentScope(conn.UserID, conn.WorkspaceID, conn.IsAdmin)
+	scope, allowed := scopes.scope(conn.UserID, conn.WorkspaceID, conn.IsAdmin)
 	if !allowed {
 		return connectedUsersScope{key: "global:denied", allowed: false}
 	}
@@ -1141,7 +1027,7 @@ func (h *ConversationHub) buildConnectedUsersScope(conn *WSConnection) connected
 	sort.Strings(departmentIDs)
 
 	return connectedUsersScope{
-		key:           "global:departments:" + strings.Join(departmentIDs, ","),
+		key:           "global:departments:" + strings.Join(departmentIDs, ",") + ":viewer:" + conn.UserID,
 		allowed:       true,
 		departmentIDs: departmentIDs,
 	}
@@ -1154,21 +1040,15 @@ func (h *ConversationHub) connectedUserCanAccessCampaign(candidate connectedUser
 	if candidate.CampaignID == campaignID && candidate.CampaignType == campaignType {
 		return true
 	}
-	if h.authorizer == nil {
-		return false
-	}
 	return h.authorizer.CanAccessCampaign(candidate.UserID, workspaceID, campaignID, campaignType, candidate.IsAdmin)
 }
 
-func (h *ConversationHub) connectedUserMatchesDepartmentScope(candidate connectedUserSnapshot, workspaceID string, departmentIDs []string) bool {
+func (h *ConversationHub) connectedUserMatchesDepartmentScope(candidate connectedUserSnapshot, workspaceID string, departmentIDs []string, scopes *departmentScopeMemo) bool {
 	if candidate.WorkspaceID != workspaceID {
 		return false
 	}
 	if len(departmentIDs) == 0 {
 		return false
-	}
-	if h.authorizer == nil {
-		return containsStringValue(departmentIDs, candidate.DepartmentID)
 	}
 	if candidate.IsAdmin || h.authorizer.IsWorkspaceOwnerOrAdmin(candidate.UserID, workspaceID) {
 		return true
@@ -1177,7 +1057,7 @@ func (h *ConversationHub) connectedUserMatchesDepartmentScope(candidate connecte
 		return containsStringValue(departmentIDs, candidate.DepartmentID)
 	}
 
-	scope, allowed := h.authorizer.GetDepartmentScope(candidate.UserID, workspaceID, candidate.IsAdmin)
+	scope, allowed := scopes.scope(candidate.UserID, workspaceID, candidate.IsAdmin)
 	if !allowed {
 		return false
 	}
@@ -1188,7 +1068,7 @@ func (h *ConversationHub) connectedUserMatchesDepartmentScope(candidate connecte
 	return slicesOverlap(departmentIDs, scope.DepartmentIDs)
 }
 
-func (h *ConversationHub) canConnectionSeeConnectedUser(conn *WSConnection, scope connectedUsersScope, candidate connectedUserSnapshot) bool {
+func (h *ConversationHub) canConnectionSeeConnectedUser(conn *WSConnection, scope connectedUsersScope, candidate connectedUserSnapshot, scopes *departmentScopeMemo) bool {
 	if conn == nil || !scope.allowed {
 		return false
 	}
@@ -1202,15 +1082,12 @@ func (h *ConversationHub) canConnectionSeeConnectedUser(conn *WSConnection, scop
 		return h.connectedUserCanAccessCampaign(candidate, conn.WorkspaceID, scope.campaignID, scope.campaignType)
 	}
 	if candidate.CampaignID != "" && candidate.CampaignType != "" {
-		if h.authorizer == nil {
-			return false
-		}
 		return h.authorizer.CanAccessCampaign(conn.UserID, conn.WorkspaceID, candidate.CampaignID, candidate.CampaignType, conn.IsAdmin)
 	}
-	return h.connectedUserMatchesDepartmentScope(candidate, conn.WorkspaceID, scope.departmentIDs)
+	return h.connectedUserMatchesDepartmentScope(candidate, conn.WorkspaceID, scope.departmentIDs, scopes)
 }
 
-func (h *ConversationHub) filterConnectedUsersForConnection(conn *WSConnection, scope connectedUsersScope, snapshots []connectedUserSnapshot) []connectedUserSnapshot {
+func (h *ConversationHub) filterConnectedUsersForConnection(conn *WSConnection, scope connectedUsersScope, snapshots []connectedUserSnapshot, scopes *departmentScopeMemo) []connectedUserSnapshot {
 	if !scope.allowed {
 		return []connectedUserSnapshot{}
 	}
@@ -1221,7 +1098,7 @@ func (h *ConversationHub) filterConnectedUsersForConnection(conn *WSConnection, 
 		if seenUsers[snapshot.UserID] {
 			continue
 		}
-		if !h.canConnectionSeeConnectedUser(conn, scope, snapshot) {
+		if !h.canConnectionSeeConnectedUser(conn, scope, snapshot, scopes) {
 			continue
 		}
 		seenUsers[snapshot.UserID] = true
@@ -1412,12 +1289,13 @@ func (h *ConversationHub) broadcastConnectedUsersToWorkspace(workspaceID string)
 
 	snapshots := h.buildWorkspaceConnectedUserSnapshots(workspaceID)
 	payloadCache := make(map[string][]byte)
+	scopes := h.newDepartmentScopeMemo()
 
 	for _, conn := range wsConns {
-		scope := h.buildConnectedUsersScope(conn)
+		scope := h.buildConnectedUsersScope(conn, scopes)
 		data, ok := payloadCache[scope.key]
 		if !ok {
-			filtered := h.filterConnectedUsersForConnection(conn, scope, snapshots)
+			filtered := h.filterConnectedUsersForConnection(conn, scope, snapshots, scopes)
 			marshaled, err := marshalConnectedUsersPayload(filtered)
 			if err != nil {
 				log.Printf("[ConversationHub] Error marshaling connected users for scope %s: %v", scope.key, err)
@@ -1458,7 +1336,7 @@ func (h *ConversationHub) handleUnregister(conn *WSConnection) {
 	if !hasOtherConnections {
 		member := conn.UserID + "|" + h.replicaID
 		_ = h.sharedState.SRem("hub:connected_users:"+conn.WorkspaceID, member)
-		if h.presence != nil && conn.WorkspaceID != "" {
+		if conn.WorkspaceID != "" {
 			_ = h.presence.Transition(conn.WorkspaceID, conn.UserID, "offline", "ws_hub")
 		}
 	}
@@ -1474,9 +1352,6 @@ func (h *ConversationHub) handleUnregister(conn *WSConnection) {
 
 func (h *ConversationHub) checkPermission(conn *WSConnection, resource, action string) bool {
 	if conn.IsAdmin {
-		return true
-	}
-	if h.authorizer == nil {
 		return true
 	}
 	if !h.authorizer.HasWorkspacePermission(conn.UserID, conn.WorkspaceID, resource, action, false) {
@@ -1641,25 +1516,21 @@ func (h *ConversationHub) handleSubscribe(conn *WSConnection, payload json.RawMe
 	var total int64
 	var adOrigin *conversation.AdOrigin
 
-	if h.historyProvider != nil {
-		info, _ = h.historyProvider.GetEntryInfo(p.EntryID, p.EntryType)
-		unreadCount, _ = h.historyProvider.GetUnreadCount(p.EntryID, shared.EntryType(p.EntryType))
-		window := h.historyProvider.GetWindowStatusForEntry(p.EntryID, p.EntryType)
-		windowOpen, windowExpiresAt, windowClosedReason, windowTier = window.Open, window.ExpiresAt, string(window.Reason), string(window.Tier)
-		windowClosedDetail = window.ProviderDetail
+	info, _ = h.historyProvider.GetEntryInfo(p.EntryID, p.EntryType)
+	unreadCount, _ = h.historyProvider.GetUnreadCount(p.EntryID, shared.EntryType(p.EntryType))
+	window := h.historyProvider.GetWindowStatusForEntry(p.EntryID, p.EntryType)
+	windowOpen, windowExpiresAt, windowClosedReason, windowTier = window.Open, window.ExpiresAt, string(window.Reason), string(window.Tier)
+	windowClosedDetail = window.ProviderDetail
+	page, histErr := h.historyReader.ReadHistory(conversation.HistoryQuery{
+		Viewer:    connViewer(conn),
+		EntryID:   p.EntryID,
+		EntryType: shared.EntryType(p.EntryType),
+		Limit:     p.PageSize,
+	})
+	if histErr != nil {
+		log.Printf("[ConversationHub] Error loading history for %s:%s user %s: %v", p.EntryType, p.EntryID, conn.UserID, histErr)
 	}
-	if h.historyReader != nil {
-		page, histErr := h.historyReader.ReadHistory(conversation.HistoryQuery{
-			Viewer:    connViewer(conn),
-			EntryID:   p.EntryID,
-			EntryType: shared.EntryType(p.EntryType),
-			Limit:     p.PageSize,
-		})
-		if histErr != nil {
-			log.Printf("[ConversationHub] Error loading history for %s:%s user %s: %v", p.EntryType, p.EntryID, conn.UserID, histErr)
-		}
-		messages, hasMore, total, adOrigin = page.Messages, page.HasMore, page.Total, page.AdOrigin
-	}
+	messages, hasMore, total, adOrigin = page.Messages, page.HasMore, page.Total, page.AdOrigin
 
 	alreadySent := h.sentMessageIDs[conn.ID][sub]
 	var filteredMessages []*conversation.Message
@@ -1791,10 +1662,6 @@ func parseHistoryCursor(raw string) (time.Time, error) {
 }
 
 func (h *ConversationHub) sendHistoryPage(conn *WSConnection, direction HistoryDirection, q conversation.HistoryQuery) {
-	if h.historyReader == nil {
-		h.sendError(conn, "not_configured", "History provider not configured")
-		return
-	}
 
 	go func() {
 		page, err := h.historyReader.ReadHistory(q)
@@ -1849,11 +1716,6 @@ func (h *ConversationHub) handleLoadAround(conn *WSConnection, payload json.RawM
 		return
 	}
 
-	if h.historyProvider == nil {
-		h.sendError(conn, "not_configured", "History provider not configured")
-		return
-	}
-
 	pageSize := conversation.HistoryPageSize(p.PageSize)
 
 	go func() {
@@ -1889,10 +1751,6 @@ func (h *ConversationHub) aroundAnchor(conn *WSConnection, p LoadAroundPayload) 
 		}
 		return around, true
 	}
-	if h.messageRepo == nil {
-		h.sendError(conn, "not_configured", "Message lookup not configured")
-		return time.Time{}, false
-	}
 	anchor, err := h.messageRepo.GetByID(p.MessageID)
 	if err != nil || !anchor.BelongsTo(p.EntryID, shared.EntryType(p.EntryType)) || anchor.CreatedAt.IsZero() {
 		h.sendToConnection(conn, &WSOutgoingMessage{Type: WSEventError, Payload: ErrorPayload{
@@ -1920,11 +1778,6 @@ func (h *ConversationHub) handleRequestInboxPage(conn *WSConnection, payload jso
 	}
 	if pageSize > conversation.MaxInboxPageSize {
 		pageSize = conversation.MaxInboxPageSize
-	}
-
-	if h.inboxService == nil {
-		h.sendError(conn, "not_configured", "Inbox service not configured")
-		return
 	}
 
 	view := inboxViewOf(conn)
@@ -2143,8 +1996,9 @@ func (h *ConversationHub) handleRequestConnectedUsers(conn *WSConnection, payloa
 
 func (h *ConversationHub) sendConnectedUsersUpdate(conn *WSConnection) {
 	snapshots := h.buildWorkspaceConnectedUserSnapshots(conn.WorkspaceID)
-	scope := h.buildConnectedUsersScope(conn)
-	filtered := h.filterConnectedUsersForConnection(conn, scope, snapshots)
+	scopes := h.newDepartmentScopeMemo()
+	scope := h.buildConnectedUsersScope(conn, scopes)
+	filtered := h.filterConnectedUsersForConnection(conn, scope, snapshots, scopes)
 
 	fmt.Printf("[ConversationHub] Connected users for workspace %s campaign %s:%s scope=%s count=%d\n", conn.WorkspaceID, conn.CampaignType, conn.CampaignID, scope.key, len(filtered))
 
@@ -2160,10 +2014,8 @@ func (h *ConversationHub) sendConnectedUsersUpdate(conn *WSConnection) {
 func (h *ConversationHub) resolveCampaignName(campaignID, campaignType string) string {
 	switch campaignType {
 	case "whatsapp":
-		if h.waCampaignRepo != nil {
-			if c, err := h.waCampaignRepo.FindByID(campaignID); err == nil {
-				return c.Name
-			}
+		if c, err := h.campaigns.FindByID(campaignID); err == nil {
+			return c.Name
 		}
 	}
 	return ""
@@ -2182,10 +2034,6 @@ func (h *ConversationHub) handleMarkRead(conn *WSConnection, payload json.RawMes
 	}
 
 	h.clearPersonalUnread(conn, p.EntryID, p.EntryType)
-
-	if h.messageMarker == nil {
-		return
-	}
 
 	go func() {
 		if err := h.messageMarker.MarkAsRead(p.EntryID, shared.EntryType(p.EntryType), p.MessageIDs, conn.UserID); err != nil {
@@ -2219,7 +2067,7 @@ func (h *ConversationHub) handleTyping(conn *WSConnection, payload json.RawMessa
 
 	h.handleBroadcast(typingBroadcast(p.EntryID, p.EntryType, conn.UserID, isTyping))
 
-	if !isTyping || h.messageMarker == nil {
+	if !isTyping {
 		return
 	}
 
@@ -2234,11 +2082,6 @@ func (h *ConversationHub) handleSearchInbox(conn *WSConnection, payload json.Raw
 	var p SearchInboxPayload
 	if err := json.Unmarshal(payload, &p); err != nil {
 		h.sendError(conn, "invalid_payload", "Invalid search_inbox payload")
-		return
-	}
-
-	if h.inboxService == nil {
-		h.sendError(conn, "not_configured", "Inbox service not configured")
 		return
 	}
 
@@ -2315,7 +2158,7 @@ func (h *ConversationHub) handleSearchInbox(conn *WSConnection, payload json.Raw
 			input.WorkspaceID = conn.WorkspaceID
 		}
 
-		entries, totalItems, err := h.inboxService.SearchInbox(conn.UserID, input)
+		entries, totalItems, err := h.cmds().Inbox.SearchInbox(conn.UserID, input)
 		if err != nil {
 			log.Printf("[ConversationHub] Error searching inbox for user %s: %v", conn.UserID, err)
 			h.sendError(conn, "search_error", "Failed to search inbox: "+err.Error())
@@ -2406,19 +2249,17 @@ func (h *ConversationHub) handleSwitchView(conn *WSConnection, payload json.RawM
 
 	if p.CampaignID != "" && p.CampaignType != "" {
 		resolvedWorkspaceID := conn.WorkspaceID
-		if h.workspaceResolver != nil {
-			wsID, err := h.workspaceResolver.GetCampaignWorkspaceID(p.CampaignID, p.CampaignType)
-			if err != nil || wsID == "" {
-				h.sendError(conn, "not_found", "Campaign not found")
-				return
-			}
-			if wsID != conn.WorkspaceID {
-				h.sendError(conn, "forbidden", "Campaign does not belong to this workspace")
-				return
-			}
-			resolvedWorkspaceID = wsID
+		wsID, err := h.workspaceResolver.GetCampaignWorkspaceID(p.CampaignID, p.CampaignType)
+		if err != nil || wsID == "" {
+			h.sendError(conn, "not_found", "Campaign not found")
+			return
 		}
-		if h.authorizer != nil && !h.authorizer.CanAccessCampaign(conn.UserID, resolvedWorkspaceID, p.CampaignID, p.CampaignType, conn.IsAdmin) {
+		if wsID != conn.WorkspaceID {
+			h.sendError(conn, "forbidden", "Campaign does not belong to this workspace")
+			return
+		}
+		resolvedWorkspaceID = wsID
+		if !h.authorizer.CanAccessCampaign(conn.UserID, resolvedWorkspaceID, p.CampaignID, p.CampaignType, conn.IsAdmin) {
 			h.sendError(conn, "forbidden", "You don't have access to this inbox")
 			return
 		}
@@ -2429,11 +2270,9 @@ func (h *ConversationHub) handleSwitchView(conn *WSConnection, payload json.RawM
 		conn.ContainerKind = p.ContainerKind
 		conn.ViewMode = "campaign"
 
-		if h.workspaceResolver != nil {
-			if wsID, err := h.workspaceResolver.GetCampaignWorkspaceID(p.CampaignID, p.CampaignType); err == nil && wsID != "" {
-				conn.CampaignWorkspaceID = wsID
-				conn.WorkspaceID = wsID
-			}
+		if wsID, err := h.workspaceResolver.GetCampaignWorkspaceID(p.CampaignID, p.CampaignType); err == nil && wsID != "" {
+			conn.CampaignWorkspaceID = wsID
+			conn.WorkspaceID = wsID
 		}
 	} else {
 		conn.CampaignID = ""
@@ -2459,21 +2298,19 @@ func (h *ConversationHub) handleSwitchView(conn *WSConnection, payload json.RawM
 
 	h.scheduleBroadcastConnectedUsers(conn.WorkspaceID)
 
-	if h.inboxService != nil {
-		view := inboxViewOf(conn)
-		go func() {
-			payload, err := h.loadInboxPage(view, 1, conversation.DefaultInboxPageSize)
-			if err != nil {
-				log.Printf("[ConversationHub] Error loading inbox after view switch for user %s: %v", view.userID, err)
-				return
-			}
-			if conn.viewSeq != view.seq {
-				log.Printf("[ConversationHub] Discarding stale view-switch inbox for connection %s (seq %d < %d)", conn.ID, view.seq, conn.viewSeq)
-				return
-			}
-			h.sendToConnection(conn, &WSOutgoingMessage{Type: WSEventInbox, Payload: payload})
-		}()
-	}
+	view := inboxViewOf(conn)
+	go func() {
+		payload, err := h.loadInboxPage(view, 1, conversation.DefaultInboxPageSize)
+		if err != nil {
+			log.Printf("[ConversationHub] Error loading inbox after view switch for user %s: %v", view.userID, err)
+			return
+		}
+		if conn.viewSeq != view.seq {
+			log.Printf("[ConversationHub] Discarding stale view-switch inbox for connection %s (seq %d < %d)", conn.ID, view.seq, conn.viewSeq)
+			return
+		}
+		h.sendToConnection(conn, &WSOutgoingMessage{Type: WSEventInbox, Payload: payload})
+	}()
 }
 
 func conversationStatusBroadcast(entryID, entryType string, payload ConversationStatusUpdatePayload) *broadcastMessage {
@@ -2510,17 +2347,12 @@ func (h *ConversationHub) handleSetConversationStatus(conn *WSConnection, payloa
 		return
 	}
 
-	if h.authorizer != nil && !h.authorizer.HasWorkspacePermission(conn.UserID, conn.WorkspaceID, "conversations", "send", false) {
+	if !h.authorizer.HasWorkspacePermission(conn.UserID, conn.WorkspaceID, "conversations", "send", false) {
 		h.sendError(conn, "forbidden", "You don't have permission to change the conversation status")
 		return
 	}
 
-	if h.statusUpdater == nil {
-		h.sendError(conn, "not_configured", "Conversation status not configured")
-		return
-	}
-
-	currentStatus := h.statusUpdater.GetConversationStatus(p.EntryID, p.EntryType)
+	currentStatus := h.cmds().Status.GetConversationStatus(p.EntryID, p.EntryType)
 
 	if status == conversation.ConversationStatusNew {
 		h.sendConversationStatusError(
@@ -2545,13 +2377,8 @@ func (h *ConversationHub) handleSetConversationStatus(conn *WSConnection, payloa
 	}
 
 	if status == conversation.ConversationStatusFinished {
-		if h.personFinish == nil {
-			log.Printf("[ConversationHub] cannot finish %s (%s): the person finish use case is not wired", p.EntryID, p.EntryType)
-			h.sendError(conn, "not_configured", "Conversation status not configured")
-			return
-		}
 		entry := shared.EntryRef{EntryID: p.EntryID, EntryType: shared.EntryType(p.EntryType)}
-		if err := h.personFinish.Finish(context.Background(), connPerson(conn), conn.WorkspaceID, entry, p.OutcomeCode); err != nil {
+		if err := h.cmds().PersonFinish.Finish(context.Background(), connPerson(conn), conn.WorkspaceID, entry, p.OutcomeCode); err != nil {
 			if code, message, outcomes, handled := h.outcomeCaptureError(err, p); handled {
 				h.sendConversationOutcomeError(conn, code, message, p, currentStatus, outcomes)
 				return
@@ -2570,7 +2397,7 @@ func (h *ConversationHub) handleSetConversationStatus(conn *WSConnection, payloa
 			log.Printf("[ConversationHub] Error finishing conversation status for %s (%s): %v", p.EntryID, p.EntryType, err)
 			return
 		}
-	} else if err := h.statusUpdater.SetConversationStatus(p.EntryID, p.EntryType, status); err != nil {
+	} else if err := h.cmds().Status.SetConversationStatus(p.EntryID, p.EntryType, status); err != nil {
 		h.sendConversationStatusError(
 			conn,
 			"internal_error",
@@ -2623,11 +2450,6 @@ func (h *ConversationHub) handleSearchMessages(conn *WSConnection, payload json.
 		return
 	}
 
-	if h.messageRepo == nil {
-		h.sendError(conn, "not_configured", "Message repository not configured")
-		return
-	}
-
 	if p.Page <= 0 {
 		p.Page = 1
 	}
@@ -2655,10 +2477,8 @@ func (h *ConversationHub) handleSearchMessages(conn *WSConnection, payload json.
 			return
 		}
 
-		if h.historyProvider != nil {
-			for _, msg := range messages {
-				h.historyProvider.PresentMessage(p.EntryID, p.EntryType, msg)
-			}
+		for _, msg := range messages {
+			h.historyProvider.PresentMessage(p.EntryID, p.EntryType, msg)
 		}
 
 		totalPages := 0
@@ -2701,11 +2521,6 @@ func (h *ConversationHub) handleLoadEntryMatches(conn *WSConnection, payload jso
 
 	if !h.authorizer.CanAccessEntry(conn.UserID, conn.WorkspaceID, p.EntryID, p.EntryType, conn.IsAdmin) {
 		h.sendError(conn, "unauthorized", "You don't have access to this conversation")
-		return
-	}
-
-	if h.messageRepo == nil {
-		h.sendError(conn, "not_configured", "Message repository not configured")
 		return
 	}
 
@@ -2786,11 +2601,6 @@ func (h *ConversationHub) handleRequestFunnelColumn(conn *WSConnection, payload 
 		return
 	}
 
-	if h.inboxService == nil {
-		h.sendError(conn, "not_configured", "Inbox service not configured")
-		return
-	}
-
 	if p.Page <= 0 {
 		p.Page = 1
 	}
@@ -2831,7 +2641,7 @@ func (h *ConversationHub) handleRequestFunnelColumn(conn *WSConnection, payload 
 		if viewMode == "global" {
 			input.WorkspaceID = workspaceID
 		}
-		entries, totalItems, err := h.inboxService.SearchInbox(userID, input)
+		entries, totalItems, err := h.cmds().Inbox.SearchInbox(userID, input)
 
 		if err != nil {
 			log.Printf("[ConversationHub] Error fetching kanban column %s: %v", p.StageID, err)
@@ -2875,11 +2685,6 @@ func (h *ConversationHub) handleRequestFunnelSummary(conn *WSConnection, payload
 		return
 	}
 
-	if h.inboxService == nil {
-		h.sendError(conn, "not_configured", "Inbox service not configured")
-		return
-	}
-
 	userID := conn.UserID
 	departmentID := conn.DepartmentID
 	campaignID := conn.CampaignID
@@ -2892,46 +2697,31 @@ func (h *ConversationHub) handleRequestFunnelSummary(conn *WSConnection, payload
 	seq := conn.viewSeq
 
 	go func() {
-		type tagResult struct {
-			idx     int
-			StageID string
-			count   int64
+		input := conversation.SearchInboxInput{
+			UserID:               userID,
+			SelectedDepartmentID: departmentID,
+			CampaignID:           campaignID,
+			CampaignType:         campaignType,
+			WhatsAppCampaignType: whatsAppCampaignType,
+			ContainerKind:        conversation.ContainerKind(containerKind),
+			AssignedUserID:       userID,
+			IsAdmin:              isAdmin,
 		}
-
-		results := make(chan tagResult, len(p.StageIDs))
-		for i, StageID := range p.StageIDs {
-			go func(idx int, tid string) {
-				input := conversation.SearchInboxInput{
-					UserID:               userID,
-					SelectedDepartmentID: departmentID,
-					CampaignID:           campaignID,
-					CampaignType:         campaignType,
-					WhatsAppCampaignType: whatsAppCampaignType,
-					ContainerKind:        conversation.ContainerKind(containerKind),
-					StageID:              tid,
-					Page:                 1,
-					PageSize:             1,
-					AssignedUserID:       userID,
-					IsAdmin:              isAdmin,
-				}
-				if viewMode == "global" {
-					input.WorkspaceID = workspaceID
-				}
-				_, totalItems, err := h.inboxService.SearchInbox(userID, input)
-				if err != nil {
-					log.Printf("[ConversationHub] Error getting count for tag %s: %v", tid, err)
-					totalItems = 0
-				}
-				results <- tagResult{idx: idx, StageID: tid, count: totalItems}
-			}(i, StageID)
+		if viewMode == "global" {
+			input.WorkspaceID = workspaceID
+		}
+		counts, err := h.cmds().Inbox.CountInboxByStages(userID, input, p.StageIDs)
+		if err != nil {
+			log.Printf("[ConversationHub] Error counting kanban summary: %v", err)
+			h.sendError(conn, "fetch_error", "Failed to fetch kanban summary")
+			return
 		}
 
 		columns := make([]FunnelColumnSummary, len(p.StageIDs))
-		for range p.StageIDs {
-			r := <-results
-			columns[r.idx] = FunnelColumnSummary{
-				StageID:    r.StageID,
-				TotalItems: r.count,
+		for i, stageID := range p.StageIDs {
+			columns[i] = FunnelColumnSummary{
+				StageID:    stageID,
+				TotalItems: counts[stageID],
 			}
 		}
 
@@ -2963,11 +2753,6 @@ func (h *ConversationHub) handleReopenWindow(conn *WSConnection, payload json.Ra
 
 	if !h.authorizer.CanAccessEntry(conn.UserID, conn.WorkspaceID, p.EntryID, p.EntryType, conn.IsAdmin) {
 		h.sendError(conn, "unauthorized", "You don't have access to this entry")
-		return
-	}
-
-	if h.templateSender == nil {
-		h.sendError(conn, "not_configured", "Template sender not configured")
 		return
 	}
 
@@ -3006,13 +2791,8 @@ func (h *ConversationHub) handleAssignTo(conn *WSConnection, payload json.RawMes
 		return
 	}
 
-	if h.personAssign == nil {
-		h.sendError(conn, "not_configured", "Assignment service not configured")
-		return
-	}
-
 	by := shared.Person{UserID: conn.UserID, SystemAdmin: conn.IsAdmin}
-	err := h.personAssign.Assign(by, conn.WorkspaceID, p.EntryID, p.EntryType, p.UserID)
+	err := h.cmds().PersonAssign.Assign(by, conn.WorkspaceID, p.EntryID, p.EntryType, p.UserID)
 	switch {
 	case errors.Is(err, inbox_assignment.ErrAssignEntryAccess):
 		h.sendError(conn, "unauthorized", "You don't have access to this conversation")
@@ -3198,7 +2978,7 @@ func (h *ConversationHub) outcomeCaptureError(
 		return "", "", nil, false
 	}
 
-	reader, ok := h.statusUpdater.(interface {
+	reader, ok := h.cmds().Status.(interface {
 		OutcomeCapture(entryID, entryType string) (*conversation.OutcomeCapture, error)
 	})
 	if ok {
@@ -3210,10 +2990,7 @@ func (h *ConversationHub) outcomeCaptureError(
 }
 
 func (h *ConversationHub) SendTemplateForEntry(entryID, entryType, templateID string, parameters []string, userID, workspaceID string, isAdmin bool) (string, error) {
-	if h.templateSender == nil {
-		return "", fmt.Errorf("template sender not configured")
-	}
-	if h.authorizer != nil && !h.authorizer.CanAccessEntry(userID, workspaceID, entryID, entryType, isAdmin) {
+	if !h.authorizer.CanAccessEntry(userID, workspaceID, entryID, entryType, isAdmin) {
 		return "", fmt.Errorf("unauthorized: you don't have access to this entry")
 	}
 	return h.templateSender.SendTemplate(entryID, entryType, templateID, parameters, nil, userID, workspaceID)
@@ -3270,6 +3047,7 @@ type redisWorkspaceBroadcast struct {
 	WorkspaceID      string          `json:"w,omitempty"`
 	ExcludeUserID    string          `json:"x,omitempty"`
 	UserIDs          []string        `json:"ul,omitempty"`
+	CustomerMessage  bool            `json:"cm,omitempty"`
 	ReplicaID        string          `json:"r"`
 }
 
@@ -3313,16 +3091,16 @@ func (h *ConversationHub) deliverWorkspaceBroadcast(p redisWorkspaceBroadcast) {
 	case "label_update":
 		h.broadcastLabelUpdateLocal(p.StageWorkspaceID, p.EntryID, p.EntryType)
 	case "entry_update":
-		h.broadcastEntryUpdateLocal(p.EntryID, p.EntryType, nil, false)
+		h.broadcastEntryUpdateLocal(p.EntryID, p.EntryType, relayedChange(p.CustomerMessage))
 	case "entry_refresh":
-		h.broadcastEntryUpdateLocal(p.EntryID, p.EntryType, nil, true)
+		h.broadcastEntryUpdateLocal(p.EntryID, p.EntryType, entryRefreshed)
 	case "entry_removed":
 		h.broadcastEntryRemovedLocal(p.EntryID, p.EntryType, p.WorkspaceID, p.ExcludeUserID)
 	case "audience_analyzed":
 		h.sendToWorkspaceWithPermission(p.WorkspaceID, "audience", "read", p.Payload)
 	case leadUpdateBroadcastType:
 		h.deliverLeadUpdate(p.WorkspaceID, p.Payload)
-	case notificationCreatedBroadcastType, personalMarkBroadcastType, teamChatBroadcastType:
+	case notificationCreatedBroadcastType, personalMarkBroadcastType, teamChatBroadcastType, assignedToYouBroadcastType:
 		h.sendToUsers(p.WorkspaceID, p.UserIDs, p.Payload)
 	}
 }

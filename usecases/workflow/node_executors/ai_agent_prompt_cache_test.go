@@ -76,7 +76,7 @@ func lastAgentMessage(input ai.GenerateInput) string {
 func TestTheAgentNodeKeepsItsPrefixAcrossCalls(t *testing.T) {
 	recorder := &recordingAgentAI{}
 	transcript := &entryTranscript{history: agentNodeTranscript(60)}
-	executor := NewAIAgentExecutor(recorder, nil, transcript, nil, nil, nil)
+	executor := NewAIAgentExecutor(recorder, nil, transcript, nil, nil, nil, quietAttendance{})
 	state := workflow.NewRunState()
 	config := map[string]interface{}{"additional_context": "Pedido do cliente: {{pedido}}"}
 
@@ -122,7 +122,7 @@ func TestTheAgentNodeKeepsItsPrefixAcrossCalls(t *testing.T) {
 func TestTheAgentNodeHistoryWindowOnlyMovesInBlocks(t *testing.T) {
 	recorder := &recordingAgentAI{}
 	transcript := &entryTranscript{}
-	executor := NewAIAgentExecutor(recorder, nil, transcript, nil, nil, nil)
+	executor := NewAIAgentExecutor(recorder, nil, transcript, nil, nil, nil, quietAttendance{})
 	for _, total := range []int{60, 61, 62} {
 		transcript.history = agentNodeTranscript(total)
 		state := workflow.NewRunState()
@@ -139,7 +139,7 @@ func TestTheAgentNodeHistoryWindowOnlyMovesInBlocks(t *testing.T) {
 
 func TestTheAgentNodeSendsKnowledgeInTheNote(t *testing.T) {
 	recorder := &recordingAgentAI{}
-	executor := NewAIAgentExecutor(recorder, nil, &entryTranscript{history: agentNodeTranscript(5)}, nil, nil, knowledgeBase{})
+	executor := NewAIAgentExecutor(recorder, nil, &entryTranscript{history: agentNodeTranscript(5)}, nil, nil, knowledgeBase{}, quietAttendance{})
 	state := workflow.NewRunState()
 	if _, err := executor.Execute(agentNodeContext(&state, map[string]interface{}{"knowledge_base_ids": []interface{}{"kb-1"}})); err != nil {
 		t.Fatal(err)
@@ -158,7 +158,7 @@ func TestTheAgentNodeSendsKnowledgeInTheNote(t *testing.T) {
 
 func TestTheAgentNodeAlwaysEndsWithTheNote(t *testing.T) {
 	recorder := &recordingAgentAI{}
-	executor := NewAIAgentExecutor(recorder, nil, &entryTranscript{history: agentNodeTranscript(3)}, nil, nil, nil)
+	executor := NewAIAgentExecutor(recorder, nil, &entryTranscript{history: agentNodeTranscript(3)}, nil, nil, nil, quietAttendance{})
 	state := workflow.NewRunState()
 	if _, err := executor.Execute(agentNodeContext(&state, nil)); err != nil {
 		t.Fatal(err)

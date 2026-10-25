@@ -44,26 +44,33 @@ func (c *Container) initEmail() {
 		Prices:    prices,
 		Pricing:   emailpricing.NewHandler(prices),
 	}
-	c.startEmailSendingConsumer(sending)
 	c.startEmailHygiene(hygiene)
 	c.startEmailCampaignConsumer(campaigns)
 }
 
-func (c *Container) registerEmailJobs() {
+func (c *Container) emailJobs() cronJobs {
 	if c.email == nil || c.email.Sending == nil || c.email.Campaigns == nil || c.email.Hygiene == nil {
 		log.Fatalf("[email] jobs requested before email was built")
 	}
 	m := c.email.Sending.Module
-	c.jobRunner.SetEmailSendingJobs(m.Verification, m.Promotion, m.Deliverability)
-	c.jobRunner.SetEmailTenantRetirementJob(m.Dormancy)
-	c.jobRunner.SetEmailUnusedReleaseJob(m.UnusedRelease)
-	c.jobRunner.SetEmailReplySweepJob(m.ReplySweep)
-	c.registerEmailAPIJobs()
-	c.jobRunner.SetEmailSESLimitJobs(m.SendQuota, m.Capacity, m.HealthSweep)
 	campaigns := c.email.Campaigns.Campaigns
-	c.jobRunner.SetEmailCampaignJobs(cronPackage.CtxJobFunc(campaigns.StartScheduled), cronPackage.CtxJobFunc(campaigns.Tick))
 	hygiene := c.email.Hygiene
-	c.jobRunner.SetEmailHygieneJobs(hygiene.Domains, hygiene.Disposable, hygiene.Pruner)
+	return mergeJobs(cronJobs{
+		"email_domain_verification":      cronPackage.Executes(m.Verification),
+		"email_promotion_sweep":          cronPackage.Executes(m.Promotion),
+		"email_deliverability_sweep":     cronPackage.Executes(m.Deliverability),
+		"email_tenant_retirement_sweep":  cronPackage.Executes(m.Dormancy),
+		"email_unused_account_release":   cronPackage.Executes(m.UnusedRelease),
+		"email_reply_sweep":              cronPackage.Executes(m.ReplySweep),
+		"email_ses_send_quota_refresh":   cronPackage.Executes(m.SendQuota),
+		"email_ses_capacity_check":       cronPackage.Executes(m.Capacity),
+		"email_tenant_health_sweep":      cronPackage.Executes(m.HealthSweep),
+		"email_campaign_scheduled_start": cronPackage.Method(campaigns, campaigns.StartScheduled),
+		"email_campaign_tick":            cronPackage.Method(campaigns, campaigns.Tick),
+		"email_domain_checks":            cronPackage.Executes(hygiene.Domains),
+		"email_disposable_refresh":       cronPackage.Executes(hygiene.Disposable),
+		"email_hygiene_prune":            cronPackage.Executes(hygiene.Pruner),
+	}, c.emailAPIJobs())
 }
 
 func emailRoutes(c *Container) deliveryHttp.EmailRoutes {

@@ -7,6 +7,7 @@ import (
 
 	ca "vozko/domain/audience"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 )
 
 const (
@@ -108,18 +109,41 @@ type RollupJob struct {
 	rollups  ca.RollupRepository
 	state    lastRunStore
 	clock    ca.Clock
-	roles    *RoleInferenceJob
+	roles    RoleInferrer
 }
 
-func (j *RollupJob) SetRoleInference(roles *RoleInferenceJob) { j.roles = roles }
+type RoleInferrer interface {
+	RunAccount(ctx context.Context, source ca.Source, accountID string) int
+}
 
 type lastRunStore interface {
 	GetString(key string) (string, error)
 	SetString(key string, value string, ttl time.Duration) error
 }
 
-func NewRollupJob(repo ca.Repository, settings ca.SettingsRepository, authors ca.AuthorRepository, rollups ca.RollupRepository, state lastRunStore, clock ca.Clock) *RollupJob {
-	return &RollupJob{repo: repo, settings: settings, authors: authors, rollups: rollups, state: state, clock: clock}
+type RollupDeps struct {
+	Repo     ca.Repository
+	Settings ca.SettingsRepository
+	Authors  ca.AuthorRepository
+	Rollups  ca.RollupRepository
+	State    lastRunStore
+	Clock    ca.Clock
+	Roles    RoleInferrer
+}
+
+func NewRollupJob(d RollupDeps) (*RollupJob, error) {
+	if err := deps.Require("audience rollup", map[string]any{
+		"repository":     d.Repo,
+		"settings":       d.Settings,
+		"authors":        d.Authors,
+		"rollups":        d.Rollups,
+		"last run store": d.State,
+		"clock":          d.Clock,
+		"role inference": d.Roles,
+	}); err != nil {
+		return nil, err
+	}
+	return &RollupJob{repo: d.Repo, settings: d.Settings, authors: d.Authors, rollups: d.Rollups, state: d.State, clock: d.Clock, roles: d.Roles}, nil
 }
 
 func (j *RollupJob) Execute(ctx context.Context) error {
@@ -160,9 +184,7 @@ func (j *RollupJob) Execute(ctx context.Context) error {
 		if err := j.authors.UpsertMany(ctx, authors); err != nil {
 			return err
 		}
-		if j.roles != nil {
-			j.roles.RunAccount(ctx, s.Source, s.AccountID)
-		}
+		j.roles.RunAccount(ctx, s.Source, s.AccountID)
 	}
 
 	if err := j.state.SetString(rollupLastRunKey, now.UTC().Format(time.RFC3339), 0); err != nil {

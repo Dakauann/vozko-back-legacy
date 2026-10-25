@@ -48,11 +48,10 @@ func TestAGroupCampaignNeedsPermissionToSeeTheGroups(t *testing.T) {
 	}{
 		{"allowed", groupsAccess{allowed: true}, http.StatusCreated},
 		{"denied", groupsAccess{}, http.StatusForbidden},
-		{"not wired", nil, http.StatusForbidden},
 	}
 	for _, tc := range cases {
 		create := &recordingCreate{}
-		h := NewCampaignHandler(CampaignHandlerDeps{Create: create, Departments: openScope{}, Permissions: tc.permissions})
+		h := campaignHandler(CampaignHandlerDeps{Create: create, Departments: openScope{}, Permissions: tc.permissions})
 		w := createGroupCampaign(h)
 		if w.Code != tc.want || create.called != (tc.want == http.StatusCreated) {
 			t.Errorf("%s: status %d created %v, want %d", tc.name, w.Code, create.called, tc.want)

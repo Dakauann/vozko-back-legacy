@@ -9,7 +9,6 @@ import (
 	buttonaction_repository "vozko/infra/repositories/buttonaction"
 	calllist_repository "vozko/infra/repositories/calllist"
 	buttonaction_usecase "vozko/usecases/buttonaction"
-	wc_usecase "vozko/usecases/whatsapp_campaign"
 )
 
 const buttonActionComputeTimeout = 5 * time.Second
@@ -31,27 +30,13 @@ func (c *Container) buttonActions() *buttonaction_usecase.Service {
 		Permissions: c.services.conversationAuthImpl,
 		Memo:        redisCache.NewSharedStateMemo(shared, buttonActionComputeTimeout),
 		Versions:    redisCache.NewSharedStateVersions(shared, "buttonactions"),
+		Editor:      c.templateContentEditor(),
 	})
 	if err != nil {
 		log.Fatalf("[button-actions] %v", err)
 	}
 	c.buttonActionService = service
 	return service
-}
-
-func (c *Container) wireButtonActions() {
-	service := c.buttonActions()
-	gated, ok := c.useCases.createWCCampaign.(interface {
-		SetExitRiskGate(wc_usecase.ExitRiskGate)
-	})
-	if !ok {
-		log.Fatalf("[button-actions] the official campaign creation cannot take the exit risk gate")
-	}
-	gated.SetExitRiskGate(service)
-	if c.handlers == nil || c.handlers.whatsappTemplate == nil {
-		log.Fatalf("[button-actions] the template handler must exist before the exit guard is wired")
-	}
-	c.handlers.whatsappTemplate.SetExitGuardedCreator(service)
 }
 
 func (c *Container) buttonActionHandler() *buttonactionhttp.Handler {

@@ -40,7 +40,7 @@ func TestWorkflowAIAttendanceIsRecordedOnTheConversationsOwnChannel(t *testing.T
 func TestTheAgentNodeRefusesARunWithoutAnEntryType(t *testing.T) {
 	for _, entryType := range []string{"", "   "} {
 		service := &recordingAgentAI{}
-		executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil)
+		executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{})
 		state := workflow.NewRunState()
 		ctx := agentNodeContext(&state, nil)
 		ctx.Run.EntryType = entryType

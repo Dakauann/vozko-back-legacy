@@ -282,7 +282,7 @@ func (r *repository) ListRecentlyUpdated(campaignID string, limit int) ([]wce.Wh
 	}
 
 	var schemaEntries []schema.WhatsAppCampaignEntry
-	if err := r.db.Where("campaign_id = ?", campaignID).Order("updated_at DESC").Limit(limit).Find(&schemaEntries).Error; err != nil {
+	if err := r.db.Where("campaign_id = ?", campaignID).Order(recentEntriesOrder).Limit(limit).Find(&schemaEntries).Error; err != nil {
 		return nil, err
 	}
 

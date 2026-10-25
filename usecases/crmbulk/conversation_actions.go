@@ -2,7 +2,6 @@ package crmbulk_usecase
 
 import (
 	"context"
-	"errors"
 
 	"vozko/domain/conversation"
 	"vozko/domain/shared"
@@ -12,8 +11,6 @@ const (
 	ActionClose    = "close"
 	ActionMarkRead = "mark_read"
 )
-
-var ErrActionUnavailable = errors.New("crmbulk: this bulk action is not available on this server")
 
 type ReadMarker interface {
 	MarkAsRead(entryID string, entryType shared.EntryType, messageIDs []string, userID string) error
@@ -27,20 +24,6 @@ type ConversationActions struct {
 	Finish   conversation.PersonFinishUseCase
 	Read     ReadMarker
 	Personal PersonalMarks
-}
-
-func (s *Service) SetConversationActions(actions ConversationActions) {
-	s.conversations = actions
-}
-
-func (s *Service) conversationActionAvailable(action string) bool {
-	switch action {
-	case ActionClose:
-		return s.conversations.Finish != nil
-	case ActionMarkRead:
-		return s.conversations.Read != nil && s.conversations.Personal != nil
-	}
-	return true
 }
 
 func (s *Service) applyConversationAction(ctx context.Context, in BulkInput, t EntryRef) error {

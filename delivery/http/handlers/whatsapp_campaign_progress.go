@@ -10,11 +10,6 @@ import (
 	wc "vozko/domain/whatsapp_campaign"
 )
 
-func (h *WhatsAppCampaignHandler) SetLive(progress campaign.ProgressUseCase, timeline campaign.TimelineUseCase) {
-	h.progress = progress
-	h.timeline = timeline
-}
-
 func liveOfOfficial(c *wc.Campaign) campaign.LiveCampaign {
 	return campaign.LiveCampaign{ID: c.ID, WorkspaceID: c.WorkspaceID, DepartmentID: c.DepartmentID, Status: c.Status}
 }

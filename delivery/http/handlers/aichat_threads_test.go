@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"vozko/domain/aichat"
-	"vozko/usecases/agentloop"
 	aichat_usecase "vozko/usecases/aichat"
 	copilot_usecase "vozko/usecases/copilot"
 )
@@ -37,10 +36,9 @@ func (r *refusingProjects) BindProject(string, string) (bool, error) {
 }
 
 func threadsHandler(threads aichat.ThreadRepository) (*AIChatHandler, *copilot_usecase.Service, *refusingProjects) {
-	copilot := copilot_usecase.NewService(agentloop.Engine{}, copilot_usecase.NewRegistry(), nil, nil, threads, turnMessages{}, nil, nil, nil)
-	chats := aichat_usecase.NewService(threads, turnMessages{}, nil, aichat_usecase.NewFundsGate(fundedBalance{}, activePlan{}))
+	copilot := copilotService(copilot_usecase.Deps{Threads: threads})
 	projects := &refusingProjects{}
-	chats.SetThreadProjects(projects)
+	chats := chatService(aichat_usecase.Deps{Threads: threads, Projects: projects})
 	return NewAIChatHandler(chats, copilot), copilot, projects
 }
 

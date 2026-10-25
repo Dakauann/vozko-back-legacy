@@ -22,7 +22,7 @@ func TestFinishingAConversationCancelsTheRunsItsAgentStarted(t *testing.T) {
 	repo := &outcomeEntryRepo{status: string(conversation.ConversationStatusOngoing)}
 	svc := outcomeServiceWith(t, repo, nil)
 	runs := &agentRunCancellerSpy{}
-	svc.SetAgentRunCanceller(runs)
+	svc.agentRuns = runs
 
 	if err := svc.Finish("entry-1", string(shared.EntryTypeWhatsApp), conversation.FinishOptions{Source: conversation.CloseSourceHuman}); err != nil {
 		t.Fatal(err)
@@ -36,14 +36,14 @@ func TestOnlyAFinishCancelsAgentRuns(t *testing.T) {
 	repo := &outcomeEntryRepo{status: string(conversation.ConversationStatusNew)}
 	svc := outcomeServiceWith(t, repo, nil)
 	runs := &agentRunCancellerSpy{}
-	svc.SetAgentRunCanceller(runs)
+	svc.agentRuns = runs
 
 	if err := svc.SetConversationStatus("entry-1", string(shared.EntryTypeWhatsApp), conversation.ConversationStatusOngoing); err != nil {
 		t.Fatal(err)
 	}
 	finished := &outcomeEntryRepo{status: string(conversation.ConversationStatusFinished)}
 	again := outcomeServiceWith(t, finished, nil)
-	again.SetAgentRunCanceller(runs)
+	again.agentRuns = runs
 	if err := again.Finish("entry-1", string(shared.EntryTypeWhatsApp), conversation.FinishOptions{}); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestOnlyAFinishCancelsAgentRuns(t *testing.T) {
 func TestACancelFailureNeverBlocksTheFinish(t *testing.T) {
 	repo := &outcomeEntryRepo{status: string(conversation.ConversationStatusOngoing)}
 	svc := outcomeServiceWith(t, repo, nil)
-	svc.SetAgentRunCanceller(&agentRunCancellerSpy{err: errors.New("db down")})
+	svc.agentRuns = &agentRunCancellerSpy{err: errors.New("db down")}
 
 	if err := svc.Finish("entry-1", string(shared.EntryTypeWhatsApp), conversation.FinishOptions{}); err != nil {
 		t.Fatalf("the finish must stand: %v", err)

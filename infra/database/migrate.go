@@ -34,7 +34,23 @@ func RunMigrations(db *gorm.DB) error {
 			return err
 		}
 
-		if err := tx.AutoMigrate(
+		for _, models := range autoMigratedModels() {
+			if err := tx.AutoMigrate(models...); err != nil {
+				return err
+			}
+		}
+
+		if err := runDataRepairs(tx); err != nil {
+			return err
+		}
+
+		return createSchemaConstraints(tx)
+	})
+}
+
+func autoMigratedModels() [][]any {
+	return [][]any{
+		{
 			&schema.Agent{},
 			&schema.ConversationMessage{},
 			&schema.UnattributedServiceMessage{},
@@ -121,6 +137,7 @@ func RunMigrations(db *gorm.DB) error {
 			&schema.WorkspaceResourceAssignment{},
 			&schema.InboxAssignment{},
 			&schema.InboxRoundRobinState{},
+			&schema.ConversationDepartmentRoute{},
 			&schema.KnowledgeBase{},
 			&schema.RAGDocument{},
 			&schema.RAGChunk{},
@@ -143,6 +160,9 @@ func RunMigrations(db *gorm.DB) error {
 			&schema.WorkflowWebhookSchema{},
 			&schema.WorkflowWebhookDeliverySchema{},
 			&schema.AIToolCallSchema{},
+			&schema.AgentRunSchema{},
+			&schema.AgentScenarioSchema{},
+			&schema.AgentScenarioRunSchema{},
 			&schema.WorkflowRuntimeAlertSchema{},
 			&schema.WorkflowSecret{},
 			&schema.BuilderSessionSchema{},
@@ -278,62 +298,19 @@ func RunMigrations(db *gorm.DB) error {
 			&schema.NotificationPreference{},
 			&schema.NotificationBroadcast{},
 			&schema.NotificationEpisode{},
-		); err != nil {
-			return err
-		}
-
-		if err := tx.AutoMigrate(schema.TikTokModels()...); err != nil {
-			return err
-		}
-
-		if err := tx.AutoMigrate(schema.EmailSendingModels()...); err != nil {
-			return err
-		}
-
-		if err := tx.AutoMigrate(schema.EmailCampaignModels()...); err != nil {
-			return err
-		}
-
-		if err := tx.AutoMigrate(schema.EmailInboxModels()...); err != nil {
-			return err
-		}
-
-		if err := tx.AutoMigrate(schema.EmailAPIModels()...); err != nil {
-			return err
-		}
-
-		if err := tx.AutoMigrate(schema.CarrierMessagingModels()...); err != nil {
-			return err
-		}
-
-		if err := tx.AutoMigrate(schema.CarrierCampaignModels()...); err != nil {
-			return err
-		}
-
-		if err := tx.AutoMigrate(schema.CampaignDraftModels()...); err != nil {
-			return err
-		}
-
-		if err := tx.AutoMigrate(schema.CampaignAudienceModels()...); err != nil {
-			return err
-		}
-
-		if err := tx.AutoMigrate(schema.GoogleModels()...); err != nil {
-			return err
-		}
-
-		if err := tx.AutoMigrate(schema.GoogleSheetModels()...); err != nil {
-			return err
-		}
-
-		if err := tx.AutoMigrate(schema.ChoiceStatsModels()...); err != nil {
-			return err
-		}
-
-		if err := runDataRepairs(tx); err != nil {
-			return err
-		}
-
-		return createSchemaConstraints(tx)
-	})
+		},
+		schema.TikTokModels(),
+		schema.EmailSendingModels(),
+		schema.EmailCampaignModels(),
+		schema.EmailInboxModels(),
+		schema.EmailAPIModels(),
+		schema.CarrierMessagingModels(),
+		schema.CarrierCampaignModels(),
+		schema.CampaignDraftModels(),
+		schema.CampaignAudienceModels(),
+		schema.GoogleModels(),
+		schema.GoogleSheetModels(),
+		schema.ChoiceStatsModels(),
+		schema.AgentToolModels(),
+	}
 }

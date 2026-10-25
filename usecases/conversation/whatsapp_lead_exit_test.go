@@ -27,7 +27,7 @@ func sairTap() *conversation.WhatsAppMessage {
 }
 
 func TestATemplateTapKeepsItsPayloadTextAndContextOnTheStoredMessage(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	record := uc.inboundTextRecord(sairTap(), inboundTarget{entryID: "entry-1", entryType: shared.EntryTypeWhatsApp}, nil)
 
 	if record.Text != "SAIR" {
@@ -46,7 +46,7 @@ func TestATemplateTapKeepsItsPayloadTextAndContextOnTheStoredMessage(t *testing.
 }
 
 func TestAnInteractiveReplyKeepsItsChoiceAndALocationKeepsItsCoordinates(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	reply := &conversation.WhatsAppMessage{From: "5511987654321", ID: "wamid.r", Text: &conversation.WhatsAppTextMessage{Body: "Sim"},
 		Interactive: &conversation.WhatsAppInteractive{Type: "button_reply", ButtonReply: &conversation.WhatsAppButtonReply{ID: "yes", Title: "Sim"}}}
 	got := uc.inboundTextRecord(reply, inboundTarget{entryID: "e"}, nil).InteractiveReply
@@ -120,7 +120,7 @@ func exitTarget() whatsAppExitTarget {
 
 func TestATemplateTapReachesTheExitStepWithEverythingItNeeds(t *testing.T) {
 	step := &capturingExitStep{result: leadexit.Result{OptedOut: true}}
-	uc := &handleWhatsAppMessageUseCase{exitStep: step}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{exitStep: step})
 
 	result, err := uc.runLeadExit(context.Background(), sairTap(), exitTarget())
 
@@ -142,7 +142,7 @@ func TestTheConfirmationGoesOutThroughTheConversationsOwnSender(t *testing.T) {
 	client := &fallbackPolicyWhatsAppClient{}
 	history := &capturedHistory{}
 	step := &capturingExitStep{reply: "Entendido."}
-	uc := &handleWhatsAppMessageUseCase{exitStep: step, whatsappClientFactory: stubAudioClientFactory{client: client}, historyManager: history}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{exitStep: step, whatsappClientFactory: stubAudioClientFactory{client: client}, historyManager: history})
 
 	if _, err := uc.runLeadExit(context.Background(), sairTap(), exitTarget()); err != nil {
 		t.Fatal(err)
@@ -169,8 +169,8 @@ func (refusingBilling) AllowSend(string) error { return errors.New("no balance")
 func TestAConfirmationTheWorkspaceCannotPayForIsNotSent(t *testing.T) {
 	client := &fallbackPolicyWhatsAppClient{}
 	step := &capturingExitStep{reply: "Entendido."}
-	uc := &handleWhatsAppMessageUseCase{exitStep: step, whatsappClientFactory: stubAudioClientFactory{client: client}, historyManager: &capturedHistory{},
-		serviceMessageBilling: refusingBilling{}}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{exitStep: step, whatsappClientFactory: stubAudioClientFactory{client: client}, historyManager: &capturedHistory{},
+		serviceMessageBilling: refusingBilling{}})
 
 	if _, err := uc.runLeadExit(context.Background(), sairTap(), exitTarget()); err == nil {
 		t.Fatal("the step must see the refusal")
@@ -180,16 +180,9 @@ func TestAConfirmationTheWorkspaceCannotPayForIsNotSent(t *testing.T) {
 	}
 }
 
-func TestWithoutTheExitStepTheInboundFailsClosed(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
-	if _, err := uc.runLeadExit(context.Background(), sairTap(), exitTarget()); !errors.Is(err, errLeadExitStepMissing) {
-		t.Fatalf("got %v", err)
-	}
-}
-
 func TestAMessageOutsideAKnownConversationIsNotChecked(t *testing.T) {
 	step := &capturingExitStep{}
-	uc := &handleWhatsAppMessageUseCase{exitStep: step}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{exitStep: step})
 	target := exitTarget()
 	target.entryID = ""
 
@@ -199,7 +192,7 @@ func TestAMessageOutsideAKnownConversationIsNotChecked(t *testing.T) {
 }
 
 func TestAStepFailureFailsTheInboundSoItIsRetried(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{exitStep: &capturingExitStep{err: errors.New("database down")}}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{exitStep: &capturingExitStep{err: errors.New("database down")}})
 	if _, err := uc.runLeadExit(context.Background(), sairTap(), exitTarget()); err == nil {
 		t.Fatal("want the error")
 	}
@@ -237,7 +230,7 @@ func (r triggerRows) GetByWhatsAppMessageID(wamid string) (*conversation.Message
 
 func TestTheWorkflowRunNamesTheStoredInboundRowAndTheTappedButton(t *testing.T) {
 	ev := &recordingEvaluator{}
-	uc := &handleWhatsAppMessageUseCase{triggerEvaluator: ev, messageRepo: triggerRows{rows: map[string]string{"wamid.in": "row-1"}}}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{triggerEvaluator: ev, messageRepo: triggerRows{rows: map[string]string{"wamid.in": "row-1"}}})
 	actx := exitTarget().agentCtx
 	actx.automation = conversation.ChannelAutomation{EnableWorkflow: true}
 
@@ -256,7 +249,7 @@ func TestTheWorkflowRunNamesTheStoredInboundRowAndTheTappedButton(t *testing.T) 
 
 func TestTheExitStepNamesTheStoredInboundRowForAWorkflowItStarts(t *testing.T) {
 	step := &capturingExitStep{}
-	uc := &handleWhatsAppMessageUseCase{exitStep: step, messageRepo: triggerRows{rows: map[string]string{"wamid.in": "row-1"}}}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{exitStep: step, messageRepo: triggerRows{rows: map[string]string{"wamid.in": "row-1"}}})
 
 	if _, err := uc.runLeadExit(context.Background(), sairTap(), exitTarget()); err != nil {
 		t.Fatal(err)

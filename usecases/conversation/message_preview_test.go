@@ -7,7 +7,7 @@ import (
 )
 
 func TestStoryEventsGetAReadablePreview(t *testing.T) {
-	s := &HistoryProviderService{}
+	s := historyWith(HistoryProviderService{})
 	cases := map[conversation.MessageType]string{
 		conversation.MessageTypeStoryMention: "[menção em story]",
 		conversation.MessageTypeStoryReply:   "[resposta a story]",
@@ -24,7 +24,7 @@ func TestStoryEventsGetAReadablePreview(t *testing.T) {
 }
 
 func TestARetractedLastMessageNeverLeaksIntoThePreview(t *testing.T) {
-	s := &HistoryProviderService{}
+	s := historyWith(HistoryProviderService{})
 	retracted := conversation.EntryWithLastMessage{
 		LastMessageType: conversation.MessageTypeMedia, LastMessageText: "segredo", HasMedia: true, MediaType: conversation.MediaTypeImage,
 		LastMessageRetracted: true,
@@ -35,7 +35,7 @@ func TestARetractedLastMessageNeverLeaksIntoThePreview(t *testing.T) {
 }
 
 func TestARetractedLastMessageIsNoLongerShownAsMedia(t *testing.T) {
-	s := &HistoryProviderService{}
+	s := historyWith(HistoryProviderService{})
 	retracted := conversation.EntryWithLastMessage{HasMedia: true, MediaType: conversation.MediaTypeImage, LastMessageRetracted: true}
 	if got := s.getDisplayMessageType(retracted); got != "text" {
 		t.Fatalf("type = %q", got)

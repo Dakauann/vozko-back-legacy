@@ -20,7 +20,7 @@ func connectFixture(status uw.Status) (*fakeInstanceRepo, *fakeServerRepo, *uw.I
 func TestConnectAttachesTheProvidersOwnDeadline(t *testing.T) {
 	t.Run("qr", func(t *testing.T) {
 		instances, servers, _ := connectFixture(uw.StatusDisconnected)
-		uc := NewConnectInstanceUseCase(instances, servers, &fakeProvider{})
+		uc := connectFor(instances, servers, &fakeProvider{})
 
 		challenge, err := uc.Connect(context.Background(), ConnectRequest{
 			InstanceID: "inst-1", WorkspaceID: "ws-1", Mode: uw.ConnectModeQR,
@@ -46,7 +46,7 @@ func TestConnectAttachesTheProvidersOwnDeadline(t *testing.T) {
 				return &uw.Session{State: "connecting", PairCode: "1234-5678"}, nil
 			},
 		}
-		uc := NewConnectInstanceUseCase(instances, servers, provider)
+		uc := connectFor(instances, servers, provider)
 
 		challenge, err := uc.Connect(context.Background(), ConnectRequest{
 			InstanceID: "inst-1", WorkspaceID: "ws-1",
@@ -66,7 +66,7 @@ func TestConnectAttachesTheProvidersOwnDeadline(t *testing.T) {
 
 func TestConnectRecordsAwaitingScan(t *testing.T) {
 	instances, servers, instance := connectFixture(uw.StatusDisconnected)
-	uc := NewConnectInstanceUseCase(instances, servers, &fakeProvider{})
+	uc := connectFor(instances, servers, &fakeProvider{})
 
 	if _, err := uc.Connect(context.Background(), ConnectRequest{
 		InstanceID: "inst-1", WorkspaceID: "ws-1",
@@ -88,7 +88,7 @@ func TestConnectRecordsAwaitingScan(t *testing.T) {
 func TestConnectRefusesABannedNumber(t *testing.T) {
 	instances, servers, _ := connectFixture(uw.StatusBanned)
 	provider := &fakeProvider{}
-	uc := NewConnectInstanceUseCase(instances, servers, provider)
+	uc := connectFor(instances, servers, provider)
 
 	_, err := uc.Connect(context.Background(), ConnectRequest{InstanceID: "inst-1", WorkspaceID: "ws-1"})
 	if !errors.Is(err, uw.ErrStatusTransition) {
@@ -101,7 +101,7 @@ func TestConnectRefusesABannedNumber(t *testing.T) {
 
 func TestConnectEnforcesTenancy(t *testing.T) {
 	instances, servers, _ := connectFixture(uw.StatusDisconnected)
-	uc := NewConnectInstanceUseCase(instances, servers, &fakeProvider{})
+	uc := connectFor(instances, servers, &fakeProvider{})
 
 	_, err := uc.Connect(context.Background(), ConnectRequest{
 		InstanceID: "inst-1", WorkspaceID: "another-workspace",
@@ -113,7 +113,7 @@ func TestConnectEnforcesTenancy(t *testing.T) {
 
 func TestStatusPromotesToConnectedAndCapturesIdentity(t *testing.T) {
 	instances, servers, instance := connectFixture(uw.StatusAwaitingScan)
-	uc := NewConnectInstanceUseCase(instances, servers, &fakeProvider{})
+	uc := connectFor(instances, servers, &fakeProvider{})
 
 	if _, err := uc.Status(context.Background(), "inst-1", "ws-1", uw.Unrestricted()); err != nil {
 		t.Fatalf("Status: %v", err)
@@ -140,7 +140,7 @@ func TestStatusIgnoresAnUnknownProviderState(t *testing.T) {
 			return &uw.Session{State: "quantum_superposition", Connected: false}, nil
 		},
 	}
-	uc := NewConnectInstanceUseCase(instances, servers, provider)
+	uc := connectFor(instances, servers, provider)
 
 	if _, err := uc.Status(context.Background(), "inst-1", "ws-1", uw.Unrestricted()); err != nil {
 		t.Fatalf("Status: %v", err)
@@ -164,7 +164,7 @@ func TestStatusDoesNotBlankAKnownIdentity(t *testing.T) {
 			return &uw.Session{State: "disconnected"}, nil
 		},
 	}
-	uc := NewConnectInstanceUseCase(instances, servers, provider)
+	uc := connectFor(instances, servers, provider)
 
 	if _, err := uc.Status(context.Background(), "inst-1", "ws-1", uw.Unrestricted()); err != nil {
 		t.Fatalf("Status: %v", err)
@@ -184,7 +184,7 @@ func TestStatusRecordsAHostThatNoLongerKnowsTheInstance(t *testing.T) {
 			return nil, &uw.ProviderError{HTTPStatus: 401, Message: "invalid token"}
 		},
 	}
-	uc := NewConnectInstanceUseCase(instances, servers, provider)
+	uc := connectFor(instances, servers, provider)
 
 	if _, err := uc.Status(context.Background(), "inst-1", "ws-1", uw.Unrestricted()); err != nil {
 		t.Fatalf("a lost session is a state, not a request failure: %v", err)
@@ -201,7 +201,7 @@ func TestDisconnectToleratesAnAlreadyGoneSession(t *testing.T) {
 			return &uw.ProviderError{HTTPStatus: 401}
 		},
 	}
-	uc := NewConnectInstanceUseCase(instances, servers, provider)
+	uc := connectFor(instances, servers, provider)
 
 	if err := uc.Disconnect(context.Background(), "inst-1", "ws-1", uw.Unrestricted()); err != nil {
 		t.Fatalf("Disconnect: %v", err)
@@ -216,7 +216,7 @@ func TestDisconnectSurfacesARealFailure(t *testing.T) {
 	provider := &fakeProvider{
 		DisconnectFn: func(context.Context, uw.InstanceRef) error { return errBoom },
 	}
-	uc := NewConnectInstanceUseCase(instances, servers, provider)
+	uc := connectFor(instances, servers, provider)
 
 	if err := uc.Disconnect(context.Background(), "inst-1", "ws-1", uw.Unrestricted()); err == nil {
 		t.Fatal("a transport failure must surface")
@@ -237,7 +237,7 @@ func TestRotateDeliveryTokenPersistsBeforeReRegistering(t *testing.T) {
 			return nil
 		},
 	}
-	provision := NewProvisionInstanceUseCase(servers, instances, provider, testWebhookBase)
+	provision := provisionFor(servers, instances, provider, testWebhookBase)
 	uc := NewRotateDeliveryTokenUseCase(instances, servers, provision)
 
 	rotated, err := uc.Execute(context.Background(), "inst-1", "ws-1", uw.Unrestricted())

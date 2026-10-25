@@ -297,7 +297,9 @@ func (s *opStubBilling) ChargeDelivered(string, conversation.DeliveryReceipt, st
 	return nil
 }
 
-func (s *opStubBilling) RecordUnattributed(string, string, conversation.DeliveryReceipt) error { return nil }
+func (s *opStubBilling) RecordUnattributed(string, string, conversation.DeliveryReceipt) error {
+	return nil
+}
 
 func TestOperatorSendRefusesWhatTheWorkspaceCannotPayFor(t *testing.T) {
 	f := newOperatorSendFixture(t, &user.User{ID: "user-1", Username: "Ana"}, nil)

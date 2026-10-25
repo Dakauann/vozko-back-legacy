@@ -30,7 +30,7 @@ func signalPayload(field string, at int64, v template.TemplateWebhookValue) *tem
 
 func TestQualityUpdateIsRecordedAtTheMomentMetaReports(t *testing.T) {
 	recorder := &fakeQualityRecorder{}
-	uc := NewHandleTemplateWebhook(newMockTemplateRepo(), recorder)
+	uc := templateWebhook(newMockTemplateRepo(), recorder, &recordingHealthSignals{})
 
 	payload := signalPayload(template.FieldMessageTemplateQualityUpdate, 1791990878, template.TemplateWebhookValue{
 		MessageTemplateID: 2096955574574516, MessageTemplateName: "refiliaxao_taxa_zero_correta",
@@ -57,7 +57,7 @@ func TestQualityUpdateIsRecordedAtTheMomentMetaReports(t *testing.T) {
 func TestQualityUpdateIsStoredOnTheTemplate(t *testing.T) {
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "2096955574574516", "waba1", "refiliaxao_taxa_zero_correta", template.TemplateStatusApproved, template.TemplateCategoryUtility)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{})
+	uc := templateWebhook(repo, &fakeQualityRecorder{}, &recordingHealthSignals{})
 
 	err := uc.Execute(signalPayload(template.FieldMessageTemplateQualityUpdate, 1791990878, template.TemplateWebhookValue{
 		MessageTemplateID: 2096955574574516, PreviousQualityScore: "YELLOW", NewQualityScore: "red",
@@ -72,7 +72,7 @@ func TestStatusAndCategoryUpdatesAreRecordedButComponentsAreNot(t *testing.T) {
 	recorder := &fakeQualityRecorder{}
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "2426430047838385", "waba1", "todas_as_reguas", template.TemplateStatusApproved, template.TemplateCategoryUtility)
-	uc := NewHandleTemplateWebhook(repo, recorder)
+	uc := templateWebhook(repo, recorder, &recordingHealthSignals{})
 
 	for _, payload := range []*template.TemplateWebhookPayload{
 		signalPayload(template.FieldMessageTemplateStatusUpdate, 1791986661, template.TemplateWebhookValue{MessageTemplateID: 2426430047838385, Event: "paused"}),
@@ -102,7 +102,7 @@ func TestAFailedRecordingIsReturnedSoTheEventIsRetried(t *testing.T) {
 	boom := errors.New("db down")
 	repo := newMockTemplateRepo()
 	seedTemplate(repo, "t1", "1902934413754004", "waba1", "regua_2oumais", template.TemplateStatusApproved, template.TemplateCategoryUtility)
-	uc := NewHandleTemplateWebhook(repo, &fakeQualityRecorder{err: boom})
+	uc := templateWebhook(repo, &fakeQualityRecorder{err: boom}, &recordingHealthSignals{})
 
 	err := uc.Execute(signalPayload(template.FieldMessageTemplateStatusUpdate, 1791986661, template.TemplateWebhookValue{MessageTemplateID: 1902934413754004, Event: "PAUSED"}))
 
@@ -116,7 +116,7 @@ func TestAFailedRecordingIsReturnedSoTheEventIsRetried(t *testing.T) {
 
 func TestAnEventWithoutTemplateIDIsNotRecorded(t *testing.T) {
 	recorder := &fakeQualityRecorder{}
-	uc := NewHandleTemplateWebhook(newMockTemplateRepo(), recorder)
+	uc := templateWebhook(newMockTemplateRepo(), recorder, &recordingHealthSignals{})
 
 	if err := uc.Execute(signalPayload(template.FieldMessageTemplateQualityUpdate, 1, template.TemplateWebhookValue{NewQualityScore: "RED"})); err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -134,8 +134,7 @@ func (r *recordingHealthSignals) TemplateChanged(externalID string) {
 
 func TestQualityStatusAndCategoryChangesAreSignalledAfterTheyAreRecorded(t *testing.T) {
 	signals := &recordingHealthSignals{}
-	uc := NewHandleTemplateWebhook(newMockTemplateRepo(), &fakeQualityRecorder{})
-	uc.(HealthSignalling).SetHealthSignals(signals)
+	uc := templateWebhook(newMockTemplateRepo(), &fakeQualityRecorder{}, signals)
 
 	for _, field := range []string{template.FieldMessageTemplateQualityUpdate, template.FieldMessageTemplateStatusUpdate, template.FieldTemplateCategoryUpdate, template.FieldMessageTemplateComponentsUpdate} {
 		_ = uc.Execute(signalPayload(field, 1791990878, template.TemplateWebhookValue{
@@ -150,12 +149,25 @@ func TestQualityStatusAndCategoryChangesAreSignalledAfterTheyAreRecorded(t *test
 
 func TestAChangeThatCouldNotBeRecordedIsNotSignalled(t *testing.T) {
 	signals := &recordingHealthSignals{}
-	uc := NewHandleTemplateWebhook(newMockTemplateRepo(), &fakeQualityRecorder{err: errors.New("db down")})
-	uc.(HealthSignalling).SetHealthSignals(signals)
+	uc := templateWebhook(newMockTemplateRepo(), &fakeQualityRecorder{err: errors.New("db down")}, signals)
 
 	_ = uc.Execute(signalPayload(template.FieldMessageTemplateQualityUpdate, 1791990878, template.TemplateWebhookValue{MessageTemplateID: 42, NewQualityScore: "RED"}))
 
 	if len(signals.changed) != 0 {
 		t.Fatalf("signalled %v before the change was stored", signals.changed)
+	}
+}
+
+func templateWebhook(repo template.Repository, recorder quality.Recorder, signals TemplateHealthSignals) template.HandleTemplateWebhookUseCase {
+	uc, err := NewHandleTemplateWebhook(repo, recorder, signals)
+	if err != nil {
+		panic(err)
+	}
+	return uc
+}
+
+func TestTheTemplateWebhookRequiresTheHealthSignals(t *testing.T) {
+	if uc, err := NewHandleTemplateWebhook(newMockTemplateRepo(), &fakeQualityRecorder{}, nil); uc != nil || err == nil {
+		t.Fatalf("uc = %v err = %v, want the signals refused", uc, err)
 	}
 }

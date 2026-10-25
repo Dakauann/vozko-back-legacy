@@ -17,6 +17,7 @@ import (
 	"vozko/domain/auth"
 	"vozko/domain/conversation"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/domain/user"
 	businessphonedomain "vozko/domain/whatsapp/business_phone"
 	"vozko/domain/workspace_phone_access"
@@ -67,8 +68,17 @@ func NewWhatsAppBusinessPhoneHandler(
 	workspacePhoneAccessRepo workspace_phone_access.Repository,
 	metaAPIService businessphonedomain.MetaAPIService,
 	whatsappClientFactory conversation.WhatsAppClientFactory,
+	workspace WorkspaceDeps,
 ) *WhatsAppBusinessPhoneHandler {
+	if err := deps.Require("whatsapp business phone handler", map[string]any{
+		"workspace phones": workspace.Phones,
+		"receptive":        workspace.Receptive,
+	}); err != nil {
+		panic(err.Error())
+	}
 	return &WhatsAppBusinessPhoneHandler{
+		workspacePhones:              workspace.Phones,
+		receptive:                    workspace.Receptive,
 		config:                       config,
 		listUseCase:                  listUC,
 		getUseCase:                   getUC,
@@ -135,10 +145,6 @@ func (h *WhatsAppBusinessPhoneHandler) List(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if h.workspacePhones == nil {
-		response.WriteError(w, http.StatusForbidden, "Forbidden", nil)
-		return
-	}
 	list := h.workspacePhones.List
 	if r.URL.Query().Get("ownership") == ownershipOwned {
 		list = h.workspacePhones.ListOwned
@@ -157,8 +163,9 @@ func (h *WhatsAppBusinessPhoneHandler) List(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-func (h *WhatsAppBusinessPhoneHandler) SetWorkspacePhones(phones businessphonedomain.WorkspacePhonesUseCase) {
-	h.workspacePhones = phones
+type WorkspaceDeps struct {
+	Phones    businessphonedomain.WorkspacePhonesUseCase
+	Receptive ReceptiveUseCase
 }
 
 func (h *WhatsAppBusinessPhoneHandler) ListAll(w http.ResponseWriter, r *http.Request) {

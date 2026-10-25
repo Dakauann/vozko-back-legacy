@@ -44,6 +44,10 @@ func (l Launch) StartsNow() bool {
 	return l.Mode == LaunchNow
 }
 
+func (l Launch) Starts() bool {
+	return l.Mode == LaunchNow || l.Mode == LaunchSchedule
+}
+
 func (m *Metrics) ReadyToStart(status Status, scheduled bool) bool {
 	if m == nil || scheduled || NormalizeStatus(status) != StatusStopped {
 		return false

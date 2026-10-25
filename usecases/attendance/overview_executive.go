@@ -126,7 +126,7 @@ func (uc *getOverviewUseCase) overviewTargets(
 	workspaceID string,
 	window executiveWindow,
 ) ([]at.Target, error) {
-	if uc.targets == nil || window.invalidSchedule {
+	if window.invalidSchedule {
 		return nil, nil
 	}
 	return uc.targets.ListForOverview(ctx, workspaceID, window.from, scheduleLocation(window.schedule))
@@ -146,11 +146,6 @@ func (uc *getOverviewUseCase) fillRevenue(
 	window executiveWindow,
 	out *attendance.SummarySection,
 ) error {
-	if uc.repo == nil {
-		out.Revenue = attendance.UnavailableRevenue(attendance.ReasonNoRevenueRepository)
-		return nil
-	}
-
 	tallies, unattributed, err := uc.repo.GetRevenue(ctx, workspaceID, window.from, window.to, filter.RevenueScope())
 	if err != nil {
 		return err
@@ -205,9 +200,6 @@ func (uc *getOverviewUseCase) buildTrend(
 	window executiveWindow,
 	summary *attendance.SummarySection,
 ) (attendance.Trend, error) {
-	if uc.repo == nil {
-		return attendance.UnavailableTrend(attendance.ReasonTrendUnavailable), nil
-	}
 	loc := scheduleLocation(window.schedule)
 	buckets := attendance.ClampTrendBuckets(filter.TrendBuckets)
 
@@ -316,12 +308,10 @@ func (uc *getOverviewUseCase) buildTeamRanking(
 	members []attendance.MemberRow,
 ) attendance.TeamRanking {
 	onlineMS := map[string]int64{}
-	if uc.presence != nil {
-		rows, err := uc.presence.Occupancy(workspaceID, &window.from, &window.to)
-		if err == nil {
-			for _, row := range rows {
-				onlineMS[row.UserID] = row.OnlineMS
-			}
+	rows, err := uc.presence.Occupancy(workspaceID, &window.from, &window.to)
+	if err == nil {
+		for _, row := range rows {
+			onlineMS[row.UserID] = row.OnlineMS
 		}
 	}
 

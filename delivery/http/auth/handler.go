@@ -55,8 +55,10 @@ func NewAuthHandler(
 	logoutAll authdomain.LogoutAllUseCase,
 	listSessions authdomain.ListSessionsUseCase,
 	revokeSession authdomain.RevokeSessionUseCase,
+	cookies CookieConfig,
 ) *AuthHandler {
 	return &AuthHandler{
+		cookieCfg:             cookies,
 		credentials:           credentials,
 		register:              register,
 		adminRegister:         adminRegister,
@@ -71,10 +73,6 @@ func NewAuthHandler(
 		listSessions:          listSessions,
 		revokeSession:         revokeSession,
 	}
-}
-
-func (h *AuthHandler) SetCookieConfig(cfg CookieConfig) {
-	h.cookieCfg = cfg
 }
 
 func extractClientIP(r *http.Request) string {

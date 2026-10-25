@@ -33,14 +33,6 @@ type EntryAnnouncer interface {
 	AnnounceOwnerChange(workspaceID, entryID, entryType, previousOwner string)
 }
 
-func (s *AssignmentService) SetAutomationGovernance(r conversation.EntryAutomationReader) {
-	s.automationProfiles = r
-}
-
-func (s *AssignmentService) SetEntryBroadcaster(b EntryAnnouncer) { s.entryUpdates = b }
-
-func (s *AssignmentService) SetAutomationPauser(p AutomationPauser) { s.pauser = p }
-
 type DepartmentLookup interface {
 	GetDepartmentByID(id string) (*dept.Department, error)
 }
@@ -51,21 +43,11 @@ type EntryAccountReader interface {
 
 type ConversationReceivers interface {
 	GetDepartmentScope(userID, workspaceID string, isAdmin bool) (conversation.DepartmentAccessScope, bool)
+	IsWorkspaceMember(userID, workspaceID string) bool
 	ia.RoulettePermissionChecker
 }
 
-func (s *AssignmentService) SetDepartmentLookup(d DepartmentLookup) { s.departments = d }
-
-func (s *AssignmentService) SetEntryAccountReader(r EntryAccountReader) { s.accounts = r }
-
-func (s *AssignmentService) SetConversationReceivers(r ConversationReceivers) { s.receivers = r }
-
-func (s *AssignmentService) SetAISessionEnder(e AISessionEnder) { s.aiSessions = e }
-
 func (s *AssignmentService) governingAutomation(entryID, entryType string) (conversation.Automation, bool, error) {
-	if s.automationProfiles == nil {
-		return conversation.Automation{}, false, nil
-	}
 	profile, err := s.automationProfiles.EntryAutomation(entryID, entryType)
 	if err != nil {
 		return conversation.Automation{}, false, err
@@ -200,12 +182,15 @@ func (s *AssignmentService) handOffDepartment(in ia.RouletteHandOff) (string, er
 		}
 		return d, nil
 	}
-	if s.departments == nil {
-		return "", ia.ErrDepartmentOutOfScope
-	}
 	d, err := s.departments.GetDepartmentByID(departmentID)
 	if err != nil || d == nil || d.WorkspaceID != in.WorkspaceID {
 		return "", fmt.Errorf("hand-off %s (%s) to department %s: %w", in.EntryID, in.EntryType, departmentID, ia.ErrDepartmentOutOfScope)
+	}
+	if err := s.routes.RouteToDepartment(in.EntryID, in.EntryType, departmentID); err != nil {
+		return "", fmt.Errorf("hand-off %s (%s) to department %s: route: %w", in.EntryID, in.EntryType, departmentID, err)
+	}
+	if err := s.accessRevoker.RevokeEntryAccess(in.EntryID); err != nil {
+		return "", fmt.Errorf("hand-off %s (%s) to department %s: revoke cached access: %w", in.EntryID, in.EntryType, departmentID, err)
 	}
 	return departmentID, nil
 }
@@ -213,9 +198,6 @@ func (s *AssignmentService) handOffDepartment(in ia.RouletteHandOff) (string, er
 func (s *AssignmentService) handOffAccount(existing *ia.InboxAssignment, in ia.RouletteHandOff) string {
 	if existing != nil && existing.BusinessPhoneID != "" {
 		return existing.BusinessPhoneID
-	}
-	if s.accounts == nil {
-		return ""
 	}
 	account, err := s.accounts.EntryAccountID(in.EntryID, in.EntryType)
 	if err != nil {
@@ -237,9 +219,6 @@ func (s *AssignmentService) mayTakeOver(userID, workspaceID string) bool {
 }
 
 func (s *AssignmentService) canReceive(userID, workspaceID string) bool {
-	if s.receivers == nil {
-		return false
-	}
 	_, allowed := s.receivers.GetDepartmentScope(userID, workspaceID, false)
 	return allowed
 }
@@ -321,9 +300,6 @@ func handOffActor(existing *ia.InboxAssignment) string {
 
 func (s *AssignmentService) stepOut(workspaceID, entryID, entryType, toUserID, by, reason string) error {
 	s.endAISession(workspaceID, entryID, entryType, toUserID, by, reason)
-	if s.pauser == nil {
-		return nil
-	}
 	off := false
 	if err := s.pauser.SetAutomation(context.Background(), entryID, shared.EntryType(entryType), &off); err != nil {
 		log.Printf("[InboxAssignment] entry %s (%s) was handed off but the automation could not be paused: %v", entryID, entryType, err)
@@ -333,7 +309,7 @@ func (s *AssignmentService) stepOut(workspaceID, entryID, entryType, toUserID, b
 }
 
 func (s *AssignmentService) endAISession(workspaceID, entryID, entryType, toUserID, by, reason string) {
-	if s.aiSessions == nil || workspaceID == "" {
+	if workspaceID == "" {
 		return
 	}
 	s.aiSessions.End(aa.EndRequest{
@@ -352,7 +328,5 @@ func (s *AssignmentService) announceAfterStepOut(workspaceID, entryID, entryType
 		s.announceOwner(workspaceID, entryID, entryType, moved.previous)
 		return
 	}
-	if s.entryUpdates != nil {
-		s.entryUpdates.BroadcastEntryUpdate(entryID, entryType, nil)
-	}
+	s.entryUpdates.BroadcastEntryUpdate(entryID, entryType, nil)
 }

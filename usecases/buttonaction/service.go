@@ -30,12 +30,12 @@ type Deps struct {
 	Permissions workspace.PermissionChecker
 	Memo        cache.Memo
 	Versions    cache.Versions
+	Editor      template.ContentEditor
 	Now         func() time.Time
 }
 
 type Service struct {
-	deps   Deps
-	editor template.ContentEditor
+	deps Deps
 }
 
 type Actor struct {
@@ -47,7 +47,7 @@ type Actor struct {
 
 func NewService(deps Deps) (*Service, error) {
 	if deps.Templates == nil || deps.Campaigns == nil || deps.Settings == nil || deps.Routes == nil ||
-		deps.Ownership == nil || deps.Permissions == nil || deps.Memo == nil || deps.Versions == nil {
+		deps.Ownership == nil || deps.Permissions == nil || deps.Memo == nil || deps.Versions == nil || deps.Editor == nil {
 		return nil, buttonaction.ErrUnavailable
 	}
 	if deps.Now == nil {

@@ -165,6 +165,7 @@ func (v *fakeVersions) Bump(scope string) error {
 
 type fixture struct {
 	svc        *Service
+	editor     *fakeContentEditor
 	templates  *fakeTemplates
 	settings   *fakeSettings
 	routes     *fakeRoutes
@@ -196,6 +197,7 @@ func newFixture(t *testing.T) *fixture {
 		permission: fakePermissions{granted: map[string]bool{
 			"leads:read": true, "leads:assign": true, "members:read": true, "leads:update": true,
 		}},
+		editor: &fakeContentEditor{},
 	}
 	svc, err := NewService(Deps{
 		Templates:   f.templates,
@@ -206,6 +208,7 @@ func newFixture(t *testing.T) *fixture {
 		Permissions: f.permission,
 		Memo:        &fakeMemo{values: map[string][]byte{}},
 		Versions:    &fakeVersions{versions: map[string]int{}},
+		Editor:      f.editor,
 		Now:         func() time.Time { return time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {

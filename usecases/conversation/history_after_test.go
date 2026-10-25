@@ -44,7 +44,7 @@ func timeline(start time.Time, n int) []*conversation.Message {
 func TestHistoryAfterReturnsTheNextMessagesOldestFirstLikeEveryOtherPage(t *testing.T) {
 	start := time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
 	repo := &cursorMessageRepo{oldestFirst: timeline(start, 6)}
-	s := &HistoryProviderService{messageRepo: repo}
+	s := historyWith(HistoryProviderService{messageRepo: repo})
 
 	messages, hasAfter, err := s.GetHistoryAfter("e1", shared.EntryTypeWhatsApp, start.Add(time.Minute), 3)
 	if err != nil {

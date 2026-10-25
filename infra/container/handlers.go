@@ -16,7 +16,6 @@ import (
 
 	affiliatehttp "vozko/delivery/http/affiliate"
 	analyticshttp "vozko/delivery/http/analytics"
-	attendancehttp "vozko/delivery/http/attendance"
 	authhttp "vozko/delivery/http/auth"
 	balancehttp "vozko/delivery/http/balance"
 	buildersessionhttp "vozko/delivery/http/buildersession"
@@ -25,7 +24,6 @@ import (
 	callrecordinghttp "vozko/delivery/http/callrecording"
 	campaignreporthttp "vozko/delivery/http/campaignreport"
 	cephttp "vozko/delivery/http/cep"
-	conversationhttp "vozko/delivery/http/conversation"
 	crmboardhttp "vozko/delivery/http/crmboard"
 	crmbulkhttp "vozko/delivery/http/crmbulk"
 	customfieldhttp "vozko/delivery/http/customfield"
@@ -57,7 +55,6 @@ import (
 	whatsappoutreachhttp "vozko/delivery/http/whatsappoutreach"
 	whatsapptemplatehttp "vozko/delivery/http/whatsapptemplate"
 	workflowalerthttp "vozko/delivery/http/workflowalerthttp"
-	workflowsecrethttp "vozko/delivery/http/workflowsecrethttp"
 	workflowwebhookhttp "vozko/delivery/http/workflowwebhook"
 	workspacehttp "vozko/delivery/http/workspace"
 	workspaceaddonhttp "vozko/delivery/http/workspaceaddon"
@@ -65,6 +62,7 @@ import (
 	workspacedepartmenthttp "vozko/delivery/http/workspacedepartment"
 	workspacephoneaccesshttp "vozko/delivery/http/workspacephoneaccess"
 	workspacepricinghttp "vozko/delivery/http/workspacepricing"
+	workspacesecrethttp "vozko/delivery/http/workspacesecrethttp"
 	workspacetemplateaccesshttp "vozko/delivery/http/workspacetemplateaccess"
 	wsdelivery "vozko/delivery/ws"
 	payment_domain "vozko/domain/payment"
@@ -98,24 +96,24 @@ func (c *Container) initHandlers() {
 		c.repositories.inboxAssignment,
 	)
 
-	var crmBulkAuthorizer crmbulk_usecase.Authorizer
-	if c.services.conversationAuthImpl != nil {
-		crmBulkAuthorizer = c.services.conversationAuthImpl
-	}
-	crmBulkService := crmbulk_usecase.NewService(
-		c.useCases.assignEntryStage,
-		c.useCases.assignEntryLabel,
-		c.useCases.removeEntryLabel,
-		c.services.assignmentService,
-		crmBulkAuthorizer,
-		c.services.conversationHub,
-	)
-	crmBulkService.SetSelection(crmboard_usecase.NewSelectionResolver(crmBoardService), c.sharedAnalyticsGate())
-	crmBulkService.SetConversationActions(crmbulk_usecase.ConversationActions{
-		Finish:   c.services.personFinish,
-		Read:     c.services.messageMarker,
-		Personal: c.services.personalInbox,
+	crmBulkService, err := crmbulk_usecase.NewService(crmbulk_usecase.Deps{
+		Stages:        c.useCases.assignEntryStage,
+		LabelAdds:     c.useCases.assignEntryLabel,
+		LabelRemovals: c.useCases.removeEntryLabel,
+		Assigner:      c.services.assignmentService,
+		Authz:         c.services.conversationAuthImpl,
+		Broadcaster:   c.services.conversationHub,
+		Targets:       crmboard_usecase.NewSelectionResolver(crmBoardService),
+		CountGate:     c.sharedAnalyticsGate(),
+		Conversations: crmbulk_usecase.ConversationActions{
+			Finish:   c.services.personFinish,
+			Read:     c.services.messageMarker,
+			Personal: c.services.personalInbox,
+		},
 	})
+	if err != nil {
+		log.Fatalf("[container] %v", err)
+	}
 
 	c.services.dialog360Onboarding = businessphone_infra.NewDialog360OnboardingService(
 		businessphone_infra.NewDialog360PartnerClient(
@@ -144,7 +142,7 @@ func (c *Container) initHandlers() {
 	}
 
 	c.handlers = &handlers_{
-		agent:              handlers.NewAgentHandler(c.useCases.createAgent, c.useCases.updateAgent, c.useCases.assignAgentDepartment, c.useCases.deleteAgent, c.useCases.getAgent, c.useCases.listAgents, c.useCases.simulateAgentTurn, c.services.toolRegistry, c.services.ai, c.repositories.whatsappTemplate),
+		agent:              handlers.NewAgentHandler(c.useCases.createAgent, c.useCases.updateAgent, c.useCases.assignAgentDepartment, c.useCases.deleteAgent, c.useCases.getAgent, c.useCases.listAgents, c.useCases.simulateAgentTurn, c.services.toolRegistry, c.services.ai),
 		aichat:             handlers.NewAIChatHandler(c.useCases.aichat, c.useCases.copilot),
 		auth:               c.newAuthHandler(),
 		user:               userhttp.NewUserHandler(c.useCases.listUsers, c.useCases.updateUserRole, c.useCases.findUserByID, c.useCases.updateUser, c.useCases.deleteUser, c.useCases.getWorkspaceSubscription, c.services.documentValidator),
@@ -167,6 +165,12 @@ func (c *Container) initHandlers() {
 			c.repositories.workspaceTemplateAccess,
 			c.repositories.businessPhone,
 			c.useCases.workspaceTemplates,
+			whatsapptemplatehttp.TemplateEditDeps{
+				Creator:  c.buttonActions(),
+				Editor:   c.buttonActions(),
+				Tracking: c.choiceButtonTracking(),
+				LinkBase: c.cfg.ShortLinkBaseURL,
+			},
 		),
 		whatsappOutreach: whatsappoutreachhttp.NewHandler(whatsappoutreachhttp.HandlerDeps{
 			Start:       c.useCases.startOfficialConversation,
@@ -174,7 +178,7 @@ func (c *Container) initHandlers() {
 			Departments: c.services.conversationAuthImpl,
 		}),
 		systemConfig:    systemconfighttp.NewSystemConfigHandler(c.useCases.getSystemConfig, c.useCases.updateSystemConfig),
-		workspaceConfig: workspaceconfighttp.NewWorkspaceConfigHandler(c.useCases.getWorkspaceConfig, c.useCases.updateWorkspaceConfig, c.useCases.updateWorkspaceConfigOwner),
+		workspaceConfig: workspaceconfighttp.NewWorkspaceConfigHandler(c.useCases.getWorkspaceConfig, c.useCases.updateWorkspaceConfig, c.useCases.updateWorkspaceConfigOwner, c.geocodingPlatformCoverage()),
 		workspacePlan: handlers.NewWorkspacePlanHandler(
 			c.useCases.createWorkspacePlan,
 			c.useCases.updateWorkspacePlan,
@@ -207,7 +211,7 @@ func (c *Container) initHandlers() {
 		),
 		metrics:      metricsHandler,
 		metricsQuery: metricsQueryHandler,
-		whatsappCampaign: withCampaignAccess(c, handlers.NewWhatsAppCampaignHandler(
+		whatsappCampaign: handlers.NewWhatsAppCampaignHandler(
 			c.officialCampaignCreate(),
 			c.useCases.updateWCCampaign,
 			c.useCases.assignWCCampaignDepartment,
@@ -229,10 +233,11 @@ func (c *Container) initHandlers() {
 			c.useCases.ensureActiveWorkspaceSubscription,
 			c.useCases.getAgent,
 			c.useCases.getWCCampaignsSummary,
-		)),
+			c.officialCampaignLaunch(),
+		),
 		lead:          c.leadHandler(),
 		callRecording: callrecordinghttp.NewCallRecordingHandler(c.useCases.callRecordingQuery),
-		whatsappBusinessPhone: withWorkspacePhones(c, whatsappbusinessphonehttp.NewWhatsAppBusinessPhoneHandler(
+		whatsappBusinessPhone: whatsappbusinessphonehttp.NewWhatsAppBusinessPhoneHandler(
 			whatsappbusinessphonehttp.WhatsAppBusinessPhoneHandlerConfig{
 				AccessToken: c.cfg.WhatsAppAccessToken,
 			},
@@ -252,7 +257,8 @@ func (c *Container) initHandlers() {
 			c.repositories.workspacePhoneAccess,
 			c.services.businessPhoneMetaAPI,
 			c.services.whatsappClientFactory,
-		)),
+			whatsappbusinessphonehttp.WorkspaceDeps{Phones: c.useCases.workspacePhones, Receptive: c.numberReceptive()},
+		),
 		waba: wabahttp.NewWABAHandler(c.useCases.listWABAs, c.useCases.getWABA),
 		metaEmbeddedSignup: metaembeddedsignuphttp.NewMetaEmbeddedSignupHandler(
 			metaembeddedsignuphttp.GetMetaEmbeddedSignupConfigFromEnv(),
@@ -299,27 +305,13 @@ func (c *Container) initHandlers() {
 			c.useCases.listWorkspacePhoneAccess,
 			c.useCases.listPhoneAccess,
 		),
-		conversation: func() *conversationhttp.ConversationHandler {
-			h := conversationhttp.NewConversationHandler(
-				c.useCases.uploadConversationMedia,
-				c.useCases.getConversationMedia,
-				c.useCases.listConversationEvents,
-			)
-			if c.services.conversationAutomation != nil {
-				toggle := c.automationToggle()
-				h.SetAutomationService(toggle)
-				h.SetDelegationService(c.automationDelegation(toggle))
-			}
-			h.SetToolCalls(c.listAIToolCalls())
-			h.SetEmailHTML(c.emailHTMLViewer())
-			return h
-		}(),
+		conversation: c.conversationHandler(),
 		conversationWS: wsdelivery.NewConversationWSHandler(
 			c.services.conversationHub,
 			log.Default(),
 		),
 		callSessionWS: buildCallSessionWSHandler(c),
-		stage: withFunnelStages(c, stagehttp.NewStageHandler(
+		stage: stagehttp.NewStageHandler(
 			c.useCases.createStage,
 			c.useCases.updateStage,
 			c.useCases.deleteStage,
@@ -331,7 +323,8 @@ func (c *Container) initHandlers() {
 			c.useCases.getBatchEntryStages,
 			c.useCases.reorderStages,
 			c.services.conversationHub,
-		)),
+			c.funnelStages(),
+		),
 		stageGroup: handlers.NewStageGroupHandler(
 			c.useCases.createStageGroup,
 			c.useCases.updateStageGroup,
@@ -433,6 +426,7 @@ func (c *Container) initHandlers() {
 			c.useCases.deleteCustomRole,
 			c.useCases.assignCustomRole,
 			c.useCases.affiliateTrackReferral,
+			workspace_usecase.NewListRolePresetsUseCase(),
 		),
 		affiliate: affiliatehttp.NewAffiliateHandler(
 			c.useCases.affiliateRegister,
@@ -455,21 +449,7 @@ func (c *Container) initHandlers() {
 			c.useCases.getExchangeRate,
 			c.useCases.updateExchangeRate,
 		),
-		attendance: func() *attendancehttp.AttendanceHandler {
-			h := attendancehttp.NewAttendanceHandler(
-				c.useCases.getAttendanceStats,
-				c.useCases.getWindowStats,
-				c.useCases.getResponseTimeDistribution,
-				c.useCases.getAIAgentStats,
-			)
-			h.SetFRTStats(c.useCases.getFRTStats)
-			h.SetOverview(c.useCases.getOverview)
-			h.SetQueueRepo(c.repositories.queueEvent)
-			h.SetPresenceRepo(c.repositories.agentPresence)
-			h.SetMemberActivity(c.memberActivityUseCase())
-			h.SetTargets(c.attendanceTargetsService(), c.services.conversationAuthImpl)
-			return h
-		}(),
+		attendance: c.attendanceHandler(),
 		knowledgeBase: handlers.NewKnowledgeBaseHandler(
 			c.useCases.createKnowledgeBase,
 			c.useCases.updateKnowledgeBase,
@@ -554,7 +534,7 @@ func (c *Container) initHandlers() {
 			workflow_usecase.NewListWebhookDeliveriesUseCase(c.webhookDeliveries(), c.conversationVisibility()),
 			c.useCases.scopedWorkflows,
 		),
-		workflowSecret:      workflowsecrethttp.NewHandler(c.useCases.workflowSecrets),
+		workspaceSecret:     workspacesecrethttp.NewHandler(c.useCases.workspaceSecrets),
 		workflowAlert:       workflowalerthttp.NewHandler(c.useCases.workflowRuntimeAlerts, c.useCases.scopedWorkflows),
 		wsWorkflowSimulator: wsdelivery.NewWSWorkflowSimulatorHandler(c.useCases.wsWorkflowSimulation, c.services.metrics),
 		wsWorkflowAIBuilder: wsdelivery.NewWSWorkflowAIBuilderHandler(
@@ -583,14 +563,6 @@ func (c *Container) initHandlers() {
 		),
 	}
 
-	c.handlers.workspace.SetRolePresets(workspace_usecase.NewListRolePresetsUseCase())
-	if platform := c.geocodingPlatformCoverage(); platform != nil {
-		c.handlers.workspaceConfig.SetGeocodingPlatformCoverage(platform)
-	}
-
-	if c.services.requestCallPermission != nil {
-		c.handlers.conversation.SetRequestCallPermission(c.services.requestCallPermission)
-	}
 }
 
 func buildCallSessionWSHandler(c *Container) *wsdelivery.CallSessionWSHandler {
@@ -640,15 +612,15 @@ func buildCallSessionWSHandler(c *Container) *wsdelivery.CallSessionWSHandler {
 			Broker:          inboundBroker,
 			Executor:        inboundExecutor,
 			Messages:        c.repositories.conversation,
-			Hub:             c.services.conversationHub,
+			Hub:             c.services.messageArrivals,
 			Users:           c.services.callSessionUsernameResolver,
 			WorkspaceConfig: c.repositories.workspaceConfig,
 			PublicIP:        c.services.whatsappPublicMediaIP,
 			StunServers:     c.cfg.WhatsAppStunServers,
 			Logger:          log.Default(),
 		})
-		if consumer, ok := c.services.whatsappCallWebhook.(*conversation_usecase.WhatsAppCallWebhookConsumer); ok {
-			consumer.SetInboundHandler(whatsappInboundUC)
+		if err := c.inboundCallsHandle().Bind(whatsappInboundUC); err != nil {
+			log.Fatalf("[whatsapp-calls] %v", err)
 		}
 	}
 
@@ -664,7 +636,9 @@ func buildCallSessionWSHandler(c *Container) *wsdelivery.CallSessionWSHandler {
 		Queues:      c.callRouting.Transfers,
 		Logger:      log.Default(),
 	}
-	c.sipTrunks.Engine.SetInboundInviteHandler(sip_trunk_usecase.NewInboundCallUseCase(inboundSIP))
+	if err := c.sipTrunks.Engine.BindInboundInviteHandler(sip_trunk_usecase.NewInboundCallUseCase(inboundSIP)); err != nil {
+		log.Fatalf("[sip-trunks] %v", err)
+	}
 
 	return base.
 		WithInboundCalls(inboundBroker).
@@ -678,17 +652,17 @@ func buildCallSessionWSHandler(c *Container) *wsdelivery.CallSessionWSHandler {
 
 func (c *Container) buildWebhookHandler() *handlers.WebhookHandler {
 	webhookAppSecrets := append([]string{c.cfg.MetaAppSecret}, c.cfg.MetaAppSecretsExtra...)
-	h := handlers.NewWebhookHandler(c.useCases.publishWebhook, c.cfg.AsaasWebhookToken, c.cfg.WhatsAppWebhookVerifyToken, webhookAppSecrets...)
-	if c.services.whatsappCallWebhook != nil {
-		h.SetCallWebhookHandler(c.services.whatsappCallWebhook)
-	}
-	if c.services.whatsappCallPermissionWebhook != nil {
-		h.SetCallPermissionWebhookHandler(c.services.whatsappCallPermissionWebhook)
-	}
-	if c.cfg.Dialog360WebhookSecret != "" {
-		h.SetDialog360WebhookSecret(c.cfg.Dialog360WebhookSecret)
-	} else {
-		log.Println("[WARN] D360_WEBHOOK_SECRET is empty, 360dialog inbound webhook signature verification disabled")
+	h, err := handlers.NewWebhookHandler(handlers.WebhookHandlerDeps{
+		Publish:             c.useCases.publishWebhook,
+		AsaasToken:          c.cfg.AsaasWebhookToken,
+		WhatsAppVerifyToken: c.cfg.WhatsAppWebhookVerifyToken,
+		WhatsAppAppSecrets:  webhookAppSecrets,
+		Dialog360Secret:     c.cfg.Dialog360WebhookSecret,
+		Calls:               c.services.whatsappCallWebhook,
+		CallPermissions:     c.services.whatsappCallPermissionWebhook,
+	})
+	if err != nil {
+		log.Fatalf("[container] %v", err)
 	}
 	return h
 }
@@ -759,7 +733,18 @@ func (r *callSessionUsernameResolver) ResolveUsernames(userIDs []string) map[str
 }
 
 func (c *Container) newAuthHandler() *authhttp.AuthHandler {
-	h := authhttp.NewAuthHandler(
+	cookies := authhttp.CookieConfig{}
+	if c.cfg.CookieDomain != "" {
+		secure := c.cfg.AppEnv != "development"
+		cookies = authhttp.CookieConfig{
+			Domain:        c.cfg.CookieDomain,
+			Secure:        secure,
+			AccessMaxAge:  c.cfg.AuthJWTAccessTTL,
+			RefreshMaxAge: c.cfg.AuthJWTRefreshTTL,
+		}
+		log.Printf("Auth cookies enabled (domain=%s, secure=%v)", c.cfg.CookieDomain, secure)
+	}
+	return authhttp.NewAuthHandler(
 		c.useCases.credentialsLogin,
 		c.useCases.register,
 		c.useCases.adminRegister,
@@ -773,19 +758,8 @@ func (c *Container) newAuthHandler() *authhttp.AuthHandler {
 		c.useCases.logoutAll,
 		c.useCases.listSessions,
 		c.useCases.revokeSession,
+		cookies,
 	)
-	if c.cfg.CookieDomain != "" {
-		secure := c.cfg.AppEnv != "development"
-		h.SetCookieConfig(authhttp.CookieConfig{
-			Domain:        c.cfg.CookieDomain,
-			Secure:        secure,
-			AccessMaxAge:  c.cfg.AuthJWTAccessTTL,
-			RefreshMaxAge: c.cfg.AuthJWTRefreshTTL,
-		})
-		log.Printf("Auth cookies enabled (domain=%s, secure=%v)", c.cfg.CookieDomain, secure)
-	}
-
-	return h
 }
 
 func (c *Container) buildMercadoPagoWebhookHandler() *mercadopagohttp.WebhookHandler {

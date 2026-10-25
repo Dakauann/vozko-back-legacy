@@ -4,6 +4,7 @@ import (
 	"log"
 
 	workflow_domain "vozko/domain/workflow"
+	agenttool_repository "vozko/infra/repositories/agenttool"
 	workflow_repository "vozko/infra/repositories/workflow"
 	workflow_usecase "vozko/usecases/workflow"
 )
@@ -12,9 +13,8 @@ func (c *Container) runtimeAlertStore() *workflow_repository.RuntimeAlertReposit
 	return workflow_repository.NewRuntimeAlertRepository(c.db)
 }
 
-func (c *Container) wireWorkflowRuntimeAlerts(engine *workflow_usecase.RunEngine, steps *workflow_usecase.NodeExecutorRegistry) {
+func (c *Container) wireWorkflowRuntimeAlerts(steps *workflow_usecase.NodeExecutorRegistry) {
 	store := c.runtimeAlertStore()
-	engine.SetRuntimeAlerts(store)
 	workflows, ok := c.repositories.workflow.(workflow_usecase.WorkflowsByID)
 	if !ok {
 		log.Fatalf("[workflow-alerts] the workflow repository cannot read workflows by id")
@@ -24,6 +24,7 @@ func (c *Container) wireWorkflowRuntimeAlerts(engine *workflow_usecase.RunEngine
 		Signals:    store,
 		Workflows:  workflows,
 		Agents:     c.repositories.agent,
+		Tools:      agenttool_repository.NewToolNames(c.db),
 		Notices:    c.notifications().Publisher,
 		Steps:      steps,
 		Visibility: c.conversationVisibility(),

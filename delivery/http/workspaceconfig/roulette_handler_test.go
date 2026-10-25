@@ -30,7 +30,7 @@ func (s *stubOwnerUpdate) Execute(_ context.Context, _, _, _ string, input works
 
 func putConfig(update *stubOwnerUpdate, body string) *httptest.ResponseRecorder {
 	r := mux.NewRouter()
-	RegisterProtectedRoutes(r, NewWorkspaceConfigHandler(nil, nil, update))
+	RegisterProtectedRoutes(r, NewWorkspaceConfigHandler(nil, nil, update, &stubPlatformCoverage{}))
 	req := httptest.NewRequest(http.MethodPut, "/workspaces/ws-1/config", strings.NewReader(body))
 	req = req.WithContext(context.WithValue(req.Context(), middleware.ClaimsContextKey, owner))
 	rec := httptest.NewRecorder()

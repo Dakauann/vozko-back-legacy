@@ -14,7 +14,11 @@ import (
 
 func parsedFiles(t *testing.T, root string, visit func(dir string, file *ast.File)) {
 	t.Helper()
-	fset := token.NewFileSet()
+	parsedFilesWith(t, token.NewFileSet(), root, visit)
+}
+
+func parsedFilesWith(t *testing.T, fset *token.FileSet, root string, visit func(dir string, file *ast.File)) {
+	t.Helper()
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err

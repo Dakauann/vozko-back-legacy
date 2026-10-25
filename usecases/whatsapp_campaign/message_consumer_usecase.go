@@ -15,6 +15,7 @@ import (
 	lead_campaign_send "vozko/domain/lead_campaign_send"
 	"vozko/domain/messaging"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	businessphone "vozko/domain/whatsapp/business_phone"
 	"vozko/domain/whatsapp/template"
 	wc "vozko/domain/whatsapp_campaign"
@@ -30,6 +31,7 @@ import (
 const messageSendDelay = 15 * time.Millisecond
 const pauseRequeueDelay = 3 * time.Second
 const balanceRequeueDelay = 5 * time.Second
+const noBalanceRetryDelay = 30 * time.Second
 const interruptedSendGrace = 2 * time.Minute
 
 const (
@@ -71,44 +73,82 @@ type messageConsumerUseCase struct {
 	runner *campaignqueue.Runner
 }
 
-func NewMessageConsumerUseCase(
-	messageQueueSub messaging.MessageQueueSub,
-	messageQueuePub messaging.MessageQueuePub,
-	campaignRepo wc.Repository,
-	entryRepo wce.Repository,
-	templateRepo template.Repository,
-	businessPhoneRepo businessphone.Repository,
-	whatsAppClientFactory conversation.WhatsAppClientFactory,
-	consumeWhatsappTemplate balance.ConsumeWhatsappTemplateUseCase,
-	checkBalance balance.CheckBalanceUseCase,
-	messageHistoryManager conversation.MessageHistoryManager,
-	sharedState cache.SharedState,
-	eligibility campaignguard.EntryGate,
-	leadCampaignSendRepo lead_campaign_send.Repository,
-	inflightReserver balance.InflightReserver,
-	cachedBalanceChecker balance.CachedBalanceChecker,
-) wc.MessageConsumerUseCase {
-	waSharedStateRef = sharedState
+type ConsumerDeps struct {
+	QueueSub      messaging.MessageQueueSub
+	QueuePub      messaging.MessageQueuePub
+	Campaigns     wc.Repository
+	Entries       wce.Repository
+	Templates     template.Repository
+	Phones        businessphone.Repository
+	Clients       conversation.WhatsAppClientFactory
+	Consume       balance.ConsumeWhatsappTemplateUseCase
+	CheckBalance  balance.CheckBalanceUseCase
+	History       conversation.MessageHistoryManager
+	Shared        cache.SharedState
+	Eligibility   campaignguard.EntryGate
+	LeadSends     lead_campaign_send.Repository
+	Inflight      balance.InflightReserver
+	Balances      balance.CachedBalanceChecker
+	Smart         SmartCampaigns
+	Forms         template_usecase.FormSends
+	Choices       choicestats.Recorder
+	ClickLinkBase string
+	ClickTokens   *choicestats.ClickTokens
+	Charges       balance.ChargeClock
+}
+
+func NewMessageConsumerUseCase(d ConsumerDeps) (wc.MessageConsumerUseCase, error) {
+	if err := deps.Require("official campaign consumer", map[string]any{
+		"queue subscriber":    d.QueueSub,
+		"queue publisher":     d.QueuePub,
+		"campaigns":           d.Campaigns,
+		"entries":             d.Entries,
+		"templates":           d.Templates,
+		"phones":              d.Phones,
+		"whatsapp clients":    d.Clients,
+		"template billing":    d.Consume,
+		"balance check":       d.CheckBalance,
+		"message history":     d.History,
+		"shared state":        d.Shared,
+		"eligibility":         d.Eligibility,
+		"lead campaign sends": d.LeadSends,
+		"inflight reserver":   d.Inflight,
+		"cached balance":      d.Balances,
+		"smart campaigns":     d.Smart,
+		"form sends":          d.Forms,
+		"choice recorder":     d.Choices,
+		"click tokens":        d.ClickTokens,
+		"charge clock":        d.Charges,
+	}); err != nil {
+		return nil, err
+	}
+	waSharedStateRef = d.Shared
 	uc := &messageConsumerUseCase{
-		MessageQueueSub:         messageQueueSub,
-		MessageQueuePub:         messageQueuePub,
-		CampaignRepo:            campaignRepo,
-		EntryRepo:               entryRepo,
-		TemplateRepo:            templateRepo,
-		BusinessPhoneRepo:       businessPhoneRepo,
-		WhatsAppClientFactory:   whatsAppClientFactory,
-		ConsumeWhatsappTemplate: consumeWhatsappTemplate,
-		CheckBalance:            checkBalance,
-		MessageHistoryManager:   messageHistoryManager,
-		shared:                  sharedState,
-		Eligibility:             eligibility,
-		LeadCampaignSendRepo:    leadCampaignSendRepo,
-		InflightReserver:        inflightReserver,
-		CachedBalanceChecker:    cachedBalanceChecker,
+		MessageQueueSub:         d.QueueSub,
+		MessageQueuePub:         d.QueuePub,
+		CampaignRepo:            d.Campaigns,
+		EntryRepo:               d.Entries,
+		TemplateRepo:            d.Templates,
+		BusinessPhoneRepo:       d.Phones,
+		WhatsAppClientFactory:   d.Clients,
+		ConsumeWhatsappTemplate: d.Consume,
+		CheckBalance:            d.CheckBalance,
+		MessageHistoryManager:   d.History,
+		shared:                  d.Shared,
+		Eligibility:             d.Eligibility,
+		LeadCampaignSendRepo:    d.LeadSends,
+		InflightReserver:        d.Inflight,
+		CachedBalanceChecker:    d.Balances,
+		smart:                   d.Smart,
+		forms:                   d.Forms,
+		choices:                 d.Choices,
+		clickLinkBase:           d.ClickLinkBase,
+		clickTokens:             d.ClickTokens,
+		charges:                 d.Charges,
 	}
 
-	uc.attachRunner(messageQueueSub, messageQueuePub, sharedState)
-	return uc
+	uc.attachRunner(d.QueueSub, d.QueuePub, d.Shared)
+	return uc, nil
 }
 
 func (c *messageConsumerUseCase) attachRunner(
@@ -169,31 +209,7 @@ func (p pendingEntryCounter) CountPendingEntries(campaignID string) (int64, erro
 	return counts.Pending, nil
 }
 
-func (c *messageConsumerUseCase) SetFormSends(forms template_usecase.FormSends) {
-	c.forms = forms
-}
-
-func (c *messageConsumerUseCase) SetChoiceStats(choices choicestats.Recorder, clickLinkBase string, clickTokens *choicestats.ClickTokens) {
-	c.choices = choices
-	c.clickLinkBase = clickLinkBase
-	c.clickTokens = clickTokens
-}
-
 func (c *messageConsumerUseCase) Start() error {
-	if c.MessageQueueSub == nil {
-		return fmt.Errorf("whatsapp campaign consumer: message queue subscriber is required")
-	}
-	if c.choices == nil {
-		return fmt.Errorf("whatsapp campaign consumer: %w", choicestats.ErrRecorderMissing)
-	}
-	if c.clickTokens == nil {
-		return fmt.Errorf("whatsapp campaign consumer: %w", choicestats.ErrClickTokenSecretMissing)
-	}
-	if c.WhatsAppClientFactory == nil {
-		fmt.Println("whatsapp campaign consumer: WhatsApp client factory not configured; skipping subscription")
-		return nil
-	}
-
 	go c.shared.Subscribe(context.Background(), "signal:wa_sendings", func(_ []byte) {})
 
 	return c.runner.Start()
@@ -276,6 +292,10 @@ func (c *messageConsumerUseCase) handle(msg campaignqueue.Message) campaignqueue
 		return campaignqueue.Requeue
 	}
 
+	if wait, refused := c.awaitBalance(campaignItem.WorkspaceID, msg.CampaignID, templateCostMicros); refused {
+		return wait
+	}
+
 	entry, err := c.EntryRepo.FindByID(msg.EntryID)
 	if errors.Is(err, wce.ErrEntryNotFound) {
 		fmt.Printf("whatsapp campaign consumer: entry %s no longer exists, nothing to send\n", msg.EntryID)
@@ -305,11 +325,6 @@ func (c *messageConsumerUseCase) handle(msg campaignqueue.Message) campaignqueue
 		fmt.Printf("whatsapp campaign consumer: refusing to send unbilled for workspace %s (campaign %s): price is zero\n", campaignItem.WorkspaceID, msg.CampaignID)
 		c.updateEntryStatusWithError(msg.EntryID, wce.SendStatusFailed, "", 0, "no price configured for this template category")
 		return campaignqueue.Drop
-	}
-
-	if c.InflightReserver == nil || c.CachedBalanceChecker == nil {
-		fmt.Printf("CRITICAL: whatsapp campaign consumer, inflightReserver or cachedBalanceChecker is nil, blocking send for workspace %s (fail-closed)\n", campaignItem.WorkspaceID)
-		return campaignqueue.Requeue
 	}
 
 	budget, balErr := c.CachedBalanceChecker.GetBalance(campaignItem.WorkspaceID)
@@ -384,16 +399,24 @@ const (
 	sendResultUnknown
 )
 
-func (c *messageConsumerUseCase) SetChargeClock(charges balance.ChargeClock) {
-	c.charges = charges
+func (c *messageConsumerUseCase) awaitBalance(workspaceID, campaignID string, costMicros int64) (campaignqueue.Result, bool) {
+	if costMicros <= 0 {
+		return campaignqueue.Result{}, false
+	}
+	covered, err := c.CachedBalanceChecker.HasSufficientBalance(workspaceID, costMicros)
+	if err != nil {
+		fmt.Printf("whatsapp campaign consumer: balance read error for workspace %s: %v, blocking send (fail-closed)\n", workspaceID, err)
+		return campaignqueue.Requeue, true
+	}
+	if covered {
+		return campaignqueue.Result{}, false
+	}
+	fmt.Printf("whatsapp campaign consumer: workspace %s balance cannot cover one message (campaign %s), checking again in %s\n", workspaceID, campaignID, noBalanceRetryDelay)
+	return campaignqueue.RetryLater(noBalanceRetryDelay), true
 }
 
 func (c *messageConsumerUseCase) settleEarlierCharge(campaignItem *wc.Campaign, entry *wce.WhatsAppCampaignEntry, templateCategory string) campaignqueue.Result {
 	reference := entry.ChargeReference()
-	if c.charges == nil {
-		fmt.Printf("CRITICAL: whatsapp campaign consumer, charge clock is nil, cannot tell whether %s is still being sent\n", reference)
-		return campaignqueue.RetryLater(interruptedSendGrace)
-	}
 	chargedAt, found, err := c.charges.ChargedAt(reference)
 	if err != nil || !found {
 		fmt.Printf("whatsapp campaign consumer: could not read when %s was charged (found=%v): %v, checking again later\n", reference, found, err)
@@ -635,7 +658,7 @@ func (c *messageConsumerUseCase) recordCampaignSend(entry *wce.WhatsAppCampaignE
 
 func (c *messageConsumerUseCase) recordChoiceSend(ctx context.Context, campaign *wc.Campaign, tmpl *template.Template, promptKey, messageID string) {
 	shown := tmpl.ShownChoiceIDs(c.clickLinkBase)
-	if c.choices == nil || len(shown) == 0 {
+	if len(shown) == 0 {
 		return
 	}
 	c.choices.RecordSend(ctx, choicestats.Send{

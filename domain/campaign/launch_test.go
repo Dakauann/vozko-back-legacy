@@ -96,3 +96,12 @@ func TestReadyToStartIsANeverSentStoppedCampaign(t *testing.T) {
 		t.Fatal("unknown metrics are not ready")
 	}
 }
+
+func TestNowAndScheduleStartTheCampaignButReadyDoesNot(t *testing.T) {
+	if !(Launch{Mode: LaunchNow}).Starts() || !(Launch{Mode: LaunchSchedule}).Starts() {
+		t.Fatal("now and schedule both start the campaign")
+	}
+	if (Launch{Mode: LaunchReady}).Starts() {
+		t.Fatal("ready only creates the campaign")
+	}
+}

@@ -49,11 +49,15 @@ func (r *BalanceRepositoryImpl) Create(b *balance.Balance) error {
 		return balance.ErrWorkspaceAlreadyHasBalance
 	}
 
+	now := time.Now()
 	dbBalance := &schema.Balance{
-		ID:          b.ID,
-		WorkspaceID: b.WorkspaceID,
-		Amount:      b.Amount,
-		Currency:    b.Currency,
+		ID:            b.ID,
+		WorkspaceID:   b.WorkspaceID,
+		Amount:        b.Amount,
+		Currency:      b.Currency,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		MoneyTotalsAt: &now,
 	}
 
 	if err := r.db.Create(dbBalance).Error; err != nil {
@@ -80,6 +84,14 @@ func (r *BalanceRepositoryImpl) ListWorkspacesBelowBalance(thresholdMicros int64
 var _ balance.LowBalanceLister = (*BalanceRepositoryImpl)(nil)
 
 func (r *BalanceRepositoryImpl) GetByWorkspaceID(workspaceID string) (*balance.Balance, error) {
+	dbBalance, err := r.findBalance(workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return mapBalanceToDomain(dbBalance), nil
+}
+
+func (r *BalanceRepositoryImpl) findBalance(workspaceID string) (*schema.Balance, error) {
 	var dbBalance schema.Balance
 	if err := r.db.Where("workspace_id = ?", workspaceID).First(&dbBalance).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -87,7 +99,7 @@ func (r *BalanceRepositoryImpl) GetByWorkspaceID(workspaceID string) (*balance.B
 		}
 		return nil, err
 	}
-	return mapBalanceToDomain(&dbBalance), nil
+	return &dbBalance, nil
 }
 
 func (r *BalanceRepositoryImpl) CreditBalance(params balance.CreditBalanceInput) (*balance.Transaction, error) {
@@ -135,11 +147,7 @@ func (r *BalanceRepositoryImpl) CreditBalance(params balance.CreditBalanceInput)
 			IsRefund:           params.IsRefund,
 		}
 
-		if err := tx.Create(dbTransaction).Error; err != nil {
-			return err
-		}
-
-		if err := tx.Model(&dbBalance).Update("amount", balanceAfter).Error; err != nil {
+		if err := recordMovement(tx, &dbBalance, dbTransaction); err != nil {
 			return err
 		}
 
@@ -198,11 +206,7 @@ func (r *BalanceRepositoryImpl) DebitBalance(params balance.DebitBalanceInput) (
 			IsRefund:           params.IsRefund,
 		}
 
-		if err := tx.Create(dbTransaction).Error; err != nil {
-			return err
-		}
-
-		if err := tx.Model(&dbBalance).Update("amount", balanceAfter).Error; err != nil {
+		if err := recordMovement(tx, &dbBalance, dbTransaction); err != nil {
 			return err
 		}
 
@@ -273,11 +277,21 @@ func (r *BalanceRepositoryImpl) HasSufficientBalance(workspaceID string, amount 
 }
 
 func (r *BalanceRepositoryImpl) GetFullBalanceSummary(workspaceID string) (*balance.FullBalanceSummary, error) {
-	bal, err := r.GetByWorkspaceID(workspaceID)
+	held, err := r.findBalance(workspaceID)
 	if err != nil {
 		return nil, err
 	}
+	if moneyTotalsCurrent(held) {
+		return &balance.FullBalanceSummary{
+			Balance:           mapBalanceToDomain(held),
+			TotalMoneyCredits: held.TotalMoneyCredits,
+			TotalMoneyDebits:  held.TotalMoneyDebits,
+		}, nil
+	}
+	return r.summedBalanceSummary(mapBalanceToDomain(held))
+}
 
+func (r *BalanceRepositoryImpl) summedBalanceSummary(bal *balance.Balance) (*balance.FullBalanceSummary, error) {
 	type totals struct {
 		ResourceType string `gorm:"column:resource_type"`
 		TxType       string `gorm:"column:type"`
@@ -381,102 +395,20 @@ func referenceRecorded(db *gorm.DB, referenceID string) (bool, error) {
 }
 
 func (r *BalanceRepositoryImpl) AggregateWhatsAppTemplateCharges(filter balance.WhatsAppChargeFilter) (*balance.WhatsAppChargeStats, error) {
-	stats := &balance.WhatsAppChargeStats{}
 	ws := strings.TrimSpace(filter.WorkspaceID)
 	if ws == "" {
-		return stats, nil
+		return &balance.WhatsAppChargeStats{}, nil
 	}
 
-	sql := `
-		SELECT
-			CASE
-				WHEN position('marketing' IN lower(bt.description)) > 0 THEN 'MARKETING'
-				WHEN position('authentication' IN lower(bt.description)) > 0 THEN 'AUTHENTICATION'
-				WHEN position('utility' IN lower(bt.description)) > 0 THEN 'UTILITY'
-				ELSE 'UNKNOWN'
-			END AS category,
-			COALESCE(SUM(` + netTemplateSendExpr + `), 0)::bigint AS net
-		FROM balance_transactions bt
-		WHERE bt.workspace_id = ?
-		  AND bt.service_type = ?
-		  AND ` + templateSendRowsFilter + `
-	`
-	args := []interface{}{ws, string(balance.ServiceWhatsAppCampaign)}
-	if filter.From != nil {
-		sql += ` AND bt.created_at >= ?`
-		args = append(args, *filter.From)
-	}
-	if filter.To != nil {
-		sql += ` AND bt.created_at <= ?`
-		args = append(args, *filter.To)
-	}
-
-	needCampaign := strings.TrimSpace(filter.CampaignType) != "" || len(filter.DepartmentIDs) > 0
-	if needCampaign {
-		campConds := []string{`c.workspace_id = ?`, `c.deleted_at IS NULL`}
-		campArgs := []interface{}{ws}
-		if t := strings.TrimSpace(filter.CampaignType); t != "" {
-			campConds = append(campConds, `c.type = ?`)
-			campArgs = append(campArgs, t)
-		}
-		if len(filter.DepartmentIDs) > 0 {
-			campConds = append(campConds, `c.department_id IN ?`)
-			campArgs = append(campArgs, filter.DepartmentIDs)
-		}
-		whereCamp := strings.Join(campConds, ` AND `)
-		sql += `
-		  AND ` + chargeOwnerKey + ` IN (
-		    SELECT c.id::text FROM whatsapp_campaigns c WHERE ` + whereCamp + `
-		    UNION ALL
-		    SELECT e.id::text FROM whatsapp_campaign_entries e
-		    JOIN whatsapp_campaigns c ON c.id = e.campaign_id
-		    WHERE e.deleted_at IS NULL AND ` + whereCamp + `
-		    UNION ALL
-		    SELECT 'waba:' || s.id FROM whatsapp_template_sends s
-		    JOIN whatsapp_campaigns c ON c.id = s.campaign_id
-		    WHERE s.deleted_at IS NULL AND ` + whereCamp + `
-		  )
-		`
-		for i := 0; i < 3; i++ {
-			args = append(args, campArgs...)
-		}
-	}
-
-	sql += ` GROUP BY 1`
-
-	type row struct {
-		Category string
-		Net      int64
-	}
-	var rows []row
+	var rows []templateChargeRow
 	if err := database.InReadSession(context.Background(), r.db, []string{database.StatementTimeout("30s")}, func(tx *gorm.DB) error {
-		return tx.Raw(sql, args...).Scan(&rows).Error
+		var err error
+		rows, err = templateCharges(tx, filter, ws)
+		return err
 	}); err != nil {
 		return nil, err
 	}
-
-	var total int64
-	for _, rw := range rows {
-		n := rw.Net
-		if n < 0 {
-			n = 0
-		}
-		switch strings.ToUpper(strings.TrimSpace(rw.Category)) {
-		case "MARKETING":
-			stats.Marketing = n
-			total += n
-		case "UTILITY":
-			stats.Utility = n
-			total += n
-		case "AUTHENTICATION":
-			stats.Authentication = n
-			total += n
-		default:
-			total += n
-		}
-	}
-	stats.NetDispatches = total
-	return stats, nil
+	return foldTemplateCharges(rows), nil
 }
 
 func (r *BalanceRepositoryImpl) EnsureBalanceExists(workspaceID string, currency string) (*balance.Balance, error) {

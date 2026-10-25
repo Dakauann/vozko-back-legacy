@@ -63,17 +63,6 @@ func (c ConversationContext) RulesPrompt() string {
 		sb.WriteString("FLUXO OBRIGATÓRIO: 1) Analise a mensagem do cliente → 2) Chame manage_entry_stage → 3) Responda ao cliente.\n\n")
 	}
 
-	if c.Channel == ChannelWhatsApp && c.hasTool("send_whatsapp_template") {
-		sb.WriteString("ENVIO DE WHATSAPP (OBRIGATÓRIO):\n")
-		sb.WriteString("Você tem a ferramenta 'send_whatsapp_template' disponível para enviar mensagens de WhatsApp.\n")
-		sb.WriteString("Quando o cliente ACEITAR receber uma mensagem no WhatsApp (ex: 'pode sim', 'pode enviar', 'sim', 'ok', 'tá bom'),\n")
-		sb.WriteString("você DEVE OBRIGATORIAMENTE chamar a ferramenta 'send_whatsapp_template' imediatamente.\n")
-		sb.WriteString("NUNCA diga 'vou enviar' ou 'enviarei' sem de fato chamar a ferramenta, isso é PROIBIDO.\n")
-		sb.WriteString("O número do cliente e o template já estão configurados automaticamente.\n")
-		sb.WriteString("Se o template tiver parâmetros (placeholders {{1}}, {{2}}...), preencha-os com os dados do contexto.\n")
-		sb.WriteString("FLUXO: 1) Cliente aceita → 2) Chame send_whatsapp_template → 3) Confirme o envio ao cliente.\n\n")
-	}
-
 	if c.hasTool("search_knowledge_base") {
 		sb.WriteString("BASE DE CONHECIMENTO (OBRIGATÓRIO):\n")
 		sb.WriteString("Você tem a ferramenta 'search_knowledge_base' para pesquisar nos documentos da empresa.\n")

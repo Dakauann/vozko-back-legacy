@@ -128,3 +128,10 @@ func TestSchemaIssuesCatchWhatProvidersRefuse(t *testing.T) {
 		}
 	}
 }
+
+func TestThePublicEndpointHasNoQueryOrCredentials(t *testing.T) {
+	got := PublicEndpoint("https://user:pw@api.example.com/v1/orders/{id}?api_key={{secret.k}}&token=abc#frag")
+	if got != "https://api.example.com/v1/orders/{id}" {
+		t.Fatalf("got %q", got)
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"vozko/domain/shared"
 	"vozko/domain/workflow"
 	"vozko/infra/database/schema"
+	"vozko/infra/repositories/repotest"
 )
 
 type sqlFixture struct {
@@ -351,15 +352,7 @@ func TestTriggerDataFollowsTheThirtyDayPayloadRetentionAgainstPostgres(t *testin
 }
 
 func visibilityTables() []interface{} {
-	return []interface{}{
-		&schema.WhatsAppCampaign{}, &schema.WhatsAppCampaignEntry{}, &schema.InstagramAccount{}, &schema.InstagramConversation{},
-		&schema.FacebookPage{}, &schema.FacebookConversation{}, &schema.TelegramAccount{}, &schema.TelegramConversation{},
-		&schema.WebchatWidget{}, &schema.WebchatConversation{}, &schema.MercadoLivreAccount{}, &schema.MercadoLivreConversation{},
-		&schema.TikTokAccount{}, &schema.TikTokConversation{}, &schema.UnofficialWhatsAppInstance{}, &schema.UnofficialWhatsAppConversation{},
-		&schema.EmailInbox{}, &schema.EmailConversation{},
-		&schema.RCSSender{}, &schema.RCSConversation{}, &schema.SMSRoute{}, &schema.SMSConversation{},
-		&schema.InboxAssignment{},
-	}
+	return repotest.ConversationVisibilityModels()
 }
 
 func (f *sqlFixture) whatsappEntry(departmentID string) string {

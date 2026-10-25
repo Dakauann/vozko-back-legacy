@@ -11,6 +11,7 @@ import (
 
 	"vozko/delivery/http/response"
 	"vozko/domain/conversation"
+	"vozko/domain/shared/deps"
 	"vozko/domain/webhook"
 	businessphone "vozko/domain/whatsapp/business_phone"
 	whatsapptemplate "vozko/domain/whatsapp/template"
@@ -29,24 +30,28 @@ type WebhookHandler struct {
 	permissionWebhook conversation.WhatsAppCallPermissionWebhookHandler
 }
 
-func (h *WebhookHandler) SetDialog360WebhookSecret(secret string) {
-	h.dialog360WebhookSecret = secret
+type WebhookHandlerDeps struct {
+	Publish             webhook.PublishWebhookUseCase
+	AsaasToken          string
+	WhatsAppVerifyToken string
+	WhatsAppAppSecrets  []string
+	Dialog360Secret     string
+	Calls               conversation.WhatsAppCallWebhookHandler
+	CallPermissions     conversation.WhatsAppCallPermissionWebhookHandler
 }
 
-func (h *WebhookHandler) SetCallPermissionWebhookHandler(handler conversation.WhatsAppCallPermissionWebhookHandler) {
-	h.permissionWebhook = handler
-}
-
-func (h *WebhookHandler) SetCallWebhookHandler(handler conversation.WhatsAppCallWebhookHandler) {
-	h.callWebhook = handler
-}
-
-func NewWebhookHandler(
-	publishWebhook webhook.PublishWebhookUseCase,
-	expectedToken string,
-	whatsappVerifyToken string,
-	whatsappAppSecrets ...string,
-) *WebhookHandler {
+func NewWebhookHandler(d WebhookHandlerDeps) (*WebhookHandler, error) {
+	if err := deps.Require("webhook handler", map[string]any{
+		"webhook publisher":       d.Publish,
+		"call webhooks":           d.Calls,
+		"call permission replies": d.CallPermissions,
+	}); err != nil {
+		return nil, err
+	}
+	expectedToken, whatsappVerifyToken, whatsappAppSecrets := d.AsaasToken, d.WhatsAppVerifyToken, d.WhatsAppAppSecrets
+	if d.Dialog360Secret == "" {
+		log.Println("[WARN] D360_WEBHOOK_SECRET is empty, every 360dialog inbound webhook will be refused")
+	}
 	if expectedToken == "" {
 		log.Println("[WARN] ASAAS_WEBHOOK_TOKEN is empty, all Asaas webhook requests will be rejected")
 	}
@@ -57,11 +62,15 @@ func NewWebhookHandler(
 		log.Printf("[webhook] WhatsApp signature verification enabled (%d app secret(s))", len(secrets))
 	}
 	return &WebhookHandler{
-		publishWebhook:      publishWebhook,
+		publishWebhook:      d.Publish,
 		expectedToken:       expectedToken,
 		whatsappVerifyToken: whatsappVerifyToken,
 		whatsappAppSecrets:  secrets,
-	}
+
+		dialog360WebhookSecret: d.Dialog360Secret,
+		callWebhook:            d.Calls,
+		permissionWebhook:      d.CallPermissions,
+	}, nil
 }
 
 func (h *WebhookHandler) HandleAsaasWebhook(w http.ResponseWriter, r *http.Request) {
@@ -220,7 +229,7 @@ func (h *WebhookHandler) authenticateDialog360(r *http.Request) bool {
 func (h *WebhookHandler) routeWhatsAppEnvelope(w http.ResponseWriter, body []byte) {
 	field := extractWebhookField(body)
 
-	if field == "calls" && h.callWebhook != nil {
+	if field == "calls" {
 		if err := h.callWebhook.HandleCallsWebhook(body); err != nil {
 			log.Printf("[whatsapp-webhook] calls handler error: %v", err)
 		}
@@ -228,7 +237,7 @@ func (h *WebhookHandler) routeWhatsAppEnvelope(w http.ResponseWriter, body []byt
 		return
 	}
 
-	if field == "messages" && h.permissionWebhook != nil {
+	if field == "messages" {
 		if err := h.permissionWebhook.HandleMessagesWebhook(body); err != nil {
 			log.Printf("[whatsapp-webhook] call permission handler error: %v", err)
 		}

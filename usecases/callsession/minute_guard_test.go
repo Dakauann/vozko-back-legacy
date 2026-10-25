@@ -116,7 +116,7 @@ func (g *guardedRun) hangup(t *testing.T) {
 func guardedRunner(reserver *scriptedReserver, checker *fakeBalanceChecker, pub *fakeBillingPub) *OutboundCallLifecycleRunner {
 	runner := newRunner(&fakeAdmission{}, nil, checker, pub)
 	runner.inflightReserver = reserver
-	runner.SetMinuteWaves(testMinute, testLead, testRetry)
+	runner.billingMinute, runner.reservationLead, runner.reservationRetry = testMinute, testLead, testRetry
 	return runner
 }
 

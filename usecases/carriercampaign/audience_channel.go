@@ -14,10 +14,6 @@ func (s *Service) AudienceChannel() campaignaudience_usecase.Channel {
 	return audienceChannel{s: s}
 }
 
-func (s *Service) SetAudience(service *campaignaudience_usecase.Service) {
-	s.audience = service
-}
-
 func (audienceChannel) Name() audience.Channel { return audience.ChannelCarrier }
 
 func (c audienceChannel) Prepare(_ context.Context, a campaignaudience_usecase.Actor, params campaignaudience_usecase.Params) (campaignaudience_usecase.Prepared, error) {
@@ -60,13 +56,10 @@ func (s *Service) countAudience(ctx context.Context, c cc.Campaign, a Actor) (*a
 	if !c.HasAudience() {
 		return nil, cc.ErrAudienceRequired
 	}
-	if s.audience == nil {
-		return nil, audience.ErrUnavailable
-	}
 	sel := c.Audience.Inferred()
 	spec := audience.Spec{Source: audience.SourceLeads, Selection: &sel}
 	actor := campaignaudience_usecase.Actor{WorkspaceID: c.WorkspaceID, UserID: a.UserID, IsAdmin: a.IsAdmin}
-	count, err := s.audience.Walk(ctx, actor, audience.ChannelCarrier, campaignaudience_usecase.Params{Kind: string(c.Kind)}, spec, "", nil)
+	count, err := s.deps.Audience.Walk(ctx, actor, audience.ChannelCarrier, campaignaudience_usecase.Params{Kind: string(c.Kind)}, spec, "", nil)
 	if err != nil {
 		return nil, err
 	}

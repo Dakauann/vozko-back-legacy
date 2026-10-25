@@ -95,7 +95,7 @@ func TestExecuteLockedLogsEngineError(t *testing.T) {
 	runRepo := NewMockWorkflowRunRepository()
 	runRepo.UpdateErr = errorString("update failed")
 	logRepo := NewMockWorkflowRunLogRepository()
-	engine := NewRunEngine(runRepo, logRepo, NewNodeExecutorRegistry())
+	engine := testEngine(runRepo, logRepo, NewNodeExecutorRegistry())
 
 	w := webhookWorkflow()
 	run := newTriggeredRun(w, w.Graph.TriggerNodeByType(workflow.TriggerWebhook), webhookEvent())
@@ -109,7 +109,7 @@ func (e errorString) Error() string { return string(e) }
 func TestEngineRunLauncher_RunsAndReleasesSlot(t *testing.T) {
 	runRepo := NewMockWorkflowRunRepository()
 	logRepo := NewMockWorkflowRunLogRepository()
-	engine := NewRunEngine(runRepo, logRepo, NewNodeExecutorRegistry())
+	engine := testEngine(runRepo, logRepo, NewNodeExecutorRegistry())
 	state := &fakeSharedState{allow: true}
 
 	launcher := &engineRunLauncher{
@@ -135,7 +135,7 @@ func TestEngineRunLauncher_RunsAndReleasesSlot(t *testing.T) {
 func TestNewEngineRunLauncherDefaultDispatch(t *testing.T) {
 	runRepo := NewMockWorkflowRunRepository()
 	logRepo := NewMockWorkflowRunLogRepository()
-	engine := NewRunEngine(runRepo, logRepo, NewNodeExecutorRegistry())
+	engine := testEngine(runRepo, logRepo, NewNodeExecutorRegistry())
 
 	launcher := NewEngineRunLauncher(engine, &fakeSharedState{allow: true})
 	w := webhookWorkflow()
@@ -163,8 +163,8 @@ func (l *fakeRunLocker) TryLock(runID string, ttl time.Duration) (bool, error) {
 func (l *fakeRunLocker) Unlock(runID string) error { return nil }
 
 func TestAnUnreadableRunLockLeavesTheRunForALaterRetry(t *testing.T) {
-	engine := NewRunEngine(NewMockWorkflowRunRepository(), NewMockWorkflowRunLogRepository(), NewNodeExecutorRegistry())
-	engine.SetRunLocker(&fakeRunLocker{acquired: true, err: errors.New("redis down")})
+	engine := testEngine(NewMockWorkflowRunRepository(), NewMockWorkflowRunLogRepository(), NewNodeExecutorRegistry())
+	engine.runLocker = &fakeRunLocker{acquired: true, err: errors.New("redis down")}
 	if engine.TryLockRun("run-1") {
 		t.Fatal("a lock store outage must not let two workers run the same step")
 	}
@@ -173,8 +173,8 @@ func TestAnUnreadableRunLockLeavesTheRunForALaterRetry(t *testing.T) {
 func TestExecuteLockedSkipsWhenLocked(t *testing.T) {
 	runRepo := NewMockWorkflowRunRepository()
 	logRepo := NewMockWorkflowRunLogRepository()
-	engine := NewRunEngine(runRepo, logRepo, NewNodeExecutorRegistry())
-	engine.SetRunLocker(&fakeRunLocker{acquired: false})
+	engine := testEngine(runRepo, logRepo, NewNodeExecutorRegistry())
+	engine.runLocker = &fakeRunLocker{acquired: false}
 
 	w := webhookWorkflow()
 	run := newTriggeredRun(w, w.Graph.TriggerNodeByType(workflow.TriggerWebhook), webhookEvent())

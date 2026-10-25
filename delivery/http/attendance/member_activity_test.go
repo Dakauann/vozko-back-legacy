@@ -41,9 +41,7 @@ func activityRequest(path string, vars map[string]string) *http.Request {
 }
 
 func activityHandler(reader memberActivityReader) *AttendanceHandler {
-	h := &AttendanceHandler{}
-	h.SetMemberActivity(reader)
-	return h
+	return &AttendanceHandler{memberActivity: reader}
 }
 
 func TestAManagerAsksForAMembersActivityWithTheirDepartmentScope(t *testing.T) {
@@ -80,14 +78,6 @@ func TestMemberActivityErrorsMapToStatuses(t *testing.T) {
 		if rec.Code != tc.want {
 			t.Errorf("%v: status %d", tc.err, rec.Code)
 		}
-	}
-}
-
-func TestMemberActivityRefusesWhenUnavailable(t *testing.T) {
-	rec := httptest.NewRecorder()
-	(&AttendanceHandler{}).GetMyActivity(rec, activityRequest("/x", nil))
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status %d", rec.Code)
 	}
 }
 

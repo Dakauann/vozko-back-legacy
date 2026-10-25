@@ -56,6 +56,9 @@ func NewEmitMonthlyInvoicesUseCase(
 
 func (uc *emitMonthlyInvoicesUseCase) Execute() (int, error) {
 	now := uc.now().In(billing.LocationBRT())
+	if !billing.InEmitWindow(now) {
+		return 0, nil
+	}
 	windowEnd := billing.NextAnchor(now, uc.dueDay)
 	rate := uc.exchangeRate()
 

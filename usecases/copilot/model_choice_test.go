@@ -142,7 +142,7 @@ func TestABlindModelIsToldItCannotSeeAnAttachedImage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			th, ms := &fakeThreads{thread: testThread()}, &fakeMessages{}
 			prov := &scriptAI{turns: [][]ai.ToolCall{{}}, texts: []string{"ok"}, models: []ai.ModelInfo{catalogModel("m", tc.caps, nil)}}
-			svc := NewService(agentloop.Engine{AI: prov}, NewRegistry(), &fakeAccess{}, openFunds{}, th, ms, files, nil, func() string { return "a" })
+			svc := testService(Deps{Engine: agentloop.Engine{AI: prov}, Registry: NewRegistry(), Access: &fakeAccess{}, Funds: openFunds{}, Threads: th, Messages: ms, Files: files, NewID: func() string { return "a" }})
 			cc := ownerCtx
 			cc.WorkspaceID = "ws1"
 			if err := svc.Stream(context.Background(), th.thread, copilot.UserMessage{Content: "o que tem aqui?", AttachmentIDs: []string{"img"}}, cc, (&capture{}).emit); err != nil {

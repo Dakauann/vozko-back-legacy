@@ -92,3 +92,10 @@ func TestRuleSectionsFollowTheAgentsTools(t *testing.T) {
 		t.Error("the messaging channel must not get the stage classification rule")
 	}
 }
+
+func TestNoRuleSendsTheModelToATemplateToolThatDoesNotExist(t *testing.T) {
+	ctx := ConversationContext{Channel: ChannelWhatsApp, AvailableTools: []string{"send_whatsapp_template"}}
+	if strings.Contains(ctx.RulesPrompt(), "send_whatsapp_template") {
+		t.Fatalf("rules mention a tool no handler runs: %s", ctx.RulesPrompt())
+	}
+}

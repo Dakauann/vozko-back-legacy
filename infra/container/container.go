@@ -40,7 +40,6 @@ func New() *Container {
 	c.initServices()
 	c.initDecisionModel()
 	c.initRepositories()
-	c.wireContainerPipelines()
 	c.announceStageEntries()
 
 	c.seedPricingDefaults()
@@ -100,23 +99,26 @@ func New() *Container {
 	c.wireEmailInboxConversationStack(c.emailInbox)
 	c.wireCarrierConversationStack()
 	c.wireUnofficialWhatsAppConversationStack()
-	c.wireDelegations()
+	c.sealConversationChannels()
+	c.startUnofficialWhatsAppCampaigns()
 	c.initHandlers()
-	c.wireButtonActions()
-	c.wireLaunchCheck()
-	c.wireTemplateEdit()
-	c.wireCampaignExit()
+	c.verifyCallPresenceListener()
 	c.initRouter()
 	c.initServer()
 	c.initMetricsServer()
 	c.initJobRunner()
+	if err := c.handles.VerifyBound(); err != nil {
+		log.Fatalf("[container] %v", err)
+	}
 	return c
 }
 
 func (c *Container) Start(port string) error {
 	log.Printf("Starting server on port %s...", port)
 
-	c.jobRunner.StartAll()
+	var jobsCtx context.Context
+	jobsCtx, c.stopJobs = context.WithCancel(context.Background())
+	go c.jobRunner.Run(jobsCtx)
 	log.Println("Background jobs started")
 	c.startLiveDecisions()
 	c.startSIPTrunks()
@@ -156,6 +158,9 @@ func (c *Container) Shutdown() {
 		log.Printf("HTTP shutdown error: %v", err)
 	}
 
+	if c.stopJobs != nil {
+		c.stopJobs()
+	}
 	if c.cfPublisherCancel != nil {
 		c.cfPublisherCancel()
 	}

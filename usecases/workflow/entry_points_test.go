@@ -93,7 +93,7 @@ func TestTheDetailCarriesItsEntryPoints(t *testing.T) {
 	repo := entryPointsRepo(t)
 	reader := &recordingEntryPointReader{sources: &workflow.EntryPointSources{Webhooks: map[string]workflow.WebhookEntry{"wf-2": {Active: true, Method: "POST"}}}}
 	uc := NewScopedWorkflowsUseCase(ScopedWorkflowsDeps{
-		Get: NewGetWorkflowUseCase(repo), Update: NewUpdateWorkflowUseCase(repo), Versions: NewWorkflowVersionsUseCase(repo), EntryPoints: NewEntryPoints(reader),
+		Get: NewGetWorkflowUseCase(repo), Update: NewUpdateWorkflowUseCase(repo, staticCatalog{}), Versions: NewWorkflowVersionsUseCase(repo), EntryPoints: NewEntryPoints(reader),
 	})
 	detail, err := uc.Detail(ownerScope("u-1"), "wf-2")
 	if err != nil {

@@ -13,7 +13,7 @@ func TestTheAcknowledgementIsRecordedOnlyAfterTheCampaignIsSaved(t *testing.T) {
 	f := newCreateFixture()
 	uc := f.useCase(f.screener)
 	gate := &recordingGate{stored: func() int { return len(f.campaigns.campaigns) }}
-	uc.(*createCampaignUseCase).SetExitRiskGate(gate)
+	uc.(*createCampaignUseCase).exitRisk = gate
 
 	in := selectionCampaign()
 	in.ExitRiskAcknowledgedBy = "user-1"
@@ -31,7 +31,7 @@ func TestACreateThatFailsAfterTheGateRecordsNoAcknowledgement(t *testing.T) {
 	f := newCreateFixture()
 	uc := f.useCase(&fakeScreener{skip: map[string]campaign.SkipReason{}, err: errors.New("screening down")})
 	gate := &recordingGate{}
-	uc.(*createCampaignUseCase).SetExitRiskGate(gate)
+	uc.(*createCampaignUseCase).exitRisk = gate
 
 	in := selectionCampaign()
 	in.ExitRiskAcknowledgedBy = "user-1"
@@ -46,7 +46,7 @@ func TestACreateThatFailsAfterTheGateRecordsNoAcknowledgement(t *testing.T) {
 func TestAFailedRecordAfterTheSaveIsReported(t *testing.T) {
 	f := newCreateFixture()
 	uc := f.useCase(f.screener)
-	uc.(*createCampaignUseCase).SetExitRiskGate(&recordingGate{recordErr: errors.New("routes store down")})
+	uc.(*createCampaignUseCase).exitRisk = &recordingGate{recordErr: errors.New("routes store down")}
 
 	if _, err := uc.Execute(context.Background(), selectionCampaign()); err == nil {
 		t.Fatal("a lost acknowledgement must not pass silently")
@@ -57,10 +57,10 @@ func TestATemplateChangeRecordsTheNewTemplatesAdmissionAfterTheUpdate(t *testing
 	stored, fixture := updateFixture(t, "")
 	counted := &countedCampaigns{mockCampaignRepo: stored}
 	fixtureUC := fixture.(*updateCampaignUseCase)
-	uc := NewUpdateCampaignUseCase(counted, fixtureUC.entryRepo, fixtureUC.templateRepo, fixtureUC.businessPhoneRepo, nil)
-	uc.(*updateCampaignUseCase).SetTemplateGrants(allowGrants{})
+	uc := updateWith(UpdateCampaignDeps{Campaigns: counted, Entries: fixtureUC.entryRepo, Templates: fixtureUC.templateRepo, Phones: fixtureUC.businessPhoneRepo})
+	uc.(*updateCampaignUseCase).templateGrants = allowGrants{}
 	gate := &recordingGate{stored: func() int { return counted.updates }}
-	uc.(*updateCampaignUseCase).SetExitRiskGate(gate)
+	uc.(*updateCampaignUseCase).exitRisk = gate
 
 	if _, err := uc.Execute(context.Background(), "camp-1", &wc.Campaign{Name: "Matrículas", TemplateID: "tmpl-2"}); err != nil {
 		t.Fatal(err)

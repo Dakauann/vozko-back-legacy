@@ -4,7 +4,16 @@ import (
 	"fmt"
 
 	"github.com/lib/pq"
+
+	"vozko/infra/database/schema"
 )
+
+func Routed(entryIDColumn, entryType, departmentColumn string) string {
+	return fmt.Sprintf(
+		"COALESCE((SELECT cdr.department_id FROM %s cdr WHERE cdr.entry_id = %s AND cdr.entry_type = '%s'), %s)",
+		schema.ConversationDepartmentRoutesTable, entryIDColumn, entryType, departmentColumn,
+	)
+}
 
 func Clause(deptColumn, entryIDColumn string, departmentIDs []string, restrict bool, assigneeUserID string) (string, []interface{}) {
 	if !restrict {

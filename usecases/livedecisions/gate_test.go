@@ -309,3 +309,14 @@ func TestTheGateQueuesNothingWithoutASettingsReader(t *testing.T) {
 		t.Fatal("without the conversation settings nothing may be decided")
 	}
 }
+
+func TestTheHandleReportsWhetherItIsBound(t *testing.T) {
+	handle := &GateHandle{}
+	if err := handle.Bound(); !errors.Is(err, ErrGateUnbound) {
+		t.Fatalf("Bound before binding = %v, want ErrGateUnbound", err)
+	}
+	handle.Bind(NewGate(newHarness().service, &stampRecorder{}))
+	if err := handle.Bound(); err != nil {
+		t.Fatalf("Bound after binding = %v", err)
+	}
+}

@@ -18,9 +18,6 @@ func resolveToolAdapter(
 	registry conversation.AdapterRegistry,
 	config map[string]interface{},
 ) (conversation.ChannelAdapter, *conversation.EntryContext, bool) {
-	if registry == nil {
-		return nil, nil, false
-	}
 	entryID, _ := config["__entry_id"].(string)
 	entryTypeStr, _ := config["__entry_type"].(string)
 	entryID, entryTypeStr = strings.TrimSpace(entryID), strings.TrimSpace(entryTypeStr)

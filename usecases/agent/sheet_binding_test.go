@@ -29,7 +29,7 @@ type sheetRegistry struct{ toolsdomain.Service }
 
 func (sheetRegistry) Definitions() []toolsdomain.Definition {
 	return []toolsdomain.Definition{{
-		Name: tools_usecase.AddSheetRowToolName, BindingKey: "sheet_id", RequiresConfig: true, RequiredConfig: []string{"sheet_id"},
+		Name: tools_usecase.AddSheetRowToolName, Instances: toolsdomain.PerTarget("sheet_id"), RequiresConfig: true, RequiredConfig: []string{"sheet_id"},
 		ConfigSchema: map[string]toolsdomain.ConfigParameter{"sheet_id": {Type: "string", Required: true}},
 	}}
 }
@@ -50,7 +50,8 @@ func sheetBinding(id string) agent.ToolBinding {
 
 func TestBindingASheetNeedsToSeeSheetsAndASheetOfTheWorkspace(t *testing.T) {
 	store := &agentStore{byID: map[string]*agent.Agent{}}
-	create := NewCreateAgentUseCase(store, nil, sheetRegistry{}, nil, nil)
+	create := NewCreateAgentUseCase(store, sheetRegistry{}, nil)
+	validated(create)
 	create.(ToolBindingGuarded).GuardToolBindings(sheetViewers{"u-viewer": true})
 	input := func(by string, bindings ...agent.ToolBinding) agent.CreateAgentInput {
 		return agent.CreateAgentInput{WorkspaceID: "ws1", Name: "Nova", MessagingPrompt: "p", MessagingModel: "m", Provider: agent.AgentProviderAI,

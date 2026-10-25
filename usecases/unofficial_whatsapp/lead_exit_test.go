@@ -36,7 +36,7 @@ func TestALeadsMessageGoesThroughTheExitStepFirst(t *testing.T) {
 	h := newAutoHarness(t, nil)
 	h.uc.leads = linkingLeads{}
 	step := &scriptedExitStep{}
-	h.uc.SetLeadExitStep(step)
+	h.uc.exitStep = step
 
 	h.deliverInbound(t)
 
@@ -53,7 +53,7 @@ func TestALeadsMessageGoesThroughTheExitStepFirst(t *testing.T) {
 func TestAfterAnOptOutTheAgentIsSkippedButWorkflowsStillSeeTheMessage(t *testing.T) {
 	h := newAutoHarness(t, nil)
 	h.uc.leads = linkingLeads{}
-	h.uc.SetLeadExitStep(&scriptedExitStep{result: leadexit.Result{OptedOut: true}})
+	h.uc.exitStep = &scriptedExitStep{result: leadexit.Result{OptedOut: true}}
 
 	h.deliverInbound(t)
 
@@ -65,18 +65,6 @@ func TestAfterAnOptOutTheAgentIsSkippedButWorkflowsStillSeeTheMessage(t *testing
 	}
 }
 
-func TestALeadsMessageWithoutTheExitStepFailsClosed(t *testing.T) {
-	h := newAutoHarness(t, nil)
-	h.uc.leads = linkingLeads{}
-	body := inboundBody(t)
-
-	if err := h.uc.Execute(context.Background(), &QueuedEvent{InstanceID: "inst-1", Body: body}); !errors.Is(err, errLeadExitStepMissing) {
-		t.Fatalf("got %v", err)
-	}
-	if len(h.ai.all()) != 0 || len(h.workflows.all()) != 0 {
-		t.Fatal("automation ran without the exit check")
-	}
-}
 
 func inboundBody(t *testing.T) []byte {
 	t.Helper()
@@ -99,7 +87,7 @@ func TestTheExitStepNamesTheStoredInboundRowForAWorkflowItStarts(t *testing.T) {
 	h.uc.leads = linkingLeads{}
 	h.uc.messages = storedInbound{byProvider: map[string]string{"unofficial_whatsapp|msg-1": "row-1"}}
 	step := &scriptedExitStep{}
-	h.uc.SetLeadExitStep(step)
+	h.uc.exitStep = step
 
 	h.deliverInbound(t)
 

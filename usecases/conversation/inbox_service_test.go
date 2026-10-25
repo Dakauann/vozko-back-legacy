@@ -17,6 +17,19 @@ type inboxServiceTestHistoryProvider struct {
 	lastSearch  conversation.SearchInboxInput
 	entries     []conversation.InboxEntry
 	totalItems  int64
+
+	countCalls   int
+	lastCount    conversation.SearchInboxInput
+	lastStageIDs []string
+	stageCounts  map[string]int64
+	countErr     error
+}
+
+func (p *inboxServiceTestHistoryProvider) CountInboxEntriesByStages(input conversation.SearchInboxInput, stageIDs []string) (map[string]int64, error) {
+	p.countCalls++
+	p.lastCount = input
+	p.lastStageIDs = stageIDs
+	return p.stageCounts, p.countErr
 }
 
 func (p *inboxServiceTestHistoryProvider) GetHistory(string, shared.EntryType, int) ([]*conversation.Message, bool, int64, error) {
@@ -127,7 +140,7 @@ func TestSearchInbox_AppliesDepartmentScopeToWorkspaceSearch(t *testing.T) {
 		departmentScope:     conversation.DepartmentAccessScope{DepartmentIDs: []string{"dept-1"}, Restrict: true},
 		departmentScopeOkay: true,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("user-1", conversation.SearchInboxInput{
 		WorkspaceID:    "ws-1",
@@ -151,7 +164,7 @@ func TestSearchInbox_ResponsibleFilterSurvivesPermissionClear(t *testing.T) {
 		departmentScope:     conversation.DepartmentAccessScope{Restrict: false},
 		departmentScopeOkay: true,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("admin-1", conversation.SearchInboxInput{
 		WorkspaceID:       "ws-1",
@@ -176,7 +189,7 @@ func TestSearchInbox_DeniesCampaignOutsideDepartmentScope(t *testing.T) {
 		departmentScope:     conversation.DepartmentAccessScope{DepartmentIDs: []string{"dept-1"}, Restrict: true},
 		departmentScopeOkay: true,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("user-1", conversation.SearchInboxInput{
 		CampaignID:     "campaign-1",
@@ -197,7 +210,7 @@ func TestSearchInbox_SelectedDepartmentNarrowsScopeForEmployee(t *testing.T) {
 		departmentScope:     conversation.DepartmentAccessScope{DepartmentIDs: []string{"dept-1", "dept-2"}, Restrict: true},
 		departmentScopeOkay: true,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("user-1", conversation.SearchInboxInput{
 		WorkspaceID:          "ws-1",
@@ -220,7 +233,7 @@ func TestSearchInbox_SelectedDepartmentDeniesWhenNotInUserDepartments(t *testing
 		departmentScope:     conversation.DepartmentAccessScope{DepartmentIDs: []string{"dept-1", "dept-2"}, Restrict: true},
 		departmentScopeOkay: true,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("user-1", conversation.SearchInboxInput{
 		WorkspaceID:          "ws-1",
@@ -243,7 +256,7 @@ func TestSearchInbox_SelectedDepartmentNarrowsScopeForAdmin(t *testing.T) {
 		departmentScopeOkay: true,
 		ownerOrAdmin:        true,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("admin-1", conversation.SearchInboxInput{
 		WorkspaceID:          "ws-1",
@@ -268,7 +281,7 @@ func TestSearchInbox_NoDepartmentSelectionShowsAllUserDepartments(t *testing.T) 
 		departmentScope:     conversation.DepartmentAccessScope{DepartmentIDs: []string{"dept-1", "dept-2", "dept-3"}, Restrict: true},
 		departmentScopeOkay: true,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("user-1", conversation.SearchInboxInput{
 		WorkspaceID:    "ws-1",
@@ -291,7 +304,7 @@ func TestSearchInbox_AdminNoDepartmentSelectionSeesAll(t *testing.T) {
 		departmentScopeOkay: true,
 		ownerOrAdmin:        true,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("admin-1", conversation.SearchInboxInput{
 		WorkspaceID:    "ws-1",
@@ -312,7 +325,7 @@ func TestSearchInbox_DepartmentScopeDenied(t *testing.T) {
 		canAccessCampaign:   true,
 		departmentScopeOkay: false,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("user-1", conversation.SearchInboxInput{
 		WorkspaceID:    "ws-1",
@@ -332,7 +345,7 @@ func TestSearchInbox_NoDeptWorkspaceEmployeeSeesAll(t *testing.T) {
 		departmentScope:     conversation.DepartmentAccessScope{},
 		departmentScopeOkay: true,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("user-1", conversation.SearchInboxInput{
 		WorkspaceID:    "ws-1",
@@ -354,7 +367,7 @@ func TestSearchInbox_NoDeptWorkspaceIgnoresStaleDepartmentID(t *testing.T) {
 		departmentScope:     conversation.DepartmentAccessScope{},
 		departmentScopeOkay: true,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("user-1", conversation.SearchInboxInput{
 		WorkspaceID:          "ws-1",
@@ -379,7 +392,7 @@ func TestSearchInbox_NoDeptWorkspaceAdminIgnoresStaleDepartmentID(t *testing.T) 
 		departmentScopeOkay: true,
 		ownerOrAdmin:        true,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("admin-1", conversation.SearchInboxInput{
 		WorkspaceID:          "ws-1",
@@ -403,7 +416,7 @@ func TestSearchInbox_SystemAdminSeesAllNoRestriction(t *testing.T) {
 		departmentScope:     conversation.DepartmentAccessScope{},
 		departmentScopeOkay: true,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("sys-admin", conversation.SearchInboxInput{
 		WorkspaceID:    "ws-1",
@@ -428,7 +441,7 @@ func TestSearchInbox_EmployeeOneDeptAutoScopesWithoutSelection(t *testing.T) {
 		departmentScope:     conversation.DepartmentAccessScope{DepartmentIDs: []string{"dept-only"}, Restrict: true, WorkspaceHasDepartments: true},
 		departmentScopeOkay: true,
 	}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, inboxSources())
 
 	_, _, err := service.SearchInbox("user-1", conversation.SearchInboxInput{
 		WorkspaceID:    "ws-1",
@@ -463,11 +476,8 @@ func TestSearchInbox_AttachesTheLiveReadOfEachConversation(t *testing.T) {
 		totalItems: 2,
 	}
 	authorizer := &inboxServiceTestAuthorizer{canAccessCampaign: true, departmentScopeOkay: true}
-	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil)
 	reads := &liveReadsStub{}
-	service.(interface {
-		SetLiveReadProvider(conversation.LiveReadProvider)
-	}).SetLiveReadProvider(reads)
+	service := NewInboxService(historyProvider, nil, nil, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, nil, nil, InboxSources{Schedules: inboxNoSchedules{}, Templates: inboxUnusedTemplates{}, LiveReads: reads})
 
 	entries, _, err := service.SearchInbox("user-1", conversation.SearchInboxInput{WorkspaceID: "ws-1", Page: 1, PageSize: 20, SortOrder: "desc"})
 

@@ -25,9 +25,6 @@ func (h *ConversationHub) BroadcastCommentsAnalyzed(event ca.AnalysisBatchAnalyz
 }
 
 func (h *ConversationHub) sendToWorkspaceWithPermission(workspaceID, resource, action string, data []byte) {
-	if h.authorizer == nil {
-		return
-	}
 	h.sendToWorkspaceWhere(workspaceID, data, func(_ string, conn *WSConnection) bool {
 		return h.authorizer.HasWorkspacePermission(conn.UserID, conn.WorkspaceID, resource, action, conn.IsAdmin)
 	})

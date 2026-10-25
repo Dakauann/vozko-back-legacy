@@ -74,47 +74,21 @@ func (c *Container) wireEmailInboxConversationStack(b *emailInboxBundle) {
 	if b == nil || b.Adapter == nil {
 		log.Fatalf("[emailinbox] the conversation stack needs the inbox bundle")
 	}
-	if c.services.conversationAutomation == nil || c.services.conversationAuthImpl == nil || c.services.conversationStatusService == nil {
-		log.Fatalf("[emailinbox] conversation services must be built before the email conversation stack")
-	}
 	conversations := b.Conversations
 
-	c.registerChannelAdapter(b.Adapter)
-
-	automationReader, ok := c.services.conversationHistory.(interface {
-		SetAutomationReader(shared.EntryType, func(context.Context, string) (*bool, error))
+	c.registerConversationChannel(conversationChannel{
+		EntryType:     shared.EntryTypeEmail,
+		Adapter:       b.Adapter,
+		Conversations: conversations,
+		Automation: func(ctx context.Context, entryID string) (*bool, error) {
+			conv, err := conversations.FindByID(ctx, entryID)
+			if err != nil {
+				return nil, err
+			}
+			return conv.AutomationEnabled, nil
+		},
+		Contacts: emailContactIdentity(b.Contacts, b.Conversations),
 	})
-	if !ok {
-		log.Fatalf("[emailinbox] history provider exposes no SetAutomationReader")
-	}
-	automationReader.SetAutomationReader(shared.EntryTypeEmail, func(ctx context.Context, entryID string) (*bool, error) {
-		conv, err := conversations.FindByID(ctx, entryID)
-		if err != nil {
-			return nil, err
-		}
-		return conv.AutomationEnabled, nil
-	})
-	c.services.conversationAutomation.Register(shared.EntryTypeEmail, conversations.SetAutomationEnabled)
-	c.services.conversationAuthImpl.SetEntryAccessRepo(shared.EntryTypeEmail, conversations)
-	c.services.conversationStatusService.SetConversationStatusStore(shared.EntryTypeEmail,
-		conversationStatusFuncs{status: conversations.StatusForEntry, set: conversations.SetStatus})
-	c.services.conversationStatusService.SetConversationCounter(shared.EntryTypeEmail, conversations.CountByStatus)
-
-	owners, ok := c.services.campaignWorkspaceResolver.(interface {
-		SetEntryOwnerResolver(shared.EntryType, conversation_usecase.EntryOwnerResolver)
-	})
-	if !ok {
-		log.Fatalf("[emailinbox] workspace resolver exposes no SetEntryOwnerResolver")
-	}
-	owners.SetEntryOwnerResolver(shared.EntryTypeEmail, conversations)
-
-	identities, ok := c.services.conversationHistory.(interface {
-		SetContactIdentityLookup(shared.EntryType, conversation_usecase.ContactIdentityLookup)
-	})
-	if !ok {
-		log.Fatalf("[emailinbox] history provider exposes no SetContactIdentityLookup")
-	}
-	identities.SetContactIdentityLookup(shared.EntryTypeEmail, emailContactIdentity(b.Contacts, b.Conversations))
 }
 
 func emailContactDisplay(ct *emdomain.Contact) conversation_usecase.ContactDisplay {

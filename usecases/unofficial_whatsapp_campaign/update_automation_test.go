@@ -32,8 +32,8 @@ func schoolUpdate(t *testing.T) (*fakeCampaignRepo, *fakeEntryRepo, uwc.UpdateCa
 	if err != nil {
 		t.Fatalf("NewStep: %v", err)
 	}
-	uc := NewUpdateCampaignUseCase(campaigns, entries, gateway)
-	uc.(*updateCampaignUseCase).SetAutomation(step)
+	uc := updateWith(campaigns, entries, gateway)
+	uc.(*updateCampaignUseCase).automation = step
 	return campaigns, entries, uc
 }
 

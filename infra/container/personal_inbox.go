@@ -17,5 +17,4 @@ func (c *Container) wirePersonalInbox() {
 		log.Fatalf("[container] %v", err)
 	}
 	c.services.personalInbox = service
-	c.services.conversationHub.SetPersonalMarks(service)
 }

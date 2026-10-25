@@ -237,7 +237,7 @@ func TestAIBilling_HappyPath(t *testing.T) {
 	pricer := newAITestPricer()
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, pricer, nil)
+	consumer := aiBillingConsumer(sub, balanceRepo, pricer, nil, nil)
 	if err := consumer.Start(); err != nil {
 		t.Fatalf("Start() error: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestAIBilling_Idempotency(t *testing.T) {
 	pricer := newAITestPricer()
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, pricer, nil)
+	consumer := aiBillingConsumer(sub, balanceRepo, pricer, nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-dup", "ws-1", "gpt-4o-mini", 1000, 500)
@@ -301,7 +301,7 @@ func TestAIBilling_Idempotency(t *testing.T) {
 func TestAIBilling_BadMessage(t *testing.T) {
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, newMockBalanceRepo(0), newAITestPricer(), nil)
+	consumer := aiBillingConsumer(sub, newMockBalanceRepo(0), newAITestPricer(), nil, nil)
 	_ = consumer.Start()
 
 	ack := &mockAck{deliveryCount: 1}
@@ -322,7 +322,7 @@ func TestAIBilling_ZeroTokens(t *testing.T) {
 	balanceRepo := newMockBalanceRepo(1_000_000)
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, newAITestPricer(), nil)
+	consumer := aiBillingConsumer(sub, balanceRepo, newAITestPricer(), nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-zero", "ws-1", "gpt-4o-mini", 0, 0)
@@ -344,7 +344,7 @@ func TestAIBilling_ZeroTokens(t *testing.T) {
 func TestAIBilling_EmptyWorkspaceID(t *testing.T) {
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, newMockBalanceRepo(0), newAITestPricer(), nil)
+	consumer := aiBillingConsumer(sub, newMockBalanceRepo(0), newAITestPricer(), nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-empty-ws", "", "gpt-4o-mini", 100, 100)
@@ -359,7 +359,7 @@ func TestAIBilling_EmptyWorkspaceID(t *testing.T) {
 func TestAIBilling_EmptyRequestID(t *testing.T) {
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, newMockBalanceRepo(0), newAITestPricer(), nil)
+	consumer := aiBillingConsumer(sub, newMockBalanceRepo(0), newAITestPricer(), nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("", "ws-1", "gpt-4o-mini", 100, 100)
@@ -377,7 +377,7 @@ func TestAIBilling_RetryExhaustion(t *testing.T) {
 	sub := newMockSub()
 	metrics := &stubBillingMetrics{}
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, newAITestPricer(), metrics)
+	consumer := aiBillingConsumer(sub, balanceRepo, newAITestPricer(), metrics, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-retry", "ws-1", "gpt-4o-mini", 1000, 500)
@@ -416,7 +416,7 @@ func TestAIBilling_CostCalculation(t *testing.T) {
 	pricer := newAITestPricer()
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, pricer, nil)
+	consumer := aiBillingConsumer(sub, balanceRepo, pricer, nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-cost", "ws-1", "gpt-4o-mini", 1_000_000, 1_000_000)
@@ -441,7 +441,7 @@ func TestAIBilling_ChargesFullCompletionIncludingReasoning(t *testing.T) {
 	pricer := newAITestPricer()
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, pricer, nil)
+	consumer := aiBillingConsumer(sub, balanceRepo, pricer, nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-reasoning", "ws-1", "gpt-4o-mini", 1200, 1000)
@@ -474,7 +474,7 @@ func TestAIBilling_DebitError_NACKsWithRequeue(t *testing.T) {
 	balanceRepo.debitErr = errors.New("connection refused")
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, newAITestPricer(), nil)
+	consumer := aiBillingConsumer(sub, balanceRepo, newAITestPricer(), nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-fail", "ws-1", "gpt-4o-mini", 1000, 500)
@@ -494,7 +494,7 @@ func TestAIBilling_IdempotencyCheckError_NACKs(t *testing.T) {
 	balanceRepo.existsErr = errors.New("database timeout")
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, newAITestPricer(), nil)
+	consumer := aiBillingConsumer(sub, balanceRepo, newAITestPricer(), nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-exists-fail", "ws-1", "gpt-4o-mini", 1000, 500)
@@ -515,7 +515,7 @@ func TestAIBilling_SubCentPrecision(t *testing.T) {
 	pricer := newAITestPricer()
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, pricer, nil)
+	consumer := aiBillingConsumer(sub, balanceRepo, pricer, nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-subcent", "ws-1", "gpt-4o-mini", 3015, 27)
@@ -550,7 +550,7 @@ func TestAIBilling_MarginApplied_AllModels(t *testing.T) {
 	pricer := newAITestPricer()
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, pricer, nil)
+	consumer := aiBillingConsumer(sub, balanceRepo, pricer, nil, nil)
 	_ = consumer.Start()
 
 	tests := []struct {
@@ -601,7 +601,7 @@ func TestAIBilling_ExactDollarAmount(t *testing.T) {
 	pricer := newAITestPricer()
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, pricer, nil)
+	consumer := aiBillingConsumer(sub, balanceRepo, pricer, nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-dollar", "ws-1", "claude-sonnet-4", 100_000, 50_000)
@@ -626,7 +626,7 @@ func TestAIBilling_ProfitPersisted(t *testing.T) {
 	pricer := newAITestPricer()
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, pricer, nil)
+	consumer := aiBillingConsumer(sub, balanceRepo, pricer, nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-profit", "ws-1", "gpt-4o-mini", 1_000_000, 1_000_000)
@@ -666,7 +666,7 @@ func TestAIBilling_AllowNegative_DebitsEvenWithZeroBalance(t *testing.T) {
 	pricer := newAITestPricer()
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, pricer, nil)
+	consumer := aiBillingConsumer(sub, balanceRepo, pricer, nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-negative", "ws-broke", "gpt-4o-mini", 1000, 500)
@@ -703,7 +703,7 @@ func TestAIBilling_UnknownModel_ZeroPrice(t *testing.T) {
 	sub := newMockSub()
 	metrics := &stubBillingMetrics{}
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, pricer, metrics)
+	consumer := aiBillingConsumer(sub, balanceRepo, pricer, metrics, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-unknown", "ws-1", "totally-unknown-model", 1000, 500)
@@ -750,7 +750,7 @@ func TestAIBilling_PricerError_NACKs(t *testing.T) {
 	pricer := workspace_pricing.NewPricer(errRepo, workspace_pricing.WithLLMPriceFetcher(&mockLLMFetcher{}))
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, pricer, nil)
+	consumer := aiBillingConsumer(sub, balanceRepo, pricer, nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-price-err", "ws-1", "gpt-4o-mini", 1000, 500)
@@ -777,7 +777,7 @@ func TestAIBilling_Panic_Recovery(t *testing.T) {
 	pricer := newAITestPricer()
 	sub := newMockSub()
 
-	consumer := NewConsumeAIBillingUseCase(sub, repo, pricer, nil)
+	consumer := aiBillingConsumer(sub, repo, pricer, nil, nil)
 	_ = consumer.Start()
 
 	event := makeEvent("req-panic", "ws-1", "gpt-4o-mini", 1000, 500)

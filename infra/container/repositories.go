@@ -22,6 +22,7 @@ import (
 	config_repository "vozko/infra/repositories/config"
 	conversation_repository "vozko/infra/repositories/conversation"
 	ce_repository "vozko/infra/repositories/conversation_event"
+	"vozko/infra/repositories/conversationroute"
 	customer_repository "vozko/infra/repositories/customer"
 	customfield_repository "vozko/infra/repositories/customfield"
 	dealautomation_repository "vozko/infra/repositories/dealautomation"
@@ -118,7 +119,7 @@ func (c *Container) initRepositories() {
 		messageShortcut:         msg_shortcut_repository.NewRepository(c.db),
 		scheduledMessage:        scheduled_message_repository.NewRepository(c.db),
 		leadMemory:              lead_memory_repository.NewRepository(c.db),
-		workspace:               workspace_repository.NewCachedWorkspaceRepository(workspace_repository.NewRepository(c.db), c.redisProvider.SharedState()),
+		workspace:               workspace_department_repository.NewScopeVersionedWorkspaceRepository(workspace_repository.NewCachedWorkspaceRepository(workspace_repository.NewRepository(c.db), c.redisProvider.SharedState()), c.departmentScopeVersions()),
 		customRole:              workspace_repository.NewCustomRoleRepository(c.db),
 		attendance:              attendance_repository.New(c.db),
 		attendanceTarget:        attendance_target_repository.New(c.db),
@@ -141,7 +142,7 @@ func (c *Container) initRepositories() {
 		callBilling:             call_billing_repository.NewRepository(c.db),
 		analytics:               analytics_repository.NewRepository(c.db),
 		workspacePlan:           workspace_plan_repository.NewPlanRepository(c.db),
-		workspaceSubscription:   workspace_plan_repository.NewSubscriptionRepository(c.db),
+		workspaceSubscription:   c.cachedSubscriptions(),
 		addonDefinition:         workspace_addon_repository.NewAddonDefinitionRepository(c.db),
 		addonSubscription:       workspace_addon_repository.NewAddonSubscriptionRepository(c.db),
 		aichatThread:            aichat_repository.NewThreadRepository(c.db),
@@ -159,8 +160,9 @@ func (c *Container) initRepositories() {
 		builderSession:          workflow_repository.NewBuilderSessionRepository(c.db),
 		calendar:                calendar_repository.NewRepository(c.db),
 		inboxAssignment:         ia_repository.New(c.db),
+		departmentRoutes:        conversationroute.New(c.db),
 		dealAutomation:          dealautomation_repository.New(c.db),
-		workspaceDepartment:     workspace_department_repository.NewRepository(c.db),
+		workspaceDepartment:     workspace_department_repository.NewScopeVersionedRepository(workspace_department_repository.NewRepository(c.db), c.departmentScopeVersions()),
 		labelGroup:              label_repository.NewLabelGroupRepository(c.db),
 		session:                 auth_repository.NewSessionRepository(c.db),
 		affiliate:               affiliate_repository.NewRepository(c.db),

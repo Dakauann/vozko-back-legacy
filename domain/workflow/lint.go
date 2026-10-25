@@ -6,15 +6,16 @@ import (
 	"sort"
 	"strings"
 
+	"vozko/domain/lint"
 	"vozko/domain/redact"
 )
 
-type LintSeverity string
+type LintSeverity = lint.Severity
 
 const (
-	SeverityBlocking LintSeverity = "blocking"
-	SeverityAdvisory LintSeverity = "advisory"
-	SeverityInfo     LintSeverity = "info"
+	SeverityBlocking = lint.SeverityBlocking
+	SeverityAdvisory = lint.SeverityAdvisory
+	SeverityInfo     = lint.SeverityInfo
 )
 
 type LintIssueCode string

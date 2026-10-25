@@ -26,7 +26,7 @@ func waitingGraph(waitID, endID string) workflow.Graph {
 
 func republished(t *testing.T, repo *MockWorkflowRepository, g workflow.Graph) {
 	t.Helper()
-	if _, err := NewUpdateWorkflowUseCase(repo).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: g}, revisionOf(repo, "wf-1")); err != nil {
+	if _, err := NewUpdateWorkflowUseCase(repo, staticCatalog{}).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: g}, revisionOf(repo, "wf-1")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := activation(repo).Publish(publisherCtx(), "wf-1"); err != nil {
@@ -35,8 +35,8 @@ func republished(t *testing.T, repo *MockWorkflowRepository, g workflow.Graph) {
 }
 
 func automationOnEngine(runs workflow.WorkflowRunRepository) *RunEngine {
-	engine := NewRunEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry())
-	engine.SetAutomationGate(SandboxAutomationGate{})
+	engine := testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry())
+	engine.automationGate = SandboxAutomationGate{}
 	return engine
 }
 
@@ -45,7 +45,7 @@ func versionedWorkflow(t *testing.T) *MockWorkflowRepository {
 	repo := NewMockWorkflowRepository()
 	storedWorkflow(t, repo, workflow.WorkflowStatusActive, waitingGraph("wait-v1", "end-v1"))
 	republished(t, repo, waitingGraph("wait-v2", "end-v2"))
-	if _, err := NewUpdateWorkflowUseCase(repo).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: waitingGraph("wait-draft", "end-draft")}, revisionOf(repo, "wf-1")); err != nil {
+	if _, err := NewUpdateWorkflowUseCase(repo, staticCatalog{}).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: waitingGraph("wait-draft", "end-draft")}, revisionOf(repo, "wf-1")); err != nil {
 		t.Fatal(err)
 	}
 	return repo
@@ -216,7 +216,7 @@ func TestAConversationStartUsesThePublishedTriggers(t *testing.T) {
 	storedWorkflow(t, h.wfRepo, workflow.WorkflowStatusActive, waitingGraph("wait-v1", "end-v1"))
 	draft := waitingGraph("wait-v1", "end-v1")
 	draft.Nodes[0] = workflow.Node{ID: "t", Type: workflow.NodeTypeTriggerAgentCall, Config: map[string]interface{}{}}
-	if _, err := NewUpdateWorkflowUseCase(h.wfRepo).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: draft}, revisionOf(h.wfRepo, "wf-1")); err != nil {
+	if _, err := NewUpdateWorkflowUseCase(h.wfRepo, staticCatalog{}).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: draft}, revisionOf(h.wfRepo, "wf-1")); err != nil {
 		t.Fatal(err)
 	}
 	starter, err := NewConversationRunStarter(h.wfRepo, h.runRepo, h.launcher, h.state)

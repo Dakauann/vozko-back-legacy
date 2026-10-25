@@ -3,13 +3,16 @@ package container
 import (
 	"context"
 	callhistoryhttp "vozko/delivery/http/callhistory"
+	"vozko/domain/shared/deps"
 	buttonaction_usecase "vozko/usecases/buttonaction"
+	"vozko/usecases/campaignschedule"
 	"vozko/usecases/conversationad"
 	leadexit_usecase "vozko/usecases/leadexit"
 	mpuc "vozko/usecases/metaplatform"
 	personalinbox_usecase "vozko/usecases/personalinbox"
 	teamchat_usecase "vozko/usecases/teamchat"
 	"vozko/usecases/transactionalemail"
+	whatsapp_template_usecase "vozko/usecases/whatsapp/template"
 
 	"gorm.io/gorm"
 
@@ -58,7 +61,6 @@ import (
 	whatsappoutreachhttp "vozko/delivery/http/whatsappoutreach"
 	whatsapptemplatehttp "vozko/delivery/http/whatsapptemplate"
 	workflowalerthttp "vozko/delivery/http/workflowalerthttp"
-	workflowsecrethttp "vozko/delivery/http/workflowsecrethttp"
 	workflowwebhookhttp "vozko/delivery/http/workflowwebhook"
 	workspacehttp "vozko/delivery/http/workspace"
 	workspaceaddonhttp "vozko/delivery/http/workspaceaddon"
@@ -66,6 +68,7 @@ import (
 	workspacedepartmenthttp "vozko/delivery/http/workspacedepartment"
 	workspacephoneaccesshttp "vozko/delivery/http/workspacephoneaccess"
 	workspacepricinghttp "vozko/delivery/http/workspacepricing"
+	workspacesecrethttp "vozko/delivery/http/workspacesecrethttp"
 	workspacetemplateaccesshttp "vozko/delivery/http/workspacetemplateaccess"
 	wsdelivery "vozko/delivery/ws"
 	"vozko/domain/address"
@@ -93,6 +96,7 @@ import (
 	"vozko/domain/choicestats"
 	coexistence_domain "vozko/domain/coexistence"
 	config_domain "vozko/domain/config"
+	callrouting_domain "vozko/domain/callrouting"
 	conversation_domain "vozko/domain/conversation"
 	ce_domain "vozko/domain/conversation_event"
 	"vozko/domain/crm_telemetry"
@@ -110,6 +114,7 @@ import (
 	lead_campaign_send_domain "vozko/domain/lead_campaign_send"
 	lead_memory_domain "vozko/domain/lead_memory"
 	lead_message_window_domain "vozko/domain/lead_message_window"
+	"vozko/domain/leadexit"
 	"vozko/domain/media"
 	msg_shortcut_domain "vozko/domain/message_shortcut"
 	"vozko/domain/messaging"
@@ -122,6 +127,7 @@ import (
 	report_domain "vozko/domain/report"
 	savedview_domain "vozko/domain/savedview"
 	scheduled_message_domain "vozko/domain/scheduled_message"
+	"vozko/domain/shared"
 	shortlink_domain "vozko/domain/shortlink"
 	stage_domain "vozko/domain/stage"
 	telephony_domain "vozko/domain/telephony"
@@ -139,7 +145,6 @@ import (
 	wc_entry_domain "vozko/domain/whatsapp_campaign_entry"
 	whatsapp_outreach_domain "vozko/domain/whatsapp_outreach"
 	workflow_domain "vozko/domain/workflow"
-	"vozko/domain/workflowsecret"
 	workspace_domain "vozko/domain/workspace"
 	workspace_addon_domain "vozko/domain/workspace/workspace_addon"
 	workspace_department_domain "vozko/domain/workspace/workspace_department"
@@ -148,6 +153,7 @@ import (
 	workspace_config_domain "vozko/domain/workspace_config"
 	workspace_phone_access_domain "vozko/domain/workspace_phone_access"
 	workspace_template_access_domain "vozko/domain/workspace_template_access"
+	"vozko/domain/workspacesecret"
 	asaas_service "vozko/infra/asaas"
 	redisCache "vozko/infra/cache"
 	"vozko/infra/campaignaudiencewiring"
@@ -164,7 +170,9 @@ import (
 	"vozko/infra/security"
 	businessphone_infra "vozko/infra/whatsapp/business_phone"
 	"vozko/infra/whisper"
+	agent_usecase "vozko/usecases/agent"
 	ucmcp "vozko/usecases/agent/mcp"
+	agenttool_usecase "vozko/usecases/agenttool"
 	aa_usecase "vozko/usecases/ai_attendance"
 	aichat_usecase "vozko/usecases/aichat"
 	apikey_usecase "vozko/usecases/apikey"
@@ -174,6 +182,7 @@ import (
 	callsession_usecase "vozko/usecases/callsession"
 	choicestats_usecase "vozko/usecases/choicestats"
 	conversation_usecase "vozko/usecases/conversation"
+	"vozko/usecases/conversation/loopguard"
 	copilot_usecase "vozko/usecases/copilot"
 	crm_telemetry_usecase "vozko/usecases/crm_telemetry"
 	customerportfolio_usecase "vozko/usecases/customerportfolio"
@@ -187,6 +196,7 @@ import (
 	opportunity_usecase "vozko/usecases/opportunity"
 	"vozko/usecases/opportunityio"
 	report_usecase "vozko/usecases/report"
+	uwuc "vozko/usecases/unofficial_whatsapp"
 	wc_usecase "vozko/usecases/whatsapp_campaign"
 	whatsappform_usecase "vozko/usecases/whatsappform"
 	workflow_usecase "vozko/usecases/workflow"
@@ -199,6 +209,7 @@ type Container struct {
 	redisProvider               *redisCache.RedisProvider
 	s3                          *s3.S3Service
 	replicaID                   string
+	handles                     deps.Handles
 	repositories                *repositories
 	commentAutomationShared     *commentAutomationBundle
 	services                    *services
@@ -211,6 +222,20 @@ type Container struct {
 	ads                         *adsBundle
 	mediaGenerationBundle       *mediaGenerationBundle
 	leadImportBundle            *leadImportBundle
+	attendanceTargets           *attendance_usecase.TargetsService
+	officialGates               *officialCampaignGates
+	officialDrafts              *wc_usecase.DraftLaunch
+	formSends                   *deps.Handle[whatsapp_template_usecase.FormSends]
+	inboundTriggers             *deps.Handle[conversation_usecase.InboundTriggers]
+	leadExitSteps               *deps.Handle[leadexit.Step]
+	formReplyReceivers          *deps.Handle[conversation_usecase.FormReplyReceiver]
+	uwEntitlementSource         *deps.Handle[uwuc.WorkspaceEntitlementReader]
+	uwConnectionListener        *deps.Handle[uwuc.ConnectionListener]
+	callHandoffs                *deps.Handle[callrouting_domain.ConversationHandoff]
+	inboundCalls                *deps.Handle[conversation_domain.WhatsAppInboundCallHandler]
+	turnLock                    *conversation_usecase.AgentTurnLock
+	registeredChannels          map[shared.EntryType]bool
+	channelsSealed              bool
 	emailHygieneBundle          *emailHygieneBundle
 	leadProfileBundle           *leadProfileBundle
 	metaPlatform                *mpuc.Service
@@ -234,7 +259,8 @@ type Container struct {
 	router                      deliveryHttp.Router
 	server                      deliveryHttp.HTTPServer
 	metricsHTTP                 *metricsServer
-	jobRunner                   *cronPackage.JobRunner
+	jobRunner                   *cronPackage.Registry
+	stopJobs                    context.CancelFunc
 	recordingPool               *calls_usecase.RecordingUploadPool
 
 	cfPublisher       *cloudflare.Publisher
@@ -273,6 +299,12 @@ type Container struct {
 	buttonActionService           *buttonaction_usecase.Service
 	officialCampaignCreateUseCase wc_domain.CreateCampaignUseCase
 	launchCheckService            *wc_usecase.LaunchCheck
+	workspaceSecretService        workspacesecret.UseCases
+	agentToolValidatorService     *agenttool_usecase.Validator
+	agentToolsService             agent_domain.AgentToolsUseCase
+	publishedAgentsView           agent_domain.Repository
+	agentPublishingService        agent_usecase.AgentPublishing
+	officialSchedules             *campaignschedule.Reporter
 
 	notificationCenter  *notificationWiring
 	leadExitInboundStep *leadexit_usecase.Step
@@ -376,6 +408,7 @@ type repositories struct {
 	builderSession          workflow_domain.BuilderSessionRepository
 	calendar                calendar_domain.Repository
 	inboxAssignment         ia_domain.Repository
+	departmentRoutes        conversation_domain.DepartmentRoutes
 	workspaceDepartment     workspace_department_domain.Repository
 	labelGroup              label_domain.LabelGroupRepository
 	session                 auth.SessionRepository
@@ -436,7 +469,6 @@ type services struct {
 	messageSender                 *conversation_usecase.MessageSenderService
 	conversationStatusService     *conversation_usecase.ConversationStatusService
 	conversationAuthImpl          *conversation_infra.Authorizer
-	requestCallPermission         conversation_domain.RequestCallPermissionUseCase
 	conversationHistory           conversation_domain.HistoryProvider
 	conversationHistoryReader     conversation_domain.HistoryReader
 	conversationEntryLookup       conversation_domain.EntryLookup
@@ -448,6 +480,8 @@ type services struct {
 	liveChannelAdapters           *conversation_domain.LiveAdapterRegistry
 	conversationAutomation        *conversation_usecase.ConversationAutomationService
 	channelAIReply                *conversation_usecase.ChannelAIReplyService
+	loopGuard                     loopguard.Guard
+	messageHistory                conversation_domain.MessageHistoryManager
 	callAdmission                 callsession_domain.CallAdmissionCoordinator
 	startOutboundCall             callsession_domain.StartOutboundCallUseCase
 	endOutboundCall               callsession_domain.EndOutboundCallUseCase
@@ -462,6 +496,8 @@ type services struct {
 	assignmentService             *ia_usecase.AssignmentService
 	delegations                   conversation_domain.DelegationRepository
 	personalInbox                 *personalinbox_usecase.Service
+	messageActions                conversation_domain.MessageActionUseCases
+	messageArrivals               conversation_domain.EventBroadcaster
 	personFinish                  conversation_domain.PersonFinishUseCase
 	messageMarker                 *conversation_usecase.MessageMarkerService
 	aiAttendanceService           *aa_usecase.AsyncSessionService
@@ -908,7 +944,7 @@ type useCases struct {
 	testWorkflowNode         workflow_usecase.TestNodeUseCase
 	workflowWebhookConfig    workflow_usecase.WorkflowWebhookUseCase
 	handleWebhookTrigger     workflow_usecase.HandleWebhookTriggerUseCase
-	workflowSecrets          workflowsecret.UseCases
+	workspaceSecrets         workspacesecret.UseCases
 	workflowManager          workflow_domain.WorkflowManager
 	triggerEvaluator         workflow_domain.TriggerEvaluator
 	consumeWorkflowWake      workflow_domain.ConsumeRunWakeUseCase
@@ -1012,7 +1048,7 @@ type handlers_ struct {
 	issue                   *issuehttp.IssueHandler
 	workflow                *handlers.WorkflowHandler
 	workflowWebhook         *workflowwebhookhttp.Handler
-	workflowSecret          *workflowsecrethttp.Handler
+	workspaceSecret         *workspacesecrethttp.Handler
 	workflowAlert           *workflowalerthttp.Handler
 	wsWorkflowSimulator     *wsdelivery.WSWorkflowSimulatorHandler
 	wsWorkflowAIBuilder     *wsdelivery.WSWorkflowAIBuilderHandler

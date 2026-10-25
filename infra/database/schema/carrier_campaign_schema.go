@@ -7,21 +7,22 @@ import (
 )
 
 type CarrierCampaign struct {
-	ID          string         `gorm:"primaryKey;type:uuid"`
-	WorkspaceID string         `gorm:"type:uuid;not null;index:idx_carrier_campaigns_workspace_created,priority:1"`
-	Name        string         `gorm:"type:varchar(120);not null"`
-	SenderID    string         `gorm:"type:uuid;not null;index:idx_carrier_campaigns_sender"`
-	Channel     string         `gorm:"type:varchar(8);not null"`
-	Status      string         `gorm:"type:varchar(16);not null;index:idx_carrier_campaigns_scheduled,priority:1,where:scheduled_at IS NOT NULL"`
-	Kind        string         `gorm:"type:varchar(16);not null"`
-	Variants    datatypes.JSON `gorm:"type:jsonb;not null"`
-	Fallback    datatypes.JSON `gorm:"type:jsonb;not null"`
-	Audience    datatypes.JSON `gorm:"type:jsonb;not null"`
-	ScheduledAt *time.Time     `gorm:"type:timestamptz;index:idx_carrier_campaigns_scheduled,priority:2"`
-	Recurrence  datatypes.JSON `gorm:"type:jsonb"`
-	CreatedBy   OptionalText   `gorm:"type:uuid"`
-	CreatedAt   time.Time      `gorm:"type:timestamptz;not null;index:idx_carrier_campaigns_workspace_created,priority:2"`
-	UpdatedAt   time.Time      `gorm:"type:timestamptz;not null"`
+	ID              string         `gorm:"primaryKey;type:uuid"`
+	WorkspaceID     string         `gorm:"type:uuid;not null;index:idx_carrier_campaigns_workspace_created,priority:1"`
+	Name            string         `gorm:"type:varchar(120);not null"`
+	SenderID        string         `gorm:"type:uuid;not null;index:idx_carrier_campaigns_sender"`
+	Channel         string         `gorm:"type:varchar(8);not null"`
+	Status          string         `gorm:"type:varchar(16);not null;index:idx_carrier_campaigns_scheduled,priority:1,where:scheduled_at IS NOT NULL"`
+	Kind            string         `gorm:"type:varchar(16);not null"`
+	Variants        datatypes.JSON `gorm:"type:jsonb;not null"`
+	Fallback        datatypes.JSON `gorm:"type:jsonb;not null"`
+	Audience        datatypes.JSON `gorm:"type:jsonb;not null"`
+	ScheduledAt     *time.Time     `gorm:"type:timestamptz;index:idx_carrier_campaigns_scheduled,priority:2"`
+	Recurrence      datatypes.JSON `gorm:"type:jsonb"`
+	CreatedBy       OptionalText   `gorm:"type:uuid"`
+	ScheduleFailure string         `gorm:"column:schedule_failure;type:varchar(40);not null;default:''"`
+	CreatedAt       time.Time      `gorm:"type:timestamptz;not null;index:idx_carrier_campaigns_workspace_created,priority:2"`
+	UpdatedAt       time.Time      `gorm:"type:timestamptz;not null"`
 }
 
 func (CarrierCampaign) TableName() string { return "carrier_campaigns" }

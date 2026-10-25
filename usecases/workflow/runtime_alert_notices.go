@@ -5,9 +5,9 @@ import (
 	"net/url"
 	"strings"
 
+	"vozko/domain/agent"
 	"vozko/domain/conversation"
 	"vozko/domain/notification"
-	"vozko/domain/tools"
 	"vozko/domain/workflow"
 	"vozko/domain/workspace"
 )
@@ -75,10 +75,10 @@ func runtimeAlertDraft(alert workflow.RuntimeAlert, names alertNames, steps Step
 			agentName = fmt.Sprintf("do agente %q", ag.Name)
 		}
 		d.Title = fmt.Sprintf("Ferramenta %s falhando", agentName)
-		d.Body = fmt.Sprintf("A ferramenta %s %s falhou %s na última hora. Abra o agente para revisar a configuração da ferramenta e veja as chamadas registradas nas conversas.",
-			toolLabel(alert, name), agentName, plural(alert.Count, "vez", "vezes"))
-		d.ActionURL = agentsPath + url.PathEscape(alert.Key.AgentID)
-		d.ActionLabel = "Abrir agente"
+		d.Body = fmt.Sprintf("A ferramenta %s %s falhou %s na última hora, contando as falhas que a IA contornou. Veja as execuções com falha para conferir a requisição, a resposta e o erro, e corrija a ferramenta no agente.",
+			toolLabel(names.tools[alert.Key.Subject], name), agentName, plural(alert.Count, "vez", "vezes"))
+		d.ActionURL = agentsPath + url.PathEscape(alert.Key.AgentID) + "?" + url.Values{"tab": {"runs"}, "tool": {alert.Key.Subject}}.Encode()
+		d.ActionLabel = "Ver execuções"
 	case workflow.AlertInboundLookupFailed:
 		d.Title = "Mensagens ficaram sem resposta automática"
 		waited := "a resposta de 1 mensagem recebida"
@@ -164,14 +164,18 @@ func webhookReason(reason string) string {
 	return reason
 }
 
-func toolLabel(alert workflow.RuntimeAlert, workflowName string) string {
-	if _, bound := tools.BoundKeyOf(alert.Key.Subject, workflow.AgentRunWorkflowTool); bound {
-		return "Executar fluxo " + workflowName
+func toolLabel(tool agent.ToolBinding, workflowName string) string {
+	if strings.TrimSpace(tool.Function) == "" {
+		return "sem nome (removida)"
 	}
-	if strings.EqualFold(alert.Key.Subject, workflow.AgentHTTPRequestTool) {
-		return "Requisição HTTP"
+	label := fmt.Sprintf("%q", tool.Function)
+	switch strings.ToLower(tool.Name) {
+	case workflow.AgentRunWorkflowTool:
+		return label + " (Executar fluxo " + workflowName + ")"
+	case workflow.AgentHTTPRequestTool:
+		return label + " (Requisição HTTP)"
 	}
-	return alert.Key.Subject
+	return label
 }
 
 func plural(n int, one, many string) string {

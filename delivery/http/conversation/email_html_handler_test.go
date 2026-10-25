@@ -44,8 +44,7 @@ func emailHTMLRequest(entryType, query string, withCaller bool) *http.Request {
 
 func TestTheEmailHTMLIsAskedForTheCallerTheConversationAndTheImageChoice(t *testing.T) {
 	stub := &stubEmailHTML{view: em.HTMLView{HTML: "<p>oi</p>", HasHTML: true, Inbound: true, ImagesBlocked: true}}
-	h := &ConversationHandler{}
-	h.SetEmailHTML(stub)
+	h := &ConversationHandler{emailHTML: stub}
 	rec := httptest.NewRecorder()
 	h.GetEmailHTML(rec, emailHTMLRequest("email", "?images=show", true))
 
@@ -69,8 +68,7 @@ func TestEveryEmailHTMLRefusalWritesItsStableCode(t *testing.T) {
 	responsetest.RequireStableCodes(t, emailHTMLRefusals)
 	with := func(err error) func() *ConversationHandler {
 		return func() *ConversationHandler {
-			h := &ConversationHandler{}
-			h.SetEmailHTML(&stubEmailHTML{err: err})
+			h := &ConversationHandler{emailHTML: &stubEmailHTML{err: err}}
 			return h
 		}
 	}
@@ -80,7 +78,6 @@ func TestEveryEmailHTMLRefusalWritesItsStableCode(t *testing.T) {
 		r    *http.Request
 		want response.Refusal
 	}{
-		{"no viewer", func() *ConversationHandler { return &ConversationHandler{} }, emailHTMLRequest("email", "", true), refusalEmailHTMLUnavailable},
 		{"no caller", with(nil), emailHTMLRequest("email", "", false), refusalEmailHTMLUnauthorized},
 		{"a conversation outside the caller's scope", with(conversationdomain.ErrNotVisible), emailHTMLRequest("email", "", true), refusalEmailHTMLHidden},
 		{"a message of another conversation", with(em.ErrNotAnEmail), emailHTMLRequest("email", "", true), refusalEmailHTMLNotAnEmail},

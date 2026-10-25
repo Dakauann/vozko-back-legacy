@@ -36,7 +36,7 @@ func transferConfig() map[string]interface{} {
 
 func TestTransferToHuman_HandsOffTheCurrentConversation(t *testing.T) {
 	handOff := &handOffStub{owner: "user-7"}
-	tool := NewTransferToHumanToolUseCase(handOff)
+	tool := NewTransferToHumanToolUseCase(handOff, departmentBook{})
 
 	out, err := tool.ExecuteWithConfig(context.Background(), transferConfig(),
 		map[string]interface{}{"reason": "cliente pediu um atendente"})
@@ -48,7 +48,7 @@ func TestTransferToHuman_HandsOffTheCurrentConversation(t *testing.T) {
 }
 
 func TestTransferToHuman_NobodyAvailableSaysItIsInTheTeamQueue(t *testing.T) {
-	tool := NewTransferToHumanToolUseCase(&handOffStub{owner: ""})
+	tool := NewTransferToHumanToolUseCase(&handOffStub{owner: ""}, departmentBook{})
 
 	out, err := tool.ExecuteWithConfig(context.Background(), transferConfig(), nil)
 
@@ -58,7 +58,7 @@ func TestTransferToHuman_NobodyAvailableSaysItIsInTheTeamQueue(t *testing.T) {
 }
 
 func TestTransferToHuman_HandOffFailureIsAnError(t *testing.T) {
-	tool := NewTransferToHumanToolUseCase(&handOffStub{err: errors.New("db down")})
+	tool := NewTransferToHumanToolUseCase(&handOffStub{err: errors.New("db down")}, departmentBook{})
 
 	out, err := tool.ExecuteWithConfig(context.Background(), transferConfig(), nil)
 
@@ -71,7 +71,7 @@ func TestTransferToHuman_APauseFailureIsNotReportedAsClean(t *testing.T) {
 	tool := NewTransferToHumanToolUseCase(&handOffStub{
 		owner: "user-7",
 		err:   fmt.Errorf("%w: e-1", ia_usecase.ErrAutomationStillActive),
-	})
+	}, departmentBook{})
 
 	out, err := tool.ExecuteWithConfig(context.Background(), transferConfig(), nil)
 
@@ -82,7 +82,7 @@ func TestTransferToHuman_APauseFailureIsNotReportedAsClean(t *testing.T) {
 
 func TestTransferToHuman_OutsideAConversationIsAnError(t *testing.T) {
 	handOff := &handOffStub{}
-	tool := NewTransferToHumanToolUseCase(handOff)
+	tool := NewTransferToHumanToolUseCase(handOff, departmentBook{})
 
 	for _, cfg := range []map[string]interface{}{
 		nil,
@@ -98,11 +98,11 @@ func TestTransferToHuman_OutsideAConversationIsAnError(t *testing.T) {
 }
 
 func TestTransferToHuman_NotBuiltWithoutAHandOff(t *testing.T) {
-	require.Nil(t, NewTransferToHumanToolUseCase(nil))
+	require.Nil(t, NewTransferToHumanToolUseCase(nil, departmentBook{}))
 }
 
 func TestTransferToHuman_Definition(t *testing.T) {
-	def := NewTransferToHumanToolUseCase(&handOffStub{}).Definition()
+	def := NewTransferToHumanToolUseCase(&handOffStub{}, departmentBook{}).Definition()
 
 	require.Equal(t, TransferToHumanToolName, def.Name)
 	require.Equal(t, []tools.ToolVisibility{tools.VisibilityMessaging}, def.Visibility,
@@ -112,7 +112,7 @@ func TestTransferToHuman_Definition(t *testing.T) {
 
 func TestTransferToHuman_UsesTheDepartmentTheAdminConfigured(t *testing.T) {
 	handOff := &handOffStub{owner: "user-7"}
-	tool := NewTransferToHumanToolUseCase(handOff)
+	tool := NewTransferToHumanToolUseCase(handOff, departmentBook{})
 	cfg := transferConfig()
 	cfg["department_id"] = "dept-sales"
 
@@ -126,7 +126,7 @@ func TestTransferToHuman_UsesTheDepartmentTheAdminConfigured(t *testing.T) {
 func TestTransferToHuman_WithoutAConfiguredDepartmentUsesTheConversations(t *testing.T) {
 	handOff := &handOffStub{owner: "user-7"}
 
-	_, err := NewTransferToHumanToolUseCase(handOff).ExecuteWithConfig(context.Background(), transferConfig(), nil)
+	_, err := NewTransferToHumanToolUseCase(handOff, departmentBook{}).ExecuteWithConfig(context.Background(), transferConfig(), nil)
 
 	require.NoError(t, err)
 	require.Equal(t, "", handOff.got.DepartmentID)
@@ -134,7 +134,7 @@ func TestTransferToHuman_WithoutAConfiguredDepartmentUsesTheConversations(t *tes
 }
 
 func TestTransferToHuman_ADepartmentOutsideTheWorkspaceIsAnError(t *testing.T) {
-	tool := NewTransferToHumanToolUseCase(&handOffStub{err: fmt.Errorf("wrap: %w", ia.ErrDepartmentOutOfScope)})
+	tool := NewTransferToHumanToolUseCase(&handOffStub{err: fmt.Errorf("wrap: %w", ia.ErrDepartmentOutOfScope)}, departmentBook{})
 
 	out, err := tool.ExecuteWithConfig(context.Background(), transferConfig(), nil)
 
@@ -143,7 +143,7 @@ func TestTransferToHuman_ADepartmentOutsideTheWorkspaceIsAnError(t *testing.T) {
 }
 
 func TestTransferToHuman_OffersADepartmentSettingButNoModelParameter(t *testing.T) {
-	def := NewTransferToHumanToolUseCase(&handOffStub{}).Definition()
+	def := NewTransferToHumanToolUseCase(&handOffStub{}, departmentBook{}).Definition()
 
 	setting, ok := def.ConfigSchema["department_id"]
 	require.True(t, ok, "admins pick the department in the agent's tool settings")

@@ -124,9 +124,9 @@ func TestVisibleEntriesAnswersFiveHundredEntriesWithAConstantNumberOfReads(t *te
 	if !visible[f.refs[0]] || !visible[f.refs[405]] || visible[f.refs[300]] {
 		t.Fatal("department and assignment decide each entry")
 	}
-	if f.placements.calls != 1 || f.assignments.batches != 1 || f.assignments.singles != 0 || f.members.members > 2 || f.departments.lists != 1 {
-		t.Fatalf("reads: placements %d, assignment batches %d, single assignments %d, members %d, department lists %d",
-			f.placements.calls, f.assignments.batches, f.assignments.singles, f.members.members, f.departments.lists)
+	if f.placements.calls != 1 || f.assignments.batches != 1 || f.assignments.singles != 0 || f.members.members > 2 || f.departments.existenceChecks != 1 {
+		t.Fatalf("reads: placements %d, assignment batches %d, single assignments %d, members %d, department checks %d",
+			f.placements.calls, f.assignments.batches, f.assignments.singles, f.members.members, f.departments.existenceChecks)
 	}
 }
 

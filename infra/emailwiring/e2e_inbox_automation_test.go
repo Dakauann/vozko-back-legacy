@@ -12,6 +12,7 @@ import (
 	"vozko/domain/livedecision"
 	"vozko/domain/shared"
 	conversation_repository "vozko/infra/repositories/conversation"
+	"vozko/infra/repositories/conversationroute"
 	stage_repository "vozko/infra/repositories/stage"
 	conversation_usecase "vozko/usecases/conversation"
 	emuc "vozko/usecases/emailinbox"
@@ -92,7 +93,7 @@ func TestEmailE2E_AReplyOnAConfiguredInboxReachesAnalysisStagingAndMemory(t *tes
 		t.Fatal("the reply did not queue the live stage decision")
 	}
 
-	owners := conversation_usecase.NewCampaignWorkspaceResolver(nil, nil)
+	owners := conversation_usecase.NewCampaignWorkspaceResolver(nil, nil, conversationroute.New(w.db))
 	owners.(interface {
 		SetEntryOwnerResolver(shared.EntryType, conversation_usecase.EntryOwnerResolver)
 	}).SetEntryOwnerResolver(shared.EntryTypeEmail, w.inbox.Conversations)

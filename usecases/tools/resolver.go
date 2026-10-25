@@ -31,16 +31,59 @@ func ResolveTools(
 	if registry == nil || len(bindings) == 0 {
 		return ResolvedToolSet{}
 	}
+	index := definitionIndex(registry)
+	toolCtx := toolContextOf(opts)
+	result := make([]tools.Definition, 0, len(bindings))
+	configsMap := make(map[string]map[string]interface{})
+	seen := make(map[string]struct{}, len(bindings))
+	for _, binding := range bindings {
+		def, ok := bindingDefinition(index, binding)
+		if !ok || IsMCPSource(def.Name) || !bindingVisibleIn(def, binding, visibility) {
+			continue
+		}
+		rendered, ok := renderBinding(registry, def, binding, toolCtx)
+		if !ok {
+			continue
+		}
+		if _, exists := seen[rendered.Name]; exists {
+			continue
+		}
+		seen[rendered.Name] = struct{}{}
+		if len(binding.Config) > 0 {
+			configsMap[rendered.Name] = binding.Config
+		}
+		result = append(result, rendered)
+	}
+	return ResolvedToolSet{
+		Definitions: result,
+		Configs:     configsMap,
+	}
+}
 
+func ModelDefinition(registry tools.Service, binding agent.ToolBinding, opts ToolResolverOptions) (tools.Definition, bool) {
+	if registry == nil {
+		return tools.Definition{}, false
+	}
+	def, ok := bindingDefinition(definitionIndex(registry), binding)
+	if !ok {
+		return tools.Definition{}, false
+	}
+	return renderBinding(registry, def, binding, toolContextOf(opts))
+}
+
+func definitionIndex(registry tools.Service) map[string]tools.Definition {
 	allDefs := registry.Definitions()
-	defIndex := make(map[string]tools.Definition, len(allDefs))
+	index := make(map[string]tools.Definition, len(allDefs))
 	for _, def := range allDefs {
 		key := strings.ToLower(strings.TrimSpace(def.Name))
 		if key != "" {
-			defIndex[key] = def
+			index[key] = def
 		}
 	}
+	return index
+}
 
+func toolContextOf(opts ToolResolverOptions) tools.ToolContext {
 	toolCtx := tools.ToolContext{}
 	if opts.Agent != nil {
 		toolCtx.Agent = opts.Agent
@@ -51,85 +94,63 @@ func ResolveTools(
 		toolCtx.CampaignType = opts.CampaignType
 	}
 	toolCtx.EntryID, toolCtx.EntryType = opts.EntryID, opts.EntryType
+	return toolCtx
+}
 
-	result := make([]tools.Definition, 0, len(bindings))
-	configsMap := make(map[string]map[string]interface{})
-	seen := make(map[string]struct{}, len(bindings))
-
-	for _, binding := range bindings {
-		key := strings.ToLower(strings.TrimSpace(binding.Name))
-		if key == "" {
-			continue
-		}
-
-		def, ok := defIndex[key]
-		if !ok {
-			if canonical := CanonicalToolName(key); canonical != key {
-				def, ok = defIndex[canonical]
-				key = canonical
-			}
-		}
-		if !ok {
-			continue
-		}
-
-		canonical := strings.TrimSpace(def.Name)
-		identity := def.BindingIdentity(binding.Config)
-		if identity == "" {
-			continue
-		}
-		if _, exists := seen[identity]; exists {
-			continue
-		}
-
-		isVisible := def.IsVisibleIn(tools.ToolVisibility(visibility))
-		if isVisible && len(binding.Visibility) > 0 {
-			bindingAllows := false
-			for _, v := range binding.Visibility {
-				if v == visibility {
-					bindingAllows = true
-					break
-				}
-			}
-			isVisible = bindingAllows
-		}
-
-		if !isVisible {
-			continue
-		}
-
-		seen[identity] = struct{}{}
-
-		toolName := def.ToolNameFor(binding.Config)
-		expandedDef := def
-		if len(binding.Config) > 0 {
-			expandedDef = def.WithConfigExpansion(binding.Config)
-			configsMap[strings.ToLower(toolName)] = binding.Config
-		}
-
-		h, hOk := registry.Handler(strings.ToLower(key))
-		if hOk {
-			if ch, ok := h.(tools.ContextualHandler); ok {
-				bindingCtx := toolCtx
-				bindingCtx.Config = binding.Config
-				expandedDef = ch.DefinitionWithContext(bindingCtx)
-
-				if len(binding.Config) > 0 {
-					expandedDef = expandedDef.WithConfigExpansion(binding.Config)
-				}
-			}
-		}
-		if toolName != canonical {
-			expandedDef.Name, expandedDef.HandlerName = toolName, canonical
-		}
-
-		result = append(result, expandedDef)
+func bindingDefinition(index map[string]tools.Definition, binding agent.ToolBinding) (tools.Definition, bool) {
+	key := strings.ToLower(strings.TrimSpace(binding.Name))
+	if key == "" {
+		return tools.Definition{}, false
 	}
-
-	return ResolvedToolSet{
-		Definitions: result,
-		Configs:     configsMap,
+	if def, ok := index[key]; ok {
+		return def, true
 	}
+	if canonical := CanonicalToolName(key); canonical != key {
+		def, ok := index[canonical]
+		return def, ok
+	}
+	return tools.Definition{}, false
+}
+
+func renderBinding(registry tools.Service, def tools.Definition, binding agent.ToolBinding, toolCtx tools.ToolContext) (tools.Definition, bool) {
+	toolName := strings.ToLower(strings.TrimSpace(binding.Function))
+	if toolName == "" {
+		toolName = def.LegacyName(binding.Config)
+	}
+	if toolName == "" {
+		return tools.Definition{}, false
+	}
+	handlerName := strings.TrimSpace(def.Name)
+	expandedDef := def
+	if h, ok := registry.Handler(strings.ToLower(handlerName)); ok {
+		if ch, ok := h.(tools.ContextualHandler); ok {
+			bindingCtx := toolCtx
+			bindingCtx.Config = binding.Config
+			expandedDef = ch.DefinitionWithContext(bindingCtx)
+		}
+	}
+	if binding.Description != "" {
+		expandedDef.Description = binding.Description
+	}
+	expandedDef.Name = toolName
+	expandedDef.HandlerName = handlerName
+	expandedDef.Instance = &tools.InstanceRef{ID: binding.ID, Type: handlerName, Revision: binding.Revision}
+	return expandedDef, true
+}
+
+func bindingVisibleIn(def tools.Definition, binding agent.ToolBinding, visibility agent.ToolVisibility) bool {
+	if !def.IsVisibleIn(tools.ToolVisibility(visibility)) {
+		return false
+	}
+	if len(binding.Visibility) == 0 {
+		return true
+	}
+	for _, v := range binding.Visibility {
+		if v == visibility {
+			return true
+		}
+	}
+	return false
 }
 
 func ResolveToolsWithOptions(
@@ -139,12 +160,42 @@ func ResolveToolsWithOptions(
 	opts ToolResolverOptions,
 ) ResolvedToolSet {
 	result := ResolveTools(registry, bindings, visibility, opts)
+	if opts.Agent == nil {
+		return result
+	}
+	offered := make(map[string]bool, len(result.Definitions))
+	for _, def := range result.Definitions {
+		offered[def.Name] = true
+	}
+	add := func(defs []tools.Definition) {
+		for _, def := range defs {
+			if !offered[def.Name] {
+				offered[def.Name] = true
+				result.Definitions = append(result.Definitions, def)
+			}
+		}
+	}
+	if expander, ok := registry.(interface {
+		MCPDefinitionsForBindings(ctx context.Context, workspaceID string, bindings []agent.ToolBinding) []tools.Definition
+	}); ok {
+		add(expander.MCPDefinitionsForBindings(context.Background(), opts.Agent.WorkspaceID, visibleMCPSources(registry, bindings, visibility)))
+	}
 	if composite, ok := registry.(interface {
 		MCPDefinitionsForAgent(ctx context.Context) []tools.Definition
-	}); ok && opts.Agent != nil && opts.Agent.HasMCPCollections() {
-		ctx := agentctx.WithAgent(context.Background(), opts.Agent)
-		mcpDefs := composite.MCPDefinitionsForAgent(ctx)
-		result.Definitions = append(result.Definitions, mcpDefs...)
+	}); ok && opts.Agent.HasMCPCollections() {
+		add(composite.MCPDefinitionsForAgent(agentctx.WithAgent(context.Background(), opts.Agent)))
 	}
 	return result
+}
+
+func visibleMCPSources(registry tools.Service, bindings []agent.ToolBinding, visibility agent.ToolVisibility) []agent.ToolBinding {
+	index := definitionIndex(registry)
+	out := []agent.ToolBinding{}
+	for _, binding := range bindings {
+		def, ok := bindingDefinition(index, binding)
+		if ok && IsMCPSource(def.Name) && bindingVisibleIn(def, binding, visibility) {
+			out = append(out, binding)
+		}
+	}
+	return out
 }

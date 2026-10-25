@@ -6,14 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"vozko/domain/messaging"
 	"vozko/domain/report"
+	"vozko/domain/shared/deps"
 	"vozko/domain/workspace"
 )
 
 type Access = workspace.PermissionChecker
+
+var ErrNotConfigured = errors.New("report: the report service is not configured")
 
 type Viewer struct {
 	UserID  string
@@ -25,45 +29,47 @@ type Service struct {
 	registry  *report.Registry
 	publisher messaging.MessageQueuePub
 	storage   report.Storage
-	retention time.Duration
 	now       func() time.Time
 	access    Access
 
 	printSecret string
 }
 
-func NewService(
-	repo report.Repository,
-	registry *report.Registry,
-	publisher messaging.MessageQueuePub,
-	storage report.Storage,
-) *Service {
+type Deps struct {
+	Repo        report.Repository
+	Registry    *report.Registry
+	Publisher   messaging.MessageQueuePub
+	Storage     report.Storage
+	Access      Access
+	PrintSecret string
+	Clock       func() time.Time
+}
+
+func NewService(d Deps) (*Service, error) {
+	if err := deps.Require("reports", map[string]any{
+		"repository": d.Repo,
+		"registry":   d.Registry,
+		"publisher":  d.Publisher,
+		"storage":    d.Storage,
+		"access":     d.Access,
+	}); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(d.PrintSecret) == "" {
+		return nil, report.ErrPrintSecretUnset
+	}
+	if d.Clock == nil {
+		d.Clock = func() time.Time { return time.Now().UTC() }
+	}
 	return &Service{
-		repo:      repo,
-		registry:  registry,
-		publisher: publisher,
-		storage:   storage,
-		retention: report.DefaultRetention,
-		now:       func() time.Time { return time.Now().UTC() },
-	}
-}
-
-func (s *Service) SetAccess(access Access) {
-	if s != nil {
-		s.access = access
-	}
-}
-
-func (s *Service) SetClock(clock func() time.Time) {
-	if s != nil && clock != nil {
-		s.now = clock
-	}
-}
-
-func (s *Service) SetRetention(retention time.Duration) {
-	if s != nil && retention > 0 {
-		s.retention = retention
-	}
+		repo:        d.Repo,
+		registry:    d.Registry,
+		publisher:   d.Publisher,
+		storage:     d.Storage,
+		access:      d.Access,
+		printSecret: d.PrintSecret,
+		now:         d.Clock,
+	}, nil
 }
 
 func (s *Service) Registry() *report.Registry {
@@ -71,15 +77,6 @@ func (s *Service) Registry() *report.Registry {
 		return nil
 	}
 	return s.registry
-}
-
-var ErrNotConfigured = errors.New("report: the report service is not configured")
-
-func (s *Service) ready() error {
-	if s == nil || s.repo == nil || s.registry == nil || s.publisher == nil || s.storage == nil || s.access == nil {
-		return ErrNotConfigured
-	}
-	return nil
 }
 
 type CreateInput struct {
@@ -94,9 +91,6 @@ type CreateInput struct {
 }
 
 func (s *Service) Create(input CreateInput) (*report.Job, error) {
-	if err := s.ready(); err != nil {
-		return nil, err
-	}
 
 	job := &report.Job{
 		WorkspaceID:      input.WorkspaceID,
@@ -139,7 +133,7 @@ func (s *Service) Create(input CreateInput) (*report.Job, error) {
 		return nil, err
 	}
 
-	expires := s.now().Add(s.retention)
+	expires := s.now().Add(report.DefaultRetention)
 	job.ExpiresAt = &expires
 
 	if err := s.repo.Create(job); err != nil {
@@ -183,9 +177,6 @@ func (s *Service) readable(v Viewer, job report.Job) bool {
 }
 
 func (s *Service) Get(v Viewer, workspaceID, id string) (*report.Job, error) {
-	if err := s.ready(); err != nil {
-		return nil, err
-	}
 	job, err := s.repo.GetByID(workspaceID, id)
 	if err != nil {
 		return nil, err
@@ -198,9 +189,6 @@ func (s *Service) Get(v Viewer, workspaceID, id string) (*report.Job, error) {
 }
 
 func (s *Service) List(v Viewer, query report.ListQuery) (report.ListPage, error) {
-	if err := s.ready(); err != nil {
-		return report.ListPage{}, err
-	}
 	held, err := s.heldReaderKeys(v, query.WorkspaceID)
 	if err != nil {
 		return report.ListPage{}, err
@@ -263,20 +251,11 @@ func (s *Service) File(ctx context.Context, v Viewer, workspaceID, id string) (*
 }
 
 func (s *Service) ExpireOldFiles(limit int) (int64, error) {
-	if err := s.ready(); err != nil {
-		return 0, err
-	}
 	return s.repo.ExpireBefore(s.now(), limit)
 }
 
 func (s *Service) logf(format string, args ...interface{}) {
 	log.Printf("[report] "+format, args...)
-}
-
-func (s *Service) SetPrintSecret(secret string) {
-	if s != nil {
-		s.printSecret = secret
-	}
 }
 
 type PrintPayload struct {
@@ -285,9 +264,6 @@ type PrintPayload struct {
 }
 
 func (s *Service) PrintPayload(ctx context.Context, token string) (*PrintPayload, error) {
-	if err := s.ready(); err != nil {
-		return nil, err
-	}
 
 	grant, err := report.VerifyPrintToken(s.printSecret, token, s.now())
 	if err != nil {

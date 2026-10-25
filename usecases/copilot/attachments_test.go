@@ -30,7 +30,7 @@ var chatFiles = workspaceFiles{
 }
 
 func attachmentService(prov *scriptAI, th *fakeThreads, ms *fakeMessages) *Service {
-	return NewService(agentloop.Engine{AI: prov}, NewRegistry(), &fakeAccess{}, openFunds{}, th, ms, chatFiles, nil, func() string { return "a" })
+	return testService(Deps{Engine: agentloop.Engine{AI: prov}, Registry: NewRegistry(), Access: &fakeAccess{}, Funds: openFunds{}, Threads: th, Messages: ms, Files: chatFiles, NewID: func() string { return "a" }})
 }
 
 func TestStreamGivesTheModelTheAttachedFiles(t *testing.T) {

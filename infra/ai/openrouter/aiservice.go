@@ -233,7 +233,7 @@ func (s *Service) GenerateStream(ctx context.Context, input ai.GenerateInput) (<
 				eventCh <- ai.StreamEvent{Type: ai.StreamEventToolCall, ToolCall: &toolCall}
 
 				startedAt := time.Now()
-				result := s.executeTool(tools.WithCallID(ctx, tc.ID), input.ToolConfigs, tc.Function.Name, toolCall.Arguments)
+				result := s.executeTool(tools.WithCallID(ctx, tc.ID), input, tc.Function.Name, toolCall.Arguments)
 				toolCall.Result = &result
 				toolCall.DurationMs = time.Since(startedAt).Milliseconds()
 				eventCh <- ai.StreamEvent{Type: ai.StreamEventToolResult, ToolCall: &toolCall, ToolResult: &result}
@@ -253,7 +253,7 @@ func (s *Service) GenerateStream(ctx context.Context, input ai.GenerateInput) (<
 				ReasoningDetails: reasoningDetailsOf(thinking.blocks()),
 			})
 			for _, tc := range allToolCalls[len(allToolCalls)-len(pending):] {
-				req.Messages = append(req.Messages, openrouter.ToolMessage(tc.ID, serializeToolResult(tc.Result)))
+				req.Messages = append(req.Messages, openrouter.ToolMessage(tc.ID, tc.Result.ModelPayload()))
 			}
 			if cachesExplicitly(req.Model) {
 				req.Messages = withMovedTailBreakpoints(req.Messages)
@@ -304,13 +304,16 @@ func (s *Service) Generate(ctx context.Context, input ai.GenerateInput) (*ai.Gen
 
 	var totalUsage ai.Usage
 	var executedCalls []ai.ToolCall
+	var modelCalls []ai.ModelCall
 	forced := false
 
 	for iter := 0; ; iter++ {
+		calledAt := time.Now()
 		resp, err := s.complete(ctx, req, target)
 		if err != nil {
 			return nil, fmt.Errorf("openrouter: %w", classified(err))
 		}
+		modelCalls = append(modelCalls, modelCallOf(iter, req.Model, resp, time.Since(calledAt)))
 
 		if resp.Usage != nil {
 			totalUsage.PromptTokens += resp.Usage.PromptTokens
@@ -324,6 +327,9 @@ func (s *Service) Generate(ctx context.Context, input ai.GenerateInput) (*ai.Gen
 
 		msg := resp.Choices[0].Message
 		pending := convertToolCalls(msg.ToolCalls)
+		for i := range pending {
+			pending[i].ModelCallIndex = iter
+		}
 
 		noToolCalls := len(msg.ToolCalls) == 0
 		cannotExecute := !hasTools ||
@@ -340,6 +346,7 @@ func (s *Service) Generate(ctx context.Context, input ai.GenerateInput) (*ai.Gen
 				ToolCalls:    append(executedCalls, pending...),
 				Usage:        totalUsage,
 				FinishReason: string(resp.Choices[0].FinishReason),
+				ModelCalls:   modelCalls,
 			}
 
 			return out, nil
@@ -349,9 +356,9 @@ func (s *Service) Generate(ctx context.Context, input ai.GenerateInput) (*ai.Gen
 		for _, call := range msg.ToolCalls {
 			args := parseToolArguments(call.Function.Arguments)
 			startedAt := time.Now()
-			result := s.executeTool(tools.WithCallID(ctx, call.ID), input.ToolConfigs, call.Function.Name, args)
-			executedCalls = append(executedCalls, ai.ToolCall{ID: call.ID, Name: call.Function.Name, Arguments: args, Result: &result, DurationMs: time.Since(startedAt).Milliseconds()})
-			req.Messages = append(req.Messages, openrouter.ToolMessage(call.ID, serializeToolResult(&result)))
+			result := s.executeTool(tools.WithCallID(ctx, call.ID), input, call.Function.Name, args)
+			executedCalls = append(executedCalls, ai.ToolCall{ID: call.ID, Name: call.Function.Name, Arguments: args, Result: &result, DurationMs: time.Since(startedAt).Milliseconds(), ModelCallIndex: iter})
+			req.Messages = append(req.Messages, openrouter.ToolMessage(call.ID, result.ModelPayload()))
 		}
 		if cachesExplicitly(req.Model) {
 			req.Messages = withMovedTailBreakpoints(req.Messages)
@@ -364,13 +371,18 @@ func (s *Service) Generate(ctx context.Context, input ai.GenerateInput) (*ai.Gen
 	}
 }
 
-func (s *Service) executeTool(ctx context.Context, configs map[string]map[string]interface{}, name string, args map[string]interface{}) tools.ExecutionResult {
+func (s *Service) executeTool(ctx context.Context, input ai.GenerateInput, name string, args map[string]interface{}) tools.ExecutionResult {
+	handler := name
+	if def, ok := tools.Offered(input.Tools, name); ok {
+		handler = def.Handler()
+		ctx = tools.WithInstance(ctx, def.Instance)
+	}
 	var result tools.ExecutionResult
 	var err error
-	if config := configs[strings.ToLower(name)]; len(config) > 0 {
-		result, err = s.toolService.ExecuteWithConfig(ctx, name, config, args)
+	if config := input.ToolConfigs[strings.ToLower(name)]; len(config) > 0 {
+		result, err = s.toolService.ExecuteWithConfig(ctx, handler, config, args)
 	} else {
-		result, err = s.toolService.Execute(ctx, name, args)
+		result, err = s.toolService.Execute(ctx, handler, args)
 	}
 	if err != nil {
 		failure := fmt.Sprintf("tool %s failed: %v", name, err)
@@ -690,23 +702,6 @@ func parseToolArguments(raw string) map[string]interface{} {
 	return result
 }
 
-func serializeToolResult(res *tools.ExecutionResult) string {
-	if res == nil {
-		return "{}"
-	}
-	payload := map[string]interface{}{"result": res.Result, "is_error": res.IsError}
-	if ctx := strings.TrimSpace(res.ContextUpdateText); ctx != "" {
-		payload["context_update"] = ctx
-	}
-	if res.ShouldEndSession {
-		payload["should_end_session"] = true
-	}
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Sprintf(`{"result":"%v","is_error":%t}`, res.Result, res.IsError)
-	}
-	return string(b)
-}
 
 var _ ai.Service = (*Service)(nil)
 
@@ -746,4 +741,22 @@ func (s *Service) publishBillingEvent(workspaceID, reference, model string, usag
 		log.Printf("[ai-cache] ref=%s model=%s in=%d cached=%d written=%d hit=%d%%", reference, model, usage.PromptTokens, usage.CachedTokens, usage.CacheWriteTokens, usage.CachedTokens*100/usage.PromptTokens)
 	}
 	aibilling.NewPublisher(s.billingPub).PublishUsage(reference, workspaceID, model, usage)
+}
+
+func modelCallOf(index int, requested string, resp openrouter.ChatCompletionResponse, took time.Duration) ai.ModelCall {
+	call := ai.ModelCall{Index: index, Model: requested, LatencyMs: took.Milliseconds()}
+	if resp.Model != "" {
+		call.Model = resp.Model
+	}
+	if len(resp.Choices) > 0 {
+		call.FinishReason = string(resp.Choices[0].FinishReason)
+	}
+	if usage := resp.Usage; usage != nil {
+		call.InputTokens = usage.PromptTokens
+		call.OutputTokens = usage.CompletionTokens
+		call.CachedTokens = usage.PromptTokenDetails.CachedTokens
+		call.ReasoningTokens = usage.CompletionTokenDetails.ReasoningTokens
+		call.CostMicros = costToMicros(usage.Cost)
+	}
+	return call
 }

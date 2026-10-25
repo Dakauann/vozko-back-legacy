@@ -14,6 +14,7 @@ import (
 	"vozko/domain/agent_presence"
 	attendancedomain "vozko/domain/attendance"
 	"vozko/domain/queue_event"
+	"vozko/domain/shared/deps"
 	"vozko/infra/http/middleware"
 	attendance_usecase "vozko/usecases/attendance"
 )
@@ -32,34 +33,49 @@ type AttendanceHandler struct {
 	memberActivity              memberActivityReader
 }
 
-func NewAttendanceHandler(
-	getAttendanceStats attendancedomain.GetAttendanceStatsUseCase,
-	getWindowStats attendancedomain.GetWindowStatsUseCase,
-	getResponseTimeDistribution attendancedomain.GetResponseTimeDistributionUseCase,
-	getAIAgentStats attendancedomain.GetAIAgentStatsUseCase,
-) *AttendanceHandler {
-	return &AttendanceHandler{
-		getAttendanceStats:          getAttendanceStats,
-		getWindowStats:              getWindowStats,
-		getResponseTimeDistribution: getResponseTimeDistribution,
-		getAIAgentStats:             getAIAgentStats,
+type Deps struct {
+	AttendanceStats attendancedomain.GetAttendanceStatsUseCase
+	WindowStats     attendancedomain.GetWindowStatsUseCase
+	ResponseTimes   attendancedomain.GetResponseTimeDistributionUseCase
+	AIAgentStats    attendancedomain.GetAIAgentStatsUseCase
+	FRTStats        attendancedomain.GetFRTStatsUseCase
+	Sections        attendancedomain.OverviewSectionsUseCase
+	Queue           queue_event.Repository
+	Presence        agent_presence.Repository
+	Targets         *attendance_usecase.TargetsService
+	TargetScoper    targetScoper
+	MemberActivity  memberActivityReader
+}
+
+func NewAttendanceHandler(d Deps) (*AttendanceHandler, error) {
+	if err := deps.Require("attendance handler", map[string]any{
+		"attendance stats":    d.AttendanceStats,
+		"window stats":        d.WindowStats,
+		"response times":      d.ResponseTimes,
+		"ai agent stats":      d.AIAgentStats,
+		"frt stats":           d.FRTStats,
+		"overview sections":   d.Sections,
+		"queue events":        d.Queue,
+		"presence":            d.Presence,
+		"targets":             d.Targets,
+		"target scoper":       d.TargetScoper,
+		"member activity":     d.MemberActivity,
+	}); err != nil {
+		return nil, err
 	}
-}
-
-func (h *AttendanceHandler) SetFRTStats(uc attendancedomain.GetFRTStatsUseCase) {
-	h.getFRTStats = uc
-}
-
-func (h *AttendanceHandler) SetOverview(uc attendancedomain.OverviewSectionsUseCase) {
-	h.sections = uc
-}
-
-func (h *AttendanceHandler) SetQueueRepo(repo queue_event.Repository) {
-	h.queueRepo = repo
-}
-
-func (h *AttendanceHandler) SetPresenceRepo(repo agent_presence.Repository) {
-	h.presenceRepo = repo
+	return &AttendanceHandler{
+		getAttendanceStats:          d.AttendanceStats,
+		getWindowStats:              d.WindowStats,
+		getResponseTimeDistribution: d.ResponseTimes,
+		getAIAgentStats:             d.AIAgentStats,
+		getFRTStats:                 d.FRTStats,
+		sections:                    d.Sections,
+		queueRepo:                   d.Queue,
+		presenceRepo:                d.Presence,
+		targets:                     d.Targets,
+		targetScoper:                d.TargetScoper,
+		memberActivity:              d.MemberActivity,
+	}, nil
 }
 
 func parseStatsFilter(r *http.Request) attendancedomain.StatsFilter {
@@ -184,10 +200,6 @@ func (h *AttendanceHandler) GetAIAgentStats(w http.ResponseWriter, r *http.Reque
 		response.WriteError(w, http.StatusBadRequest, "workspace_id required", nil)
 		return
 	}
-	if h.getAIAgentStats == nil {
-		response.WriteSuccess(w, http.StatusOK, map[string]interface{}{"agents": []interface{}{}})
-		return
-	}
 	filter := parseStatsFilter(r)
 	stats, err := h.getAIAgentStats.Execute(wsID, filter)
 	if err != nil {
@@ -218,10 +230,6 @@ func (h *AttendanceHandler) GetFRTStats(w http.ResponseWriter, r *http.Request) 
 		response.WriteError(w, http.StatusBadRequest, "workspace_id required", nil)
 		return
 	}
-	if h.getFRTStats == nil {
-		response.WriteSuccess(w, http.StatusOK, &attendancedomain.FRTStats{})
-		return
-	}
 	filter := parseStatsFilter(r)
 	stats, err := h.getFRTStats.Execute(wsID, filter)
 	if err != nil {
@@ -248,10 +256,6 @@ func (h *AttendanceHandler) GetQueueStats(w http.ResponseWriter, r *http.Request
 		response.WriteError(w, http.StatusBadRequest, "workspace_id required", nil)
 		return
 	}
-	if h.queueRepo == nil {
-		response.WriteSuccess(w, http.StatusOK, &queue_event.Stats{})
-		return
-	}
 	filter := parseStatsFilter(r)
 	stats, err := h.queueRepo.Stats(wsID, filter.DateFrom, filter.DateTo)
 	if err != nil {
@@ -276,10 +280,6 @@ func (h *AttendanceHandler) GetOccupancy(w http.ResponseWriter, r *http.Request)
 	wsID := middleware.GetWorkspaceID(r)
 	if wsID == "" {
 		response.WriteError(w, http.StatusBadRequest, "workspace_id required", nil)
-		return
-	}
-	if h.presenceRepo == nil {
-		response.WriteSuccess(w, http.StatusOK, map[string]interface{}{"occupancy": []interface{}{}})
 		return
 	}
 	filter := parseStatsFilter(r)
@@ -343,10 +343,6 @@ func (h *AttendanceHandler) GetOverviewSection(w http.ResponseWriter, r *http.Re
 	section, ok := attendancedomain.ParseSection(mux.Vars(r)["section"])
 	if !ok {
 		response.WriteError(w, http.StatusNotFound, "unknown overview section", nil)
-		return
-	}
-	if h.sections == nil {
-		response.WriteError(w, http.StatusServiceUnavailable, "attendance overview is not configured", nil)
 		return
 	}
 

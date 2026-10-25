@@ -20,10 +20,6 @@ func (s *Service) AudienceChannel() campaignaudience_usecase.Channel {
 	return audienceChannel{s: s}
 }
 
-func (s *Service) SetAudience(service *campaignaudience_usecase.Service) {
-	s.audience = service
-}
-
 func (audienceChannel) Name() audience.Channel { return audience.ChannelEmail }
 
 func (c audienceChannel) Prepare(_ context.Context, a campaignaudience_usecase.Actor, params campaignaudience_usecase.Params) (campaignaudience_usecase.Prepared, error) {

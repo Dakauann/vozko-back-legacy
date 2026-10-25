@@ -64,8 +64,8 @@ func igContactsFixture() *fakeInstagramContacts {
 }
 
 func TestHydrateInstagramSenders(t *testing.T) {
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(igContactsFixture())
+	svc := historyWith(HistoryProviderService{})
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, igContactsFixture())
 
 	entries := []conversation.InboxEntry{
 		{EntryID: "conv-1", EntryType: string(shared.EntryTypeInstagram), LeadID: "contact-1"},
@@ -103,8 +103,8 @@ func TestHydrateInstagramSenders(t *testing.T) {
 
 func TestHydrateInstagramSendersBatchesOneQuery(t *testing.T) {
 	fake := igContactsFixture()
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(fake)
+	svc := historyWith(HistoryProviderService{})
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, fake)
 
 	entries := []conversation.InboxEntry{
 		{EntryID: "a", EntryType: string(shared.EntryTypeInstagram), LeadID: "contact-1"},
@@ -126,13 +126,13 @@ func TestHydrateInstagramSendersDegradesGracefully(t *testing.T) {
 		{EntryID: "conv-1", EntryType: string(shared.EntryTypeInstagram), LeadID: "contact-1"},
 	}
 
-	(&HistoryProviderService{}).hydrateContactSenders(entries)
+	(historyWith(HistoryProviderService{})).hydrateContactSenders(entries)
 	if entries[0].LeadName != "" {
 		t.Errorf("expected no hydration without lookup, got %q", entries[0].LeadName)
 	}
 
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(&fakeInstagramContacts{err: errors.New("db down")})
+	svc := historyWith(HistoryProviderService{})
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, &fakeInstagramContacts{err: errors.New("db down")})
 	svc.hydrateContactSenders(entries)
 	if entries[0].LeadName != "" {
 		t.Errorf("expected no hydration on error, got %q", entries[0].LeadName)
@@ -140,8 +140,9 @@ func TestHydrateInstagramSendersDegradesGracefully(t *testing.T) {
 }
 
 func TestGetEntryInfoInstagram(t *testing.T) {
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(igContactsFixture())
+	svc := historyWith(HistoryProviderService{})
+	svc.SetAutomationReader(shared.EntryTypeInstagram, func(context.Context, string) (*bool, error) { return nil, nil })
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, igContactsFixture())
 
 	info, err := svc.GetEntryInfo("conv-1", string(shared.EntryTypeInstagram))
 	if err != nil {
@@ -155,7 +156,7 @@ func TestGetEntryInfoInstagram(t *testing.T) {
 		t.Error("automation should default to enabled")
 	}
 
-	if _, err := (&HistoryProviderService{}).GetEntryInfo("conv-1", string(shared.EntryTypeInstagram)); err == nil {
+	if _, err := (historyWith(HistoryProviderService{})).GetEntryInfo("conv-1", string(shared.EntryTypeInstagram)); err == nil {
 		t.Error("expected an error when the contact lookup is not configured")
 	}
 }
@@ -204,12 +205,12 @@ func (a *fakeWindowAdapter) SendMedia(_ context.Context, _ *conversation.EntryCo
 
 func TestGetWindowStatusForEntryUsesChannelAdapter(t *testing.T) {
 	expires := time.Now().Add(12 * time.Hour).UTC()
-	svc := &HistoryProviderService{}
-	svc.SetChannelAdapters(conversation.NewAdapterRegistry(&fakeWindowAdapter{
+	svc := historyWith(HistoryProviderService{})
+	svc.channelAdapters = conversation.NewAdapterRegistry(&fakeWindowAdapter{
 		entryType: shared.EntryTypeInstagram,
 		open:      true,
 		expiresAt: &expires,
-	}))
+	})
 
 	window := svc.GetWindowStatusForEntry("conv-1", string(shared.EntryTypeInstagram))
 	open, expiresAt := window.Open, window.ExpiresAt
@@ -222,18 +223,18 @@ func TestGetWindowStatusForEntryUsesChannelAdapter(t *testing.T) {
 }
 
 func TestGetWindowStatusForEntryClosedWithoutAdapter(t *testing.T) {
-	window := (&HistoryProviderService{}).GetWindowStatusForEntry("conv-1", string(shared.EntryTypeInstagram))
+	window := (historyWith(HistoryProviderService{})).GetWindowStatusForEntry("conv-1", string(shared.EntryTypeInstagram))
 	open, expiresAt := window.Open, window.ExpiresAt
 	if open || expiresAt != nil {
 		t.Errorf("expected a closed window without an adapter, got open=%v expiresAt=%v", open, expiresAt)
 	}
 
-	svc := &HistoryProviderService{}
-	svc.SetChannelAdapters(conversation.NewAdapterRegistry(&fakeWindowAdapter{
+	svc := historyWith(HistoryProviderService{})
+	svc.channelAdapters = conversation.NewAdapterRegistry(&fakeWindowAdapter{
 		entryType:  shared.EntryTypeInstagram,
 		open:       true,
 		resolveErr: errors.New("entry gone"),
-	}))
+	})
 	unresolved := svc.GetWindowStatusForEntry("conv-1", string(shared.EntryTypeInstagram))
 	if unresolved.Open {
 		t.Error("expected a closed window when the entry cannot be resolved")

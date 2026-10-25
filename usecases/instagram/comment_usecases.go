@@ -11,6 +11,7 @@ import (
 	"vozko/domain/conversation"
 	igdomain "vozko/domain/instagram"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	cauc "vozko/usecases/commentautomation"
 )
 
@@ -160,27 +161,37 @@ func (uc *ReplyToCommentUseCase) parentMediaID(ctx context.Context, account *igd
 	return parent.IGMediaID
 }
 
+type CommentForgetter interface {
+	Forget(ctx context.Context, igCommentID string)
+}
+
 type ModerateCommentUseCase struct {
 	accountResolver
 	comments     igdomain.CommentService
 	commentsRepo igdomain.CommentRepository
-	audience     AudienceEnqueuer
-}
-
-func (uc *ModerateCommentUseCase) SetCommentAnalysis(e AudienceEnqueuer) {
-	uc.audience = e
+	audience     CommentForgetter
 }
 
 func NewModerateCommentUseCase(
 	accounts igdomain.AccountRepository,
 	commentSvc igdomain.CommentService,
 	commentsRepo igdomain.CommentRepository,
-) *ModerateCommentUseCase {
+	audience CommentForgetter,
+) (*ModerateCommentUseCase, error) {
+	if err := deps.Require("instagram comment moderation", map[string]any{
+		"accounts":           accounts,
+		"comment service":    commentSvc,
+		"comment repository": commentsRepo,
+		"comment analysis":   audience,
+	}); err != nil {
+		return nil, err
+	}
 	return &ModerateCommentUseCase{
 		accountResolver: accountResolver{accounts: accounts},
 		comments:        commentSvc,
 		commentsRepo:    commentsRepo,
-	}
+		audience:        audience,
+	}, nil
 }
 
 func (uc *ModerateCommentUseCase) SetHidden(ctx context.Context, workspaceID, accountID, igCommentID string, hidden bool) error {
@@ -195,10 +206,8 @@ func (uc *ModerateCommentUseCase) SetHidden(ctx context.Context, workspaceID, ac
 	if err := uc.comments.SetHidden(ctx, account.AccessToken, igCommentID, hidden); err != nil {
 		return err
 	}
-	if uc.commentsRepo != nil {
-		if err := uc.commentsRepo.SetHidden(ctx, account.ID, igCommentID, hidden); err != nil {
-			log.Printf("[instagram] hide mirror failed comment=%s: %v", igCommentID, err)
-		}
+	if err := uc.commentsRepo.SetHidden(ctx, account.ID, igCommentID, hidden); err != nil {
+		log.Printf("[instagram] hide mirror failed comment=%s: %v", igCommentID, err)
 	}
 	return nil
 }
@@ -213,25 +222,19 @@ func (uc *ModerateCommentUseCase) Delete(ctx context.Context, workspaceID, accou
 			account.Username, igdomain.ScopeManageComments)
 	}
 
-	if uc.commentsRepo != nil {
-		stored, err := uc.commentsRepo.FindByIGCommentID(ctx, account.ID, igCommentID)
-		if err == nil && stored != nil && !stored.CanDelete() {
-			return fmt.Errorf("instagram only allows deleting comments you authored; hide this one instead")
-		}
+	stored, err := uc.commentsRepo.FindByIGCommentID(ctx, account.ID, igCommentID)
+	if err == nil && stored != nil && !stored.CanDelete() {
+		return fmt.Errorf("instagram only allows deleting comments you authored; hide this one instead")
 	}
 
 	if err := uc.comments.Delete(ctx, account.AccessToken, igCommentID); err != nil {
 		return err
 	}
-	if uc.commentsRepo != nil {
-		if err := uc.commentsRepo.Delete(ctx, account.ID, igCommentID); err != nil &&
-			!errors.Is(err, igdomain.ErrCommentNotFound) {
-			log.Printf("[instagram] delete mirror failed comment=%s: %v", igCommentID, err)
-		}
+	if err := uc.commentsRepo.Delete(ctx, account.ID, igCommentID); err != nil &&
+		!errors.Is(err, igdomain.ErrCommentNotFound) {
+		log.Printf("[instagram] delete mirror failed comment=%s: %v", igCommentID, err)
 	}
-	if uc.audience != nil {
-		uc.audience.Forget(ctx, igCommentID)
-	}
+	uc.audience.Forget(ctx, igCommentID)
 	return nil
 }
 
@@ -246,10 +249,6 @@ type SendPrivateReplyUseCase struct {
 	history       conversation.MessageHistoryManager
 }
 
-func (uc *SendPrivateReplyUseCase) SetHistoryManager(h conversation.MessageHistoryManager) {
-	uc.history = h
-}
-
 func NewSendPrivateReplyUseCase(
 	accounts igdomain.AccountRepository,
 	messaging igdomain.MessagingService,
@@ -258,7 +257,20 @@ func NewSendPrivateReplyUseCase(
 	sender *cauc.PrivateReplySender,
 	contacts igdomain.ContactRepository,
 	conversations igdomain.ConversationRepository,
-) *SendPrivateReplyUseCase {
+	history conversation.MessageHistoryManager,
+) (*SendPrivateReplyUseCase, error) {
+	if err := deps.Require("instagram private reply", map[string]any{
+		"accounts":           accounts,
+		"messaging":          messaging,
+		"comment service":    comments,
+		"comment repository": commentsRepo,
+		"reply sender":       sender,
+		"contacts":           contacts,
+		"conversations":      conversations,
+		"message history":    history,
+	}); err != nil {
+		return nil, err
+	}
 	return &SendPrivateReplyUseCase{
 		accountResolver: accountResolver{accounts: accounts},
 		messaging:       messaging,
@@ -267,7 +279,8 @@ func NewSendPrivateReplyUseCase(
 		sender:          sender,
 		contacts:        contacts,
 		conversations:   conversations,
-	}
+		history:         history,
+	}, nil
 }
 
 func (uc *SendPrivateReplyUseCase) Execute(ctx context.Context, workspaceID, accountID, igCommentID string, sentBy conversation.SentBy, text string) error {
@@ -323,7 +336,7 @@ func (uc *SendPrivateReplyUseCase) recordInTranscript(
 	sentBy conversation.SentBy,
 	text string,
 ) {
-	if uc.history == nil || conv == nil {
+	if conv == nil {
 		return
 	}
 	if err := uc.history.Record(ctx, conversation.MessageHistoryRecord{

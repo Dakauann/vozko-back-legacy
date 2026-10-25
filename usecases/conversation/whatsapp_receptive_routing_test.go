@@ -93,16 +93,16 @@ func receptiveNumber() *businessphone.WhatsAppBusinessPhoneNumber {
 }
 
 func routingUseCase(phone *businessphone.WhatsAppBusinessPhoneNumber, entries *routingEntries, campaigns map[string]*wc.Campaign, receptive *routingReceptive) *handleWhatsAppMessageUseCase {
-	uc := &handleWhatsAppMessageUseCase{
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{
 		businessPhoneRepo: routingPhones{phone: phone},
 		wcEntryRepo:       entries,
 		wcCampaignRepo:    routingCampaigns{byID: campaigns},
 		leadRepo:          routingLeads{},
 		delegations:       stubDelegations{},
 		agentRepo:         agentsByID{byID: map[string]*agent.Agent{"agent-1": {ID: "agent-1", MessagingPrompt: "prompt"}}},
-	}
+	})
 	if receptive != nil {
-		uc.SetReceptiveContainers(receptive)
+		uc.receptive = receptive
 	}
 	return uc
 }

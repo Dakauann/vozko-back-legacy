@@ -11,7 +11,7 @@ import (
 
 func newIdentityHub(t *testing.T, provider *statusTestHistoryProvider) *ConversationHub {
 	t.Helper()
-	hub := NewConversationHub(&hubDepartmentTestAuthorizer{entryAccess: map[string]bool{}}, nil, nil, nil, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: &hubDepartmentTestAuthorizer{entryAccess: map[string]bool{}}})
 	hub.historyProvider = provider
 	return hub
 }
@@ -68,7 +68,7 @@ func TestBroadcastKeepsTheProducersLabelAndSkipsTheLookup(t *testing.T) {
 }
 
 func TestBroadcastSurvivesWithoutAHistoryProvider(t *testing.T) {
-	hub := NewConversationHub(&hubDepartmentTestAuthorizer{entryAccess: map[string]bool{}}, nil, nil, nil, "test-replica", "")
+	hub := testHub(ConversationHubDeps{Authorizer: &hubDepartmentTestAuthorizer{entryAccess: map[string]bool{}}})
 
 	hub.BroadcastNewMessage("entry-1", string(shared.EntryTypeTelegram), &conversation.Message{
 		ID: "m1", EntryID: "entry-1", EntryType: shared.EntryTypeTelegram,

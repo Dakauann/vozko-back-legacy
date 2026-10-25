@@ -208,14 +208,19 @@ func newSyncHarness(t *testing.T) *syncHarness {
 		lines:         &fakeLines{},
 		clock:         time.Now().UTC(),
 	}
-	h.sync = NewHistorySyncUseCase(HistorySyncDeps{
+	sync, err := NewHistorySyncUseCase(HistorySyncDeps{
 		Runs:      h.runs,
 		Instances: newFakeInstanceRepo(imp.instance),
 		Servers:   newFakeServerRepo(&uw.Server{ID: "srv-1", BaseURL: "https://host.test"}),
 		Source:    h.source,
 		Importer:  imp.uc,
 		Handover:  NewLineHandover(h.lines),
+		Window:    uw.DefaultHistorySyncPolicy().Window,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.sync = sync
 	h.sync.now = func() time.Time { return h.clock }
 	h.sync.sleep = func(context.Context, time.Duration) error { return nil }
 	h.sync.spawn = func(fn func()) { fn() }
@@ -285,7 +290,7 @@ func TestSweepPagesUntilAShortPageAndImports(t *testing.T) {
 
 func TestSweepStopsPagingAtTheWindow(t *testing.T) {
 	h := newSyncHarness(t)
-	h.sync.SetWindow(24 * time.Hour)
+	h.sync.policy.Window = 24 * time.Hour
 	h.source.pages = [][]map[string]any{
 		{historyItem("new", anaChat, false, recent(h, time.Hour)), historyItem("old", anaChat, false, recent(h, 48*time.Hour))},
 		{historyItem("older", anaChat, false, recent(h, 72*time.Hour))},
@@ -458,7 +463,7 @@ func TestResetReReadsTheSession(t *testing.T) {
 			return &uw.Session{State: "disconnected"}, nil
 		},
 	}
-	uc := NewConnectInstanceUseCase(instances, servers, provider)
+	uc := connectFor(instances, servers, provider)
 
 	if err := uc.Reset(context.Background(), instance.ID, "ws-1", uw.DepartmentScope{}); err != nil {
 		t.Fatalf("reset: %v", err)

@@ -17,9 +17,8 @@ func (e *endSpy) End(request aa.EndRequest) {
 }
 
 func TestEndAISessionContainedOnFinished(t *testing.T) {
-	svc := &ConversationStatusService{}
 	spy := &endSpy{}
-	svc.SetAISessionEnder(spy)
+	svc := &ConversationStatusService{aiSessions: spy}
 	svc.endAISessionContained("entry-1", "whatsapp", "ws-1", "closer-1")
 	if spy.calls != 1 {
 		t.Fatalf("calls=%d", spy.calls)
@@ -33,9 +32,8 @@ func TestEndAISessionContainedOnFinished(t *testing.T) {
 }
 
 func TestEndAISessionContained_NoWorkspaceNoop(t *testing.T) {
-	svc := &ConversationStatusService{}
 	spy := &endSpy{}
-	svc.SetAISessionEnder(spy)
+	svc := &ConversationStatusService{aiSessions: spy}
 	svc.endAISessionContained("entry-1", "whatsapp", "", "closer-1")
 	if spy.calls != 0 {
 		t.Fatalf("expected noop without workspace, calls=%d", spy.calls)

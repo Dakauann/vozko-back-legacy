@@ -12,6 +12,7 @@ import (
 	"vozko/delivery/http/httpx"
 	"vozko/delivery/http/response"
 	"vozko/domain/affiliate"
+	"vozko/domain/shared/deps"
 	workspacedomain "vozko/domain/workspace"
 	"vozko/infra/http/middleware"
 )
@@ -83,8 +84,13 @@ func NewWorkspaceHandler(
 	deleteCustomRole workspacedomain.DeleteCustomRoleUseCase,
 	assignCustomRole workspacedomain.AssignCustomRoleUseCase,
 	trackReferral affiliate.TrackReferralUseCase,
+	listRolePresets workspacedomain.ListRolePresetsUseCase,
 ) *WorkspaceHandler {
+	if err := deps.Require("workspace handler", map[string]any{"role presets": listRolePresets}); err != nil {
+		panic(err.Error())
+	}
 	return &WorkspaceHandler{
+		listRolePresets:         listRolePresets,
 		createWorkspace:         createWorkspace,
 		getWorkspace:            getWorkspace,
 		listWorkspaces:          listWorkspaces,
@@ -1124,13 +1130,6 @@ func (h *WorkspaceHandler) handleDomainError(w http.ResponseWriter, err error) {
 	}
 }
 
-func (h *WorkspaceHandler) SetRolePresets(uc workspacedomain.ListRolePresetsUseCase) {
-	h.listRolePresets = uc
-}
-
 func (h *WorkspaceHandler) rolePresets() ([]workspacedomain.ResolvedRolePreset, error) {
-	if h.listRolePresets == nil {
-		return []workspacedomain.ResolvedRolePreset{}, nil
-	}
 	return h.listRolePresets.Execute()
 }

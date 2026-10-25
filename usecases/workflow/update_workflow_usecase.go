@@ -3,6 +3,7 @@ package workflow_usecase
 import (
 	"context"
 
+	"vozko/domain/shared/deps"
 	"vozko/domain/workflow"
 )
 
@@ -11,12 +12,11 @@ type updateWorkflowUseCase struct {
 	modelCatalog ModelCatalog
 }
 
-func NewUpdateWorkflowUseCase(repo workflow.WorkflowRepository) workflow.UpdateWorkflowUseCase {
-	return &updateWorkflowUseCase{repo: repo}
-}
-
-func (uc *updateWorkflowUseCase) SetModelCatalog(catalog ModelCatalog) {
-	uc.modelCatalog = catalog
+func NewUpdateWorkflowUseCase(repo workflow.WorkflowRepository, catalog ModelCatalog) workflow.UpdateWorkflowUseCase {
+	if err := deps.Require("workflow update", map[string]any{"workflows": repo, "model catalog": catalog}); err != nil {
+		panic(err.Error())
+	}
+	return &updateWorkflowUseCase{repo: repo, modelCatalog: catalog}
 }
 
 func (uc *updateWorkflowUseCase) Execute(ctx context.Context, workflowID string, input *workflow.Workflow, revision int) (*workflow.Workflow, error) {

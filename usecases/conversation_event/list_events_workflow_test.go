@@ -32,7 +32,7 @@ func TestExecuteNamesAWorkflowThatHandedOff(t *testing.T) {
 			Build(),
 	})
 	names := &stubWorkflowNames{}
-	uc.(interface{ SetWorkflowNames(WorkflowNameLookup) }).SetWorkflowNames(names)
+	uc.(*listEventsUseCase).workflows = names
 
 	got, _, _ := uc.Execute("ws", "entry", "whatsapp", 50, 0)
 

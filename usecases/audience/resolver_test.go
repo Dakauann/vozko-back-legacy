@@ -78,7 +78,7 @@ func TestEngine_PostOverrideEnablesAndDisables(t *testing.T) {
 	_ = h.settings.SaveOverride(context.Background(), &ca.ContainerOverride{
 		WorkspaceID: "ws-1", Source: ca.SourceInstagram, AccountID: "acc-1", ContainerID: "media-1", Enabled: &on, Instructions: &instructions,
 	})
-	ingest := NewIngestUseCase(h.repo, NewSettingsResolver(h.settings), h.scheduler, nil, fixedClock{now})
+	ingest := ingestFor(h.repo, NewSettingsResolver(h.settings), h.scheduler, nil, fixedClock{now})
 	h.adapter.texts["c-9"] = "ficou ótimo"
 	if err := ingest.Enqueue(context.Background(), ca.IngestInput{WorkspaceID: "ws-1", Container: ref(), SubjectID: "c-9", AuthorExternalID: "u-9", Text: "ficou ótimo"}); err != nil {
 		t.Fatal(err)

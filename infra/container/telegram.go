@@ -18,8 +18,6 @@ import (
 )
 
 type telegramBundle struct {
-	Enabled bool
-
 	Accounts      tgdomain.AccountRepository
 	Contacts      tgdomain.ContactRepository
 	Conversations tgdomain.ConversationRepository
@@ -80,7 +78,6 @@ func (c *Container) initTelegram() {
 
 	bundle.CheckHealth = tguc.NewCheckWebhookHealthUseCase(bundle.Accounts, api, c.cfg.TelegramWebhookBaseURL)
 
-	bundle.Enabled = true
 	log.Printf("[telegram] channel enabled (webhook base=%s)", c.cfg.TelegramWebhookBaseURL)
 	log.Printf("[telegram] webhook URL pattern: %s%s/{accountId}",
 		c.cfg.TelegramWebhookBaseURL, tgdomain.WebhookPathPrefix)
@@ -88,7 +85,7 @@ func (c *Container) initTelegram() {
 
 func (c *Container) initTelegramRuntime(history conversation_domain.MessageHistoryManager) {
 	bundle := c.telegram
-	if bundle == nil || !bundle.Enabled {
+	if bundle == nil {
 		return
 	}
 	if c.useCases == nil {
@@ -127,7 +124,7 @@ func (c *Container) initTelegramRuntime(history conversation_domain.MessageHisto
 
 func (c *Container) wireTelegramConversationStack() {
 	bundle := c.telegram
-	if bundle == nil || !bundle.Enabled {
+	if bundle == nil {
 		return
 	}
 
@@ -139,57 +136,19 @@ func (c *Container) wireTelegramConversationStack() {
 		bundle.API,
 	)
 
-	c.registerChannelAdapter(adapter)
-
-	if setter, ok := c.services.conversationHistory.(interface {
-		SetAutomationReader(shared.EntryType, func(context.Context, string) (*bool, error))
-	}); ok {
-		conversations := bundle.Conversations
-		setter.SetAutomationReader(shared.EntryTypeTelegram, func(ctx context.Context, entryID string) (*bool, error) {
-			conv, err := conversations.FindByID(ctx, entryID)
+	c.registerConversationChannel(conversationChannel{
+		EntryType:     shared.EntryTypeTelegram,
+		Adapter:       adapter,
+		Conversations: bundle.Conversations,
+		Automation: func(ctx context.Context, entryID string) (*bool, error) {
+			conv, err := bundle.Conversations.FindByID(ctx, entryID)
 			if err != nil {
 				return nil, err
 			}
 			return conv.AutomationEnabled, nil
-		})
-	} else {
-		log.Printf("[telegram] history provider exposes no SetAutomationReader; the toggle will read as always-on")
-	}
-
-	if c.services.conversationAutomation != nil {
-		conversations := bundle.Conversations
-		c.services.conversationAutomation.Register(
-			shared.EntryTypeTelegram,
-			func(ctx context.Context, entryID string, enabled *bool) error {
-				return conversations.SetAutomationEnabled(ctx, entryID, enabled)
-			},
-		)
-	}
-
-	if c.services.conversationAuthImpl != nil {
-		c.services.conversationAuthImpl.SetTelegramEntryRepo(bundle.Conversations)
-	}
-	if c.services.conversationStatusService != nil {
-		c.services.conversationStatusService.SetConversationStatusStore(
-			shared.EntryTypeTelegram,
-			conversationStatusFuncs{
-				status: bundle.Conversations.StatusForEntry,
-				set:    bundle.Conversations.SetStatus,
-			},
-		)
-		c.services.conversationStatusService.SetConversationCounter(
-			shared.EntryTypeTelegram, bundle.Conversations.CountByStatus)
-	}
-	if setter, ok := c.services.campaignWorkspaceResolver.(interface {
-		SetEntryOwnerResolver(shared.EntryType, conversation_usecase.EntryOwnerResolver)
-	}); ok {
-		setter.SetEntryOwnerResolver(shared.EntryTypeTelegram, bundle.Conversations)
-	}
-	if setter, ok := c.services.conversationHistory.(interface {
-		SetContactIdentityLookup(shared.EntryType, conversation_usecase.ContactIdentityLookup)
-	}); ok {
-		setter.SetContactIdentityLookup(shared.EntryTypeTelegram, telegramContactIdentity(bundle))
-	}
+		},
+		Contacts: telegramContactIdentity(bundle),
+	})
 }
 
 func telegramContactIdentity(bundle *telegramBundle) conversation_usecase.ContactIdentityLookup {
@@ -235,14 +194,14 @@ func telegramContactIdentity(bundle *telegramBundle) conversation_usecase.Contac
 }
 
 func telegramHandler(c *Container) *telegramhttp.Handler {
-	if c.telegram == nil || !c.telegram.Enabled {
+	if c.telegram == nil {
 		return nil
 	}
 	return c.telegram.Handler
 }
 
 func telegramWebhookHandler(c *Container) *telegramhttp.WebhookHandler {
-	if c.telegram == nil || !c.telegram.Enabled {
+	if c.telegram == nil {
 		return nil
 	}
 	return c.telegram.WebhookHandler

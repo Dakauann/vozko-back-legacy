@@ -57,7 +57,7 @@ type adsBundle struct {
 
 func (c *Container) initAds() {
 	if err := c.adsManager().Webhooks.Start(); err != nil {
-		log.Printf("[ads] failed to start webhook consumers: %v", err)
+		log.Fatalf("[ads] failed to start webhook consumers: %v", err)
 	}
 	if err := c.ads.PublishWorker.Start(); err != nil {
 		log.Fatalf("[ads] failed to start the publish worker: %v", err)

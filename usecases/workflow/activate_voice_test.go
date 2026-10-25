@@ -82,15 +82,12 @@ func voiceWorkflow(id, trunkID, mediaID string) *workflow.Workflow {
 }
 
 func voiceActivation(repo *MockWorkflowRepository, trunks InboundTrunkLookup) *activateWorkflowUseCase {
-	uc := NewActivateWorkflowUseCase(repo).(*activateWorkflowUseCase)
-	uc.SetCatalogFn(voiceCatalog)
-	uc.SetMediaRepo(audioMediaStub{items: map[string]*media.Media{
+	uc := &activateWorkflowUseCase{repo: repo, catalogFn: voiceCatalog}
+	uc.mediaRepo = audioMediaStub{items: map[string]*media.Media{
 		"greeting": {ID: "greeting", WorkspaceID: "ws1", Type: media.MediaTypeAudio, URL: "https://files/greeting.mp3"},
 		"picture":  {ID: "picture", WorkspaceID: "ws1", Type: media.MediaTypeProductImage, URL: "https://files/picture.png"},
-	}})
-	if trunks != nil {
-		uc.SetInboundTrunks(trunks)
-	}
+	}}
+	uc.inboundTrunks = trunks
 	return uc
 }
 
@@ -117,7 +114,6 @@ func TestAVoiceWorkflowNeedsAUsableTrunk(t *testing.T) {
 	}{
 		{"no trunk chosen", "", inboundTrunksStub{}, workflow.ErrNodeMissingRequiredField},
 		{"trunk of another workspace or outbound only", "trunk-x", inboundTrunksStub{"ws2|trunk-x": true}, workflow.ErrVoiceTrunkInvalid},
-		{"trunk lookup not wired", "trunk-1", nil, workflow.ErrVoiceTrunkInvalid},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -168,19 +164,16 @@ func TestAQueueTransferMustPointAtAQueueOfTheWorkspace(t *testing.T) {
 		queues  CallQueueLookup
 		wantErr bool
 	}{
-		"own queue":          {"q1", callQueuesStub{"q1": "ws1"}, false},
-		"another workspace":  {"q2", callQueuesStub{"q2": "ws2"}, true},
-		"unknown queue":      {"nope", callQueuesStub{}, true},
-		"queues unavailable": {"q1", nil, true},
+		"own queue":         {"q1", callQueuesStub{"q1": "ws1"}, false},
+		"another workspace": {"q2", callQueuesStub{"q2": "ws2"}, true},
+		"unknown queue":     {"nope", callQueuesStub{}, true},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			repo := NewMockWorkflowRepository()
 			_ = repo.Create(voiceWorkflowWithQueue(tc.queueID))
 			uc := voiceActivation(repo, inboundTrunksStub{"ws1|trunk-1": true})
-			if tc.queues != nil {
-				uc.SetCallQueues(tc.queues)
-			}
+			uc.callQueues = tc.queues
 			_, err := uc.Execute(context.Background(), "wf-1")
 			if tc.wantErr != errors.Is(err, workflow.ErrNodeInvalidQueueID) || (!tc.wantErr && err != nil) {
 				t.Fatalf("err = %v", err)

@@ -22,7 +22,7 @@ func (p *leadInfoHistoryProvider) GetEntryInfo(string, string) (conversation.Ent
 func subscribedLeadFields(t *testing.T, info conversation.EntryInfo) map[string]json.RawMessage {
 	t.Helper()
 	hub := newMultiOpenHub(t)
-	hub.SetHistoryProvider(&leadInfoHistoryProvider{info: info})
+	hub.historyProvider = &leadInfoHistoryProvider{info: info}
 	conn := openConn("conn-1", "user-1")
 	registerConn(hub, conn)
 

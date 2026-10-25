@@ -11,7 +11,7 @@ import (
 
 func WriteSelectionSendRefusal(w http.ResponseWriter, err error) bool {
 	switch {
-	case errors.Is(err, campaign.ErrSelectionSendLocked), errors.Is(err, campaign.ErrSelectionStartNeedsReview):
+	case errors.Is(err, campaign.ErrSelectionSendLocked), errors.Is(err, campaign.ErrSelectionStartNeedsReview), errors.Is(err, campaign.ErrSelectionScheduleRefused):
 		response.WriteErrorWithCode(w, http.StatusConflict, campaign.ErrorCode(err), err.Error(), nil)
 	case errors.Is(err, campaignguard.ErrUnavailable):
 		response.WriteErrorWithCode(w, http.StatusServiceUnavailable, "campaign_guard_unavailable", err.Error(), nil)

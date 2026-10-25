@@ -82,7 +82,7 @@ func (ownerStub) ConversationOwner(string, string, string) (string, error) { ret
 
 func dealJob(subject AnalysisSubject, settings *dealSettingsStub) (*analysisDebounceJob, *generateRecorder) {
 	recorder := &generateRecorder{}
-	job := &analysisDebounceJob{
+	job := debounceWith(&analysisDebounceJob{
 		messageRepo: transcriptStub{},
 		aiService:   recorder,
 		toolRegistry: registryStub{handlers: map[string]toolsdomain.Handler{
@@ -91,8 +91,8 @@ func dealJob(subject AnalysisSubject, settings *dealSettingsStub) (*analysisDebo
 		resolvers: map[shared.EntryType]AnalysisSubjectResolver{
 			shared.EntryTypeInstagram: func(context.Context, string) (*AnalysisSubject, error) { return &subject, nil },
 		},
-	}
-	job.SetDealAutomation(settings, dealDeskStub{})
+	})
+	job.dealSettings, job.dealDesk = settings, dealDeskStub{}
 	return job, recorder
 }
 

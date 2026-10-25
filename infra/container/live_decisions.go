@@ -4,13 +4,11 @@ import (
 	"context"
 	"log"
 
-	conversation_domain "vozko/domain/conversation"
 	"vozko/domain/decision"
 	"vozko/infra/ai/aibilling"
 	"vozko/infra/ai/typesafe"
 	livedecision_repository "vozko/infra/repositories/livedecision"
 	balance_usecase "vozko/usecases/balance"
-	conversation_usecase "vozko/usecases/conversation"
 	livedecisions_usecase "vozko/usecases/livedecisions"
 )
 
@@ -56,15 +54,8 @@ func (c *Container) initLiveDecisions() {
 	c.liveCoalescer = coalescer
 	c.services.liveGate.Bind(livedecisions_usecase.NewGate(service, coalescer))
 
-	if setter, ok := c.useCases.handleWhatsAppMessage.(interface {
-		SetLiveGate(conversation_usecase.LiveMode)
-	}); ok {
-		setter.SetLiveGate(c.services.liveGate)
-	}
-	if setter, ok := c.services.inboxService.(interface {
-		SetLiveReadProvider(conversation_domain.LiveReadProvider)
-	}); ok {
-		setter.SetLiveReadProvider(livedecisions_usecase.InboxReads{Reads: reads})
+	if err := c.services.liveGate.Bound(); err != nil {
+		log.Fatalf("[live-decisions] %v", err)
 	}
 }
 

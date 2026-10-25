@@ -395,7 +395,7 @@ func (h *conversationHarness) seedRevision(rowID, entryID, revision, text string
 
 func TestIngest_DoesNotPayTwiceForTheSameConversation(t *testing.T) {
 	h := newConversationHarness(t, smallBudget())
-	ingest := NewIngestUseCase(h.repo, NewSettingsResolver(h.settings), h.scheduler, nil, fixedClock{now})
+	ingest := ingestFor(h.repo, NewSettingsResolver(h.settings), h.scheduler, nil, fixedClock{now})
 
 	queue := func(revision string, messages int, at time.Time) {
 		t.Helper()
@@ -437,7 +437,7 @@ func TestIngest_DoesNotPayTwiceForTheSameConversation(t *testing.T) {
 
 func TestIngest_RetriesAConversationWhoseAnalysisFailed(t *testing.T) {
 	h := newConversationHarness(t, smallBudget())
-	ingest := NewIngestUseCase(h.repo, NewSettingsResolver(h.settings), h.scheduler, nil, fixedClock{now})
+	ingest := ingestFor(h.repo, NewSettingsResolver(h.settings), h.scheduler, nil, fixedClock{now})
 
 	first, _ := ca.NewPending(ca.NewInput{
 		WorkspaceID: "ws-1", Container: convRef(), SubjectID: "entry-1",
@@ -475,10 +475,7 @@ func TestEngine_AnnouncesAnalysisQueuedThenFinished(t *testing.T) {
 	live := &recordingLive{}
 	h.engine.Live = live
 
-	ingest := NewIngestUseCase(h.repo, NewSettingsResolver(h.settings), h.scheduler, nil, fixedClock{now})
-	ingest.(interface {
-		SetLive(ca.ConversationAnalysisLive)
-	}).SetLive(live)
+	ingest := ingestFor(h.repo, NewSettingsResolver(h.settings), h.scheduler, live, fixedClock{now})
 
 	if err := ingest.Enqueue(context.Background(), ca.IngestInput{
 		WorkspaceID: "ws-1", Container: convRef(), SubjectID: "entry-1",
@@ -522,10 +519,7 @@ func TestEngine_AnnouncesAnalysisQueuedThenFinished(t *testing.T) {
 func TestEngine_DoesNotAnnounceAnAnalysisItRefusedToQueue(t *testing.T) {
 	h := newConversationHarness(t, smallBudget())
 	live := &recordingLive{}
-	ingest := NewIngestUseCase(h.repo, NewSettingsResolver(h.settings), h.scheduler, nil, fixedClock{now})
-	ingest.(interface {
-		SetLive(ca.ConversationAnalysisLive)
-	}).SetLive(live)
+	ingest := ingestFor(h.repo, NewSettingsResolver(h.settings), h.scheduler, live, fixedClock{now})
 
 	queue := func(revision string, messages int, at time.Time) {
 		t.Helper()

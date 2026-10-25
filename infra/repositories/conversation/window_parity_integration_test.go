@@ -327,9 +327,13 @@ func TestWindowFilterAgreesWithTheUnofficialWhatsAppAdapter(t *testing.T) {
 	conv("new chats allowed", instance("CONNECTED", nil, boolRef(true)), false, true)
 
 	adapter := uwuc.NewChannelAdapter(unofficial_whatsapp_repository.NewInstanceRepository(w.db), nil,
-		unofficial_whatsapp_repository.NewContactRepository(w.db), unofficial_whatsapp_repository.NewConversationRepository(w.db), nil)
+		unofficial_whatsapp_repository.NewContactRepository(w.db), unofficial_whatsapp_repository.NewConversationRepository(w.db), nil, parityVoice{})
 	w.assertParity(adapter.(conversation.WindowStatesAdapter))
 }
+
+type parityVoice struct{}
+
+func (parityVoice) ToVoiceNote(context.Context, string) ([]byte, error) { return nil, nil }
 
 type mlMessages struct{ mldomain.MessageService }
 type mlAttachments struct{ mldomain.AttachmentService }

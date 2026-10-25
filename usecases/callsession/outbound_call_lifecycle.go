@@ -15,6 +15,7 @@ import (
 	"vozko/domain/callsession"
 	"vozko/domain/conversation"
 	"vozko/domain/messaging"
+	"vozko/domain/shared/deps"
 )
 
 const (
@@ -63,69 +64,61 @@ type OutboundCallLifecycleRunner struct {
 	reservationLead      time.Duration
 	reservationRetry     time.Duration
 	logger               *log.Logger
-	nowFn                func() time.Time
 }
 
-func (r *OutboundCallLifecycleRunner) SetCDRStart(uc cdr.StartCallUseCase) {
-	if r != nil {
-		r.cdrStart = uc
-	}
+type OutboundCallLifecycleDeps struct {
+	Admission     callsession.CallAdmissionCoordinator
+	Balance       balance.CachedBalanceChecker
+	Inflight      balance.InflightReserver
+	BillingPub    messaging.MessageQueuePub
+	CDRStart      cdr.StartCallUseCase
+	CDRAnswered   cdr.MarkCallAnsweredUseCase
+	CDRComplete   cdr.CompleteCallUseCase
+	CallListItems callsession.CallListItems
+	Logger        *log.Logger
+	BillingMinute time.Duration
+	Lead          time.Duration
+	Retry         time.Duration
 }
 
-func (r *OutboundCallLifecycleRunner) SetCDRAnswered(uc cdr.MarkCallAnsweredUseCase) {
-	if r != nil {
-		r.cdrAnswered = uc
-	}
-}
-
-func (r *OutboundCallLifecycleRunner) SetCDRComplete(uc cdr.CompleteCallUseCase) {
-	if r != nil {
-		r.cdrComplete = uc
-	}
-}
-
-func (r *OutboundCallLifecycleRunner) SetCallListItems(items callsession.CallListItems) {
-	if r != nil {
-		r.callListItems = items
-	}
-}
-
-func NewOutboundCallLifecycleRunner(
-	admission callsession.CallAdmissionCoordinator,
-	cachedBalanceChecker balance.CachedBalanceChecker,
-	inflightReserver balance.InflightReserver,
-	billingPub messaging.MessageQueuePub,
-	logger *log.Logger,
-) (*OutboundCallLifecycleRunner, error) {
-	if billingPub == nil {
+func NewOutboundCallLifecycleRunner(d OutboundCallLifecycleDeps) (*OutboundCallLifecycleRunner, error) {
+	if d.BillingPub == nil {
 		return nil, fmt.Errorf("%w: outbound call lifecycle", callsession.ErrBillingNotConfigured)
 	}
-	if logger == nil {
-		logger = log.Default()
+	if err := deps.Require("outbound call lifecycle", map[string]any{
+		"cdr start":       d.CDRStart,
+		"cdr answered":    d.CDRAnswered,
+		"cdr complete":    d.CDRComplete,
+		"call list items": d.CallListItems,
+	}); err != nil {
+		return nil, err
+	}
+	if d.Logger == nil {
+		d.Logger = log.Default()
+	}
+	if d.BillingMinute <= 0 {
+		d.BillingMinute = billing.BillingMinute
+	}
+	if d.Lead <= 0 {
+		d.Lead = reservationLeadDefault
+	}
+	if d.Retry <= 0 {
+		d.Retry = reservationRetryDefault
 	}
 	return &OutboundCallLifecycleRunner{
-		admission:            admission,
-		cachedBalanceChecker: cachedBalanceChecker,
-		inflightReserver:     inflightReserver,
-		billingPub:           billingPub,
-		billingMinute:        billing.BillingMinute,
-		reservationLead:      reservationLeadDefault,
-		reservationRetry:     reservationRetryDefault,
-		logger:               logger,
-		nowFn:                time.Now,
+		admission:            d.Admission,
+		cachedBalanceChecker: d.Balance,
+		inflightReserver:     d.Inflight,
+		billingPub:           d.BillingPub,
+		cdrStart:             d.CDRStart,
+		cdrAnswered:          d.CDRAnswered,
+		cdrComplete:          d.CDRComplete,
+		callListItems:        d.CallListItems,
+		billingMinute:        d.BillingMinute,
+		reservationLead:      d.Lead,
+		reservationRetry:     d.Retry,
+		logger:               d.Logger,
 	}, nil
-}
-
-func (r *OutboundCallLifecycleRunner) SetMinuteWaves(minute, lead, retry time.Duration) {
-	if minute > 0 && lead >= 0 && retry > 0 {
-		r.billingMinute, r.reservationLead, r.reservationRetry = minute, lead, retry
-	}
-}
-
-func (r *OutboundCallLifecycleRunner) SetNowFn(fn func() time.Time) {
-	if fn != nil {
-		r.nowFn = fn
-	}
 }
 
 func (r *OutboundCallLifecycleRunner) Run(ctx context.Context, input OutboundCallLifecycleInput) {
@@ -174,7 +167,7 @@ func (r *OutboundCallLifecycleRunner) Run(ctx context.Context, input OutboundCal
 		if input.OnEnded != nil {
 			var talk time.Duration
 			if !answeredAt.IsZero() {
-				talk = r.nowFn().Sub(answeredAt)
+				talk = time.Now().Sub(answeredAt)
 			}
 			input.OnEnded(reason, talk)
 		}
@@ -195,7 +188,7 @@ func (r *OutboundCallLifecycleRunner) Run(ctx context.Context, input OutboundCal
 				return
 			}
 			if ev.Type == conversation.CallEventAnswered && answeredAt.IsZero() {
-				answeredAt = r.nowFn()
+				answeredAt = time.Now()
 				r.markAnswered(input.Call.ID())
 				guard.answered(answeredAt)
 			}
@@ -225,13 +218,10 @@ func (r *OutboundCallLifecycleRunner) Run(ctx context.Context, input OutboundCal
 }
 
 func (r *OutboundCallLifecycleRunner) completeCDR(callID string, answeredAt time.Time, reason string) {
-	if r.cdrComplete == nil {
-		return
-	}
 	err := r.cdrComplete.Execute(cdr.CompleteCallInput{
 		CallID:    callID,
 		Status:    cdr.CompletionStatus(!answeredAt.IsZero(), reason),
-		EndedAt:   r.nowFn(),
+		EndedAt:   time.Now(),
 		EndReason: &reason,
 	})
 	if err != nil {
@@ -258,7 +248,7 @@ func (r *OutboundCallLifecycleRunner) releaseAdmission(lease *callsession.CallAd
 }
 
 func (r *OutboundCallLifecycleRunner) startCDR(input OutboundCallLifecycleInput) string {
-	if r == nil || r.cdrStart == nil || input.Call == nil {
+	if input.Call == nil {
 		return ""
 	}
 	direction := input.Direction
@@ -306,10 +296,6 @@ func (r *OutboundCallLifecycleRunner) stampCallListItem(input OutboundCallLifecy
 	if itemID == "" {
 		return
 	}
-	if r.callListItems == nil {
-		r.logger.Printf("[CallCDR] call %s belongs to call list item %s but no call lists are wired, the item keeps its last call", input.Call.ID(), itemID)
-		return
-	}
 	stamp := callsession.CallListItemStamp{WorkspaceID: input.WorkspaceID, UserID: strings.TrimSpace(input.OwnerUserID), ItemID: itemID, CallRecordID: callRecordID}
 	var err error
 	for attempt := 1; attempt <= callListStampAttempts; attempt++ {
@@ -333,10 +319,10 @@ func optionalID(id string) *string {
 }
 
 func (r *OutboundCallLifecycleRunner) markAnswered(callID string) {
-	if r == nil || r.cdrAnswered == nil || callID == "" {
+	if callID == "" {
 		return
 	}
-	if err := r.cdrAnswered.Execute(callID, r.nowFn()); err != nil {
+	if err := r.cdrAnswered.Execute(callID, time.Now()); err != nil {
 		r.logger.Printf("[CallCDR] failed to mark answered for call %s: %v", callID, err)
 	}
 }
@@ -349,7 +335,7 @@ func (r *OutboundCallLifecycleRunner) publishBilling(input OutboundCallLifecycle
 		r.logger.Printf("[CallBilling] call %s was never answered, nothing to bill", input.Call.ID())
 		return
 	}
-	callEnd := r.nowFn()
+	callEnd := time.Now()
 	channel := ""
 	if input.Admission != nil {
 		channel = input.Admission.CallChannel

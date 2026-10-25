@@ -117,8 +117,7 @@ func (h *ConversationHub) leadSubscribers(refs []leadEntryRef) map[string]bool {
 }
 
 func (h *ConversationHub) readsLeads(conn *WSConnection) bool {
-	return h.authorizer != nil &&
-		h.authorizer.HasWorkspacePermission(conn.UserID, conn.WorkspaceID, string(workspace.ResourceLeads), string(workspace.ActionRead), conn.IsAdmin)
+	return h.authorizer.HasWorkspacePermission(conn.UserID, conn.WorkspaceID, string(workspace.ResourceLeads), string(workspace.ActionRead), conn.IsAdmin)
 }
 
 var _ lead.ChangeNotifier = (*LeadChangeNotifier)(nil)

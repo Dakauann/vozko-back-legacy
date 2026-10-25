@@ -10,6 +10,7 @@ import (
 	conversation_domain "vozko/domain/conversation"
 	igdomain "vozko/domain/instagram"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	iginfra "vozko/infra/instagram"
 	instagram_repository "vozko/infra/repositories/instagram"
 	conversation_usecase "vozko/usecases/conversation"
@@ -17,8 +18,6 @@ import (
 )
 
 type instagramBundle struct {
-	Enabled bool
-
 	Accounts        igdomain.AccountRepository
 	Contacts        igdomain.ContactRepository
 	Conversations   igdomain.ConversationRepository
@@ -29,6 +28,7 @@ type instagramBundle struct {
 	PrivateReplyUC  *iguc.SendPrivateReplyUseCase
 	ModerateComment *iguc.ModerateCommentUseCase
 	ReplyComment    *iguc.ReplyToCommentUseCase
+	CommentAnalysis *deps.Handle[iguc.CommentForgetter]
 
 	OAuth        igdomain.OAuthService
 	Messaging    igdomain.MessagingService
@@ -109,13 +109,20 @@ func (c *Container) initInstagram() {
 	)
 
 	replyComment := iguc.NewReplyToCommentUseCase(bundle.Accounts, commentSvc, bundle.Comments)
-	moderateComment := iguc.NewModerateCommentUseCase(bundle.Accounts, commentSvc, bundle.Comments)
+	bundle.CommentAnalysis = deps.Tracked[iguc.CommentForgetter](&c.handles, "instagram comment analysis")
+	moderateComment, err := iguc.NewModerateCommentUseCase(bundle.Accounts, commentSvc, bundle.Comments, lateCommentForgetter{analysis: bundle.CommentAnalysis})
+	if err != nil {
+		log.Fatalf("[instagram] %v", err)
+	}
 	automation := c.commentAutomation()
 	automation.Manager.Register(shared.EntryTypeInstagram, iguc.NewAccountOwnership(bundle.Accounts))
-	privateReply := iguc.NewSendPrivateReplyUseCase(
+	privateReply, err := iguc.NewSendPrivateReplyUseCase(
 		bundle.Accounts, bundle.Messaging, commentSvc, bundle.Comments,
-		automation.Sender, bundle.Contacts, bundle.Conversations,
+		automation.Sender, bundle.Contacts, bundle.Conversations, c.messageHistoryManager(),
 	)
+	if err != nil {
+		log.Fatalf("[instagram] %v", err)
+	}
 	bundle.PrivateReplyUC = privateReply
 	bundle.ModerateComment = moderateComment
 	bundle.ReplyComment = replyComment
@@ -146,7 +153,6 @@ func (c *Container) initInstagram() {
 
 	bundle.RefreshTokens = iguc.NewRefreshTokensUseCase(bundle.Accounts, bundle.OAuth)
 
-	bundle.Enabled = true
 	log.Printf("[instagram] channel enabled (graph=%s/%s)", iginfra.GraphHost, iginfra.DefaultGraphVersion)
 
 	log.Printf("[instagram] redirect_uri sent to Instagram: %q (must match the dashboard byte-for-byte, including any trailing slash)",
@@ -155,13 +161,10 @@ func (c *Container) initInstagram() {
 
 func (c *Container) initInstagramRuntime(history conversation_domain.MessageHistoryManager) {
 	bundle := c.instagram
-	if bundle == nil || !bundle.Enabled {
+	if bundle == nil {
 		return
 	}
 
-	if bundle.PrivateReplyUC != nil {
-		bundle.PrivateReplyUC.SetHistoryManager(history)
-	}
 	if c.useCases == nil {
 		log.Fatalf("[instagram] runtime wiring ran before useCases were built")
 	}
@@ -205,7 +208,7 @@ func (c *Container) initInstagramRuntime(history conversation_domain.MessageHist
 
 func (c *Container) wireInstagramConversationStack() {
 	bundle := c.instagram
-	if bundle == nil || !bundle.Enabled {
+	if bundle == nil {
 		return
 	}
 
@@ -216,58 +219,19 @@ func (c *Container) wireInstagramConversationStack() {
 		bundle.Messaging,
 	)
 
-	c.registerChannelAdapter(adapter)
-
-	if setter, ok := c.services.conversationHistory.(interface {
-		SetAutomationReader(shared.EntryType, func(context.Context, string) (*bool, error))
-	}); ok {
-		conversations := bundle.Conversations
-		setter.SetAutomationReader(shared.EntryTypeInstagram, func(ctx context.Context, entryID string) (*bool, error) {
-			conv, err := conversations.FindByID(ctx, entryID)
+	c.registerConversationChannel(conversationChannel{
+		EntryType:     shared.EntryTypeInstagram,
+		Adapter:       adapter,
+		Conversations: bundle.Conversations,
+		Automation: func(ctx context.Context, entryID string) (*bool, error) {
+			conv, err := bundle.Conversations.FindByID(ctx, entryID)
 			if err != nil {
 				return nil, err
 			}
 			return conv.AutomationEnabled, nil
-		})
-	} else {
-		log.Printf("[instagram] history provider exposes no SetAutomationReader; the toggle will read as always-on")
-	}
-
-	if c.services.conversationAutomation != nil {
-		conversations := bundle.Conversations
-		c.services.conversationAutomation.Register(
-			shared.EntryTypeInstagram,
-			func(ctx context.Context, entryID string, enabled *bool) error {
-				return conversations.SetAutomationEnabled(ctx, entryID, enabled)
-			},
-		)
-	}
-	if c.services.conversationAuthImpl != nil {
-		c.services.conversationAuthImpl.SetInstagramEntryRepo(bundle.Conversations)
-	}
-	if c.services.conversationStatusService != nil {
-		c.services.conversationStatusService.SetConversationStatusStore(
-			shared.EntryTypeInstagram,
-			conversationStatusFuncs{
-				status: bundle.Conversations.StatusForEntry,
-				set:    bundle.Conversations.SetStatus,
-			},
-		)
-		c.services.conversationStatusService.SetConversationCounter(
-			shared.EntryTypeInstagram, bundle.Conversations.CountByStatus)
-	}
-	if setter, ok := c.services.campaignWorkspaceResolver.(interface {
-		SetEntryOwnerResolver(shared.EntryType, conversation_usecase.EntryOwnerResolver)
-	}); ok {
-		setter.SetEntryOwnerResolver(shared.EntryTypeInstagram, bundle.Conversations)
-	} else {
-		log.Printf("[instagram] workspace resolver exposes no SetEntryOwnerResolver; inbound messages will not resolve a workspace")
-	}
-	if setter, ok := c.services.conversationHistory.(interface {
-		SetContactIdentityLookup(shared.EntryType, conversation_usecase.ContactIdentityLookup)
-	}); ok {
-		setter.SetContactIdentityLookup(shared.EntryTypeInstagram, instagramContactIdentity(bundle))
-	}
+		},
+		Contacts: instagramContactIdentity(bundle),
+	})
 }
 
 func instagramContactIdentity(bundle *instagramBundle) conversation_usecase.ContactIdentityLookup {
@@ -313,15 +277,28 @@ func instagramContactIdentity(bundle *instagramBundle) conversation_usecase.Cont
 }
 
 func instagramHandler(c *Container) *instagramhttp.Handler {
-	if c.instagram == nil || !c.instagram.Enabled {
+	if c.instagram == nil {
 		return nil
 	}
 	return c.instagram.Handler
 }
 
 func instagramWebhookHandler(c *Container) *instagramhttp.WebhookHandler {
-	if c.instagram == nil || !c.instagram.Enabled {
+	if c.instagram == nil {
 		return nil
 	}
 	return c.instagram.WebhookHandler
+}
+
+type lateCommentForgetter struct {
+	analysis *deps.Handle[iguc.CommentForgetter]
+}
+
+func (l lateCommentForgetter) Forget(ctx context.Context, igCommentID string) {
+	analysis, err := l.analysis.Get()
+	if err != nil {
+		log.Printf("[instagram] CRITICAL: comment %s stays in the audience analysis: %v", igCommentID, err)
+		return
+	}
+	analysis.Forget(ctx, igCommentID)
 }

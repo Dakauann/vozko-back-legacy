@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"vozko/domain/campaign"
+	"vozko/domain/campaign/scheduledstart"
 	cc "vozko/domain/carriercampaign"
 	"vozko/domain/carriermessaging"
+	"vozko/domain/notification"
 )
 
 func scheduledCampaign(id string, at time.Time) cc.Campaign {
@@ -102,5 +104,77 @@ func TestRunSchedulesSkipsUnclaimed(t *testing.T) {
 	report, err := h.svc.startDue(context.Background(), []*cc.Campaign{&c})
 	if err != nil || len(report.Started) != 0 || len(report.Failed) != 0 {
 		t.Fatalf("report %+v err %v", report, err)
+	}
+}
+
+func TestAFailedScheduleIsRecordedAndToldToTheCreator(t *testing.T) {
+	h := newHarness(t)
+	h.addLead("lead-a", 1)
+	h.balance.micros = 0
+	due := testNow.Add(-time.Minute)
+	h.campaigns.put(scheduledCampaign("c1", due))
+
+	if _, err := h.svc.RunSchedules(context.Background(), 10); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := h.campaigns.get("c1").ScheduleFailure; got != scheduledstart.FailureStartFailed {
+		t.Fatalf("failure = %q", got)
+	}
+	if len(h.notices.drafts) != 1 {
+		t.Fatalf("notices %+v", h.notices.drafts)
+	}
+	d := h.notices.drafts[0]
+	if d.Audience.Kind != notification.AudienceUsers || d.Audience.UserIDs[0] != owner || d.ActionURL != "/dashboard/rcs-sms/campaigns/c1" || d.WorkspaceID != wsID {
+		t.Fatalf("notice %+v", d)
+	}
+}
+
+func TestAFailedScheduleThatCannotBeRecordedIsReturned(t *testing.T) {
+	h := newHarness(t)
+	h.addLead("lead-a", 1)
+	h.balance.micros = 0
+	h.campaigns.recordErr = errBoom
+	h.campaigns.put(scheduledCampaign("c1", testNow.Add(-time.Minute)))
+
+	if _, err := h.svc.RunSchedules(context.Background(), 10); !errors.Is(err, errBoom) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestAStartedScheduleIsNotAFailure(t *testing.T) {
+	h := newHarness(t)
+	h.addLead("lead-a", 1)
+	h.campaigns.put(scheduledCampaign("c1", testNow.Add(-time.Minute)))
+
+	if _, err := h.svc.RunSchedules(context.Background(), 10); err != nil {
+		t.Fatal(err)
+	}
+	if h.campaigns.get("c1").ScheduleFailure != "" || len(h.notices.drafts) != 0 {
+		t.Fatal("a started schedule was reported as failed")
+	}
+}
+
+func TestALaunchClearsTheFailedSchedule(t *testing.T) {
+	h := newHarness(t)
+	h.addLead("lead-a", 1)
+	c := rcsCampaign("c1")
+	c.ScheduleFailure = scheduledstart.FailureStartFailed
+	h.campaigns.put(c)
+
+	if _, err := h.svc.Launch(context.Background(), wsID, "c1", Actor{UserID: owner}); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.campaigns.get("c1").ScheduleFailure; got != "" {
+		t.Fatalf("failure = %q", got)
+	}
+}
+
+func TestTheCarrierServiceNeedsNotifications(t *testing.T) {
+	h := newHarness(t)
+	deps := h.svc.deps
+	deps.Notifications = nil
+	if _, err := New(deps); !errors.Is(err, ErrDependencyMissing) {
+		t.Fatalf("got %v", err)
 	}
 }

@@ -8,6 +8,7 @@ import (
 
 	"vozko/domain/campaign"
 	"vozko/domain/campaign/launchcheck"
+	"vozko/domain/campaign/scheduledstart"
 )
 
 type recorder struct {
@@ -15,7 +16,7 @@ type recorder struct {
 	created   int
 	settled   int
 	started   int
-	createdAt time.Time
+	schedule  scheduledstart.Schedule
 	report    launchcheck.Report
 	checkErr  error
 	createErr error
@@ -31,9 +32,9 @@ func (r *recorder) plan(l campaign.Launch, fingerprint string) Plan[string] {
 			r.checked++
 			return r.report, r.checkErr
 		},
-		Create: func(_ context.Context, at time.Time) (string, error) {
+		Create: func(_ context.Context, schedule scheduledstart.Schedule) (string, error) {
 			r.created++
-			r.createdAt = at
+			r.schedule = schedule
 			if r.createErr != nil {
 				return "", r.createErr
 			}
@@ -59,20 +60,65 @@ func TestReadyCreatesWithoutCheckingOrStarting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Campaign != "c1" || out.Started || r.checked != 0 || r.started != 0 || r.settled != 1 || !r.createdAt.IsZero() {
+	if out.Campaign != "c1" || out.Started || r.checked != 0 || r.started != 0 || r.settled != 1 || r.schedule != (scheduledstart.Schedule{}) {
 		t.Fatalf("out %+v recorder %+v", out, r)
 	}
 }
 
-func TestScheduleCreatesWithTheTimeAndNeverStarts(t *testing.T) {
-	at := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+var at = time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+
+func TestScheduleChecksCreatesWithTheTimeAndNeverStarts(t *testing.T) {
 	r := &recorder{}
 	out, err := Run(context.Background(), r.plan(campaign.Launch{Mode: campaign.LaunchSchedule, At: at}, ""))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Started || r.started != 0 || r.checked != 0 || !r.createdAt.Equal(at) {
+	if out.Started || r.started != 0 || r.checked != 1 || !r.schedule.At.Equal(at) || r.schedule.ConfirmedFingerprint != "" {
 		t.Fatalf("out %+v recorder %+v", out, r)
+	}
+}
+
+func TestScheduleWithABlockCreatesNothing(t *testing.T) {
+	r := &recorder{report: blocked}
+	_, err := Run(context.Background(), r.plan(campaign.Launch{Mode: campaign.LaunchSchedule, At: at}, ""))
+	if !errors.Is(err, launchcheck.ErrBlocked) {
+		t.Fatalf("got %v", err)
+	}
+	if r.created != 0 {
+		t.Fatal("scheduled a blocked campaign")
+	}
+}
+
+func TestScheduleWithAnUnconfirmedRiskCreatesNothing(t *testing.T) {
+	r := &recorder{report: risky}
+	_, err := Run(context.Background(), r.plan(campaign.Launch{Mode: campaign.LaunchSchedule, At: at}, "stale"))
+	if !errors.Is(err, launchcheck.ErrUnconfirmed) {
+		t.Fatalf("got %v", err)
+	}
+	if r.created != 0 {
+		t.Fatal("scheduled without the person's confirmation")
+	}
+}
+
+func TestScheduleStoresTheConfirmedFingerprint(t *testing.T) {
+	r := &recorder{report: risky}
+	out, err := Run(context.Background(), r.plan(campaign.Launch{Mode: campaign.LaunchSchedule, At: at}, risky.Fingerprint()))
+	if err != nil || out.Started {
+		t.Fatalf("out %+v err %v", out, err)
+	}
+	if r.schedule.ConfirmedFingerprint != risky.Fingerprint() || !r.schedule.At.Equal(at) {
+		t.Fatalf("schedule %+v", r.schedule)
+	}
+}
+
+func TestScheduleWhenTheCheckCannotRunCreatesNothing(t *testing.T) {
+	boom := errors.New("boom")
+	r := &recorder{checkErr: boom}
+	if _, err := Run(context.Background(), r.plan(campaign.Launch{Mode: campaign.LaunchSchedule, At: at}, "")); !errors.Is(err, boom) {
+		t.Fatalf("got %v", err)
+	}
+	if r.created != 0 {
+		t.Fatal("scheduled without a check")
 	}
 }
 
@@ -82,7 +128,7 @@ func TestNowChecksCreatesSettlesAndStarts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !out.Started || r.checked != 1 || r.created != 1 || r.settled != 1 || r.started != 1 || !r.createdAt.IsZero() {
+	if !out.Started || r.checked != 1 || r.created != 1 || r.settled != 1 || r.started != 1 || r.schedule != (scheduledstart.Schedule{}) {
 		t.Fatalf("out %+v recorder %+v", out, r)
 	}
 }
@@ -170,5 +216,10 @@ func TestAnIncompletePlanIsRefused(t *testing.T) {
 	p.Check = nil
 	if _, err := Run(context.Background(), p); !errors.Is(err, ErrPlanIncomplete) {
 		t.Fatalf("now without a check: %v", err)
+	}
+	p = (&recorder{}).plan(campaign.Launch{Mode: campaign.LaunchSchedule, At: at}, "")
+	p.Check = nil
+	if _, err := Run(context.Background(), p); !errors.Is(err, ErrPlanIncomplete) {
+		t.Fatalf("schedule without a check: %v", err)
 	}
 }

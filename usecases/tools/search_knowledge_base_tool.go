@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"vozko/domain/agent"
+	"vozko/domain/agenttool"
 	"vozko/domain/rag"
 	"vozko/domain/tools"
 	"vozko/usecases/agentctx"
@@ -14,15 +15,59 @@ import (
 
 const SearchKnowledgeBaseToolName = "search_knowledge_base"
 
-type searchKnowledgeBaseTool struct {
-	rag rag.RAGService
+type KnowledgeBaseFinder interface {
+	FindByIDs(ctx context.Context, ids []string) ([]*rag.KnowledgeBase, error)
 }
 
-func NewSearchKnowledgeBaseToolUseCase(ragService rag.RAGService) tools.Handler {
+type searchKnowledgeBaseTool struct {
+	rag   rag.RAGService
+	bases KnowledgeBaseFinder
+}
+
+const searchKnowledgeBaseScopeKey = "knowledge_base_ids"
+
+func (t *searchKnowledgeBaseTool) ValidateBinding(ctx context.Context, workspaceID string, config map[string]interface{}) error {
+	ids := scopedBaseIDs(config)
+	if len(ids) == 0 {
+		return nil
+	}
+	found, err := t.bases.FindByIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	owned := map[string]bool{}
+	for _, kb := range found {
+		if kb != nil && kb.WorkspaceID == workspaceID {
+			owned[kb.ID] = true
+		}
+	}
+	for _, id := range ids {
+		if !owned[id] {
+			return tools.Invalid(agenttool.CodeKnowledgeBaseInvalid, "uma base escolhida não existe neste workspace")
+		}
+	}
+	return nil
+}
+
+func scopedBaseIDs(config map[string]interface{}) []string {
+	raw, _ := config[searchKnowledgeBaseScopeKey].([]interface{})
+	var ids []string
+	for _, item := range raw {
+		if id, ok := item.(string); ok && strings.TrimSpace(id) != "" {
+			ids = append(ids, strings.TrimSpace(id))
+		}
+	}
+	return ids
+}
+
+func NewSearchKnowledgeBaseToolUseCase(ragService rag.RAGService, bases KnowledgeBaseFinder) tools.Handler {
 	if ragService == nil {
 		return nil
 	}
-	return &searchKnowledgeBaseTool{rag: ragService}
+	if bases == nil {
+		panic("search_knowledge_base: missing knowledge base finder")
+	}
+	return &searchKnowledgeBaseTool{rag: ragService, bases: bases}
 }
 
 func (t *searchKnowledgeBaseTool) Definition() tools.Definition {
@@ -62,6 +107,15 @@ Esgotadas as buscas sem resultado relevante: responda com base nas suas própria
 		Required:   []string{"query"},
 		Visibility: []tools.ToolVisibility{tools.VisibilityMessaging},
 		Category:   tools.CategoryAgentUtility,
+		Instances:  tools.Many(),
+		ConfigSchema: map[string]tools.ConfigParameter{
+			searchKnowledgeBaseScopeKey: {
+				Type:               "array",
+				DisplayName:        "Bases pesquisadas",
+				DisplayDescription: "Vazio: pesquisa todas as bases do agente. Com bases escolhidas, esta busca só olha para elas.",
+				OptionsSource:      "knowledge_bases",
+			},
+		},
 	}
 }
 
@@ -90,19 +144,21 @@ func (t *searchKnowledgeBaseTool) ExecuteWithConfig(ctx context.Context, config,
 	}
 
 	cfg := ragCfg.WithDefaults()
-	out, err := t.rag.QueryForAgent(ctx, rag.AgentQueryInput{
-		AgentID:         agentID,
-		Query:           query,
-		TopK:            cfg.MaxChunks,
-		MinScore:        float32(cfg.MinScore),
-		IncludeMetadata: true,
-		NumCandidates:   cfg.NumCandidates,
-		ContextWindow:   cfg.ContextWindow,
-		MaxChunksPerDoc: cfg.MaxChunksPerDoc,
-		MaxCharacters:   cfg.MaxCharacters,
-	})
+	var out *rag.QueryOutput
+	var err error
+	if ids := scopedBaseIDs(config); len(ids) > 0 {
+		out, err = t.rag.Query(ctx, rag.QueryInput{
+			KnowledgeBaseIDs: ids, Query: query, TopK: cfg.MaxChunks, MinScore: float32(cfg.MinScore), IncludeMetadata: true,
+			NumCandidates: cfg.NumCandidates, ContextWindow: cfg.ContextWindow, MaxChunksPerDoc: cfg.MaxChunksPerDoc, MaxCharacters: cfg.MaxCharacters,
+		})
+	} else {
+		out, err = t.rag.QueryForAgent(ctx, rag.AgentQueryInput{
+			AgentID: agentID, Query: query, TopK: cfg.MaxChunks, MinScore: float32(cfg.MinScore), IncludeMetadata: true,
+			NumCandidates: cfg.NumCandidates, ContextWindow: cfg.ContextWindow, MaxChunksPerDoc: cfg.MaxChunksPerDoc, MaxCharacters: cfg.MaxCharacters,
+		})
+	}
 	if err != nil {
-		log.Printf("[SearchKnowledgeBase] agent=%s query=%q err=%v", agentID, query, err)
+		log.Printf("[SearchKnowledgeBase] agent=%s query_chars=%d err=%v", agentID, len([]rune(query)), err)
 		return errResult("Erro ao consultar a base de conhecimento. Tente novamente."), nil
 	}
 

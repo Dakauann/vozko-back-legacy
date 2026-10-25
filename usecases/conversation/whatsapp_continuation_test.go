@@ -91,7 +91,7 @@ func newWhatsAppContinuationHarness() whatsAppContinuationHarness {
 		windows:    &continuationWindows{open: true},
 		attendance: &recordingAttendance{},
 	}
-	h.uc = &handleWhatsAppMessageUseCase{
+	h.uc = whatsappDefaults(&handleWhatsAppMessageUseCase{
 		aiService:             h.ai,
 		wcEntryRepo:           continuationEntries{entry: &wce.WhatsAppCampaignEntry{ID: "entry-1", CampaignID: "camp-1", LeadID: "lead-1", ReceivedBusinessPhoneID: "phone-2"}},
 		wcCampaignRepo:        routingCampaigns{byID: map[string]*wc.Campaign{campaign.ID: campaign}},
@@ -106,8 +106,8 @@ func newWhatsAppContinuationHarness() whatsAppContinuationHarness {
 			{MessageType: conversation.MessageTypeUserMessage, SentBy: conversation.SentByContact("5511987654321"), From: "5511987654321", To: "551140001234", Text: "meu CPF é 123"},
 			{MessageType: conversation.MessageTypeAIResponse, SentBy: conversation.SentByAI("agent-7"), From: "551140001234", To: "5511987654321", Text: "Vou verificar."},
 		}},
-	}
-	h.uc.SetAIAttendance(h.attendance)
+	})
+	h.uc.aiAttendance = h.attendance
 	return h
 }
 

@@ -83,11 +83,11 @@ func newCampaignMediaSender(t *testing.T, library *campaignLibraryStub) (*Messag
 	adapter := &campaignSendAdapter{entryType: shared.EntryTypeUnofficialWhatsApp}
 	convMedia := &campaignConvMediaStub{t: t}
 	msgs := &campaignMessageRepo{}
-	svc := &MessageSenderService{
+	svc := senderWith(&MessageSenderService{
 		messageRepo:     msgs,
 		mediaRepo:       convMedia,
 		channelAdapters: conversation.NewAdapterRegistry(adapter),
-	}
+	})
 	svc.SetMediaLibrary(library)
 	return svc, adapter, convMedia, msgs
 }

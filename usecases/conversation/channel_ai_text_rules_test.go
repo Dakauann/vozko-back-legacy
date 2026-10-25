@@ -13,6 +13,7 @@ import (
 	ce "vozko/domain/conversation_event"
 	ia "vozko/domain/inbox_assignment"
 	"vozko/domain/shared"
+	"vozko/usecases/conversation/loopguard"
 )
 
 type textRulesAgents struct{ agent.Repository }
@@ -78,6 +79,11 @@ type textRulesHarness struct {
 
 func newTextRulesHarness(t *testing.T, caps channel.Capabilities, replies ...string) *textRulesHarness {
 	t.Helper()
+	return newTextRulesHarnessWithGuard(t, caps, newRepeatGuard(1000), replies...)
+}
+
+func newTextRulesHarnessWithGuard(t *testing.T, caps channel.Capabilities, guard loopguard.Guard, replies ...string) *textRulesHarness {
+	t.Helper()
 	h := &textRulesHarness{
 		ai:      &scriptedAI{replies: replies},
 		sender:  &recordingAgentSender{},
@@ -88,7 +94,7 @@ func newTextRulesHarness(t *testing.T, caps channel.Capabilities, replies ...str
 		fakeWindowAdapter: fakeWindowAdapter{entryType: shared.EntryTypeInstagram, open: true},
 		caps:              caps,
 	})
-	h.svc = NewChannelAIReplyService(textRulesAgents{}, h.ai, stubMessageRepo{}, h.sender, adapters, h.handOff, h.events)
+	h.svc = channelAIWith(ChannelAIReplyDeps{Agents: textRulesAgents{}, AI: h.ai, Messages: stubMessageRepo{}, Sender: h.sender, Adapters: adapters, HandOff: h.handOff, Events: h.events, Guard: guard})
 	return h
 }
 
@@ -111,7 +117,7 @@ func TestAgentReplyStatesTheChannelTextRulesInTheSystemPrompt(t *testing.T) {
 	}
 
 	prompt := h.ai.inputs[0].SystemPrompt
-	if !strings.HasPrefix(prompt, "Você é a Bia.") || !strings.Contains(prompt, "350") {
+	if bia, limit := strings.Index(prompt, "Você é a Bia."), strings.Index(prompt, "350"); bia < 0 || limit < bia {
 		t.Fatalf("system prompt = %q, want the agent prompt followed by the channel's limit", prompt)
 	}
 }
@@ -122,7 +128,7 @@ func TestAgentReplyOnAChannelWithoutLimitsAddsNothing(t *testing.T) {
 	if _, err := h.svc.Reply(context.Background(), textRulesRequest()); err != nil {
 		t.Fatal(err)
 	}
-	if got := h.ai.inputs[0].SystemPrompt; got != "Você é a Bia." {
+	if got := h.ai.inputs[0].SystemPrompt; !strings.Contains(got, "Você é a Bia.") || strings.Contains(got, "Limites de texto do canal") {
 		t.Fatalf("system prompt = %q", got)
 	}
 }
@@ -320,13 +326,13 @@ func TestNewChannelAIReplyServiceRequiresItsDependencies(t *testing.T) {
 	adapters := conversation.NewAdapterRegistry()
 	build := map[string]func(){
 		"no adapters": func() {
-			NewChannelAIReplyService(textRulesAgents{}, &scriptedAI{}, stubMessageRepo{}, &recordingAgentSender{}, nil, &recordingHandOff{}, &recordingEvents{})
+			channelAIWith(ChannelAIReplyDeps{Agents: textRulesAgents{}, AI: &scriptedAI{}, Messages: stubMessageRepo{}, Sender: &recordingAgentSender{}, HandOff: &recordingHandOff{}, Events: &recordingEvents{}, Guard: newRepeatGuard(1)})
 		},
 		"no hand-off": func() {
-			NewChannelAIReplyService(textRulesAgents{}, &scriptedAI{}, stubMessageRepo{}, &recordingAgentSender{}, adapters, nil, &recordingEvents{})
+			channelAIWith(ChannelAIReplyDeps{Agents: textRulesAgents{}, AI: &scriptedAI{}, Messages: stubMessageRepo{}, Sender: &recordingAgentSender{}, Adapters: adapters, Events: &recordingEvents{}, Guard: newRepeatGuard(1)})
 		},
 		"no events": func() {
-			NewChannelAIReplyService(textRulesAgents{}, &scriptedAI{}, stubMessageRepo{}, &recordingAgentSender{}, adapters, &recordingHandOff{}, nil)
+			channelAIWith(ChannelAIReplyDeps{Agents: textRulesAgents{}, AI: &scriptedAI{}, Messages: stubMessageRepo{}, Sender: &recordingAgentSender{}, Adapters: adapters, HandOff: &recordingHandOff{}, Guard: newRepeatGuard(1)})
 		},
 	}
 	for name, fn := range build {

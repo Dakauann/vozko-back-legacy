@@ -23,15 +23,11 @@ const (
 
 var errMessageActionPanicked = errors.New("internal error running the message action")
 
-func (h *ConversationHub) SetMessageActions(actions conversation.MessageActionUseCases) {
-	h.messageActions = actions
-}
-
 func (h *ConversationHub) messageCapabilities(entryType string) conversation.MessageCapabilities {
-	if h.messageActions.Capabilities == nil {
+	if h.cmds().MessageActions.Capabilities == nil {
 		return conversation.MessageCapabilities{}
 	}
-	return h.messageActions.Capabilities.MessageCapabilities(shared.EntryType(entryType))
+	return h.cmds().MessageActions.Capabilities.MessageCapabilities(shared.EntryType(entryType))
 }
 
 func (p MessageActionPayload) target(conn *WSConnection) conversation.MessageTarget {
@@ -56,11 +52,11 @@ func (h *ConversationHub) handleReactMessage(conn *WSConnection, payload json.Ra
 	if !h.decodeMessageAction(conn, payload, &p, &p.MessageActionPayload) {
 		return
 	}
-	if h.refuseUnconfigured(conn, p.MessageActionPayload, h.messageActions.React == nil) {
+	if h.refuseUnconfigured(conn, p.MessageActionPayload, h.cmds().MessageActions.React == nil) {
 		return
 	}
 	h.runMessageAction(conn, p.MessageActionPayload, func(ctx context.Context, by shared.Person, target conversation.MessageTarget) error {
-		_, err := h.messageActions.React.Execute(ctx, by, target, p.Emoji)
+		_, err := h.cmds().MessageActions.React.Execute(ctx, by, target, p.Emoji)
 		return err
 	})
 }
@@ -70,11 +66,11 @@ func (h *ConversationHub) handleEditMessage(conn *WSConnection, payload json.Raw
 	if !h.decodeMessageAction(conn, payload, &p, &p.MessageActionPayload) {
 		return
 	}
-	if h.refuseUnconfigured(conn, p.MessageActionPayload, h.messageActions.Edit == nil) {
+	if h.refuseUnconfigured(conn, p.MessageActionPayload, h.cmds().MessageActions.Edit == nil) {
 		return
 	}
 	h.runMessageAction(conn, p.MessageActionPayload, func(ctx context.Context, by shared.Person, target conversation.MessageTarget) error {
-		_, err := h.messageActions.Edit.Execute(ctx, by, target, p.Text)
+		_, err := h.cmds().MessageActions.Edit.Execute(ctx, by, target, p.Text)
 		return err
 	})
 }
@@ -84,11 +80,11 @@ func (h *ConversationHub) handleDeleteMessage(conn *WSConnection, payload json.R
 	if !h.decodeMessageAction(conn, payload, &p, &p) {
 		return
 	}
-	if h.refuseUnconfigured(conn, p, h.messageActions.Delete == nil) {
+	if h.refuseUnconfigured(conn, p, h.cmds().MessageActions.Delete == nil) {
 		return
 	}
 	h.runMessageAction(conn, p, func(ctx context.Context, by shared.Person, target conversation.MessageTarget) error {
-		_, err := h.messageActions.Delete.Execute(ctx, by, target)
+		_, err := h.cmds().MessageActions.Delete.Execute(ctx, by, target)
 		return err
 	})
 }
@@ -98,11 +94,11 @@ func (h *ConversationHub) handleResendMessage(conn *WSConnection, payload json.R
 	if !h.decodeMessageAction(conn, payload, &p, &p) {
 		return
 	}
-	if h.refuseUnconfigured(conn, p, h.messageActions.Resend == nil) {
+	if h.refuseUnconfigured(conn, p, h.cmds().MessageActions.Resend == nil) {
 		return
 	}
 	h.runMessageAction(conn, p, func(ctx context.Context, by shared.Person, target conversation.MessageTarget) error {
-		sent, err := h.messageActions.Resend.Execute(ctx, by, target, p.RequestID)
+		sent, err := h.cmds().MessageActions.Resend.Execute(ctx, by, target, p.RequestID)
 		switch {
 		case errors.Is(err, conversation.ErrSendRequestInFlight):
 			log.Printf("[ConversationHub] resend %s for %s:%s is already in flight", p.RequestID, target.EntryType, target.EntryID)

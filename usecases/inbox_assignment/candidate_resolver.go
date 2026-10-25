@@ -7,15 +7,15 @@ import (
 
 	conversation "vozko/domain/conversation"
 	ia "vozko/domain/inbox_assignment"
+	"vozko/domain/shared/deps"
 	wsc "vozko/domain/workspace_config"
 )
 
 const (
-	PoolReasonOnline              = "online"
-	PoolReasonLastSeen            = "last_seen"
-	PoolReasonLastSeenEmpty       = "last_seen_empty_fallback"
-	PoolReasonLastSeenError       = "last_seen_error_fallback"
-	PoolReasonLastSeenUnavailable = "last_seen_unwired_fallback"
+	PoolReasonOnline        = "online"
+	PoolReasonLastSeen      = "last_seen"
+	PoolReasonLastSeenEmpty = "last_seen_empty_fallback"
+	PoolReasonLastSeenError = "last_seen_error_fallback"
 
 	PoolReasonNoRecipientAvailable = "no_recipient_available"
 	PoolReasonAtCapacity           = "everyone_at_capacity"
@@ -50,34 +50,36 @@ type CandidateResolver struct {
 	draw     func(n int) int
 }
 
-func NewCandidateResolver(online conversation.EligibleUserProvider) *CandidateResolver {
-	return &CandidateResolver{online: online, now: time.Now, draw: rand.IntN}
+type CandidateDeps struct {
+	Online   conversation.EligibleUserProvider
+	Roster   ia.RosterProvider
+	Presence ia.LastSeenReader
+	Workload ia.WorkloadReader
+	Handouts ia.HandoutReader
+	Now      func() time.Time
+	Draw     func(n int) int
 }
 
-func (r *CandidateResolver) SetRoster(roster ia.RosterProvider) { r.roster = roster }
-
-func (r *CandidateResolver) SetPresence(seen ia.LastSeenReader) { r.seen = seen }
-
-func (r *CandidateResolver) SetWorkload(workload ia.WorkloadReader) { r.workload = workload }
-
-func (r *CandidateResolver) SetHandouts(handouts ia.HandoutReader) { r.handouts = handouts }
-
-func (r *CandidateResolver) SetClock(now func() time.Time) {
-	if now != nil {
-		r.now = now
+func NewCandidateResolver(d CandidateDeps) (*CandidateResolver, error) {
+	if err := deps.Require("roulette candidates", map[string]any{
+		"online":   d.Online,
+		"roster":   d.Roster,
+		"presence": d.Presence,
+		"workload": d.Workload,
+		"handouts": d.Handouts,
+	}); err != nil {
+		return nil, err
 	}
-}
-
-func (r *CandidateResolver) SetDraw(draw func(n int) int) {
-	if draw != nil {
-		r.draw = draw
+	if d.Now == nil {
+		d.Now = time.Now
 	}
+	if d.Draw == nil {
+		d.Draw = rand.IntN
+	}
+	return &CandidateResolver{online: d.Online, roster: d.Roster, seen: d.Presence, workload: d.Workload, handouts: d.Handouts, now: d.Now, draw: d.Draw}, nil
 }
 
 func (r *CandidateResolver) Resolve(workspaceID, departmentID string, skipAdmins bool, cfg *wsc.WorkspaceConfig) Pool {
-	if r == nil {
-		return Pool{Mode: wsc.RouletteModeOnline, Strategy: cfg.EffectiveRouletteStrategy(), Reason: PoolReasonOnline}
-	}
 	return r.arrange(workspaceID, departmentID, cfg, r.available(workspaceID, departmentID, skipAdmins, cfg))
 }
 
@@ -113,10 +115,6 @@ func (r *CandidateResolver) withReadings(workspaceID, departmentID string, strat
 	ids := ia.CandidateIDs(cands)
 
 	if strategy.RanksByWorkload() || maxOpen > 0 {
-		if r.workload == nil {
-			log.Printf("[InboxAssignment] workspace %s needs open-conversation counts for %s but no reader is wired; assigning nobody", workspaceID, strategy)
-			return nil, PoolReasonWorkloadUnavailable
-		}
 		open, err := r.workload.OpenConversations(workspaceID, ids)
 		if err != nil {
 			log.Printf("[InboxAssignment] workspace %s open-conversation counts failed: %v; assigning nobody", workspaceID, err)
@@ -133,10 +131,6 @@ func (r *CandidateResolver) withReadings(workspaceID, departmentID string, strat
 	}
 
 	if strategy.RanksByHandouts() {
-		if r.handouts == nil {
-			log.Printf("[InboxAssignment] workspace %s needs hand-out times for %s but no reader is wired; assigning nobody", workspaceID, strategy)
-			return nil, PoolReasonHandoutsUnavailable
-		}
 		last, err := r.handouts.LastHandouts(workspaceID, ia.CandidateIDs(cands))
 		if err != nil {
 			log.Printf("[InboxAssignment] workspace %s hand-out times failed: %v; assigning nobody", workspaceID, err)
@@ -153,10 +147,6 @@ func (r *CandidateResolver) available(workspaceID, departmentID string, skipAdmi
 	mode := cfg.EffectiveRouletteMode()
 	if mode != wsc.RouletteModeLastSeen {
 		return r.onlinePool(workspaceID, departmentID, skipAdmins, PoolReasonOnline)
-	}
-	if r.roster == nil || r.seen == nil {
-		log.Printf("[InboxAssignment] workspace %s asks for last_seen mode but the roster/presence readers are not wired; using the online pool", workspaceID)
-		return r.onlinePool(workspaceID, departmentID, skipAdmins, PoolReasonLastSeenUnavailable)
 	}
 
 	members, err := r.roster.ListRouletteMembers(workspaceID, departmentID, skipAdmins)

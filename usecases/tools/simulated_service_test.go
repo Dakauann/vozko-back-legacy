@@ -125,3 +125,30 @@ func TestSimulatedServicePresentsTheRealToolSet(t *testing.T) {
 		t.Fatalf("DefinitionsFor not delegated: %+v", got)
 	}
 }
+
+func TestAScenarioMockWinsOverEveryRealOrStubbedCall(t *testing.T) {
+	sandbox := NewSimulatedToolService(explodingService{})
+	ctx := tools.WithMocks(context.Background(), map[string]tools.Mock{"t1": {Result: map[string]interface{}{"status": "enviado"}}, "t2": {Result: "fora do ar", IsError: true}})
+
+	res, err := sandbox.ExecuteWithConfig(tools.WithInstance(ctx, &tools.InstanceRef{ID: "t1", Type: "http_request"}), "http_request", map[string]interface{}{"method": "POST"}, nil)
+	if err != nil || res.IsError || !res.Simulated || !res.Mocked {
+		t.Fatalf("mocked = (%+v, %v)", res, err)
+	}
+	if out, _ := res.Result.(map[string]interface{}); out["status"] != "enviado" || res.Trace == nil || res.Trace.MappedOutput == nil {
+		t.Fatalf("mock result %+v trace %+v", res.Result, res.Trace)
+	}
+	failed, _ := sandbox.ExecuteWithConfig(tools.WithInstance(ctx, &tools.InstanceRef{ID: "t2", Type: "search_knowledge_base"}), "search_knowledge_base", nil, nil)
+	if !failed.IsError || failed.Result != "fora do ar" {
+		t.Fatalf("mocked failure %+v", failed)
+	}
+}
+
+func TestWithoutAMockTheSandboxKeepsItsRules(t *testing.T) {
+	real := &recordingService{}
+	sandbox := NewSimulatedToolService(real)
+	ctx := tools.WithMocks(context.Background(), map[string]tools.Mock{"other": {Result: "x"}})
+	res, err := sandbox.ExecuteWithConfig(tools.WithInstance(ctx, &tools.InstanceRef{ID: "t1"}), "http_request", map[string]interface{}{"method": "GET"}, nil)
+	if err != nil || res.Mocked || real.executed != "http_request" {
+		t.Fatalf("res %+v err %v executed %q", res, err, real.executed)
+	}
+}

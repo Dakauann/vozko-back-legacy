@@ -2,8 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -12,16 +10,16 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"vozko/delivery/http/agenthttp"
 	"vozko/delivery/http/httpx"
 	"vozko/delivery/http/response"
 	"vozko/domain/agent"
+	"vozko/domain/agenttool"
 	"vozko/domain/ai"
 	"vozko/domain/auth"
 	"vozko/domain/shared"
 	"vozko/domain/tools"
 	"vozko/domain/user"
-	"vozko/domain/whatsapp/template"
-	workspace_department "vozko/domain/workspace/workspace_department"
 	"vozko/infra/http/middleware"
 )
 
@@ -35,7 +33,6 @@ type AgentHandler struct {
 	simulateUseCase         agent.SimulateTurnUseCase
 	toolRegistry            tools.Service
 	aiService               ai.Service
-	templateRepo            template.Repository
 }
 
 func NewAgentHandler(
@@ -48,7 +45,6 @@ func NewAgentHandler(
 	simulateUC agent.SimulateTurnUseCase,
 	toolRegistry tools.Service,
 	aiService ai.Service,
-	templateRepo template.Repository,
 ) *AgentHandler {
 	return &AgentHandler{
 		createUseCase:           createUC,
@@ -60,14 +56,15 @@ func NewAgentHandler(
 		simulateUseCase:         simulateUC,
 		toolRegistry:            toolRegistry,
 		aiService:               aiService,
-		templateRepo:            templateRepo,
 	}
 }
 
 type toolBindingRequest struct {
-	Name       string                 `json:"name"`
-	Visibility []string               `json:"visibility,omitempty"`
-	Config     map[string]interface{} `json:"config,omitempty"`
+	Name        string                 `json:"name" example:"http_request"`
+	Function    string                 `json:"function,omitempty" example:"consultar_pedido"`
+	Description string                 `json:"description,omitempty" example:"Consulta o status de um pedido pelo número que o cliente informou."`
+	Visibility  []string               `json:"visibility,omitempty"`
+	Config      map[string]interface{} `json:"config,omitempty"`
 }
 
 type ragConfigRequest struct {
@@ -86,46 +83,42 @@ type agentVariableRequest struct {
 }
 
 type createAgentRequest struct {
-	Name               string                 `json:"name"`
-	Description        string                 `json:"description"`
-	MessagingPrompt    string                 `json:"messagingPrompt"`
-	MessagingModel     string                 `json:"messagingModel"`
-	AvatarURL          string                 `json:"avatarUrl"`
-	Tags               []string               `json:"tags"`
-	Metadata           map[string]string      `json:"metadata"`
-	IsActive           *bool                  `json:"isActive"`
-	Provider           string                 `json:"provider"`
-	InternalTools      []toolBindingRequest   `json:"internalTools"`
-	BusinessPhoneID    string                 `json:"businessPhoneId,omitempty"`
-	WhatsAppTemplateID *string                `json:"whatsappTemplateId,omitempty"`
-	MediaIDs           []string               `json:"mediaIds"`
-	KnowledgeBaseIDs   []string               `json:"knowledgeBaseIds,omitempty"`
-	MCPCollectionIDs   []string               `json:"mcpCollectionIds,omitempty"`
-	DepartmentID       string                 `json:"departmentId,omitempty"`
-	RAGEnabled         *bool                  `json:"ragEnabled,omitempty"`
-	RAGConfig          *ragConfigRequest      `json:"ragConfig,omitempty"`
-	Variables          []agentVariableRequest `json:"variables,omitempty"`
+	Name             string                 `json:"name"`
+	Description      string                 `json:"description"`
+	MessagingPrompt  string                 `json:"messagingPrompt"`
+	MessagingModel   string                 `json:"messagingModel"`
+	AvatarURL        string                 `json:"avatarUrl"`
+	Tags             []string               `json:"tags"`
+	Metadata         map[string]string      `json:"metadata"`
+	IsActive         *bool                  `json:"isActive"`
+	Provider         string                 `json:"provider"`
+	InternalTools    []toolBindingRequest   `json:"internalTools"`
+	MediaIDs         []string               `json:"mediaIds"`
+	KnowledgeBaseIDs []string               `json:"knowledgeBaseIds,omitempty"`
+	MCPCollectionIDs json.RawMessage        `json:"mcpCollectionIds,omitempty" swaggerignore:"true"`
+	DepartmentID     string                 `json:"departmentId,omitempty"`
+	RAGEnabled       *bool                  `json:"ragEnabled,omitempty"`
+	RAGConfig        *ragConfigRequest      `json:"ragConfig,omitempty"`
+	Variables        []agentVariableRequest `json:"variables,omitempty"`
 }
 
 type updateAgentRequest struct {
-	Name               string                 `json:"name"`
-	Description        string                 `json:"description"`
-	MessagingPrompt    string                 `json:"messagingPrompt"`
-	MessagingModel     string                 `json:"messagingModel"`
-	AvatarURL          string                 `json:"avatarUrl"`
-	Tags               []string               `json:"tags"`
-	Metadata           map[string]string      `json:"metadata"`
-	IsActive           *bool                  `json:"isActive"`
-	Provider           string                 `json:"provider"`
-	InternalTools      []toolBindingRequest   `json:"internalTools"`
-	BusinessPhoneID    string                 `json:"businessPhoneId,omitempty"`
-	WhatsAppTemplateID *string                `json:"whatsappTemplateId,omitempty"`
-	MediaIDs           []string               `json:"mediaIds"`
-	KnowledgeBaseIDs   []string               `json:"knowledgeBaseIds,omitempty"`
-	MCPCollectionIDs   []string               `json:"mcpCollectionIds,omitempty"`
-	RAGEnabled         *bool                  `json:"ragEnabled,omitempty"`
-	RAGConfig          *ragConfigRequest      `json:"ragConfig,omitempty"`
-	Variables          []agentVariableRequest `json:"variables,omitempty"`
+	Name             string                 `json:"name"`
+	Description      string                 `json:"description"`
+	MessagingPrompt  string                 `json:"messagingPrompt"`
+	MessagingModel   string                 `json:"messagingModel"`
+	AvatarURL        string                 `json:"avatarUrl"`
+	Tags             []string               `json:"tags"`
+	Metadata         map[string]string      `json:"metadata"`
+	IsActive         *bool                  `json:"isActive"`
+	Provider         string                 `json:"provider"`
+	InternalTools    json.RawMessage        `json:"internalTools,omitempty" swaggerignore:"true"`
+	MediaIDs         []string               `json:"mediaIds"`
+	KnowledgeBaseIDs []string               `json:"knowledgeBaseIds,omitempty"`
+	MCPCollectionIDs json.RawMessage        `json:"mcpCollectionIds,omitempty" swaggerignore:"true"`
+	RAGEnabled       *bool                  `json:"ragEnabled,omitempty"`
+	RAGConfig        *ragConfigRequest      `json:"ragConfig,omitempty"`
+	Variables        []agentVariableRequest `json:"variables,omitempty"`
 }
 
 func (h *AgentHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -167,74 +160,70 @@ func (h *AgentHandler) Create(w http.ResponseWriter, r *http.Request) {
 		response.WriteValidationError(w, map[string]string{"internalTools": "required"})
 		return
 	}
+	if carriesTools(req.MCPCollectionIDs) {
+		response.WriteRefusal(w, agenthttp.RefusalMCPCollectionsMoved)
+		return
+	}
 
 	r = withDepartmentCreationScope(r, req.DepartmentID)
 
-	if containsToolBinding(req.InternalTools, agent.ToolSendWhatsAppMessage) {
-		if req.WhatsAppTemplateID == nil || *req.WhatsAppTemplateID == "" {
-			response.WriteValidationError(w, map[string]string{
-				"whatsappTemplateId": "required when using send_whatsapp_message tool",
-			})
-			return
-		}
-	}
-
-	if req.WhatsAppTemplateID != nil && *req.WhatsAppTemplateID != "" {
-		tmpl, err := h.templateRepo.FindByID(*req.WhatsAppTemplateID)
-		if err != nil {
-			response.WriteValidationError(w, map[string]string{
-				"whatsappTemplateId": "template not found",
-			})
-			return
-		}
-		if !tmpl.IsReadyToSend() {
-			usabilityMsg := tmpl.GetUsabilityMessage()
-			if usabilityMsg == "" {
-				usabilityMsg = "template is not ready to send"
-			}
-			response.WriteValidationError(w, map[string]string{
-				"whatsappTemplateId": usabilityMsg,
-			})
-			return
-		}
-	}
-
 	created, err := h.createUseCase.Execute(r.Context(), agent.CreateAgentInput{
-		WorkspaceID:        middleware.GetWorkspaceID(r),
-		Name:               req.Name,
-		Description:        req.Description,
-		MessagingPrompt:    req.MessagingPrompt,
-		MessagingModel:     req.MessagingModel,
-		AvatarURL:          req.AvatarURL,
-		Tags:               req.Tags,
-		Metadata:           req.Metadata,
-		Provider:           provider,
-		IsActive:           req.IsActive,
-		RAGEnabled:         req.RAGEnabled,
-		RAGConfig:          convertRAGConfig(req.RAGConfig),
-		InternalTools:      convertToolBindings(req.InternalTools),
-		BusinessPhoneID:    req.BusinessPhoneID,
-		WhatsAppTemplateID: req.WhatsAppTemplateID,
-		MediaIDs:           req.MediaIDs,
-		KnowledgeBaseIDs:   req.KnowledgeBaseIDs,
-		MCPCollectionIDs:   req.MCPCollectionIDs,
-		Variables:          convertVariables(req.Variables),
-		RequestedBy:        httpx.RequesterOf(r),
+		WorkspaceID:      middleware.GetWorkspaceID(r),
+		Name:             req.Name,
+		Description:      req.Description,
+		MessagingPrompt:  req.MessagingPrompt,
+		MessagingModel:   req.MessagingModel,
+		AvatarURL:        req.AvatarURL,
+		Tags:             req.Tags,
+		Metadata:         req.Metadata,
+		Provider:         provider,
+		IsActive:         req.IsActive,
+		RAGEnabled:       req.RAGEnabled,
+		RAGConfig:        convertRAGConfig(req.RAGConfig),
+		InternalTools:    convertToolBindings(req.InternalTools),
+		MediaIDs:         req.MediaIDs,
+		KnowledgeBaseIDs: req.KnowledgeBaseIDs,
+		Variables:        convertVariables(req.Variables),
+		RequestedBy:      httpx.RequesterOf(r),
 	})
 	if err != nil {
 		h.handleDomainError(w, err)
 		return
 	}
 
-	response.WriteSuccess(w, http.StatusCreated, created)
+	response.WriteSuccess(w, http.StatusCreated, h.concealed(created))
 }
 
+// @Summary		Atualizar um agente
+// @Description	Salva os campos do rascunho do agente: nome, descrição, prompt, modelo, avatar, etiquetas, metadados, mídias, bases de conhecimento, RAG, variáveis e o estado ativo. Conversas seguem usando a versão publicada até a próxima publicação.
+// @Description
+// @Description	As ferramentas não vão neste corpo: cada uma é salva em /agents/{id}/tools. Um corpo com `internalTools` responde 400 `agent_tools_moved` sem salvar nada. Servidores MCP também são ferramentas (tipo `mcp_source`, com as ferramentas permitidas): um corpo com `mcpCollectionIds` responde 400 `agent_mcp_collections_moved`.
+// @Tags			Agentes
+// @Accept			json
+// @Produce		json
+// @Param			id		path		string				true	"ID do agente"
+// @Param			request	body		updateAgentRequest	true	"Campos do agente"
+// @Success		200		{object}	agent.Agent
+// @Failure		400		{object}	response.ErrorResponse	"agent_tools_moved, agent_mcp_collections_moved, agent_invalid_body, agent_name_required"
+// @Failure		403		{object}	response.ErrorResponse	"agent_forbidden"
+// @Failure		404		{object}	response.ErrorResponse	"agent_not_found"
+// @Failure		422		{object}	response.ErrorResponse	"agent_not_activatable"
+// @Security		BearerAuth
+// @Router			/agents/{id} [put]
 func (h *AgentHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	var req updateAgentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.writeInvalidBodyError(w)
+		return
+	}
+	if carriesTools(req.InternalTools) {
+		response.WriteRefusal(w, agenthttp.RefusalToolsMoved)
+		return
+	}
+	if carriesTools(req.MCPCollectionIDs) {
+		response.WriteRefusal(w, agenthttp.RefusalMCPCollectionsMoved)
 		return
 	}
 
@@ -275,71 +264,30 @@ func (h *AgentHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	internalTools := req.InternalTools
-	templateID := req.WhatsAppTemplateID
-	hasWhatsAppTemplate := templateID != nil && *templateID != ""
-	hasWhatsAppTool := containsToolBinding(internalTools, agent.ToolSendWhatsAppMessage)
-
-	if hasWhatsAppTool && !hasWhatsAppTemplate {
-		response.WriteValidationError(w, map[string]string{
-			"whatsappTemplateId": "required when using send_whatsapp_message tool",
-		})
-		return
-	}
-
-	if !hasWhatsAppTemplate && hasWhatsAppTool {
-		internalTools = removeToolBinding(internalTools, agent.ToolSendWhatsAppMessage)
-	}
-
-	if hasWhatsAppTemplate {
-		tmpl, err := h.templateRepo.FindByID(*templateID)
-		if err != nil {
-			response.WriteValidationError(w, map[string]string{
-				"whatsappTemplateId": "template not found",
-			})
-			return
-		}
-		if !tmpl.IsReadyToSend() {
-			usabilityMsg := tmpl.GetUsabilityMessage()
-			if usabilityMsg == "" {
-				usabilityMsg = "template is not ready to send"
-			}
-			response.WriteValidationError(w, map[string]string{
-				"whatsappTemplateId": usabilityMsg,
-			})
-			return
-		}
-	}
-
 	updated, err := h.updateUseCase.Execute(r.Context(), id, agent.UpdateAgentInput{
-		Name:                    &req.Name,
-		Description:             &req.Description,
-		MessagingPrompt:         &req.MessagingPrompt,
-		MessagingModel:          &req.MessagingModel,
-		Provider:                &provider,
-		AvatarURL:               &req.AvatarURL,
-		Tags:                    req.Tags,
-		Metadata:                req.Metadata,
-		IsActive:                req.IsActive,
-		RAGEnabled:              ptrBool(boolPtrOrDefault(req.RAGEnabled, false)),
-		InternalTools:           convertToolBindings(internalTools),
-		BusinessPhoneID:         &req.BusinessPhoneID,
-		MediaIDs:                req.MediaIDs,
-		KnowledgeBaseIDs:        req.KnowledgeBaseIDs,
-		MCPCollectionIDs:        req.MCPCollectionIDs,
-		Variables:               convertVariables(req.Variables),
-		ReplaceWhatsAppTemplate: true,
-		WhatsAppTemplateID:      req.WhatsAppTemplateID,
-		ReplaceRAGConfig:        true,
-		RAGConfig:               convertRAGConfig(req.RAGConfig),
-		RequestedBy:             httpx.RequesterOf(r),
+		Name:             &req.Name,
+		Description:      &req.Description,
+		MessagingPrompt:  &req.MessagingPrompt,
+		MessagingModel:   &req.MessagingModel,
+		Provider:         &provider,
+		AvatarURL:        &req.AvatarURL,
+		Tags:             req.Tags,
+		Metadata:         req.Metadata,
+		IsActive:         req.IsActive,
+		RAGEnabled:       ptrBool(boolPtrOrDefault(req.RAGEnabled, false)),
+		MediaIDs:         req.MediaIDs,
+		KnowledgeBaseIDs: req.KnowledgeBaseIDs,
+		Variables:        convertVariables(req.Variables),
+		ReplaceRAGConfig: true,
+		RAGConfig:        convertRAGConfig(req.RAGConfig),
+		RequestedBy:      httpx.RequesterOf(r),
 	})
 	if err != nil {
 		h.handleDomainError(w, err)
 		return
 	}
 
-	response.WriteSuccess(w, http.StatusOK, updated)
+	response.WriteSuccess(w, http.StatusOK, h.concealed(updated))
 }
 
 func (h *AgentHandler) AssignDepartment(w http.ResponseWriter, r *http.Request) {
@@ -369,7 +317,7 @@ func (h *AgentHandler) AssignDepartment(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	response.WriteSuccess(w, http.StatusOK, updated)
+	response.WriteSuccess(w, http.StatusOK, h.concealed(updated))
 }
 
 func (h *AgentHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -409,16 +357,16 @@ func (h *AgentHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if agentItem.WorkspaceID != middleware.GetWorkspaceID(r) {
-		response.WriteError(w, http.StatusForbidden, "You don't have access to this agent", nil)
+		response.WriteRefusal(w, agenthttp.RefusalForbidden)
 		return
 	}
 
 	if !canAccessDepartment(r, agentItem.DepartmentID) {
-		response.WriteError(w, http.StatusForbidden, "You don't have access to this agent", nil)
+		response.WriteRefusal(w, agenthttp.RefusalForbidden)
 		return
 	}
 
-	response.WriteSuccess(w, http.StatusOK, agentItem)
+	response.WriteSuccess(w, http.StatusOK, h.concealed(agentItem))
 }
 
 func (h *AgentHandler) RequiredVariables(w http.ResponseWriter, r *http.Request) {
@@ -437,12 +385,12 @@ func (h *AgentHandler) RequiredVariables(w http.ResponseWriter, r *http.Request)
 	}
 
 	if agentItem.WorkspaceID != middleware.GetWorkspaceID(r) {
-		response.WriteError(w, http.StatusForbidden, "You don't have access to this agent", nil)
+		response.WriteRefusal(w, agenthttp.RefusalForbidden)
 		return
 	}
 
 	if !canAccessDepartment(r, agentItem.DepartmentID) {
-		response.WriteError(w, http.StatusForbidden, "You don't have access to this agent", nil)
+		response.WriteRefusal(w, agenthttp.RefusalForbidden)
 		return
 	}
 
@@ -587,22 +535,18 @@ func (h *AgentHandler) Archive(w http.ResponseWriter, r *http.Request) {
 
 	existing, err := h.getUseCase.Execute(agentID)
 	if err != nil {
-		if errors.Is(err, agent.ErrAgentNotFound) {
-			response.WriteError(w, http.StatusNotFound, "Agent not found", nil)
-			return
-		}
-		response.WriteError(w, http.StatusInternalServerError, "Failed to get agent", nil)
+		h.handleDomainError(w, err)
 		return
 	}
 
 	if existing.WorkspaceID != middleware.GetWorkspaceID(r) {
-		response.WriteError(w, http.StatusForbidden, "You don't have access to this agent", nil)
+		response.WriteRefusal(w, agenthttp.RefusalForbidden)
 		return
 	}
 
 	archived := true
 	if _, err := h.updateUseCase.Execute(r.Context(), agentID, agent.UpdateAgentInput{Archived: &archived}); err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to archive agent", nil)
+		response.WriteRefusal(w, agenthttp.RefusalInternal)
 		return
 	}
 
@@ -618,22 +562,18 @@ func (h *AgentHandler) Unarchive(w http.ResponseWriter, r *http.Request) {
 
 	existing, err := h.getUseCase.Execute(agentID)
 	if err != nil {
-		if errors.Is(err, agent.ErrAgentNotFound) {
-			response.WriteError(w, http.StatusNotFound, "Agent not found", nil)
-			return
-		}
-		response.WriteError(w, http.StatusInternalServerError, "Failed to get agent", nil)
+		h.handleDomainError(w, err)
 		return
 	}
 
 	if existing.WorkspaceID != middleware.GetWorkspaceID(r) {
-		response.WriteError(w, http.StatusForbidden, "You don't have access to this agent", nil)
+		response.WriteRefusal(w, agenthttp.RefusalForbidden)
 		return
 	}
 
 	unarchived := false
 	if _, err := h.updateUseCase.Execute(r.Context(), agentID, agent.UpdateAgentInput{Archived: &unarchived}); err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to unarchive agent", nil)
+		response.WriteRefusal(w, agenthttp.RefusalInternal)
 		return
 	}
 
@@ -699,6 +639,8 @@ func (h *AgentHandler) ListTools(w http.ResponseWriter, r *http.Request) {
 		RequiredConfig     []string                    `json:"requiredConfig,omitempty"`
 		RequiresConfig     bool                        `json:"requiresConfig"`
 		BindingKey         string                      `json:"bindingKey,omitempty"`
+		Instances          string                      `json:"instances"`
+		TestMode           agenttool.TestMode          `json:"testMode"`
 	}
 
 	camelDefs := make([]camelTool, len(definitions))
@@ -781,7 +723,9 @@ func (h *AgentHandler) ListTools(w http.ResponseWriter, r *http.Request) {
 			ConfigSchema:       configSchema,
 			RequiredConfig:     def.RequiredConfig,
 			RequiresConfig:     def.RequiresConfig,
-			BindingKey:         def.BindingKey,
+			BindingKey:         def.Instances.Key,
+			Instances:          string(def.Instances.Effective()),
+			TestMode:           agenttool.TestModeIn(h.toolRegistry, def.Name),
 		}
 	}
 
@@ -866,79 +810,24 @@ func (h *AgentHandler) ListOptions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) handleDomainError(w http.ResponseWriter, err error) {
-	if httpx.WriteConsentGrantRefusal(w, err) || httpx.WriteSheetBindingRefusal(w, err) {
-		return
-	}
-	switch {
-	case errors.Is(err, agent.ErrAgentNotFound):
-		response.WriteErrorWithCode(w, http.StatusNotFound, "AGENT_NOT_FOUND", "Agent not found", nil)
-	case errors.Is(err, agent.ErrAgentNameRequired):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_NAME_REQUIRED", "Agent name is required", map[string]string{"name": "required"})
-	case errors.Is(err, agent.ErrAgentNameTooLong):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_NAME_TOO_LONG", "Agent name must not exceed 120 characters", map[string]string{"name": "must not exceed 120 characters"})
-	case errors.Is(err, agent.ErrAgentMessagingPromptRequired):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_MESSAGING_PROMPT_REQUIRED", "Messaging prompt is required", map[string]string{"messagingPrompt": "required"})
-	case errors.Is(err, agent.ErrAgentProviderRequired):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_PROVIDER_REQUIRED", "Provider is required", map[string]string{"provider": "required"})
-	case errors.Is(err, agent.ErrAgentProviderInvalid), errors.Is(err, agent.ErrAgentProviderUnsupported):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_PROVIDER_INVALID", "Unsupported provider", map[string]string{"provider": "unsupported provider"})
-	case errors.Is(err, agent.ErrAgentProviderUnavailable):
-		errMsg := "Provider temporarily unavailable"
-		if unwrapped := errors.Unwrap(err); unwrapped != nil {
-			errMsg = fmt.Sprintf("Provider error: %v", unwrapped)
-		} else if detail := strings.TrimPrefix(err.Error(), agent.ErrAgentProviderUnavailable.Error()); detail != "" {
-			errMsg = fmt.Sprintf("Provider error: %s", strings.TrimPrefix(detail, ": "))
-		}
-		response.WriteErrorWithCode(w, http.StatusFailedDependency, "AGENT_PROVIDER_UNAVAILABLE", errMsg, nil)
-	case errors.Is(err, agent.ErrAgentMessagingModelRequired):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_MESSAGING_MODEL_REQUIRED", "Messaging model is required", map[string]string{"messagingModel": "required"})
-	case errors.Is(err, agent.ErrAgentMessagingModelTooLong):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_MESSAGING_MODEL_TOO_LONG", "Messaging model must not exceed 64 characters", map[string]string{"messagingModel": "must not exceed 64 characters"})
-	case errors.Is(err, agent.ErrAgentMetadataInvalid):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_METADATA_INVALID", "Metadata must be a valid JSON object of string values", map[string]string{"metadata": "must be a valid JSON object of string values"})
-	case errors.Is(err, agent.ErrAgentInternalToolInvalid):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_TOOL_INVALID", err.Error(), map[string]string{"internalTools": err.Error()})
-	case errors.Is(err, agent.ErrAgentInternalToolsRequired):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_TOOLS_REQUIRED", "At least one tool is required", map[string]string{"internalTools": "required"})
-	case errors.Is(err, agent.ErrAgentVariableNameInvalid):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_VARIABLE_NAME_INVALID", "Variable names must contain only letters, digits, and underscores", map[string]string{"variables": "names must match ^\\w+$"})
-	case errors.Is(err, agent.ErrAgentVariableDuplicate):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_VARIABLE_DUPLICATE", "Variable names must be unique", map[string]string{"variables": "duplicate variable name"})
-	case errors.Is(err, agent.ErrAgentVariableTooMany):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_VARIABLE_TOO_MANY", "Agent must not have more than 50 variables", map[string]string{"variables": "maximum 50 variables"})
-	case errors.Is(err, agent.ErrAgentBusinessPhoneNotFound):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_PHONE_NOT_FOUND", "Business phone not found", map[string]string{"businessPhoneId": "business phone not found"})
-	case errors.Is(err, agent.ErrAgentBusinessPhoneNoAccess):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_PHONE_NO_ACCESS", "Phone does not belong to this workspace", map[string]string{"businessPhoneId": "phone does not belong to this workspace"})
-	case errors.Is(err, agent.ErrAgentKnowledgeBaseNoAccess):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_KNOWLEDGE_BASE_NO_ACCESS", "Knowledge base not found in this workspace", map[string]string{"knowledgeBaseIds": "not found in this workspace"})
-	case errors.Is(err, agent.ErrAgentMCPCollectionNoAccess):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_MCP_COLLECTION_NO_ACCESS", "MCP collection not found in this workspace", map[string]string{"mcpCollectionIds": "not found in this workspace"})
-	case errors.Is(err, workspace_department.ErrDepartmentRequired):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_DEPARTMENT_REQUIRED", "Department is required when you belong to multiple departments", map[string]string{"departmentId": "required when you belong to multiple departments"})
-	case errors.Is(err, workspace_department.ErrDepartmentAccessDenied), errors.Is(err, workspace_department.ErrDepartmentNotFound):
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "AGENT_DEPARTMENT_INVALID", "Department is invalid or not accessible", map[string]string{"departmentId": "invalid or not accessible"})
-	default:
-		response.WriteErrorWithCode(w, http.StatusInternalServerError, "AGENT_INTERNAL_ERROR", "Internal server error", nil)
-	}
+	agenthttp.WriteError(w, err)
 }
 
 func (h *AgentHandler) writeInvalidBodyError(w http.ResponseWriter) {
 	response.WriteInvalidBodyError(w, map[string]string{
-		"name":               "string (required)",
-		"description":        "string (optional)",
-		"messagingPrompt":    "string (required)",
-		"language":           "string (required)",
-		"messagingModel":     "string (required)",
-		"avatarUrl":          "string (optional)",
-		"tags":               "string array (optional)",
-		"metadata":           "object map[string]string (optional)",
-		"provider":           "string (required, supported: \"platform\")",
-		"isActive":           "boolean (optional)",
-		"internalTools":      "array of {name: string, visibility?: string[], config?: object} (required; use [] for none)",
-		"departmentId":       "string (optional; required for members who belong to multiple departments)",
-		"whatsappTemplateId": "string (required when using send_whatsapp_message tool)",
-		"mediaIds":           "string array (optional; IDs of media linked to agent for send_whatsapp_media)",
+		"name":            "string (required)",
+		"description":     "string (optional)",
+		"messagingPrompt": "string (required)",
+		"language":        "string (required)",
+		"messagingModel":  "string (required)",
+		"avatarUrl":       "string (optional)",
+		"tags":            "string array (optional)",
+		"metadata":        "object map[string]string (optional)",
+		"provider":        "string (required, supported: \"platform\")",
+		"isActive":        "boolean (optional)",
+		"internalTools":   "array of {name: string, visibility?: string[], config?: object} (required; use [] for none)",
+		"departmentId":    "string (optional; required for members who belong to multiple departments)",
+		"mediaIds":        "string array (optional; IDs of media linked to agent for send_whatsapp_media)",
 	})
 }
 
@@ -974,32 +863,13 @@ func parseProvider(value string) (agent.AgentProvider, bool) {
 	return provider, true
 }
 
-func containsToolBinding(tools []toolBindingRequest, toolName string) bool {
-	for _, t := range tools {
-		if t.Name == toolName {
-			return true
-		}
-	}
-	return false
-}
-
-func removeToolBinding(tools []toolBindingRequest, toolName string) []toolBindingRequest {
-	result := make([]toolBindingRequest, 0, len(tools))
-	for _, t := range tools {
-		if t.Name != toolName {
-			result = append(result, t)
-		}
-	}
-	return result
-}
-
 func convertToolBindings(reqTools []toolBindingRequest) []agent.ToolBinding {
 	if reqTools == nil {
 		return nil
 	}
 	result := make([]agent.ToolBinding, 0, len(reqTools))
 	for _, t := range reqTools {
-		tb := agent.ToolBinding{Name: t.Name, Config: t.Config}
+		tb := agent.ToolBinding{Name: t.Name, Function: t.Function, Description: t.Description, Config: t.Config}
 		if len(t.Visibility) > 0 {
 			tb.Visibility = make([]agent.ToolVisibility, 0, len(t.Visibility))
 			for _, v := range t.Visibility {
@@ -1060,9 +930,14 @@ func (h *AgentHandler) verifyOwnership(w http.ResponseWriter, agentID string, cl
 	}
 
 	if agentItem.WorkspaceID != middleware.GetWorkspaceID(r) {
-		response.WriteError(w, http.StatusForbidden, "You don't have access to this agent", nil)
+		response.WriteRefusal(w, agenthttp.RefusalForbidden)
 		return false
 	}
 
 	return true
+}
+
+func carriesTools(raw json.RawMessage) bool {
+	trimmed := strings.TrimSpace(string(raw))
+	return trimmed != "" && trimmed != "null"
 }

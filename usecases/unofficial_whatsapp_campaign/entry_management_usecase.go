@@ -8,6 +8,7 @@ import (
 
 	"vozko/domain/campaign"
 	"vozko/domain/lead"
+	"vozko/domain/shared/deps"
 	uwc "vozko/domain/unofficial_whatsapp_campaign"
 	"vozko/usecases/campaignautomation"
 )
@@ -24,10 +25,6 @@ type entryManagementUseCase struct {
 	repos      campaignRepos
 	leads      LeadResolver
 	automation AutomationCheck
-}
-
-func (uc *entryManagementUseCase) SetAutomation(automation AutomationCheck) {
-	uc.automation = automation
 }
 
 type addEntriesAdapter struct{ *entryManagementUseCase }
@@ -50,8 +47,18 @@ func newEntryManagement(campaigns uwc.Repository, entries uwc.EntryRepository, l
 	return &entryManagementUseCase{repos: campaignRepos{campaigns: campaigns, entries: entries}, leads: leads}
 }
 
-func NewAddEntriesUseCase(campaigns uwc.Repository, entries uwc.EntryRepository, leads LeadResolver) uwc.AddEntriesUseCase {
-	return addEntriesAdapter{newEntryManagement(campaigns, entries, leads)}
+func NewAddEntriesUseCase(campaigns uwc.Repository, entries uwc.EntryRepository, leads LeadResolver, automation AutomationCheck) (uwc.AddEntriesUseCase, error) {
+	if err := deps.Require("unofficial campaign add entries", map[string]any{
+		"campaigns":  campaigns,
+		"entries":    entries,
+		"leads":      leads,
+		"automation": automation,
+	}); err != nil {
+		return nil, err
+	}
+	management := newEntryManagement(campaigns, entries, leads)
+	management.automation = automation
+	return addEntriesAdapter{management}, nil
 }
 
 func NewUpdateEntryUseCase(campaigns uwc.Repository, entries uwc.EntryRepository, leads LeadResolver) uwc.UpdateEntryUseCase {

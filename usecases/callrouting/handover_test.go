@@ -56,7 +56,7 @@ func TestAWarmTransferHandsTheWhatsAppConversationToTheColleague(t *testing.T) {
 	f := newTransferFixture(accepts, nil)
 	whatsAppCallOf(f.call)
 	book := &handoffBook{}
-	f.transfers.deps.Dispatcher.SetConversationHandoff(book)
+	f.transfers.deps.Dispatcher.handoff = book
 
 	if _, err := f.transfers.Transfer(context.Background(), TransferInput{
 		WorkspaceID: "ws1", UserID: "ana", CallID: "c1",
@@ -74,7 +74,7 @@ func TestAWarmTransferHandsTheWhatsAppConversationToTheColleague(t *testing.T) {
 func TestAWhatsAppCallCannotGoToSomeoneTheConversationCannotFollow(t *testing.T) {
 	f := newTransferFixture(accepts, nil)
 	whatsAppCallOf(f.call)
-	f.transfers.deps.Dispatcher.SetConversationHandoff(&handoffBook{denied: map[string]bool{"bia": true}})
+	f.transfers.deps.Dispatcher.handoff = &handoffBook{denied: map[string]bool{"bia": true}}
 
 	_, err := f.transfers.Transfer(context.Background(), TransferInput{
 		WorkspaceID: "ws1", UserID: "ana", CallID: "c1",
@@ -108,7 +108,7 @@ func TestAQueueOnlyRingsMembersTheWhatsAppConversationCanFollow(t *testing.T) {
 	f.activity.CallEnded("ws1", "caio", time.Now().Add(-time.Minute))
 	f.activity.CallEnded("ws1", "bia", time.Now().Add(-time.Hour))
 	book := &handoffBook{denied: map[string]bool{"bia": true}}
-	f.dispatcher.SetConversationHandoff(book)
+	f.dispatcher.handoff = book
 	call := whatsAppCallOf(newHeldCall("wa-in-1"))
 
 	result, _ := f.dispatcher.Enqueue(context.Background(), EnqueueInput{Queue: testQueue("bia", "caio"), Call: call, FromUserID: "ana"})
@@ -124,7 +124,7 @@ func TestAQueueOnlyRingsMembersTheWhatsAppConversationCanFollow(t *testing.T) {
 func TestSIPCallsNeverTouchConversations(t *testing.T) {
 	f := newTransferFixture(accepts, nil)
 	book := &handoffBook{denied: map[string]bool{"bia": true}}
-	f.transfers.deps.Dispatcher.SetConversationHandoff(book)
+	f.transfers.deps.Dispatcher.handoff = book
 
 	if _, err := f.transfers.Transfer(context.Background(), TransferInput{
 		WorkspaceID: "ws1", UserID: "ana", CallID: "c1",
@@ -142,7 +142,7 @@ func TestACallReturningToItsOperatorKeepsTheConversationWhereItIs(t *testing.T) 
 	f := newTransferFixture(declines, nil)
 	whatsAppCallOf(f.call)
 	book := &handoffBook{}
-	f.transfers.deps.Dispatcher.SetConversationHandoff(book)
+	f.transfers.deps.Dispatcher.handoff = book
 
 	_, _ = f.transfers.Transfer(context.Background(), TransferInput{
 		WorkspaceID: "ws1", UserID: "ana", CallID: "c1",

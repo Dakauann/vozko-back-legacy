@@ -10,6 +10,7 @@ import (
 	"vozko/domain/balance"
 	"vozko/domain/messaging"
 	"vozko/domain/metrics"
+	"vozko/domain/shared/deps"
 	workspace_pricing "vozko/domain/workspace/workspace_pricing"
 )
 
@@ -22,29 +23,36 @@ type ConsumeAIBillingUseCase struct {
 	semaphore   chan struct{}
 }
 
-func NewConsumeAIBillingUseCase(
-	subscriber messaging.MessageQueueSub,
-	balanceRepo balance.Repository,
-	pricer workspace_pricing.Pricer,
-	billingMetrics metrics.BillingMetricsRecorder,
-) *ConsumeAIBillingUseCase {
-	return &ConsumeAIBillingUseCase{
-		subscriber:  subscriber,
-		balanceRepo: balanceRepo,
-		pricer:      pricer,
-		metrics:     billingMetrics,
-		semaphore:   make(chan struct{}, 10),
-	}
+type AIBillingDeps struct {
+	Subscriber messaging.MessageQueueSub
+	Balances   balance.Repository
+	Pricer     workspace_pricing.Pricer
+	Metrics    metrics.BillingMetricsRecorder
+	Usage      aiusage.Recorder
 }
 
-func (c *ConsumeAIBillingUseCase) SetUsageRecorder(usage aiusage.Recorder) {
-	c.usage = usage
+func NewConsumeAIBillingUseCase(d AIBillingDeps) (*ConsumeAIBillingUseCase, error) {
+	if err := deps.Require("ai billing consumer", map[string]any{
+		"subscriber":     d.Subscriber,
+		"balances":       d.Balances,
+		"pricer":         d.Pricer,
+		"metrics":        d.Metrics,
+		"usage recorder": d.Usage,
+	}); err != nil {
+		return nil, err
+	}
+	return &ConsumeAIBillingUseCase{
+		subscriber:  d.Subscriber,
+		balanceRepo: d.Balances,
+		pricer:      d.Pricer,
+		metrics:     d.Metrics,
+		usage:       d.Usage,
+		semaphore:   make(chan struct{}, 10),
+	}, nil
 }
 
 func (c *ConsumeAIBillingUseCase) markSkipped(reason string) {
-	if c.metrics != nil {
-		c.metrics.IncBillingSkipped(reason)
-	}
+	c.metrics.IncBillingSkipped(reason)
 }
 
 func (c *ConsumeAIBillingUseCase) Start() error {
@@ -121,9 +129,6 @@ func usageRecordOf(event ai.AICompletedEvent, billed bool) aiusage.Record {
 }
 
 func (c *ConsumeAIBillingUseCase) recordUsage(event ai.AICompletedEvent, billed bool) error {
-	if c.usage == nil {
-		return nil
-	}
 	if err := c.usage.Record(usageRecordOf(event, billed)); err != nil {
 		return fmt.Errorf("usage record failed for %s: %w", event.RequestID, err)
 	}

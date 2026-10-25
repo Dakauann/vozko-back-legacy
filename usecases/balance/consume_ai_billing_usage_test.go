@@ -34,8 +34,7 @@ func TestAIBilling_RecordsEveryKindOfTokenUnderTheChargeReference(t *testing.T) 
 	balanceRepo := newMockBalanceRepo(1_000_000)
 	sub := newMockSub()
 	usage := &recordingUsage{}
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, newAITestPricer(), nil)
-	consumer.SetUsageRecorder(usage)
+	consumer := aiBillingConsumer(sub, balanceRepo, newAITestPricer(), nil, usage)
 	_ = consumer.Start()
 
 	event := makeEvent("aichat:th-1:req-1", "ws-1", "gpt-4o-mini", 1000, 500)
@@ -61,8 +60,7 @@ func TestAIBilling_ChargesFirstAndRetriesUsageWithoutChargingTwice(t *testing.T)
 	balanceRepo := newMockBalanceRepo(1_000_000)
 	sub := newMockSub()
 	usage := &recordingUsage{err: errors.New("usage table unavailable")}
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, newAITestPricer(), nil)
-	consumer.SetUsageRecorder(usage)
+	consumer := aiBillingConsumer(sub, balanceRepo, newAITestPricer(), nil, usage)
 	_ = consumer.Start()
 
 	event := makeEvent("aichat:th-1:req-2", "ws-1", "gpt-4o-mini", 1000, 500)
@@ -95,8 +93,7 @@ func TestAIBilling_RecordsGenerationsWithoutTokens(t *testing.T) {
 	balanceRepo := newMockBalanceRepo(1_000_000)
 	sub := newMockSub()
 	usage := &recordingUsage{}
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, newAITestPricer(), nil)
-	consumer.SetUsageRecorder(usage)
+	consumer := aiBillingConsumer(sub, balanceRepo, newAITestPricer(), nil, usage)
 	_ = consumer.Start()
 
 	event := makeEvent("aichat:th-1:job-1", "ws-1", "google/imagen", 0, 0)
@@ -113,8 +110,7 @@ func TestAIBilling_RecordsTheTokensOfAnUnpricedCallAsNotBilled(t *testing.T) {
 	balanceRepo := newMockBalanceRepo(1_000_000)
 	sub := newMockSub()
 	usage := &recordingUsage{}
-	consumer := NewConsumeAIBillingUseCase(sub, balanceRepo, newAITestPricer(), nil)
-	consumer.SetUsageRecorder(usage)
+	consumer := aiBillingConsumer(sub, balanceRepo, newAITestPricer(), nil, usage)
 	_ = consumer.Start()
 
 	fireAndWait(t, sub, makeEvent("aichat:th-1:req-3", "ws-1", "unpriced-model", 1000, 500), &mockAck{deliveryCount: 1})

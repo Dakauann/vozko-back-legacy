@@ -58,9 +58,7 @@ func (c *Container) leadExitStep() leadexit.Step {
 }
 
 func (c *Container) wireLeadExit() {
-	inbound, ok := c.useCases.handleWhatsAppMessage.(interface{ SetLeadExitStep(leadexit.Step) })
-	if !ok {
-		log.Fatalf("[lead-exit] the official WhatsApp inbound handler cannot take the exit step")
+	if err := c.leadExitHandle().Bind(c.leadExitStep()); err != nil {
+		log.Fatalf("[lead-exit] %v", err)
 	}
-	inbound.SetLeadExitStep(c.leadExitStep())
 }

@@ -57,10 +57,6 @@ func personalMarkEntries(marks []personalinbox.Mark) []PersonalMarkEntry {
 	return out
 }
 
-func (h *ConversationHub) SetPersonalMarks(marks personalinbox.UseCases) {
-	h.personalMarks = marks
-}
-
 func (h *ConversationHub) AnnouncePersonalMark(workspaceID string, mark personalinbox.Mark) {
 	if h == nil || workspaceID == "" || mark.UserID == "" {
 		return
@@ -79,23 +75,20 @@ func (h *ConversationHub) AnnouncePersonalMark(workspaceID string, mark personal
 }
 
 func (h *ConversationHub) pageMarks(userID string, entries []conversation.InboxEntry) []PersonalMarkEntry {
-	if h.personalMarks == nil || len(entries) == 0 {
+	if len(entries) == 0 {
 		return []PersonalMarkEntry{}
 	}
 	refs := make([]shared.EntryRef, 0, len(entries))
 	for _, e := range entries {
 		refs = append(refs, shared.EntryRef{EntryID: e.EntryID, EntryType: shared.EntryType(e.EntryType)})
 	}
-	return personalMarkEntries(h.personalMarks.PageMarks(context.Background(), userID, refs))
+	return personalMarkEntries(h.cmds().PersonalMarks.PageMarks(context.Background(), userID, refs))
 }
 
 func (h *ConversationHub) clearPersonalUnread(conn *WSConnection, entryID, entryType string) {
-	if h.personalMarks == nil {
-		return
-	}
 	by, workspaceID := connPerson(conn), conn.WorkspaceID
 	entry := shared.EntryRef{EntryID: strings.TrimSpace(entryID), EntryType: shared.EntryType(strings.ToLower(strings.TrimSpace(entryType)))}
-	go h.personalMarks.MarkRead(context.Background(), by, workspaceID, entry)
+	go h.cmds().PersonalMarks.MarkRead(context.Background(), by, workspaceID, entry)
 }
 
 func (p PersonalMarkPayload) entry() shared.EntryRef {
@@ -116,7 +109,7 @@ func (h *ConversationHub) handlePinConversation(conn *WSConnection, payload json
 	}
 	pinned := *p.Pinned
 	h.runPersonalMark(conn, p, func(ctx context.Context, by shared.Person, entry shared.EntryRef) error {
-		_, err := h.personalMarks.Pin(ctx, by, conn.WorkspaceID, entry, pinned)
+		_, err := h.cmds().PersonalMarks.Pin(ctx, by, conn.WorkspaceID, entry, pinned)
 		return err
 	})
 }
@@ -127,7 +120,7 @@ func (h *ConversationHub) handleMarkUnread(conn *WSConnection, payload json.RawM
 		return
 	}
 	h.runPersonalMark(conn, p, func(ctx context.Context, by shared.Person, entry shared.EntryRef) error {
-		_, err := h.personalMarks.MarkUnread(ctx, by, conn.WorkspaceID, entry)
+		_, err := h.cmds().PersonalMarks.MarkUnread(ctx, by, conn.WorkspaceID, entry)
 		return err
 	})
 }
@@ -138,7 +131,7 @@ func (h *ConversationHub) handleClearUnreadMark(conn *WSConnection, payload json
 		return
 	}
 	h.runPersonalMark(conn, p, func(ctx context.Context, by shared.Person, entry shared.EntryRef) error {
-		_, err := h.personalMarks.ClearUnreadMark(ctx, by, conn.WorkspaceID, entry)
+		_, err := h.cmds().PersonalMarks.ClearUnreadMark(ctx, by, conn.WorkspaceID, entry)
 		return err
 	})
 }
@@ -147,10 +140,6 @@ func (h *ConversationHub) decodePersonalMark(conn *WSConnection, payload json.Ra
 	var p PersonalMarkPayload
 	if err := json.Unmarshal(payload, &p); err != nil {
 		h.sendPersonalMarkError(conn, p, messageActionInvalid, "Invalid personal mark payload")
-		return p, false
-	}
-	if h.personalMarks == nil {
-		h.sendPersonalMarkError(conn, p, messageActionUnsupported, "Personal marks are not available on this server")
 		return p, false
 	}
 	if entry := p.entry(); entry.EntryID == "" || entry.EntryType == "" {

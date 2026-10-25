@@ -125,7 +125,7 @@ func newMediaReplyHarness(t *testing.T) mediaReplyHarness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h.uc = &handleWhatsAppMessageUseCase{
+	h.uc = whatsappDefaults(&handleWhatsAppMessageUseCase{
 		aiService:             h.ai,
 		businessPhoneRepo:     routingPhones{phone: &businessphone.WhatsAppBusinessPhoneNumber{ID: "phone-1", OwnerWorkspaceID: "ws-1", DisplayPhoneNumber: "551140001234"}},
 		wcEntryRepo:           entries,
@@ -141,9 +141,10 @@ func newMediaReplyHarness(t *testing.T) mediaReplyHarness {
 		whisperPool:           pool,
 		exitStep:              &capturingExitStep{},
 		statusEvents:          &fakeStatusRecorder{},
-	}
-	h.uc.SetTriggerEvaluator(&waitingRunEvaluator{})
-	h.uc.SetAIAttendance(h.attendance)
+	})
+	h.uc.triggerEvaluator = &waitingRunEvaluator{}
+	h.uc.inboundRouter = InboundRouterOf(h.uc.triggerEvaluator)
+	h.uc.aiAttendance = h.attendance
 	return h
 }
 
@@ -324,7 +325,7 @@ func TestAnOfficialTurnThatWaitedForAContinuationSeesItsReply(t *testing.T) {
 			h := newMediaReplyHarness(t)
 			lock := NewAgentTurnLock(newLockState())
 			lock.poll = time.Millisecond
-			h.uc.SetAgentTurnLock(lock)
+			h.uc.turnLock = lock
 			continuation, err := lock.Acquire(context.Background(), "entry-1", shared.EntryTypeWhatsApp)
 			if err != nil {
 				t.Fatal(err)

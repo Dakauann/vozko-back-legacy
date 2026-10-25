@@ -53,6 +53,7 @@ const (
 	WSEventConnected                      WSEventType = "conversation:connected"
 	WSEventInbox                          WSEventType = "conversation:inbox"
 	WSEventEntryUpdate                    WSEventType = "conversation:entry_update"
+	WSEventAssignedToYou                  WSEventType = "conversation:assigned_to_you"
 	WSEventStageUpdate                    WSEventType = "conversation:stage_update"
 	WSEventLabelUpdate                    WSEventType = "conversation:label_update"
 	WSEventSearchResults                  WSEventType = "conversation:search_results"
@@ -458,6 +459,12 @@ type InboxPayload struct {
 type EntryUpdatePayload struct {
 	Entry  conversation.InboxEntry `json:"entry"`
 	Silent bool                    `json:"silent,omitempty"`
+	Alert  bool                    `json:"alert,omitempty"`
+}
+
+type AssignedToYouPayload struct {
+	Entry      conversation.InboxEntry `json:"entry"`
+	AssignedAt time.Time               `json:"assigned_at"`
 }
 
 type EntryRemovedPayload struct {

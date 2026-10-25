@@ -224,7 +224,7 @@ func TestAClaimedChangeThatNeverAnswersIsReportedAsUnconfirmed(t *testing.T) {
 func TestAClaimReachesTheWaitingTurnOnlyWithAValidClaimant(t *testing.T) {
 	box := newMailbox()
 	svc := &Service{}
-	svc.SetScreenMailbox(box)
+	svc.screens = box
 	wait, cancel := box.Expect(copilot.ScreenKey("th1", "cmd-1"))
 	defer cancel()
 	if err := svc.ClaimScreenCommand("th1", "cmd-1", "tab-1"); !errors.Is(err, copilot.ErrInvalidScreenClaim) {
@@ -274,7 +274,7 @@ func TestAStudioTurnCarriesTheScreenAndTheModelsSight(t *testing.T) {
 	look := newStudioTool("studio_look", copilot.Meta{Resource: workspace.ResourceMedia, Action: workspace.ActionRead})
 	prov := &scriptAI{turns: [][]ai.ToolCall{{call("studio_look", nil)}, {}}, texts: []string{"", "vi"}, models: []ai.ModelInfo{toolModel("vision-model", ai.CapabilityVision)}}
 	svc := newService(prov, th, &fakeMessages{}, look)
-	svc.SetScreenMailbox(newMailbox())
+	svc.screens = newMailbox()
 	cc := ownerCtx
 	cc.View = studioView
 	if err := svc.Stream(context.Background(), th.thread, copilot.UserMessage{Content: "veja"}, cc, (&capture{}).emit); err != nil {
@@ -287,7 +287,7 @@ func TestAStudioTurnCarriesTheScreenAndTheModelsSight(t *testing.T) {
 	plain := &fakeTool{name: "list_agents", meta: readMeta}
 	prov = &scriptAI{turns: [][]ai.ToolCall{{call("list_agents", nil)}, {}}, texts: []string{"", "ok"}, models: []ai.ModelInfo{toolModel("vision-model")}}
 	svc = newService(prov, th, &fakeMessages{}, plain)
-	svc.SetScreenMailbox(newMailbox())
+	svc.screens = newMailbox()
 	if err := svc.Stream(context.Background(), th.thread, copilot.UserMessage{Content: "liste"}, ownerCtx, (&capture{}).emit); err != nil {
 		t.Fatal(err)
 	}
@@ -304,10 +304,7 @@ func TestScreenRepliesAreDeliveredOnlyToTheirThread(t *testing.T) {
 	wait, cancel := box.Expect(copilot.ScreenKey("th1", "cmd-1"))
 	defer cancel()
 	svc := newService(&scriptAI{}, &fakeThreads{}, &fakeMessages{})
-	if err := svc.DeliverScreenReply("th1", "cmd-1", copilot.ScreenReply{OK: true}); !errors.Is(err, copilot.ErrNoScreen) {
-		t.Fatalf("without a mailbox nothing is delivered, got %v", err)
-	}
-	svc.SetScreenMailbox(box)
+	svc.screens = box
 	if err := svc.DeliverScreenReply("th1", "cmd-1", copilot.ScreenReply{OK: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -336,7 +333,7 @@ func TestAStudioOutlineReachesTheModelButIsNotKeptInHistory(t *testing.T) {
 	prov := &scriptAI{turns: [][]ai.ToolCall{{call("studio_read", nil)}, {}}, texts: []string{"", "pronto"}}
 	ms := &fakeMessages{}
 	svc := newService(prov, th, ms, read)
-	svc.SetScreenMailbox(newMailbox())
+	svc.screens = newMailbox()
 	cc := ownerCtx
 	cc.View = studioView
 	if err := svc.Stream(context.Background(), th.thread, copilot.UserMessage{Content: "leia"}, cc, (&capture{}).emit); err != nil {

@@ -44,8 +44,8 @@ func TestProgressAnswersForTheCampaignTheCallerOwns(t *testing.T) {
 	owned := &wc.Campaign{ID: "camp-1", Status: wc.CampaignStatusRunning}
 	progress := &fixedProgress{}
 	h := &WhatsAppCampaignHandler{}
-	h.SetCampaignAccess(ownedOnly{campaign: owned})
-	h.SetLive(progress, nil)
+	h.access = ownedOnly{campaign: owned}
+	h.progress, h.timeline = progress, nil
 
 	rec := progressRequest(h, "camp-1")
 	if rec.Code != http.StatusOK || progress.seen == nil || progress.seen.ID != owned.ID || progress.seen.Status != owned.Status {
@@ -63,8 +63,8 @@ func TestProgressAnswersForTheCampaignTheCallerOwns(t *testing.T) {
 func TestProgressOfACampaignTheCallerCannotSeeIsNotRead(t *testing.T) {
 	progress := &fixedProgress{}
 	h := &WhatsAppCampaignHandler{}
-	h.SetCampaignAccess(ownedOnly{})
-	h.SetLive(progress, nil)
+	h.access = ownedOnly{}
+	h.progress, h.timeline = progress, nil
 
 	if rec := progressRequest(h, "camp-x"); rec.Code != http.StatusNotFound || progress.seen != nil {
 		t.Fatalf("status %d, use case saw %+v", rec.Code, progress.seen)
@@ -73,7 +73,7 @@ func TestProgressOfACampaignTheCallerCannotSeeIsNotRead(t *testing.T) {
 
 func TestProgressWithoutItsUseCaseRefusesWithACode(t *testing.T) {
 	h := &WhatsAppCampaignHandler{}
-	h.SetCampaignAccess(ownedOnly{campaign: &wc.Campaign{ID: "camp-1"}})
+	h.access = ownedOnly{campaign: &wc.Campaign{ID: "camp-1"}}
 
 	rec := progressRequest(h, "camp-1")
 	var body struct {

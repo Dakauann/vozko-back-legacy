@@ -41,7 +41,7 @@ func TestService_BalanceIsCheckedBeforeEveryModelCall(t *testing.T) {
 	rt := &fakeTool{name: "read_x", meta: readMeta}
 	prov := &scriptAI{turns: [][]ai.ToolCall{{call("read_x", nil)}, {call("read_x", nil)}, {}}, texts: []string{"Vou consultar.", "", "fim"}}
 	funds := &drainingFunds{allowed: 1}
-	svc := NewService(agentloop.Engine{AI: prov}, NewRegistry(rt), &fakeAccess{}, funds, th, ms, nil, nil, func() string { return "a" })
+	svc := testService(Deps{Engine: agentloop.Engine{AI: prov}, Registry: NewRegistry(rt), Access: &fakeAccess{}, Funds: funds, Threads: th, Messages: ms, NewID: func() string { return "a" }})
 	ev := &events{}
 	if err := svc.Stream(context.Background(), th.thread, copilot.UserMessage{Content: "x"}, ownerCtx, ev.emit); err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func TestService_BalanceIsCheckedBeforeEveryModelCall(t *testing.T) {
 func TestService_ABudgetEndsWithAnAnswerFromWhatWasFound(t *testing.T) {
 	th, ms := &fakeThreads{thread: testThread()}, &fakeMessages{}
 	prov := &scriptAI{turns: [][]ai.ToolCall{{call("read_x", nil)}, {}}, texts: []string{"", "fim"}, usage: &ai.Usage{TotalTokens: AnswerTokenBudget}}
-	svc := NewService(agentloop.Engine{AI: prov}, NewRegistry(&fakeTool{name: "read_x", meta: readMeta}), &fakeAccess{}, openFunds{}, th, ms, nil, nil, func() string { return "a" })
+	svc := testService(Deps{Engine: agentloop.Engine{AI: prov}, Registry: NewRegistry(&fakeTool{name: "read_x", meta: readMeta}), Access: &fakeAccess{}, Funds: openFunds{}, Threads: th, Messages: ms, NewID: func() string { return "a" }})
 	ev := &events{}
 	if err := svc.Stream(context.Background(), th.thread, copilot.UserMessage{Content: "x"}, ownerCtx, ev.emit); err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestService_ACatalogedModelGetsItsOwnLimits(t *testing.T) {
 		usage:  &ai.Usage{PromptTokens: AnswerTokenBudget, TotalTokens: AnswerTokenBudget},
 		models: []ai.ModelInfo{{ID: testThread().Model, ContextLength: 1_000_000, PromptPrice: 0.1, CompletionPrice: 0.4, Capabilities: []ai.ModelCapability{ai.CapabilityTools}}},
 	}
-	svc := NewService(agentloop.Engine{AI: prov}, NewRegistry(&fakeTool{name: "read_x", meta: readMeta}), &fakeAccess{}, openFunds{}, th, ms, nil, nil, func() string { return "a" })
+	svc := testService(Deps{Engine: agentloop.Engine{AI: prov}, Registry: NewRegistry(&fakeTool{name: "read_x", meta: readMeta}), Access: &fakeAccess{}, Funds: openFunds{}, Threads: th, Messages: ms, NewID: func() string { return "a" }})
 	if err := svc.Stream(context.Background(), th.thread, copilot.UserMessage{Content: "x"}, ownerCtx, (&events{}).emit); err != nil {
 		t.Fatal(err)
 	}

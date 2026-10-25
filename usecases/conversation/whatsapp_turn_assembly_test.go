@@ -27,8 +27,8 @@ func (f waTurnRAG) QueryForAgent(context.Context, rag.AgentQueryInput) (*rag.Que
 }
 
 func waTurnUseCase(results ...rag.QueryResult) *handleWhatsAppMessageUseCase {
-	uc := &handleWhatsAppMessageUseCase{}
-	uc.SetTurnAssembler(agentturn.New(nil, waTurnRAG{results: results}, nil))
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
+	uc.turnAssembler = agentturn.New(nil, waTurnRAG{results: results}, nil)
 	return uc
 }
 
@@ -197,7 +197,7 @@ func TestConsecutiveWhatsAppTurnsShareToolsAndSystemPrompt(t *testing.T) {
 }
 
 func TestWhatsAppHistoryWindowHoldsItsStartAcrossTurns(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	oldest := map[string]bool{}
 	for total := 190; total <= 195; total++ {
 		history := make([]*conversation.Message, 0, total)
@@ -293,7 +293,7 @@ func TestWhatsAppTurnSurvivesWithoutAnAgent(t *testing.T) {
 }
 
 func TestAMediaMessageReplaysExactlyAsItWasSentLive(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	stored := &conversation.Message{Text: "[Image] cardápio", From: "5511999999999", MessageType: conversation.MessageTypeMedia, Metadata: conversation.ExtractedTextMetadata("Pizza grande R$ 50")}
 	replayed := uc.composeConversationHistory([]*conversation.Message{stored}, "5511888888888", "5511999999999")
 	if len(replayed) != 1 || replayed[0].Content != conversation.PromptContent("[Image] cardápio", "Pizza grande R$ 50") {

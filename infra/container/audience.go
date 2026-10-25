@@ -18,8 +18,6 @@ import (
 )
 
 type audienceBundle struct {
-	Enabled bool
-
 	Engine   *cauc.Engine
 	Ingestor ca.Ingestor
 	Handler  *audiencehttp.Handler
@@ -59,27 +57,35 @@ func (c *Container) initCommentAnalysis(dashboardURL string) {
 	scheduler := cauc.NewScheduler(state)
 	usageLimiter := cauc.NewUsageLimiter(state)
 	resolver := cauc.NewSettingsResolver(settings)
-	bundle.Ingestor = cauc.NewIngestUseCase(repo, resolver, scheduler, c.services.metrics, clock)
-	if live, ok := bundle.Ingestor.(interface {
-		SetLive(ca.ConversationAnalysisLive)
-	}); ok && c.services.conversationHub != nil {
-		live.SetLive(c.services.conversationHub)
+	ingestor, err := cauc.NewIngestUseCase(cauc.IngestDeps{
+		Repo:      repo,
+		Settings:  resolver,
+		Scheduler: scheduler,
+		Metrics:   c.services.metrics,
+		Live:      c.services.conversationHub,
+		Clock:     clock,
+	})
+	if err != nil {
+		log.Fatalf("[comment-analysis] %v", err)
 	}
+	bundle.Ingestor = ingestor
 
 	adapters := map[ca.Source]ca.SourceAdapter{}
 	verifiers := map[ca.Source]cauc.AccountVerifier{}
 	repliers := map[ca.Source]ca.CommentReplier{}
-	if c.instagram != nil && c.instagram.Enabled {
+	if c.instagram != nil {
 		ig := c.instagram
 		adapter := iguc.NewAudienceAdapter(
 			bundle.Ingestor, ig.Comments, ig.Media, ig.Accounts, ig.CommentSvc, repo,
 		)
-		ig.ModerateComment.SetCommentAnalysis(adapter)
+		if err := ig.CommentAnalysis.Bind(adapter); err != nil {
+			log.Fatalf("[comment-analysis] %v", err)
+		}
 		adapters[ca.SourceInstagram] = adapter
 		verifiers[ca.SourceInstagram] = iguc.NewAudienceAccountVerifier(ig.Accounts)
 		repliers[ca.SourceInstagram] = instagramCommentReplier{uc: ig.ReplyComment}
 	}
-	if c.facebook != nil && c.facebook.Enabled {
+	if c.facebook != nil {
 		fb := c.facebook
 		adapters[ca.SourceFacebook] = fbuc.NewAudienceAdapter(fbuc.AudienceDeps{
 			Ingestor: bundle.Ingestor, Pages: fb.Pages, Posts: fb.Posts, Comments: fb.Comments,
@@ -97,7 +103,7 @@ func (c *Container) initCommentAnalysis(dashboardURL string) {
 	alertRules := ca_repository.NewAlertRuleRepository(c.db)
 
 	senderDirectory := commentAlertSenderDirectory{phones: c.useCases.listBusinessPhones}
-	if c.unofficialWhatsApp != nil && c.unofficialWhatsApp.Enabled {
+	if c.unofficialWhatsApp != nil {
 		senderDirectory.unofficialEnabled = true
 		senderDirectory.instances = c.unofficialWhatsApp.Instances
 	}
@@ -108,7 +114,7 @@ func (c *Container) initCommentAnalysis(dashboardURL string) {
 		templates: c.repositories.whatsappTemplate,
 		senders:   senderDirectory,
 	}
-	if c.unofficialWhatsApp != nil && c.unofficialWhatsApp.Enabled {
+	if c.unofficialWhatsApp != nil {
 		alertDispatcher.unofficial = c.unofficialWhatsApp.StartConv
 	}
 	bundle.AlertConsumer = cauc.NewAlertConsumer(cauc.AlertConsumerDeps{
@@ -122,7 +128,7 @@ func (c *Container) initCommentAnalysis(dashboardURL string) {
 		Clock:      clock,
 	})
 	if err := bundle.AlertConsumer.Start(); err != nil {
-		log.Printf("[comment-analysis] alert consumer failed to start, alerts will send inline: %v", err)
+		log.Fatalf("[comment-analysis] the alert consumer failed to start: %v", err)
 	}
 
 	alertEvaluator := cauc.NewAlertEvaluator(cauc.AlertDeps{
@@ -179,13 +185,19 @@ func (c *Container) initCommentAnalysis(dashboardURL string) {
 	bundle.Engine = engine
 	bundle.Flush = cauc.NewFlushJob(engine)
 	bundle.Backstop = cauc.NewBackstopJob(engine)
-	bundle.Rollup = cauc.NewRollupJob(repo, settings, authors, rollups, state, clock)
-	bundle.Rollup.SetRoleInference(cauc.NewRoleInferenceJob(cauc.RoleInferenceDeps{
-		Authors: authors, Repo: repo, Settings: settings, Adapters: adapters,
-		Inferrer: roleInferrer,
-		Batches:  batches,
-		Balance:  c.services.cachedBalanceChecker, Clock: clock,
-	}))
+	rollup, err := cauc.NewRollupJob(cauc.RollupDeps{
+		Repo: repo, Settings: settings, Authors: authors, Rollups: rollups, State: state, Clock: clock,
+		Roles: cauc.NewRoleInferenceJob(cauc.RoleInferenceDeps{
+			Authors: authors, Repo: repo, Settings: settings, Adapters: adapters,
+			Inferrer: roleInferrer,
+			Batches:  batches,
+			Balance:  c.services.cachedBalanceChecker, Clock: clock,
+		}),
+	})
+	if err != nil {
+		log.Fatalf("[comment-analysis] %v", err)
+	}
+	bundle.Rollup = rollup
 	bundle.Purge = cauc.NewPurgeJob(repo, audienceRetention, clock)
 
 	backfillDeps := cauc.BackfillDeps{
@@ -240,14 +252,13 @@ func (c *Container) initCommentAnalysis(dashboardURL string) {
 		DelContainer: delContainer,
 	})
 
-	bundle.Enabled = true
 	commentSources, conversationSources := engine.RegisteredSources()
 	log.Printf("[comment-analysis] engine enabled (comments: %s; conversations: %s; model default %q)",
 		sourceList(commentSources), sourceList(conversationSources), c.cfg.OpenRouterDefaultModel)
 }
 
 func audienceHandler(c *Container) *audiencehttp.Handler {
-	if c.audience == nil || !c.audience.Enabled {
+	if c.audience == nil {
 		return nil
 	}
 	return c.audience.Handler
@@ -255,7 +266,7 @@ func audienceHandler(c *Container) *audiencehttp.Handler {
 
 func commentAudience[T any](bundle *audienceBundle, source ca.Source) (T, bool) {
 	var none T
-	if bundle == nil || !bundle.Enabled {
+	if bundle == nil {
 		return none, false
 	}
 	adapter, ok := bundle.CommentAdapters[source]

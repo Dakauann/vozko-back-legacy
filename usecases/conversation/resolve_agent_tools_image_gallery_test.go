@@ -61,7 +61,7 @@ func TestResolveAgentTools_PassesAgentOnToolContext(t *testing.T) {
 	}
 	registry := &fakeToolRegistry{name: "send_whatsapp_image", handler: handler}
 
-	uc := &handleWhatsAppMessageUseCase{toolRegistry: registry}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{toolRegistry: registry})
 
 	ag := &agent.Agent{
 		ID:          "agent-1",

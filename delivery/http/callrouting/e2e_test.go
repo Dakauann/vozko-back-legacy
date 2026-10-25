@@ -2,7 +2,9 @@ package callrouting
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
+	"vozko/domain/callrouting"
 	"vozko/domain/callsession"
 	"vozko/domain/workspace"
 	dept_domain "vozko/domain/workspace/workspace_department"
@@ -78,6 +81,7 @@ func startAPI(t *testing.T, workspaceID string) *api {
 		Activity:   callrouting_infra.NewAgentActivity(),
 		Members:    callrouting_usecase.StaticMembers{},
 		Music:      library,
+		Handoff:    noConversationHandoff{},
 	})
 	handler := NewHandler(HandlerDeps{
 		Queues: callrouting_usecase.NewQueueCatalog(callrouting_usecase.QueueCatalogDeps{
@@ -219,4 +223,14 @@ func TestManagersFollowQueuesLiveAndByDay(t *testing.T) {
 			t.Errorf("stats%s = %d %s", query, status, body)
 		}
 	}
+}
+
+type noConversationHandoff struct{}
+
+func (noConversationHandoff) MayHandOver(context.Context, callrouting.Handover) error {
+	return errors.New("no conversation hand-off in this test")
+}
+
+func (noConversationHandoff) HandOver(context.Context, callrouting.Handover) error {
+	return errors.New("no conversation hand-off in this test")
 }

@@ -316,6 +316,7 @@ type HistoryProvider interface {
 	GetInboxEntries(userID, workspaceID, campaignID, campaignType string, page, pageSize int) ([]InboxEntry, int64, error)
 	GetInboxEntry(entryID, entryType string) (*InboxEntry, error)
 	SearchInboxEntries(input SearchInboxInput) ([]InboxEntry, int64, error)
+	CountInboxEntriesByStages(input SearchInboxInput, stageIDs []string) (map[string]int64, error)
 }
 
 type MessageMarker interface {
@@ -345,6 +346,7 @@ type InboxService interface {
 	GetInboxPage(userID, campaignID, campaignType, campaignWorkspaceID string, page, pageSize int, isAdmin bool) ([]InboxEntry, int64, error)
 	GetInboxPageByWorkspace(userID, workspaceID, entryTypeFilter, whatsappCampaignType string, page, pageSize int, isAdmin bool) ([]InboxEntry, int64, error)
 	SearchInbox(userID string, input SearchInboxInput) ([]InboxEntry, int64, error)
+	CountInboxByStages(userID string, input SearchInboxInput, stageIDs []string) (map[string]int64, error)
 	BuildInboxEntry(entryID, entryType string) (*InboxEntry, error)
 	SendTemplateForEntry(entryID, entryType, templateID string, parameters []string, userID, workspaceID string, isAdmin bool) (string, error)
 	GetInboxStageCounts(workspaceID, campaignID, entryType string) (map[string]int64, error)

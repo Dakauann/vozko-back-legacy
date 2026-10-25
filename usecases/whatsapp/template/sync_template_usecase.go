@@ -46,6 +46,7 @@ func (uc *syncTemplateUseCase) Execute(input template.SyncTemplateInput) (*templ
 		return nil, err
 	}
 
+	before := *existing
 	existing.Name = apiTemplate.Name
 	existing.Language = apiTemplate.Language
 	existing.Category = template.TemplateCategory(apiTemplate.Category)
@@ -58,6 +59,9 @@ func (uc *syncTemplateUseCase) Execute(input template.SyncTemplateInput) (*templ
 		existing.ParameterFormat = existing.GetEffectiveParameterFormat()
 	}
 
+	if existing.SameContent(&before) {
+		return existing, nil
+	}
 	if err := uc.templateRepo.Update(existing.ID, existing); err != nil {
 		return nil, err
 	}

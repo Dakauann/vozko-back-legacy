@@ -92,7 +92,7 @@ func groupDraft(targets ...uwc.TargetInput) *uwc.Campaign {
 
 func newGroupCreateHarness() *leadTargetHarness {
 	h := newLeadTargetHarness()
-	h.uc.SetGroupSenders(salesNumbers())
+	h.uc.groupSenders = salesNumbers()
 	return h
 }
 
@@ -173,14 +173,6 @@ func TestCreateRefusesAGroupCampaignThatPicksANumber(t *testing.T) {
 
 	if !errors.Is(err, uwc.ErrGroupCampaignTakesNoNumber) {
 		t.Fatalf("Execute = %v, want ErrGroupCampaignTakesNoNumber", err)
-	}
-}
-
-func TestCreateWithGroupTargetsFailsClosedWithoutTheGroupDirectory(t *testing.T) {
-	h := newLeadTargetHarness()
-	_, err := h.uc.Execute(context.Background(), groupDraft(uwc.TargetInput{GroupJID: vipOne}), uw.Unrestricted())
-	if !errors.Is(err, ErrGroupTargetsUnavailable) {
-		t.Fatalf("Execute error = %v, want ErrGroupTargetsUnavailable", err)
 	}
 }
 

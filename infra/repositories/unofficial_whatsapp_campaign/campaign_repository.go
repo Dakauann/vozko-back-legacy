@@ -1,6 +1,7 @@
 package unofficial_whatsapp_campaign_repository
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"gorm.io/gorm"
 
 	"vozko/domain/campaign"
+	"vozko/domain/campaign/scheduledstart"
 	"vozko/domain/shared"
 	uwc "vozko/domain/unofficial_whatsapp_campaign"
 	"vozko/infra/database"
@@ -279,4 +281,20 @@ func (r *repository) ClaimScheduledStart(campaignID string, dueBy time.Time) (bo
 	return result.RowsAffected > 0, nil
 }
 
-var _ campaign.ScheduleClaimer = (*repository)(nil)
+func (r *repository) RecordScheduleFailure(ctx context.Context, campaignID string, failure scheduledstart.Failure) error {
+	result := r.db.WithContext(ctx).Model(&schema.UnofficialWhatsAppCampaign{}).
+		Where("id = ?", campaignID).
+		Update("schedule_failure", string(failure))
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return uwc.ErrCampaignNotFound
+	}
+	return nil
+}
+
+var (
+	_ campaign.ScheduleClaimer = (*repository)(nil)
+	_ scheduledstart.Recorder  = (*repository)(nil)
+)

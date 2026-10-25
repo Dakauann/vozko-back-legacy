@@ -42,10 +42,9 @@ func publisherCtx() context.Context {
 }
 
 func activation(repo *MockWorkflowRepository) *activateWorkflowUseCase {
-	uc := NewActivateWorkflowUseCase(repo).(*activateWorkflowUseCase)
-	uc.SetCatalogFn(func() []workflow.NodeDefinition {
+	uc := &activateWorkflowUseCase{repo: repo, catalogFn: func() []workflow.NodeDefinition {
 		return append(workflow.BuiltinDefinitions(), node_executors.NewWaitDurationExecutor().Definition())
-	})
+	}}
 	return uc
 }
 
@@ -55,7 +54,7 @@ func TestSavingAnActiveWorkflowKeepsThePublishedVersionRunning(t *testing.T) {
 			repo := NewMockWorkflowRepository()
 			storedWorkflow(t, repo, status, manualGraph("end"))
 
-			saved, err := NewUpdateWorkflowUseCase(repo).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: manualGraph("fim")}, revisionOf(repo, "wf-1"))
+			saved, err := NewUpdateWorkflowUseCase(repo, staticCatalog{}).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: manualGraph("fim")}, revisionOf(repo, "wf-1"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -79,7 +78,7 @@ func TestSavingAnActiveWorkflowKeepsThePublishedVersionRunning(t *testing.T) {
 func TestSavingStillValidatesTheDraft(t *testing.T) {
 	repo := NewMockWorkflowRepository()
 	storedWorkflow(t, repo, workflow.WorkflowStatusActive, manualGraph("end"))
-	if _, err := NewUpdateWorkflowUseCase(repo).Execute(context.Background(), "wf-1", &workflow.Workflow{Graph: manualGraph("end")}, revisionOf(repo, "wf-1")); !errors.Is(err, workflow.ErrNameRequired) {
+	if _, err := NewUpdateWorkflowUseCase(repo, staticCatalog{}).Execute(context.Background(), "wf-1", &workflow.Workflow{Graph: manualGraph("end")}, revisionOf(repo, "wf-1")); !errors.Is(err, workflow.ErrNameRequired) {
 		t.Fatalf("err = %v, want the save validation to stay", err)
 	}
 }
@@ -107,7 +106,7 @@ func TestPublishingSnapshotsTheDraftAndMakesItRun(t *testing.T) {
 func TestPublishingAgainTakesTheNextNumber(t *testing.T) {
 	repo := NewMockWorkflowRepository()
 	storedWorkflow(t, repo, workflow.WorkflowStatusActive, manualGraph("end"))
-	if _, err := NewUpdateWorkflowUseCase(repo).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: manualGraph("fim")}, revisionOf(repo, "wf-1")); err != nil {
+	if _, err := NewUpdateWorkflowUseCase(repo, staticCatalog{}).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: manualGraph("fim")}, revisionOf(repo, "wf-1")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -140,7 +139,7 @@ func TestPublishingAnUnchangedDraftAddsNoVersion(t *testing.T) {
 func TestABrokenDraftCannotBePublishedAndThePublishedVersionKeepsRunning(t *testing.T) {
 	repo := NewMockWorkflowRepository()
 	storedWorkflow(t, repo, workflow.WorkflowStatusActive, manualGraph("end"))
-	if _, err := NewUpdateWorkflowUseCase(repo).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: brokenGraph()}, revisionOf(repo, "wf-1")); err != nil {
+	if _, err := NewUpdateWorkflowUseCase(repo, staticCatalog{}).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: brokenGraph()}, revisionOf(repo, "wf-1")); err != nil {
 		t.Fatalf("a draft with a graph error can still be saved: %v", err)
 	}
 
@@ -177,7 +176,7 @@ func TestActivatingANeverPublishedWorkflowPublishesIt(t *testing.T) {
 func TestActivatingAPausedWorkflowResumesThePublishedVersionNotTheDraft(t *testing.T) {
 	repo := NewMockWorkflowRepository()
 	storedWorkflow(t, repo, workflow.WorkflowStatusPaused, manualGraph("end"))
-	if _, err := NewUpdateWorkflowUseCase(repo).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: brokenGraph()}, revisionOf(repo, "wf-1")); err != nil {
+	if _, err := NewUpdateWorkflowUseCase(repo, staticCatalog{}).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: brokenGraph()}, revisionOf(repo, "wf-1")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -207,7 +206,7 @@ func TestReadsTellWhetherTheDraftDiffersFromThePublishedVersion(t *testing.T) {
 	if err != nil || got.HasUnpublishedChanges || got.PublishedAt == nil {
 		t.Fatalf("got = %+v err = %v, want the published draft with its date", got, err)
 	}
-	if _, err := NewUpdateWorkflowUseCase(repo).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: manualGraph("fim")}, revisionOf(repo, "wf-1")); err != nil {
+	if _, err := NewUpdateWorkflowUseCase(repo, staticCatalog{}).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: manualGraph("fim")}, revisionOf(repo, "wf-1")); err != nil {
 		t.Fatal(err)
 	}
 	page, err := NewListWorkflowsUseCase(repo).Execute(workflow.ListWorkflowsInput{WorkspaceID: "ws1"})
@@ -220,7 +219,7 @@ func versionsFixture(t *testing.T) (*MockWorkflowRepository, workflow.ScopedWork
 	t.Helper()
 	repo := NewMockWorkflowRepository()
 	storedWorkflow(t, repo, workflow.WorkflowStatusActive, manualGraph("end"))
-	if _, err := NewUpdateWorkflowUseCase(repo).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: manualGraph("fim")}, revisionOf(repo, "wf-1")); err != nil {
+	if _, err := NewUpdateWorkflowUseCase(repo, staticCatalog{}).Execute(context.Background(), "wf-1", &workflow.Workflow{Name: "Fluxo", Graph: manualGraph("fim")}, revisionOf(repo, "wf-1")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := activation(repo).Publish(publisherCtx(), "wf-1"); err != nil {
@@ -228,7 +227,7 @@ func versionsFixture(t *testing.T) (*MockWorkflowRepository, workflow.ScopedWork
 	}
 	activate := activation(repo)
 	return repo, NewScopedWorkflowsUseCase(ScopedWorkflowsDeps{
-		Create: NewCreateWorkflowUseCase(repo), Get: NewGetWorkflowUseCase(repo), Update: NewUpdateWorkflowUseCase(repo),
+		Create: NewCreateWorkflowUseCase(repo), Get: NewGetWorkflowUseCase(repo), Update: NewUpdateWorkflowUseCase(repo, staticCatalog{}),
 		Delete: NewDeleteWorkflowUseCase(repo, nil), Activate: activate, Publish: activate, Pause: NewPauseWorkflowUseCase(repo, NewMockWorkflowRunRepository()),
 		Versions: NewWorkflowVersionsUseCase(repo),
 	})

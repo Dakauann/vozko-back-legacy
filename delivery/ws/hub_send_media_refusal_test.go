@@ -69,7 +69,7 @@ func TestHandleSend_ANoteImageIsRefusedWithTheMediaNotSendableCode(t *testing.T)
 func TestHandleResend_KeepsTheMediaNotSendableCode(t *testing.T) {
 	hub, conn := newSendHub(t, panicSendTestUseCase{})
 	_, refused := conversation.SendableUpload(noteImageInEntry{}, "entry-1", shared.EntryTypeWhatsApp, "note-image-1")
-	hub.SetMessageActions(conversation.MessageActionUseCases{Resend: wrappingResend{err: refused}})
+	hub.cmds().MessageActions = conversation.MessageActionUseCases{Resend: wrappingResend{err: refused}}
 
 	payload, err := json.Marshal(MessageActionPayload{EntryID: "entry-1", EntryType: "whatsapp", MessageID: "msg-1", RequestID: "req-2"})
 	require.NoError(t, err)

@@ -6,6 +6,7 @@ import (
 	"vozko/delivery/http/audiencex"
 
 	"vozko/domain/campaign"
+	"vozko/domain/campaign/scheduledstart"
 	uw "vozko/domain/unofficial_whatsapp"
 	uwc "vozko/domain/unofficial_whatsapp_campaign"
 )
@@ -182,9 +183,10 @@ type campaignDTO struct {
 	SendDelayMaxMS int `json:"sendDelayMaxMs"`
 	DailyCap       int `json:"dailyCap"`
 
-	Status       string `json:"status"`
-	StatusReason string `json:"statusReason,omitempty"`
-	ReadyToStart bool   `json:"readyToStart"`
+	Status          string                 `json:"status"`
+	StatusReason    string                 `json:"statusReason,omitempty"`
+	ReadyToStart    bool                   `json:"readyToStart"`
+	ScheduleFailure scheduledstart.Failure `json:"scheduleFailure,omitempty" enums:"schedule_blocked,schedule_unconfirmed,schedule_needs_review,schedule_nothing_to_send,schedule_start_failed"`
 
 	ScheduledStart *time.Time `json:"scheduledStart,omitempty"`
 	Archived       bool       `json:"archived"`
@@ -224,6 +226,7 @@ func campaignToDTO(c *uwc.Campaign) campaignDTO {
 		DailyCap:             c.DailyCap,
 		Status:               string(c.Status),
 		StatusReason:         c.StatusReason,
+		ScheduleFailure:      c.ScheduleFailure,
 		ReadyToStart:         c.Metrics.ReadyToStart(c.Status, !c.ScheduledStart.IsZero()),
 		Archived:             c.Archived,
 		Metrics:              c.Metrics,

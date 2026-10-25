@@ -21,7 +21,7 @@ func pinningFixture(t *testing.T, runs *runDetailStub) (*NodePinsUseCase, *MockW
 	}
 	scoped := NewScopedWorkflowsUseCase(ScopedWorkflowsDeps{
 		Get:        NewGetWorkflowUseCase(repo),
-		Update:     NewUpdateWorkflowUseCase(repo),
+		Update:     NewUpdateWorkflowUseCase(repo, staticCatalog{}),
 		Versions:   NewWorkflowVersionsUseCase(repo),
 		PinSources: everyRunVisible{},
 	})

@@ -2,9 +2,11 @@ package container
 
 import (
 	"context"
+	"log"
 	"strings"
 	"time"
 
+	attendancehttp "vozko/delivery/http/attendance"
 	domainCache "vozko/domain/cache"
 	"vozko/domain/conversation"
 	wsc "vozko/domain/workspace_config"
@@ -90,23 +92,43 @@ func (c *Container) attendanceSectionCaching() attendance_usecase.SectionCaching
 }
 
 func (c *Container) attendanceTargetsService() *attendance_usecase.TargetsService {
-	service := attendance_usecase.NewTargetsService(
-		c.repositories.attendanceTarget,
-		c.attendanceScheduleResolver(),
-	)
-	service.SetVersions(c.attendanceSectionVersions())
+	if c.attendanceTargets != nil {
+		return c.attendanceTargets
+	}
+	service, err := attendance_usecase.NewTargetsService(attendance_usecase.TargetsDeps{
+		Repo:      c.repositories.attendanceTarget,
+		Schedules: c.attendanceScheduleResolver(),
+		Versions:  c.attendanceSectionVersions(),
+	})
+	if err != nil {
+		log.Fatalf("[container] %v", err)
+	}
+	c.attendanceTargets = service
 	return service
 }
 
-func (c *Container) wireOutcomeCapture() {
-	service := c.services.conversationStatusService
-	if service == nil {
-		return
+func (c *Container) attendanceOverview() attendance_usecase.OverviewService {
+	overview, err := attendance_usecase.NewGetOverviewUseCase(attendance_usecase.OverviewDeps{
+		Repo:      c.repositories.attendance,
+		Queue:     c.repositories.queueEvent,
+		Presence:  c.repositories.agentPresence,
+		Live:      c.services.callSessions,
+		Schedules: c.attendanceScheduleResolver(),
+		Targets:   c.attendanceTargetsService(),
+		Caching:   c.attendanceSectionCaching(),
+	})
+	if err != nil {
+		log.Fatalf("[container] %v", err)
 	}
-	service.SetOutcomeCaptureReader(outcomeCaptureReader{configs: c.repositories.workspaceConfig})
-	if lookup, ok := c.services.campaignWorkspaceResolver.(entryDepartmentLookup); ok {
-		service.SetEntryDepartmentResolver(entryDepartmentResolver{lookup: lookup})
+	return overview
+}
+
+func (c *Container) entryDepartmentResolver() entryDepartmentResolver {
+	lookup, ok := c.services.campaignWorkspaceResolver.(entryDepartmentLookup)
+	if !ok {
+		log.Fatalf("[conversation-status] the workspace resolver cannot name the department of a conversation, close outcomes per department cannot be enforced")
 	}
+	return entryDepartmentResolver{lookup: lookup}
 }
 
 func (c *Container) memberActivityUseCase() *attendance_usecase.MemberActivityUseCase {
@@ -117,4 +139,24 @@ func (c *Container) memberActivityUseCase() *attendance_usecase.MemberActivityUs
 		Team:        c.useCases.getOverview,
 		Schedules:   c.attendanceScheduleResolver(),
 	})
+}
+
+func (c *Container) attendanceHandler() *attendancehttp.AttendanceHandler {
+	handler, err := attendancehttp.NewAttendanceHandler(attendancehttp.Deps{
+		AttendanceStats: c.useCases.getAttendanceStats,
+		WindowStats:     c.useCases.getWindowStats,
+		ResponseTimes:   c.useCases.getResponseTimeDistribution,
+		AIAgentStats:    c.useCases.getAIAgentStats,
+		FRTStats:        c.useCases.getFRTStats,
+		Sections:        c.useCases.getOverview,
+		Queue:           c.repositories.queueEvent,
+		Presence:        c.repositories.agentPresence,
+		Targets:         c.attendanceTargetsService(),
+		TargetScoper:    c.services.conversationAuthImpl,
+		MemberActivity:  c.memberActivityUseCase(),
+	})
+	if err != nil {
+		log.Fatalf("[container] %v", err)
+	}
+	return handler
 }

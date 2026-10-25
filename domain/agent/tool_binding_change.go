@@ -24,9 +24,13 @@ func bindingNamed(bindings []ToolBinding, name string) (ToolBinding, bool) {
 }
 
 func sameBinding(a, b ToolBinding) bool {
-	left, errLeft := json.Marshal(a)
-	right, errRight := json.Marshal(b)
+	left, errLeft := json.Marshal(bindingBehaviour(a))
+	right, errRight := json.Marshal(bindingBehaviour(b))
 	return errLeft == nil && errRight == nil && bytes.Equal(left, right)
+}
+
+func bindingBehaviour(b ToolBinding) ToolBinding {
+	return ToolBinding{Name: b.Name, Visibility: b.Visibility, Config: b.Config}
 }
 
 func BindingsAdded(stored, proposed []ToolBinding, name string) []ToolBinding {

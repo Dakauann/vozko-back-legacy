@@ -197,6 +197,18 @@ func (w workflowsByIDStub) FindByIDs(ids []string) ([]*workflow.Workflow, error)
 	return out, nil
 }
 
+type toolsByIDStub map[string]agent.ToolBinding
+
+func (s toolsByIDStub) FindToolsByIDs(ids []string) ([]agent.ToolBinding, error) {
+	out := []agent.ToolBinding{}
+	for _, id := range ids {
+		if found, ok := s[id]; ok {
+			out = append(out, found)
+		}
+	}
+	return out, nil
+}
+
 type agentsByIDStub map[string]*agent.Agent
 
 func (a agentsByIDStub) FindByIDs(ids []string) ([]*agent.Agent, error) {
@@ -222,6 +234,7 @@ type alertHarness struct {
 	alerts    *memAlerts
 	signals   *scriptedSignals
 	workflows workflowsByIDStub
+	tools     toolsByIDStub
 	notices   *notificationtest.Publisher
 	uc        *RuntimeAlerts
 	now       time.Time
@@ -232,6 +245,11 @@ func newAlertHarness(t *testing.T) *alertHarness {
 	h := &alertHarness{
 		alerts:  &memAlerts{},
 		signals: &scriptedSignals{},
+		tools: toolsByIDStub{
+			"t-1":  {ID: "t-1", Name: workflow.AgentHTTPRequestTool, Function: "consultar_pedido"},
+			"t-2":  {ID: "t-2", Name: "transfer_to_human", Function: "transferir_para_vendas"},
+			"t-wf": {ID: "t-wf", Name: workflow.AgentRunWorkflowTool, Function: "matricular"},
+		},
 		workflows: workflowsByIDStub{"wf-1": {
 			ID: "wf-1", WorkspaceID: "ws-1", Name: "Matrícula", Status: workflow.WorkflowStatusDraft,
 			Graph: workflow.Graph{Nodes: []workflow.Node{{ID: "n55", Type: workflow.NodeTypeActionHTTPRequest}}},
@@ -244,6 +262,7 @@ func newAlertHarness(t *testing.T) *alertHarness {
 		Signals:    h.signals,
 		Workflows:  h.workflows,
 		Agents:     agentsByIDStub{"ag-1": {ID: "ag-1", Name: "Bia"}},
+		Tools:      h.tools,
 		Notices:    h.notices,
 		Steps:      alertStepNames{},
 		Visibility: seesEverything{},
@@ -321,7 +340,7 @@ func TestAnOpenAlertIsRepublishedHourlySoTheEpisodeCanSendItsReminder(t *testing
 func TestACalledInactiveWorkflowAlertResolvesOncePublishedAndClosesItsEpisode(t *testing.T) {
 	h := newAlertHarness(t)
 	h.signals.deliveries = []workflow.RejectedDeliveryGroup{{WorkspaceID: "ws-1", WorkflowID: "wf-1", Reason: workflow.WorkflowNotActiveCode, Count: 2, FirstSeen: h.now, LastSeen: h.now, Sample: "d-1"}}
-	h.signals.toolCalls = []workflow.FailedToolCallGroup{{WorkspaceID: "ws-1", AgentID: "ag-1", ToolName: "run_workflow_wf-1", ErrorCode: workflow.WorkflowNotActiveCode, Count: 1, FirstSeen: h.now, LastSeen: h.now, Sample: "c-1"}}
+	h.signals.toolCalls = []workflow.FailedToolCallGroup{{WorkspaceID: "ws-1", AgentID: "ag-1", ToolInstanceID: "t-wf", ToolType: workflow.AgentRunWorkflowTool, TargetKey: "target:wf-1", ErrorCode: workflow.WorkflowNotActiveCode, Count: 1, FirstSeen: h.now, LastSeen: h.now, Sample: "c-1"}}
 	h.evaluate(t)
 
 	alert := h.alerts.only(t)
@@ -387,7 +406,7 @@ func TestOneUnreadableSignalSkipsOnlyItsOwnKind(t *testing.T) {
 func TestAnUnreadableSourceNeverResolvesItsAlertsAsQuiet(t *testing.T) {
 	h := newAlertHarness(t)
 	h.signals.deliveries = []workflow.RejectedDeliveryGroup{{WorkspaceID: "ws-1", WorkflowID: "wf-1", Reason: "unauthorized", Count: workflow.WebhookRejectingMinRejections, FirstSeen: h.now, LastSeen: h.now, Sample: "d-1"}}
-	h.signals.toolCalls = []workflow.FailedToolCallGroup{{WorkspaceID: "ws-1", AgentID: "ag-1", ToolName: workflow.AgentHTTPRequestTool, Count: 3, FirstSeen: h.now, LastSeen: h.now, Sample: "c-9"}}
+	h.signals.toolCalls = []workflow.FailedToolCallGroup{{WorkspaceID: "ws-1", AgentID: "ag-1", ToolInstanceID: "t-1", ToolType: workflow.AgentHTTPRequestTool, Count: 3, FirstSeen: h.now, LastSeen: h.now, Sample: "c-9"}}
 	h.evaluate(t)
 	if len(h.alerts.rows) != 2 {
 		t.Fatalf("alerts = %+v, want the webhook and the agent tool alerts", h.alerts.rows)
@@ -440,13 +459,55 @@ func TestARejectingWebhookAlertLinksToTheAlertSoTheEditorOpensTheFix(t *testing.
 	}
 }
 
-func TestAFailingAgentToolNamesTheAgentAndLinksToIt(t *testing.T) {
+func TestAFailingAgentToolNamesTheInstanceAndLinksToItsRuns(t *testing.T) {
 	h := newAlertHarness(t)
-	h.signals.toolCalls = []workflow.FailedToolCallGroup{{WorkspaceID: "ws-1", AgentID: "ag-1", ToolName: workflow.AgentHTTPRequestTool, Count: 3, FirstSeen: h.now, LastSeen: h.now, Sample: "c-9"}}
+	h.signals.toolCalls = []workflow.FailedToolCallGroup{{WorkspaceID: "ws-1", AgentID: "ag-1", ToolInstanceID: "t-1", ToolType: workflow.AgentHTTPRequestTool, Count: 3, FirstSeen: h.now, LastSeen: h.now, Sample: "c-9"}}
 	h.evaluate(t)
 	d := h.notices.Only(t)
-	if d.Severity != notification.SeverityWarning || d.ActionURL != "/dashboard/agents/ag-1" || d.ActionLabel != "Abrir agente" || !strings.Contains(d.Title, "Bia") {
+	if d.Severity != notification.SeverityWarning || d.ActionURL != "/dashboard/agents/ag-1?tab=runs&tool=t-1" || d.ActionLabel != "Ver execuções" || !strings.Contains(d.Title, "Bia") {
 		t.Fatalf("draft = %+v", d)
+	}
+	if !strings.Contains(d.Body, `"consultar_pedido" (Requisição HTTP)`) {
+		t.Fatalf("body = %s", d.Body)
+	}
+}
+
+func TestThreeFailuresOfAnyConfiguredInstanceOpenOneAlert(t *testing.T) {
+	h := newAlertHarness(t)
+	h.signals.toolCalls = []workflow.FailedToolCallGroup{
+		{WorkspaceID: "ws-1", AgentID: "ag-1", ToolInstanceID: "t-2", ToolType: "transfer_to_human", TargetKey: "target:dep-1", ErrorCode: "", Count: 2, FirstSeen: h.now, LastSeen: h.now, Sample: "c-1"},
+		{WorkspaceID: "ws-1", AgentID: "ag-1", ToolInstanceID: "t-2", ToolType: "transfer_to_human", TargetKey: "target:dep-1", ErrorCode: "department_offline", Count: 1, FirstSeen: h.now, LastSeen: h.now, Sample: "c-2"},
+	}
+	h.evaluate(t)
+	alert := h.alerts.only(t)
+	if alert.Key.Kind != workflow.AlertAgentToolFailing || alert.Key.Subject != "t-2" || alert.Count != 3 {
+		t.Fatalf("alert = %+v", alert)
+	}
+	if d := h.notices.Only(t); !strings.Contains(d.Body, `"transferir_para_vendas"`) {
+		t.Fatalf("body = %s", d.Body)
+	}
+}
+
+func TestRenamingAnInstanceKeepsItsOpenAlert(t *testing.T) {
+	h := newAlertHarness(t)
+	h.signals.toolCalls = []workflow.FailedToolCallGroup{{WorkspaceID: "ws-1", AgentID: "ag-1", ToolInstanceID: "t-1", ToolType: workflow.AgentHTTPRequestTool, Count: 3, FirstSeen: h.now, LastSeen: h.now, Sample: "c-9"}}
+	h.evaluate(t)
+	first := h.alerts.only(t)
+	h.tools["t-1"] = agent.ToolBinding{ID: "t-1", Name: workflow.AgentHTTPRequestTool, Function: "status_do_pedido"}
+	h.now = h.now.Add(workflow.RuntimeAlertEvaluationPeriod)
+	h.signals.toolCalls = []workflow.FailedToolCallGroup{{WorkspaceID: "ws-1", AgentID: "ag-1", ToolInstanceID: "t-1", ToolType: workflow.AgentHTTPRequestTool, Count: 1, FirstSeen: h.now, LastSeen: h.now, Sample: "c-10"}}
+	h.evaluate(t)
+	if again := h.alerts.only(t); again.ID != first.ID || again.Status != workflow.RuntimeAlertOpen {
+		t.Fatalf("first %+v again %+v", first, again)
+	}
+}
+
+func TestADeletedInstanceIsStillNamedInTheNotice(t *testing.T) {
+	h := newAlertHarness(t)
+	h.signals.toolCalls = []workflow.FailedToolCallGroup{{WorkspaceID: "ws-1", AgentID: "ag-1", ToolInstanceID: "t-gone", ToolType: workflow.AgentHTTPRequestTool, Count: 3, FirstSeen: h.now, LastSeen: h.now, Sample: "c-9"}}
+	h.evaluate(t)
+	if d := h.notices.Only(t); !strings.Contains(d.Body, "removida") {
+		t.Fatalf("body = %s", d.Body)
 	}
 }
 

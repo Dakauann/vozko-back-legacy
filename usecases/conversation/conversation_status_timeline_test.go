@@ -44,7 +44,7 @@ func TestFinishRecordsTheOutcomeAndWhoClosedOnTheTimeline(t *testing.T) {
 			repo := &outcomeEntryRepo{status: string(conversation.ConversationStatusOngoing)}
 			svc := outcomeServiceWith(t, repo, &stubCaptureReader{capture: requiringCapture()})
 			events := &recordedEvents{}
-			svc.SetEventLogger(events)
+			svc.events = events
 
 			opts := tc.opts
 			opts.OutcomeCode = "sale"
@@ -68,7 +68,7 @@ func TestFinishWithoutAnOutcomeLeavesItOffTheTimeline(t *testing.T) {
 	repo := &outcomeEntryRepo{status: string(conversation.ConversationStatusOngoing)}
 	svc := outcomeServiceWith(t, repo, nil)
 	events := &recordedEvents{}
-	svc.SetEventLogger(events)
+	svc.events = events
 
 	if err := svc.Finish("entry-1", string(shared.EntryTypeWhatsApp), conversation.FinishOptions{Source: conversation.CloseSourceHuman}); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -95,7 +95,7 @@ func TestFinishIsAnnouncedWithHowItWasClosed(t *testing.T) {
 	repo := &outcomeEntryRepo{status: string(conversation.ConversationStatusOngoing)}
 	svc := outcomeServiceWith(t, repo, &stubCaptureReader{capture: requiringCapture()})
 	announced := &recordedAnnouncements{}
-	svc.SetStatusAnnouncer(announced)
+	svc.announcer = announced
 
 	err := svc.Finish("entry-1", string(shared.EntryTypeWhatsApp), conversation.FinishOptions{
 		Source: conversation.CloseSourceAI, ActorID: actor.FormatAI("agent-1"), OutcomeCode: "sale",
@@ -126,7 +126,7 @@ func TestARefusedFinishIsNotAnnounced(t *testing.T) {
 	repo := &outcomeEntryRepo{status: string(conversation.ConversationStatusOngoing)}
 	svc := outcomeServiceWith(t, repo, &stubCaptureReader{capture: requiringCapture()})
 	announced := &recordedAnnouncements{}
-	svc.SetStatusAnnouncer(announced)
+	svc.announcer = announced
 
 	_ = svc.Finish("entry-1", string(shared.EntryTypeWhatsApp), conversation.FinishOptions{Source: conversation.CloseSourceAI})
 	if len(announced.got) != 0 {

@@ -269,3 +269,51 @@ func TestSyncTemplates_FailsWhenTheQualityCannotBeRecorded(t *testing.T) {
 		t.Fatalf("expected the record failure, got %v", err)
 	}
 }
+
+func TestSyncTemplates_RewritesAStoredTemplateOnlyWhenItChanged(t *testing.T) {
+	mediaURL := "https://cdn.example/header.png"
+	apiTemplate := func(status, score, body string) conversation.Template {
+		return conversation.Template{ID: "ext-1", Name: "welcome", Language: "pt_BR", Category: "utility", Status: status, QualityScore: score,
+			Components: []conversation.TemplateComponent{{Type: "BODY", Text: body}}}
+	}
+	cases := []struct {
+		name        string
+		fromMeta    conversation.Template
+		wantUpdates int
+		wantStatus  template.TemplateStatus
+		wantQuality string
+		wantBody    string
+	}{
+		{name: "unchanged", fromMeta: apiTemplate("approved", "GREEN", "Hi"), wantUpdates: 0, wantStatus: template.TemplateStatusApproved, wantQuality: "GREEN", wantBody: "Hi"},
+		{name: "no quality reading keeps the stored one", fromMeta: apiTemplate("approved", "", "Hi"), wantUpdates: 0, wantStatus: template.TemplateStatusApproved, wantQuality: "GREEN", wantBody: "Hi"},
+		{name: "status moved", fromMeta: apiTemplate("paused", "GREEN", "Hi"), wantUpdates: 1, wantStatus: template.TemplateStatusPaused, wantQuality: "GREEN", wantBody: "Hi"},
+		{name: "quality moved", fromMeta: apiTemplate("approved", "YELLOW", "Hi"), wantUpdates: 1, wantStatus: template.TemplateStatusApproved, wantQuality: "YELLOW", wantBody: "Hi"},
+		{name: "body edited", fromMeta: apiTemplate("approved", "GREEN", "Hello"), wantUpdates: 1, wantStatus: template.TemplateStatusApproved, wantQuality: "GREEN", wantBody: "Hello"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newMockTemplateRepo()
+			repo.templates["t1"] = &template.Template{ID: "t1", ExternalID: "ext-1", WABAId: "waba-1", Name: "welcome", Language: "pt_BR",
+				Category: template.TemplateCategoryUtility, Status: template.TemplateStatusApproved, Quality: "GREEN",
+				ParameterFormat: template.ParameterFormatPositional, HeaderMediaURL: &mediaURL,
+				Components: []template.TemplateComponent{{Type: "BODY", Text: "Hi"}}}
+			client := &syncTemplatesClientMock{outputs: []*conversation.ListTemplatesOutput{{Templates: []conversation.Template{tc.fromMeta}}}}
+			uc := NewSyncTemplatesUseCase(repo, &syncTemplatesFactoryMock{client: client, wabaID: "waba-1"}, templateQualityHistory{"ext-1": "GREEN"}, &fakeQualityRecorder{})
+
+			synced, err := uc.Execute(template.SyncTemplatesInput{BusinessPhoneID: "phone-1"})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(repo.updated) != tc.wantUpdates {
+				t.Fatalf("updates = %v, want %d", repo.updated, tc.wantUpdates)
+			}
+			if len(synced) != 1 || synced[0].ID != "t1" {
+				t.Fatalf("every listed template is returned as synced, got %+v", synced)
+			}
+			stored := repo.templates["t1"]
+			if stored.Status != tc.wantStatus || stored.Quality != tc.wantQuality || stored.GetBodyText() != tc.wantBody || stored.GetHeaderMediaURL() != mediaURL {
+				t.Fatalf("stored %+v", stored)
+			}
+		})
+	}
+}

@@ -84,7 +84,6 @@ import (
 	whatsapptemplatehttp "vozko/delivery/http/whatsapptemplate"
 	workflowalerthttp "vozko/delivery/http/workflowalerthttp"
 	workflowrunexporthttp "vozko/delivery/http/workflowrunexporthttp"
-	workflowsecrethttp "vozko/delivery/http/workflowsecrethttp"
 	workflowwebhookhttp "vozko/delivery/http/workflowwebhook"
 	workspacehttp "vozko/delivery/http/workspace"
 	workspaceaddonhttp "vozko/delivery/http/workspaceaddon"
@@ -92,6 +91,7 @@ import (
 	workspacedepartmenthttp "vozko/delivery/http/workspacedepartment"
 	workspacephoneaccesshttp "vozko/delivery/http/workspacephoneaccess"
 	workspacepricinghttp "vozko/delivery/http/workspacepricing"
+	workspacesecrethttp "vozko/delivery/http/workspacesecrethttp"
 	workspacetemplateaccesshttp "vozko/delivery/http/workspacetemplateaccess"
 	wsdelivery "vozko/delivery/ws"
 	vozkodocs "vozko/docs"
@@ -187,6 +187,7 @@ type router struct {
 	email                          EmailRoutes
 	carrier                        CarrierRoutes
 	campaignDrafts                 CampaignDraftRoutes
+	agentRoutes                    AgentRoutes
 	google                         GoogleRoutes
 	apiKeys                        APIKeyRoutes
 	choiceStatsHandler             *choicestatshttp.Handler
@@ -209,7 +210,7 @@ type router struct {
 	issueHandler                   *issuehttp.IssueHandler
 	workflowHandler                *handlers.WorkflowHandler
 	workflowWebhookHandler         *workflowwebhookhttp.Handler
-	workflowSecretHandler          *workflowsecrethttp.Handler
+	workspaceSecretHandler         *workspacesecrethttp.Handler
 	workflowAlertHandler           *workflowalerthttp.Handler
 	wsWorkflowSimulatorHandler     *wsdelivery.WSWorkflowSimulatorHandler
 	wsWorkflowAIBuilderHandler     *wsdelivery.WSWorkflowAIBuilderHandler
@@ -240,6 +241,10 @@ type router struct {
 
 func (r *router) ac(resource workspace_domain.Resource, action workspace_domain.Action, handler http.HandlerFunc) http.HandlerFunc {
 	return r.workspaceMiddleware.CheckAccess(resource, action, handler)
+}
+
+func (r *router) acAny(grants []workspace_domain.PermissionEntry, handler http.HandlerFunc) http.HandlerFunc {
+	return r.workspaceMiddleware.CheckAnyAccess(grants, handler)
 }
 
 func NewRouter(
@@ -305,7 +310,7 @@ func NewRouter(
 	issueHandler *issuehttp.IssueHandler,
 	workflowHandler *handlers.WorkflowHandler,
 	workflowWebhookHandler *workflowwebhookhttp.Handler,
-	workflowSecretHandler *workflowsecrethttp.Handler,
+	workspaceSecretHandler *workspacesecrethttp.Handler,
 	workflowAlertHandler *workflowalerthttp.Handler,
 	wsWorkflowSimulatorHandler *wsdelivery.WSWorkflowSimulatorHandler,
 	wsWorkflowAIBuilderHandler *wsdelivery.WSWorkflowAIBuilderHandler,
@@ -364,9 +369,11 @@ func NewRouter(
 	choiceStatsHandler *choicestatshttp.Handler,
 	workflowRunExportHandler *workflowrunexporthttp.Handler,
 	campaignDrafts CampaignDraftRoutes,
+	agentRoutes AgentRoutes,
 ) Router {
 	r := &router{
 		campaignDrafts:                 campaignDrafts,
+		agentRoutes:                    agentRoutes,
 		workflowRunExportHandler:       workflowRunExportHandler,
 		apiKeys:                        apiKeys,
 		choiceStatsHandler:             choiceStatsHandler,
@@ -466,7 +473,7 @@ func NewRouter(
 		issueHandler:                   issueHandler,
 		workflowHandler:                workflowHandler,
 		workflowWebhookHandler:         workflowWebhookHandler,
-		workflowSecretHandler:          workflowSecretHandler,
+		workspaceSecretHandler:         workspaceSecretHandler,
 		workflowAlertHandler:           workflowAlertHandler,
 		wsWorkflowSimulatorHandler:     wsWorkflowSimulatorHandler,
 		wsWorkflowAIBuilderHandler:     wsWorkflowAIBuilderHandler,
@@ -560,6 +567,7 @@ func (r *router) setupRoutes() {
 	apikeyshttp.RegisterProtectedRoutes(protected, r.apiKeys.Handler, r.ac)
 	r.setupCarrierProtectedRoutes(protected)
 	r.setupCampaignDraftRoutes(protected)
+	r.setupAgentToolRoutes(protected)
 	campaignaudiencehttp.RegisterRoutes(protected, r.campaignAudienceHandler, r.ac)
 	siptrunkhttp.RegisterProtectedRoutes(protected, r.sipTrunkHandler, r.ac)
 	callroutinghttp.RegisterProtectedRoutes(protected, r.callRoutingHandler, r.ac)
@@ -893,6 +901,9 @@ func (r *router) setupCallBillingRoutes(protected *mux.Router) {
 func (r *router) setupWhatsAppCampaignRoutes(protected *mux.Router) {
 	wc := workspace_domain.ResourceWhatsAppCampaigns
 	wcRoutes := protected.PathPrefix("/whatsapp/campaigns").Subrouter()
+	if r.whatsappCampaignHandler != nil {
+		r.whatsappCampaignHandler.SetStartGuard(func(next http.HandlerFunc) http.HandlerFunc { return r.ac(wc, workspace_domain.ActionStart, next) })
+	}
 	wcRoutes.HandleFunc("", r.ac(wc, workspace_domain.ActionRead, r.whatsappCampaignHandler.List)).Methods(http.MethodGet)
 	wcRoutes.HandleFunc("/archived", r.ac(wc, workspace_domain.ActionRead, r.whatsappCampaignHandler.ListArchived)).Methods(http.MethodGet)
 	wcRoutes.HandleFunc("/summary", r.ac(wc, workspace_domain.ActionRead, r.whatsappCampaignHandler.Summary)).Methods(http.MethodGet)
@@ -1128,7 +1139,7 @@ func (r *router) setupWorkflowRoutes(protected *mux.Router) {
 	protected.HandleFunc("/workflows/{id}/nodes/{nodeId}/variables", r.ac(wf, workspace_domain.ActionRead, r.workflowHandler.NodeVariables)).Methods(http.MethodGet)
 	protected.HandleFunc("/workflows/{id}/nodes/{nodeId}/test", r.ac(wf, workspace_domain.ActionUpdate, r.workflowHandler.TestNode)).Methods(http.MethodPost)
 	workflowwebhookhttp.RegisterRoutes(protected, r.workflowWebhookHandler, r.ac)
-	workflowsecrethttp.RegisterRoutes(protected, r.workflowSecretHandler, r.ac)
+	workspacesecrethttp.RegisterRoutes(protected, r.workspaceSecretHandler, r.acAny)
 	workflowalerthttp.RegisterRoutes(protected, r.workflowAlertHandler, r.ac)
 	workflowrunexporthttp.RegisterRoutes(protected, r.workflowRunExportHandler, r.ac)
 	protected.HandleFunc("/workflow-runs/{runId}", r.ac(wf, workspace_domain.ActionRead, r.workflowHandler.GetRun)).Methods(http.MethodGet)

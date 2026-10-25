@@ -10,6 +10,7 @@ import (
 	ca "vozko/domain/audience"
 	"vozko/domain/metrics"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 )
 
 type ingestUseCase struct {
@@ -21,19 +22,29 @@ type ingestUseCase struct {
 	live      ca.ConversationAnalysisLive
 }
 
-func (uc *ingestUseCase) SetLive(live ca.ConversationAnalysisLive) { uc.live = live }
+type IngestDeps struct {
+	Repo      ca.Repository
+	Settings  ca.SettingsResolver
+	Scheduler ca.Scheduler
+	Metrics   metrics.AudienceMetricsRecorder
+	Live      ca.ConversationAnalysisLive
+	Clock     ca.Clock
+}
 
-func NewIngestUseCase(
-	repo ca.Repository,
-	settings ca.SettingsResolver,
-	scheduler ca.Scheduler,
-	rec metrics.AudienceMetricsRecorder,
-	clock ca.Clock,
-) ca.Ingestor {
-	if clock == nil {
-		clock = shared.SystemClock{}
+func NewIngestUseCase(d IngestDeps) (ca.Ingestor, error) {
+	if err := deps.Require("audience ingest", map[string]any{
+		"repository":    d.Repo,
+		"settings":      d.Settings,
+		"scheduler":     d.Scheduler,
+		"metrics":       d.Metrics,
+		"live analysis": d.Live,
+	}); err != nil {
+		return nil, err
 	}
-	return &ingestUseCase{repo: repo, settings: settings, scheduler: scheduler, metrics: rec, clock: clock}
+	if d.Clock == nil {
+		d.Clock = shared.SystemClock{}
+	}
+	return &ingestUseCase{repo: d.Repo, settings: d.Settings, scheduler: d.Scheduler, metrics: d.Metrics, live: d.Live, clock: d.Clock}, nil
 }
 
 func (uc *ingestUseCase) Enqueue(ctx context.Context, in ca.IngestInput) error {
@@ -89,14 +100,12 @@ func (uc *ingestUseCase) Enqueue(ctx context.Context, in ca.IngestInput) error {
 	if !inserted {
 		return nil
 	}
-	if uc.metrics != nil {
-		uc.metrics.IncCommentEnqueued(string(in.Container.Source))
-	}
+	uc.metrics.IncCommentEnqueued(string(in.Container.Source))
 	if row.Status != ca.StatusPending {
 		return nil
 	}
 
-	if uc.live != nil && row.Kind() == ca.SubjectKindConversation {
+	if row.Kind() == ca.SubjectKindConversation {
 		uc.live.AnalysisStateChanged(ca.ConversationAnalysisState{
 			EntryID:   row.SubjectID,
 			EntryType: string(row.Source),

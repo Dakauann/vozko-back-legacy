@@ -2,9 +2,13 @@ package whatsapp_campaign_usecase
 
 import (
 	"errors"
+	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"vozko/domain/balance"
+	wc "vozko/domain/whatsapp_campaign"
 	wce "vozko/domain/whatsapp_campaign_entry"
 )
 
@@ -14,14 +18,20 @@ type waSummaryAggStub struct {
 	err       error
 	catErr    error
 	gotFilter wce.WorkspaceSummaryFilter
+	catCalls  int
+	onCount   func()
 }
 
 func (s *waSummaryAggStub) CountByStatusForWorkspace(f wce.WorkspaceSummaryFilter) (*wce.StatusCounts, error) {
+	if s.onCount != nil {
+		s.onCount()
+	}
 	s.gotFilter = f
 	return s.counts, s.err
 }
 
 func (s *waSummaryAggStub) CountDispatchesByCategoryForWorkspace(f wce.WorkspaceSummaryFilter) (map[string]int64, error) {
+	s.catCalls++
 	if s.catErr != nil {
 		return nil, s.catErr
 	}
@@ -29,12 +39,16 @@ func (s *waSummaryAggStub) CountDispatchesByCategoryForWorkspace(f wce.Workspace
 }
 
 type waChargeAggStub struct {
-	stats *balance.WhatsAppChargeStats
-	err   error
-	got   balance.WhatsAppChargeFilter
+	stats    *balance.WhatsAppChargeStats
+	err      error
+	got      balance.WhatsAppChargeFilter
+	onCharge func()
 }
 
 func (s *waChargeAggStub) AggregateWhatsAppTemplateCharges(f balance.WhatsAppChargeFilter) (*balance.WhatsAppChargeStats, error) {
+	if s.onCharge != nil {
+		s.onCharge()
+	}
 	s.got = f
 	return s.stats, s.err
 }
@@ -114,39 +128,179 @@ func TestGetSummaryPropagatesError(t *testing.T) {
 	}
 }
 
-func TestGetSummaryCategoryErrorDoesNotFail(t *testing.T) {
+func TestGetSummaryCategoryErrorFailsTheSummary(t *testing.T) {
+	sentinel := errors.New("category join failed")
 	agg := &waSummaryAggStub{
 		counts: &wce.StatusCounts{Total: 10, Sent: 10},
-		catErr: errors.New("category join failed"),
+		catErr: sentinel,
 	}
 	uc := NewGetSummaryUseCase(agg, nil)
 	m, err := uc.Execute(wce.WorkspaceSummaryFilter{WorkspaceID: "ws-1"})
-	if err != nil {
-		t.Fatalf("category error must not fail summary: %v", err)
-	}
-	if m.Dispatches != 10 {
-		t.Errorf("Dispatches = %d, want 10", m.Dispatches)
-	}
-	if m.ByCategory != nil {
-		t.Errorf("ByCategory should be nil when category query fails")
+	if !errors.Is(err, sentinel) || m != nil {
+		t.Fatalf("a category error must fail the summary, got %+v, %v", m, err)
 	}
 }
 
-func TestGetSummaryLedgerErrorFallsBackToEntries(t *testing.T) {
+func TestGetSummaryLedgerErrorFailsTheSummary(t *testing.T) {
+	sentinel := errors.New("ledger down")
 	agg := &waSummaryAggStub{
 		counts: &wce.StatusCounts{Total: 5, Sent: 5},
 		byCat:  map[string]int64{"UTILITY": 5},
 	}
-	charges := &waChargeAggStub{err: errors.New("ledger down")}
-	uc := NewGetSummaryUseCase(agg, charges)
+	uc := NewGetSummaryUseCase(agg, &waChargeAggStub{err: sentinel})
+
 	m, err := uc.Execute(wce.WorkspaceSummaryFilter{WorkspaceID: "ws-1"})
+	if !errors.Is(err, sentinel) || m != nil {
+		t.Fatalf("a ledger error must fail the summary, got %+v, %v", m, err)
+	}
+	if agg.catCalls != 0 {
+		t.Errorf("the entry-based split must not stand in for the ledger, it ran %d time(s)", agg.catCalls)
+	}
+}
+
+func TestGetSummaryReadsEntriesAndLedgerInParallel(t *testing.T) {
+	countStarted, chargeStarted := make(chan struct{}), make(chan struct{})
+	waitFor := func(other chan struct{}) {
+		select {
+		case <-other:
+		case <-time.After(5 * time.Second):
+		}
+	}
+	agg := &waSummaryAggStub{
+		counts:  &wce.StatusCounts{Total: 3, Sent: 3},
+		onCount: func() { close(countStarted); waitFor(chargeStarted) },
+	}
+	charges := &waChargeAggStub{
+		stats:    &balance.WhatsAppChargeStats{NetDispatches: 3, Utility: 3},
+		onCharge: func() { close(chargeStarted); waitFor(countStarted) },
+	}
+
+	started := time.Now()
+	m, err := NewGetSummaryUseCase(agg, charges).Execute(wce.WorkspaceSummaryFilter{WorkspaceID: "ws-1"})
 	if err != nil {
-		t.Fatalf("ledger error must not fail summary: %v", err)
+		t.Fatalf("Execute returned error: %v", err)
 	}
-	if m.Dispatches != 5 {
-		t.Errorf("fallback Dispatches = %d, want 5", m.Dispatches)
+	if elapsed := time.Since(started); elapsed > 4*time.Second {
+		t.Fatalf("the two reads ran one after the other (%v)", elapsed)
 	}
-	if m.ByCategory == nil || m.ByCategory.Utility != 5 {
-		t.Errorf("fallback ByCategory unexpected: %+v", m.ByCategory)
+	if m.Dispatches != 3 || m.ByCategory == nil || m.ByCategory.Utility != 3 {
+		t.Fatalf("metrics = %+v", m)
 	}
+}
+
+func TestGetSummaryMatchesTheSequentialReads(t *testing.T) {
+	counts := &wce.StatusCounts{Total: 12, Pending: 2, Sent: 6, Delivered: 2, Read: 1, Failed: 1}
+	from, to := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 10, 31, 23, 59, 59, 0, time.UTC)
+	scoped := wce.WorkspaceSummaryFilter{WorkspaceID: "ws-1", DepartmentIDs: []string{"d1"}, Type: "standard", CreatedFrom: &from, CreatedTo: &to}
+
+	cases := []struct {
+		name    string
+		filter  wce.WorkspaceSummaryFilter
+		agg     waSummaryAggStub
+		charges *waChargeAggStub
+	}{
+		{"no ledger", scoped, waSummaryAggStub{counts: counts, byCat: map[string]int64{"marketing ": 4, "UTILITY": 3, "OTHER": 9}}, nil},
+		{"no workspace", wce.WorkspaceSummaryFilter{Type: "standard"}, waSummaryAggStub{counts: counts, byCat: map[string]int64{"AUTHENTICATION": 1}}, &waChargeAggStub{stats: &balance.WhatsAppChargeStats{NetDispatches: 50}}},
+		{"blank workspace", wce.WorkspaceSummaryFilter{WorkspaceID: "  "}, waSummaryAggStub{counts: counts}, &waChargeAggStub{stats: &balance.WhatsAppChargeStats{NetDispatches: 50}}},
+		{"no charges", scoped, waSummaryAggStub{counts: counts, byCat: map[string]int64{"UTILITY": 7}}, &waChargeAggStub{}},
+		{"no charges and no categories", scoped, waSummaryAggStub{counts: counts}, &waChargeAggStub{}},
+		{"no charges and only unknown categories", scoped, waSummaryAggStub{counts: counts, byCat: map[string]int64{"SERVICE": 7}}, &waChargeAggStub{}},
+		{"no charges and a category error", scoped, waSummaryAggStub{counts: counts, catErr: errors.New("join failed")}, &waChargeAggStub{}},
+		{"zero charges", scoped, waSummaryAggStub{counts: counts, byCat: map[string]int64{"UTILITY": 7}}, &waChargeAggStub{stats: &balance.WhatsAppChargeStats{}}},
+		{"net dispatches only", scoped, waSummaryAggStub{counts: counts}, &waChargeAggStub{stats: &balance.WhatsAppChargeStats{NetDispatches: 4}}},
+		{"charged categories", scoped, waSummaryAggStub{counts: counts}, &waChargeAggStub{stats: &balance.WhatsAppChargeStats{NetDispatches: 9, Marketing: 5, Utility: 3, Authentication: 1}}},
+		{"no entries", scoped, waSummaryAggStub{}, &waChargeAggStub{stats: &balance.WhatsAppChargeStats{NetDispatches: 2, Marketing: 2}}},
+		{"entries error", scoped, waSummaryAggStub{err: errors.New("entries down")}, &waChargeAggStub{stats: &balance.WhatsAppChargeStats{NetDispatches: 2}}},
+		{"ledger error", scoped, waSummaryAggStub{counts: counts, byCat: map[string]int64{"UTILITY": 7}}, &waChargeAggStub{err: errors.New("ledger down")}},
+		{"entries and ledger errors", scoped, waSummaryAggStub{err: errors.New("entries down")}, &waChargeAggStub{err: errors.New("ledger down")}},
+		{"ledger error without a workspace", wce.WorkspaceSummaryFilter{}, waSummaryAggStub{counts: counts, byCat: map[string]int64{"UTILITY": 7}}, &waChargeAggStub{err: errors.New("ledger down")}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			wantAgg, gotAgg := tc.agg, tc.agg
+			var wantCharges, gotCharges balance.WhatsAppChargeAggregator
+			var wantStub, gotStub waChargeAggStub
+			if tc.charges != nil {
+				wantStub, gotStub = *tc.charges, *tc.charges
+				wantCharges, gotCharges = &wantStub, &gotStub
+			}
+
+			want, wantErr := sequentialSummary(&wantAgg, wantCharges, tc.filter)
+			got, gotErr := NewGetSummaryUseCase(&gotAgg, gotCharges).Execute(tc.filter)
+
+			if (wantErr == nil) != (gotErr == nil) || (wantErr != nil && wantErr.Error() != gotErr.Error()) {
+				t.Fatalf("error = %v, sequential %v", gotErr, wantErr)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("metrics = %+v (%+v), sequential %+v (%+v)", got, categoryOf(got), want, categoryOf(want))
+			}
+			sequentialReachedTheLedger := tc.agg.err == nil
+			if !reflect.DeepEqual(gotAgg.gotFilter, wantAgg.gotFilter) || (sequentialReachedTheLedger && !reflect.DeepEqual(gotStub.got, wantStub.got)) {
+				t.Fatalf("filters differ: entries %+v vs %+v, ledger %+v vs %+v", gotAgg.gotFilter, wantAgg.gotFilter, gotStub.got, wantStub.got)
+			}
+		})
+	}
+}
+
+func categoryOf(m *wc.CampaignMetrics) *wc.CategoryDispatches {
+	if m == nil {
+		return nil
+	}
+	return m.ByCategory
+}
+
+func sequentialSummary(aggregator wce.SummaryAggregator, chargeAgg balance.WhatsAppChargeAggregator, filter wce.WorkspaceSummaryFilter) (*wc.CampaignMetrics, error) {
+	counts, err := aggregator.CountByStatusForWorkspace(filter)
+	if err != nil {
+		return nil, err
+	}
+	metrics := wc.NewCampaignMetrics(counts)
+
+	if chargeAgg != nil && strings.TrimSpace(filter.WorkspaceID) != "" {
+		stats, chargeErr := chargeAgg.AggregateWhatsAppTemplateCharges(balance.WhatsAppChargeFilter{
+			WorkspaceID:   filter.WorkspaceID,
+			DepartmentIDs: filter.DepartmentIDs,
+			CampaignType:  filter.Type,
+			From:          filter.CreatedFrom,
+			To:            filter.CreatedTo,
+		})
+		if chargeErr != nil {
+			return nil, chargeErr
+		}
+		if stats != nil {
+			metrics.Dispatches = stats.NetDispatches
+			if stats.Marketing > 0 || stats.Utility > 0 || stats.Authentication > 0 || stats.NetDispatches > 0 {
+				metrics.ByCategory = &wc.CategoryDispatches{
+					Marketing:      stats.Marketing,
+					Utility:        stats.Utility,
+					Authentication: stats.Authentication,
+				}
+			}
+			return metrics, nil
+		}
+	}
+
+	byCat, err := aggregator.CountDispatchesByCategoryForWorkspace(filter)
+	if err != nil {
+		return nil, err
+	}
+	if len(byCat) == 0 {
+		return metrics, nil
+	}
+	cd := &wc.CategoryDispatches{}
+	for cat, n := range byCat {
+		switch strings.ToUpper(strings.TrimSpace(cat)) {
+		case "MARKETING":
+			cd.Marketing += n
+		case "UTILITY":
+			cd.Utility += n
+		case "AUTHENTICATION":
+			cd.Authentication += n
+		}
+	}
+	if cd.Marketing > 0 || cd.Utility > 0 || cd.Authentication > 0 {
+		metrics.ByCategory = cd
+	}
+	return metrics, nil
 }

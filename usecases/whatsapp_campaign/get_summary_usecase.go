@@ -3,6 +3,8 @@ package whatsapp_campaign_usecase
 import (
 	"strings"
 
+	"golang.org/x/sync/errgroup"
+
 	"vozko/domain/balance"
 	wc "vozko/domain/whatsapp_campaign"
 	wce "vozko/domain/whatsapp_campaign_entry"
@@ -21,36 +23,27 @@ func NewGetSummaryUseCase(
 }
 
 func (uc *getSummaryUseCase) Execute(filter wce.WorkspaceSummaryFilter) (*wc.CampaignMetrics, error) {
-	counts, err := uc.aggregator.CountByStatusForWorkspace(filter)
+	counts, stats, err := uc.readEntriesAndLedger(filter)
 	if err != nil {
 		return nil, err
 	}
 	metrics := wc.NewCampaignMetrics(counts)
 
-	if uc.chargeAgg != nil && strings.TrimSpace(filter.WorkspaceID) != "" {
-		stats, chargeErr := uc.chargeAgg.AggregateWhatsAppTemplateCharges(balance.WhatsAppChargeFilter{
-			WorkspaceID:   filter.WorkspaceID,
-			DepartmentIDs: filter.DepartmentIDs,
-			CampaignType:  filter.Type,
-			From:          filter.CreatedFrom,
-			To:            filter.CreatedTo,
-		})
-		if chargeErr == nil && stats != nil {
-			metrics.Dispatches = stats.NetDispatches
-			if stats.Marketing > 0 || stats.Utility > 0 || stats.Authentication > 0 || stats.NetDispatches > 0 {
-				metrics.ByCategory = &wc.CategoryDispatches{
-					Marketing:      stats.Marketing,
-					Utility:        stats.Utility,
-					Authentication: stats.Authentication,
-				}
+	if stats != nil {
+		metrics.Dispatches = stats.NetDispatches
+		if stats.Marketing > 0 || stats.Utility > 0 || stats.Authentication > 0 || stats.NetDispatches > 0 {
+			metrics.ByCategory = &wc.CategoryDispatches{
+				Marketing:      stats.Marketing,
+				Utility:        stats.Utility,
+				Authentication: stats.Authentication,
 			}
-			return metrics, nil
 		}
+		return metrics, nil
 	}
 
 	byCat, err := uc.aggregator.CountDispatchesByCategoryForWorkspace(filter)
 	if err != nil {
-		return metrics, nil
+		return nil, err
 	}
 	if len(byCat) == 0 {
 		return metrics, nil
@@ -71,4 +64,31 @@ func (uc *getSummaryUseCase) Execute(filter wce.WorkspaceSummaryFilter) (*wc.Cam
 		metrics.ByCategory = cd
 	}
 	return metrics, nil
+}
+
+func (uc *getSummaryUseCase) readEntriesAndLedger(filter wce.WorkspaceSummaryFilter) (*wce.StatusCounts, *balance.WhatsAppChargeStats, error) {
+	var ledger errgroup.Group
+	var stats *balance.WhatsAppChargeStats
+	if uc.chargeAgg != nil && strings.TrimSpace(filter.WorkspaceID) != "" {
+		ledger.Go(func() (err error) {
+			stats, err = uc.chargeAgg.AggregateWhatsAppTemplateCharges(balance.WhatsAppChargeFilter{
+				WorkspaceID:   filter.WorkspaceID,
+				DepartmentIDs: filter.DepartmentIDs,
+				CampaignType:  filter.Type,
+				From:          filter.CreatedFrom,
+				To:            filter.CreatedTo,
+			})
+			return err
+		})
+	}
+
+	counts, countErr := uc.aggregator.CountByStatusForWorkspace(filter)
+	ledgerErr := ledger.Wait()
+	if countErr != nil {
+		return nil, nil, countErr
+	}
+	if ledgerErr != nil {
+		return nil, nil, ledgerErr
+	}
+	return counts, stats, nil
 }

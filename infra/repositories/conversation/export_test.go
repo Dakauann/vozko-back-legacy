@@ -28,7 +28,7 @@ func ContainerWindowFilterIDs(db *gorm.DB, entryType shared.EntryType, container
 	return pageEntryIDs(db, queries)
 }
 
-func pageEntryIDs(db *gorm.DB, queries inboxQueries) ([]string, error) {
+func pageEntryIDs(db *gorm.DB, queries countedPage) ([]string, error) {
 	var rows []struct {
 		EntryID string `gorm:"column:entry_id"`
 	}
@@ -40,4 +40,24 @@ func pageEntryIDs(db *gorm.DB, queries inboxQueries) ([]string, error) {
 		ids[i] = row.EntryID
 	}
 	return ids, nil
+}
+
+func InboxDepartmentOf(db *gorm.DB, entryType shared.EntryType, workspaceID, entryID string) (string, error) {
+	for _, src := range entrySources {
+		if src.EntryType != entryType {
+			continue
+		}
+		var rows []struct {
+			DepartmentID *string `gorm:"column:department_id"`
+		}
+		query := "SELECT (" + src.department() + ")::text AS department_id FROM " + src.From + " " + src.WorkspaceJoin + " WHERE " + src.EntryID + " = ?"
+		if err := db.Raw(query, workspaceID, entryID).Scan(&rows).Error; err != nil {
+			return "", err
+		}
+		if len(rows) == 0 || rows[0].DepartmentID == nil {
+			return "", nil
+		}
+		return *rows[0].DepartmentID, nil
+	}
+	return "", nil
 }

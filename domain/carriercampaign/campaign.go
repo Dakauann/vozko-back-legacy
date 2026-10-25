@@ -7,6 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"vozko/domain/campaign/scheduledstart"
 	"vozko/domain/carriermessaging"
 	"vozko/domain/customfield"
 	"vozko/domain/selection"
@@ -54,21 +55,22 @@ func (k Kind) ObeysMarketingRules() bool {
 }
 
 type Campaign struct {
-	ID          string
-	WorkspaceID string
-	Name        string
-	SenderID    string
-	Channel     carriermessaging.Channel
-	Status      Status
-	Kind        Kind
-	Variants    []Variant
-	Fallback    Fallback
-	Audience    selection.Selection
-	ScheduledAt *time.Time
-	Recurrence  *Recurrence
-	CreatedBy   string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID              string
+	WorkspaceID     string
+	Name            string
+	SenderID        string
+	Channel         carriermessaging.Channel
+	Status          Status
+	Kind            Kind
+	Variants        []Variant
+	Fallback        Fallback
+	Audience        selection.Selection
+	ScheduledAt     *time.Time
+	Recurrence      *Recurrence
+	CreatedBy       string
+	ScheduleFailure scheduledstart.Failure
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 func (c Campaign) ABTest() bool {

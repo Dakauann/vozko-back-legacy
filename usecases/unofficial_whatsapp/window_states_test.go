@@ -31,7 +31,7 @@ func newWindowFixture(mutate func(*uw.Instance, *uw.Contact)) windowFixture {
 		&uw.Conversation{ID: "conv-2", WorkspaceID: "ws-1", InstanceID: "inst-1", ContactID: "contact-2", ChatID: other.JID},
 	)
 	return windowFixture{
-		adapter:       NewChannelAdapter(instances, newFakeServerRepo(healthyServer("srv-a", 10, 1)), contacts, conversations, &fakeMessaging{}),
+		adapter:       adapterFor(instances, newFakeServerRepo(healthyServer("srv-a", 10, 1)), contacts, conversations, &fakeMessaging{}),
 		instances:     instances,
 		contacts:      contacts,
 		conversations: conversations,

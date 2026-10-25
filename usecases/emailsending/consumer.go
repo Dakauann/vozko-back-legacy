@@ -68,6 +68,7 @@ type ConsumerDeps struct {
 
 type Consumer struct {
 	runner interface{ Start() error }
+	events *Events
 }
 
 func (m *Module) NewConsumer(d ConsumerDeps) (*Consumer, error) {
@@ -89,10 +90,15 @@ func (m *Module) NewConsumer(d ConsumerDeps) (*Consumer, error) {
 		},
 		Classify: ClassifyFailure,
 	})
-	return &Consumer{runner: runner}, nil
+	return &Consumer{runner: runner, events: events}, nil
 }
 
-func (c *Consumer) Start() error { return c.runner.Start() }
+func (c *Consumer) Start() error {
+	if err := c.events.bound(); err != nil {
+		return err
+	}
+	return c.runner.Start()
+}
 
 const setupConsumerLabel = "email-setup"
 

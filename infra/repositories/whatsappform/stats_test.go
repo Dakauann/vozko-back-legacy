@@ -16,7 +16,7 @@ import (
 func TestStatsCountsSendsResponsesAndTheMedianWithinTheScope(t *testing.T) {
 	from, to := at.Add(-72*time.Hour), at
 	restricted := whatsappform.ReadScope{Resolved: true, Restrict: true, DepartmentIDs: []string{deptID}}
-	scopeSQL := " AND wc.department_id = ANY(?::uuid[])"
+	scopeSQL := " AND " + routedFormDepartment + " = ANY(?::uuid[])"
 	dept := "{\"" + deptID + "\"}"
 	db, mock := newMockDB(t)
 

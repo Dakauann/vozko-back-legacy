@@ -9,6 +9,7 @@ import (
 
 	"vozko/domain/callrouting"
 	"vozko/domain/callsession"
+	shareddeps "vozko/domain/shared/deps"
 	callsession_usecase "vozko/usecases/callsession"
 )
 
@@ -21,6 +22,7 @@ type DispatcherDeps struct {
 	Activity   callrouting.AgentActivity
 	Members    callrouting.QueueMembers
 	Music      callrouting.HoldMusicLibrary
+	Handoff    callrouting.ConversationHandoff
 	Logger     *log.Logger
 }
 
@@ -55,11 +57,15 @@ type waitingCaller struct {
 }
 
 func NewDispatcher(deps DispatcherDeps) *Dispatcher {
+	if err := shareddeps.Require("call dispatcher", map[string]any{"conversation handoff": deps.Handoff}); err != nil {
+		panic(err.Error())
+	}
 	if deps.Logger == nil {
 		deps.Logger = log.Default()
 	}
 	return &Dispatcher{
 		deps:        deps,
+		handoff:     deps.Handoff,
 		retry:       queueRetryInterval,
 		now:         time.Now,
 		waiting:     map[string][]*waitingCaller{},

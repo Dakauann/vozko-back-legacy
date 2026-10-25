@@ -26,7 +26,7 @@ func (a *campaignMenuAdapter) InteractiveLimits() channel.InteractiveLimits {
 func TestACampaignMenuIsStoredWithTheRowsTheContactReceived(t *testing.T) {
 	adapter := &campaignMenuAdapter{campaignSendAdapter: campaignSendAdapter{entryType: shared.EntryTypeUnofficialWhatsApp}}
 	msgs := &campaignMessageRepo{}
-	svc := &MessageSenderService{messageRepo: msgs, channelAdapters: conversation.NewAdapterRegistry(adapter)}
+	svc := senderWith(&MessageSenderService{messageRepo: msgs, channelAdapters: conversation.NewAdapterRegistry(adapter)})
 
 	message, err := svc.SendCampaignMessage(SendCampaignMessageInput{
 		CampaignID: "camp-1", EntryID: "conv-1", EntryType: string(shared.EntryTypeUnofficialWhatsApp),

@@ -21,7 +21,6 @@ type Agent struct {
 	Provider           string         `gorm:"not null;size:32;default:'platform'"`
 	ExternalID         string         `gorm:"size:160"`
 	WhatsAppTemplateID *string        `gorm:"column:whatsapp_template_id;type:uuid;index"`
-	BusinessPhoneID    *string        `gorm:"type:uuid;index"`
 	RAGEnabled         bool           `gorm:"default:false"`
 	RAGConfig          *string        `gorm:"type:jsonb"`
 	IsActive           bool           `gorm:"default:true"`
@@ -32,6 +31,7 @@ type Agent struct {
 	ToolBindings       string         `gorm:"type:jsonb"`
 	MediaIDs           string         `gorm:"type:jsonb"`
 	Variables          string         `gorm:"type:jsonb"`
+	PublishedVersion   *int           `gorm:"column:published_version"`
 }
 
 func (Agent) TableName() string {

@@ -33,6 +33,7 @@ type HistorySyncDeps struct {
 	Source    uw.HistoryAPI
 	Importer  *HandleWebhookUseCase
 	Handover  *LineHandover
+	Window    time.Duration
 }
 
 type HistorySyncUseCase struct {
@@ -53,7 +54,12 @@ type HistorySyncUseCase struct {
 	spawn        func(func())
 }
 
-func NewHistorySyncUseCase(d HistorySyncDeps) *HistorySyncUseCase {
+func NewHistorySyncUseCase(d HistorySyncDeps) (*HistorySyncUseCase, error) {
+	if d.Window <= 0 {
+		return nil, ErrHistoryWindowRequired
+	}
+	policy := uw.DefaultHistorySyncPolicy()
+	policy.Window = d.Window
 	return &HistorySyncUseCase{
 		runs:         d.Runs,
 		instances:    d.Instances,
@@ -61,7 +67,7 @@ func NewHistorySyncUseCase(d HistorySyncDeps) *HistorySyncUseCase {
 		source:       d.Source,
 		importer:     d.Importer,
 		handover:     d.Handover,
-		policy:       uw.DefaultHistorySyncPolicy(),
+		policy:       policy,
 		owner:        workerIdentity(),
 		pageSize:     historyPageSize,
 		pageInterval: historyPageInterval,
@@ -69,13 +75,7 @@ func NewHistorySyncUseCase(d HistorySyncDeps) *HistorySyncUseCase {
 		now:          nowUTC,
 		sleep:        sleepCtx,
 		spawn:        func(fn func()) { go fn() },
-	}
-}
-
-func (uc *HistorySyncUseCase) SetWindow(window time.Duration) {
-	if window > 0 {
-		uc.policy.Window = window
-	}
+	}, nil
 }
 
 func (uc *HistorySyncUseCase) InstanceConnected(ctx context.Context, instance *uw.Instance) {

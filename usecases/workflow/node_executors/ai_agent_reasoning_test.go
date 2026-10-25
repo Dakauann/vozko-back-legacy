@@ -32,7 +32,7 @@ func agentThinker(efforts ...string) ai.ModelInfo {
 
 func TestTheAgentNodeSendsTheChosenReasoningLevel(t *testing.T) {
 	service := &catalogAgentAI{models: []ai.ModelInfo{agentThinker("low", "high")}}
-	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil)
+	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{})
 	state := workflow.NewRunState()
 	if _, err := executor.Execute(agentNodeContext(&state, map[string]interface{}{workflow.ConfigKeyReasoningLevel: "high"})); err != nil {
 		t.Fatal(err)
@@ -44,7 +44,7 @@ func TestTheAgentNodeSendsTheChosenReasoningLevel(t *testing.T) {
 
 func TestTheAgentNodeWithoutALevelLeavesTheModelDefault(t *testing.T) {
 	service := &catalogAgentAI{}
-	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil)
+	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{})
 	state := workflow.NewRunState()
 	if _, err := executor.Execute(agentNodeContext(&state, nil)); err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestTheAgentNodeWithoutALevelLeavesTheModelDefault(t *testing.T) {
 
 func TestTheAgentNodeRefusesALevelTheModelNoLongerOffers(t *testing.T) {
 	service := &catalogAgentAI{models: []ai.ModelInfo{agentThinker("low", "high")}}
-	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil)
+	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{})
 	config := map[string]interface{}{workflow.ConfigKeyReasoningLevel: "high"}
 	state := workflow.NewRunState()
 	if _, err := executor.Execute(agentNodeContext(&state, config)); err != nil {
@@ -76,7 +76,7 @@ func TestTheAgentNodeRefusesALevelTheModelNoLongerOffers(t *testing.T) {
 
 func TestTheAgentNodeRoutesARefusedLevelToTheErrorEdge(t *testing.T) {
 	service := &catalogAgentAI{models: []ai.ModelInfo{agentThinker("low")}}
-	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil)
+	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{})
 	state := workflow.NewRunState()
 	nctx := agentNodeContext(&state, map[string]interface{}{workflow.ConfigKeyReasoningLevel: "max"})
 	nctx.Graph = &workflow.Graph{Edges: []workflow.Edge{{Source: "ai-1", Target: "fallback", Label: "erro"}}}

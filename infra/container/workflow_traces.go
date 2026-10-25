@@ -62,5 +62,7 @@ func (c *Container) workflowTraceRetention() *workflow_usecase.TraceRetention {
 		c.aiToolCallLog(),
 		c.runtimeAlertStore(),
 		c.choiceStatsStore(),
+		c.agentRunStore(),
+		c.agentScenarioStore(),
 	)
 }

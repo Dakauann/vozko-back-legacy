@@ -15,16 +15,9 @@ type EditTemplateRequest struct {
 	ExitConfirmation string
 }
 
-func (s *Service) SetContentEditor(editor template.ContentEditor) {
-	s.editor = editor
-}
-
 func (s *Service) EditTemplate(ctx context.Context, a Actor, req EditTemplateRequest) (*template.Template, error) {
 	if err := requireActor(a); err != nil {
 		return nil, err
-	}
-	if s.editor == nil {
-		return nil, buttonaction.ErrUnavailable
 	}
 	stored, err := s.template(a.WorkspaceID, req.TemplateID)
 	if err != nil {
@@ -45,7 +38,7 @@ func (s *Service) EditTemplate(ctx context.Context, a Actor, req EditTemplateReq
 	if err := buttonaction.RequireTemplateExit(probe.Category, buttonaction.ExitVerdict(&probe, next, buttonaction.CampaignRoutes{})); err != nil {
 		return nil, err
 	}
-	edited, err := s.editor.EditContent(ctx, template.EditContentInput{WorkspaceID: a.WorkspaceID, UserID: a.UserID, TemplateID: req.TemplateID, Edit: req.Edit})
+	edited, err := s.deps.Editor.EditContent(ctx, template.EditContentInput{WorkspaceID: a.WorkspaceID, UserID: a.UserID, TemplateID: req.TemplateID, Edit: req.Edit})
 	if err != nil {
 		return nil, err
 	}

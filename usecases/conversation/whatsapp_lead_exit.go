@@ -14,12 +14,6 @@ import (
 	"vozko/domain/workflow"
 )
 
-var errLeadExitStepMissing = errors.New("whatsapp inbound: the lead exit step is not wired, the message cannot be checked for an exit")
-
-func (uc *handleWhatsAppMessageUseCase) SetLeadExitStep(step leadexit.Step) {
-	uc.exitStep = step
-}
-
 type whatsAppExitTarget struct {
 	agentCtx        *agentContext
 	leadRecord      *lead.Lead
@@ -59,9 +53,6 @@ func (uc *handleWhatsAppMessageUseCase) runLeadExit(ctx context.Context, message
 	workspaceID := t.workspaceID()
 	if message == nil || t.entryID == "" || workspaceID == "" {
 		return leadexit.Result{}, nil
-	}
-	if uc.exitStep == nil {
-		return leadexit.Result{}, errLeadExitStepMissing
 	}
 	replier := &whatsAppExitReplier{uc: uc, target: t, workspaceID: workspaceID, to: strings.TrimSpace(message.From)}
 	in := whatsAppExitInbound(message, workspaceID, t)

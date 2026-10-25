@@ -82,7 +82,7 @@ func newPersonalHub(t *testing.T) (*ConversationHub, *WSConnection, *fakePersona
 	t.Helper()
 	hub, conn := newSendHub(t, panicSendTestUseCase{})
 	marks := newFakePersonalMarks()
-	hub.SetPersonalMarks(marks)
+	hub.cmds().PersonalMarks = marks
 	return hub, conn, marks
 }
 
@@ -153,13 +153,6 @@ func TestARefusedPersonalMarkAnswersWithTheContractCode(t *testing.T) {
 			require.Equal(t, "telegram", payload.EntryType)
 		})
 	}
-}
-
-func TestPersonalMarksWithoutTheUseCaseAreUnsupported(t *testing.T) {
-	hub, conn := newSendHub(t, panicSendTestUseCase{})
-	hub.handleIncoming(&incomingMessage{conn: conn, message: &WSIncomingMessage{Type: WSEventMarkUnread, Payload: personalFrame(t, nil)}})
-	payload := decodeErrorPayload(t, awaitSendPayload(t, conn))
-	require.Equal(t, messageActionUnsupported, payload.Code)
 }
 
 func decodePersonalMark(t *testing.T, raw []byte) (WSEventType, map[string]json.RawMessage) {
@@ -247,6 +240,23 @@ type capturingInbox struct {
 	mu      sync.Mutex
 	inputs  []conversation.SearchInboxInput
 	entries []conversation.InboxEntry
+
+	stageCountCalls []stageCountCall
+	stageCounts     map[string]int64
+	stageCountErr   error
+}
+
+type stageCountCall struct {
+	userID   string
+	input    conversation.SearchInboxInput
+	stageIDs []string
+}
+
+func (c *capturingInbox) CountInboxByStages(userID string, input conversation.SearchInboxInput, stageIDs []string) (map[string]int64, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stageCountCalls = append(c.stageCountCalls, stageCountCall{userID: userID, input: input, stageIDs: stageIDs})
+	return c.stageCounts, c.stageCountErr
 }
 
 func (c *capturingInbox) last() conversation.SearchInboxInput {
@@ -295,7 +305,7 @@ func newInboxHub(t *testing.T) (*ConversationHub, *WSConnection, *fakePersonalMa
 	hub, conn, marks := newPersonalHub(t)
 	conn.ViewMode = "global"
 	inbox := &capturingInbox{entries: []conversation.InboxEntry{{EntryID: "entry-1", EntryType: "telegram"}, {EntryID: "entry-2", EntryType: "telegram"}}}
-	hub.SetInboxService(inbox)
+	hub.cmds().Inbox = inbox
 	pinnedAt := time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
 	pinned, _ := personalinbox.NewMark("user-1", chatRef)
 	pinned.PinnedAt = &pinnedAt

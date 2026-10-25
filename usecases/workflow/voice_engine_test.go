@@ -47,7 +47,7 @@ func voiceEngine(runs *MockWorkflowRunRepository) *RunEngine {
 	registry := NewNodeExecutorRegistry()
 	registry.Register(workflow.NodeTypeActionPlayAudio, node_executors.NewPlayAudioExecutor(silentAudio{}))
 	registry.Register(workflow.NodeTypeWaitDTMF, node_executors.NewWaitDTMFExecutor())
-	return NewRunEngine(runs, NewMockWorkflowRunLogRepository(), registry)
+	return testEngine(runs, NewMockWorkflowRunLogRepository(), registry)
 }
 
 func voiceRun(w *workflow.Workflow) *workflow.WorkflowRun {

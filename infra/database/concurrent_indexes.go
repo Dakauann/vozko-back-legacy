@@ -5,6 +5,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"vozko/domain/conversation"
 	"vozko/infra/database/schema"
 	"vozko/infra/database/sqlexpr"
 )
@@ -144,8 +145,39 @@ func concurrentIndexes() []ddl {
 		{
 			name: CampaignEntryLiveStatusIndex,
 			sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS ` + CampaignEntryLiveStatusIndex + `
-				ON whatsapp_campaign_entries (campaign_id, status) INCLUDE (lead_id)
+				ON whatsapp_campaign_entries (campaign_id, status) INCLUDE (lead_id, id)
 				WHERE deleted_at IS NULL`,
+		},
+		{
+			name: CampaignEntryOpenInboxIndex,
+			sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS ` + CampaignEntryOpenInboxIndex + `
+				ON whatsapp_campaign_entries (campaign_id, last_message_at DESC) INCLUDE (lead_id, conversation_status, awaiting_reply_since)
+				WHERE deleted_at IS NULL AND last_message_at IS NOT NULL
+				  AND conversation_status IS DISTINCT FROM ` + sqlexpr.Literal(string(conversation.ConversationStatusFinished)),
+		},
+		{
+			name: CampaignEntryCreatedCoverIndex,
+			sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS ` + CampaignEntryCreatedCoverIndex + `
+				ON whatsapp_campaign_entries (campaign_id, created_at) INCLUDE (id, conversation_status, last_message_at, closed_at)
+				WHERE deleted_at IS NULL`,
+		},
+		{
+			name: UnofficialConversationInboxIndex,
+			sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS ` + UnofficialConversationInboxIndex + `
+				ON unofficial_whatsapp_conversations (instance_id, last_message_at DESC) INCLUDE (contact_id, conversation_status, awaiting_reply_since)
+				WHERE deleted_at IS NULL AND last_message_at IS NOT NULL`,
+		},
+		{
+			name: MessageSenderCreatedIndex,
+			sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS ` + MessageSenderCreatedIndex + `
+				ON conversation_messages (entry_id, entry_type, sender_id, created_at)
+				WHERE deleted_at IS NULL`,
+		},
+		{
+			name: UnresolvedChargeCampaignIndex,
+			sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS ` + UnresolvedChargeCampaignIndex + `
+				ON balance_transactions (id)
+				WHERE ` + unresolvedChargeCampaignPredicate,
 		},
 		{
 			name: UnofficialCampaignEntryLiveStatusIndex,
@@ -255,9 +287,14 @@ const (
 	LeadLiveIndex                          = "idx_leads_workspace_live"
 	UnlinkedCallsByCounterpartIndex        = "idx_calls_ws_counterpart_unlinked"
 	LeadCustomFieldsIndex                  = "idx_leads_custom_fields"
-	CampaignEntryLiveStatusIndex           = "idx_wce_campaign_status_live"
+	CampaignEntryLiveStatusIndex           = "idx_wce_campaign_status_id_live"
+	CampaignEntryOpenInboxIndex            = "idx_wce_campaign_lastmsg_open"
+	CampaignEntryCreatedCoverIndex         = "idx_wce_campaign_created_cover"
 	CampaignEntryWaveIndex                 = "idx_wce_campaign_wave_status"
 	UnofficialCampaignEntryLiveStatusIndex = "idx_uwce_campaign_status_live"
+	UnofficialConversationInboxIndex       = "idx_uwc_instance_lastmsg_live"
+	MessageSenderCreatedIndex              = "idx_cm_entry_sender_created"
+	UnresolvedChargeCampaignIndex          = "idx_bt_charge_campaign_unresolved"
 )
 
 func ConcurrentIndexSQL(name string) (string, bool) {

@@ -44,6 +44,8 @@ type RabbitMQQueuePub struct {
 	boundTopics    map[string]struct{}
 }
 
+var _ messaging.BatchPublisher = (*RabbitMQQueuePub)(nil)
+
 func NewRabbitMQQueuePub(
 	pool *ConnectionPool, exchange string,
 ) messaging.MessageQueuePub {
@@ -114,39 +116,115 @@ func (q *RabbitMQQueuePub) invalidateChannelLocked() {
 	}
 }
 
-func (q *RabbitMQQueuePub) publishLocked(routingKey string, msg amqp.Publishing) error {
+const publishConfirmTimeout = 10 * time.Second
+
+const publishBatchWindow = 500
+
+type pendingConfirm interface {
+	WaitContext(ctx context.Context) (bool, error)
+}
+
+func awaitConfirms(routingKey string, pending []pendingConfirm, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	for _, confirmation := range pending {
+		confirmed, err := confirmation.WaitContext(ctx)
+		if err != nil {
+			return fmt.Errorf("publish confirm timeout for %s: %w", routingKey, err)
+		}
+		if !confirmed {
+			return fmt.Errorf("message to %s was nacked by broker", routingKey)
+		}
+	}
+	return nil
+}
+
+func persistentJSON(body []byte) amqp.Publishing {
+	return amqp.Publishing{
+		ContentType:  "application/json",
+		Body:         body,
+		DeliveryMode: amqp.Persistent,
+		Timestamp:    time.Now(),
+	}
+}
+
+func (q *RabbitMQQueuePub) sendLocked(routingKey string, msgs ...amqp.Publishing) (*amqp.Channel, []pendingConfirm, error) {
 	channel, err := q.ensureChannelLocked()
+	if err != nil {
+		return nil, nil, err
+	}
+	pending := make([]pendingConfirm, 0, len(msgs))
+	for _, msg := range msgs {
+		confirmation, err := channel.PublishWithDeferredConfirmWithContext(
+			context.Background(),
+			q.exchange,
+			routingKey,
+			false,
+			false,
+			msg,
+		)
+		if err != nil {
+			q.invalidateChannelLocked()
+			return nil, nil, fmt.Errorf("failed to publish message: %w", err)
+		}
+		pending = append(pending, confirmation)
+	}
+	return channel, pending, nil
+}
+
+func (q *RabbitMQQueuePub) publishLocked(routingKey string, msg amqp.Publishing) error {
+	_, pending, err := q.sendLocked(routingKey, msg)
 	if err != nil {
 		return err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	confirmation, err := channel.PublishWithDeferredConfirmWithContext(
-		ctx,
-		q.exchange,
-		routingKey,
-		false,
-		false,
-		msg,
-	)
-	if err != nil {
+	if err := awaitConfirms(routingKey, pending, publishConfirmTimeout); err != nil {
 		q.invalidateChannelLocked()
-		return fmt.Errorf("failed to publish message: %w", err)
+		return err
 	}
-
-	confirmed, err := confirmation.WaitContext(ctx)
-	if err != nil {
-		q.invalidateChannelLocked()
-		return fmt.Errorf("publish confirm timeout for %s: %w", routingKey, err)
-	}
-	if !confirmed {
-		q.invalidateChannelLocked()
-		return fmt.Errorf("message to %s was nacked by broker", routingKey)
-	}
-
 	return nil
+}
+
+func (q *RabbitMQQueuePub) PublishBatch(topic string, messages [][]byte) error {
+	for start := 0; start < len(messages); start += publishBatchWindow {
+		end := min(start+publishBatchWindow, len(messages))
+		if err := q.publishWindow(topic, messages[start:end]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (q *RabbitMQQueuePub) publishWindow(topic string, messages [][]byte) error {
+	channel, pending, err := q.sendWindow(topic, messages)
+	if err != nil {
+		return err
+	}
+	if err := awaitConfirms(topic, pending, publishConfirmTimeout); err != nil {
+		q.invalidateChannelIfCurrent(channel)
+		return err
+	}
+	return nil
+}
+
+func (q *RabbitMQQueuePub) sendWindow(topic string, messages [][]byte) (*amqp.Channel, []pendingConfirm, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if err := q.ensureRoutableLocked(topic); err != nil {
+		return nil, nil, err
+	}
+	msgs := make([]amqp.Publishing, 0, len(messages))
+	for _, body := range messages {
+		msgs = append(msgs, persistentJSON(body))
+	}
+	return q.sendLocked(topic, msgs...)
+}
+
+func (q *RabbitMQQueuePub) invalidateChannelIfCurrent(channel *amqp.Channel) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.channel == channel {
+		q.invalidateChannelLocked()
+	}
 }
 
 func (q *RabbitMQQueuePub) ensureDelayTopologyLocked(topic string) error {
@@ -253,12 +331,7 @@ func (q *RabbitMQQueuePub) Publish(topic string, message []byte) error {
 	if err := q.ensureRoutableLocked(topic); err != nil {
 		return err
 	}
-	return q.publishLocked(topic, amqp.Publishing{
-		ContentType:  "application/json",
-		Body:         message,
-		DeliveryMode: amqp.Persistent,
-		Timestamp:    time.Now(),
-	})
+	return q.publishLocked(topic, persistentJSON(message))
 }
 
 func (q *RabbitMQQueuePub) PublishWithDelay(topic string, message []byte, delay time.Duration) error {
@@ -274,13 +347,9 @@ func (q *RabbitMQQueuePub) PublishWithDelay(topic string, message []byte, delay 
 	if ms < 1 {
 		ms = 1
 	}
-	return q.publishLocked(delayTopic, amqp.Publishing{
-		ContentType:  "application/json",
-		Body:         message,
-		DeliveryMode: amqp.Persistent,
-		Timestamp:    time.Now(),
-		Expiration:   fmt.Sprintf("%d", ms),
-	})
+	msg := persistentJSON(message)
+	msg.Expiration = fmt.Sprintf("%d", ms)
+	return q.publishLocked(delayTopic, msg)
 }
 
 func (q *RabbitMQQueuePub) ValidateConnection() error {

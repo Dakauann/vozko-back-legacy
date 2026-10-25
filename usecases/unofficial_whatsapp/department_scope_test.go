@@ -156,7 +156,7 @@ func TestDeleteRefusesAnotherDepartmentsNumber(t *testing.T) {
 
 func TestConnectRefusesAnotherDepartmentsNumber(t *testing.T) {
 	provider := &fakeProvider{}
-	uc := NewConnectInstanceUseCase(
+	uc := connectFor(
 		newFakeInstanceRepo(&uw.Instance{
 			ID: "inst-a", WorkspaceID: "ws-1", ServerID: "srv-1", DepartmentID: deptOf("dept-a"),
 		}),

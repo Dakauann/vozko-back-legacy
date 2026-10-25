@@ -56,6 +56,16 @@ func (r *repositoryImpl) ListDepartments(workspaceID string) ([]workspace_depart
 	return r.mapWithMemberCounts(rows)
 }
 
+const hasDepartmentsSQL = "SELECT EXISTS (SELECT 1 FROM workspace_departments WHERE workspace_id = ? AND deleted_at IS NULL)"
+
+func (r *repositoryImpl) HasDepartments(workspaceID string) (bool, error) {
+	var exists bool
+	if err := r.db.Raw(hasDepartmentsSQL, workspaceID).Scan(&exists).Error; err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 func (r *repositoryImpl) ListDepartmentsByIDs(ids []string) ([]workspace_department.Department, error) {
 	if len(ids) == 0 {
 		return []workspace_department.Department{}, nil

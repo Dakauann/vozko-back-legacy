@@ -22,7 +22,7 @@ import (
 	"github.com/dop251/goja"
 
 	"vozko/domain/workflow"
-	"vozko/usecases/workflow/httptrace"
+	"vozko/usecases/httpcall/httptrace"
 )
 
 type Capabilities struct {

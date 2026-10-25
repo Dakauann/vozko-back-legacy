@@ -167,12 +167,12 @@ func routedStackWithGrace(t *testing.T, flows workflow.InboundVoiceFlows, grace 
 			ID: supportQueue, WorkspaceID: dialerWorkspace, Name: "Suporte", Strategy: callrouting.StrategyLongestIdle,
 			MemberUserIDs: []string{colleagueUser}, RingSeconds: 5, MaxWaitSeconds: 20,
 		}}
+		conversations := &conversationLedger{unreached: map[string]bool{}}
 		dispatcher := callrouting_usecase.NewDispatcher(callrouting_usecase.DispatcherDeps{
 			Sessions: s.sessions, Permission: channelAnswerers{s.grants}, Ringer: callsession_usecase.NewInboundRinger(s.broker),
 			Activity: activity, Members: callrouting_usecase.StaticMembers{}, Music: library,
+			Handoff: conversations,
 		})
-		conversations := &conversationLedger{unreached: map[string]bool{}}
-		dispatcher.SetConversationHandoff(conversations)
 		transferLog := &memoryTransferLog{outcomes: map[string]callrouting.TransferOutcome{}}
 		transfers := callrouting_usecase.NewTransferCall(callrouting_usecase.TransferDeps{
 			Calls: channels, Queues: queues, Dispatcher: dispatcher, Ringer: callsession_usecase.NewInboundRinger(s.broker),

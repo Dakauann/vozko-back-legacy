@@ -10,10 +10,6 @@ import (
 )
 
 func (c *Container) geocodingSweeper() *geocoding_usecase.Sweeper {
-	if c.cfg.GeocodingSweeperDisabled {
-		log.Printf("[geocoding] the sweeper is switched off by GEOCODING_SWEEPER_DISABLED")
-		return nil
-	}
 	if c.services.metrics == nil {
 		log.Fatalf("[geocoding] metrics must be wired before the geocoding sweeper")
 	}
@@ -34,10 +30,6 @@ func (c *Container) geocodingSweeper() *geocoding_usecase.Sweeper {
 }
 
 func (c *Container) geocodingPlatformCoverage() *geocoding_usecase.PlatformCoverage {
-	if c.redisProvider == nil {
-		log.Printf("[geocoding] no shared state: the platform address coverage view answers 503")
-		return nil
-	}
 	platform := geocoding_repository.NewPlatformReader(c.db)
 	service, err := geocoding_usecase.NewPlatformCoverage(geocoding_usecase.PlatformCoverageDeps{
 		Directory: platform,
@@ -52,10 +44,6 @@ func (c *Container) geocodingPlatformCoverage() *geocoding_usecase.PlatformCover
 }
 
 func (c *Container) geocodingDistrictRefine() *geocoding_usecase.DistrictRefine {
-	if c.redisProvider == nil {
-		log.Printf("[geocoding] no shared state: the nightly bairro refinement cannot record its runs and does not run")
-		return nil
-	}
 	runs, err := georef_repository.NewRefineRuns(c.redisProvider.SharedState())
 	if err != nil {
 		log.Fatalf("[geocoding] %v", err)

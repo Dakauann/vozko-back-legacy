@@ -13,22 +13,6 @@ func ValidToolName(name string) bool {
 	return toolNamePattern.MatchString(name)
 }
 
-func (d Definition) BindingIdentity(config map[string]interface{}) string {
-	name := strings.ToLower(strings.TrimSpace(d.Name))
-	if d.BindingKey == "" {
-		return name
-	}
-	return d.ToolNameFor(config)
-}
-
-func (d Definition) ToolNameFor(config map[string]interface{}) string {
-	if d.BindingKey == "" {
-		return d.Name
-	}
-	key, _ := config[d.BindingKey].(string)
-	return BoundToolName(d.Name, key)
-}
-
 func BoundToolName(base, bindingKey string) string {
 	key := strings.Map(func(r rune) rune {
 		switch {
@@ -45,11 +29,6 @@ func BoundToolName(base, bindingKey string) string {
 		name = name[:MaxToolNameLength]
 	}
 	return name
-}
-
-func IsBoundToolName(name, base string) bool {
-	_, ok := BoundKeyOf(name, base)
-	return ok
 }
 
 func BoundKeyOf(name, base string) (string, bool) {

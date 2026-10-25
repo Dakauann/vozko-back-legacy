@@ -31,7 +31,7 @@ func historyWithWorkflowMessages() []*conversation.Message {
 
 func TestTheOfficialHistoryLabelsWorkflowMessagesWithOneNameLookup(t *testing.T) {
 	names := &workflowNamesSpy{names: map[string]string{"workflow:wf-1": "Matrícula"}}
-	uc := &handleWhatsAppMessageUseCase{workflowNames: names}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{workflowNames: names})
 
 	history := uc.composeConversationHistory(historyWithWorkflowMessages(), "551140001234", "5511999990000")
 
@@ -54,7 +54,7 @@ func TestTheChannelReplyHistoryLabelsWorkflowMessages(t *testing.T) {
 		newestFirst[i], newestFirst[j] = newestFirst[j], newestFirst[i]
 	}
 	names := &workflowNamesSpy{names: map[string]string{"workflow:wf-1": "Matrícula"}}
-	svc := &ChannelAIReplyService{messages: stubMessageRepo{newestFirst: newestFirst}, workflowNames: names}
+	svc := channelAIDefaults(&ChannelAIReplyService{messages: stubMessageRepo{newestFirst: newestFirst}, workflowNames: names})
 
 	got, err := svc.buildPrompt(conversation.AIReplyRequest{EntryID: "conv-1", EntryType: shared.EntryTypeTelegram}, "ok")
 	if err != nil {
@@ -69,13 +69,13 @@ func TestTheChannelReplyHistoryLabelsWorkflowMessages(t *testing.T) {
 }
 
 func TestAnUnreadableWorkflowNameStillMarksTheSource(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{workflowNames: &workflowNamesSpy{err: errors.New("db down")}}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{workflowNames: &workflowNamesSpy{err: errors.New("db down")}})
 	history := uc.composeConversationHistory(historyWithWorkflowMessages(), "551140001234", "5511999990000")
 	if history[1].Content != "[fluxo] Qual o seu CPF?" {
 		t.Fatalf("content = %q", history[1].Content)
 	}
 
-	unwired := &handleWhatsAppMessageUseCase{}
+	unwired := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	if got := unwired.composeConversationHistory(historyWithWorkflowMessages(), "551140001234", "5511999990000"); got[1].Content != "[fluxo] Qual o seu CPF?" {
 		t.Fatalf("content = %q", got[1].Content)
 	}
@@ -83,7 +83,7 @@ func TestAnUnreadableWorkflowNameStillMarksTheSource(t *testing.T) {
 
 func TestAHistoryWithoutWorkflowMessagesLooksNothingUp(t *testing.T) {
 	names := &workflowNamesSpy{}
-	uc := &handleWhatsAppMessageUseCase{workflowNames: names}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{workflowNames: names})
 	uc.composeConversationHistory(historyWithWorkflowMessages()[:1], "551140001234", "5511999990000")
 	if len(names.calls) != 0 {
 		t.Fatalf("name lookups = %v", names.calls)

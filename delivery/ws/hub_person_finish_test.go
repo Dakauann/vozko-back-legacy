@@ -23,10 +23,10 @@ func (f *refusingFinish) Finish(_ context.Context, _ shared.Person, _ string, en
 
 func TestFinishingFromTheSocketGoesThroughThePersonFinishRule(t *testing.T) {
 	authorizer := &hubDepartmentTestAuthorizer{entryAccess: map[string]bool{"user-1": true}}
-	hub := NewConversationHub(authorizer, nil, nil, nil, "test-replica", "")
-	hub.statusUpdater = newMockStatusUpdater()
+	hub := testHub(ConversationHubDeps{Authorizer: authorizer})
+	hub.cmds().Status = newMockStatusUpdater()
 	finish := &refusingFinish{err: conversation.ErrStatusChangeForbidden}
-	hub.SetPersonFinish(finish)
+	hub.cmds().PersonFinish = finish
 	conn := &WSConnection{ID: "c", UserID: "user-1", WorkspaceID: "ws-1", Send: make(chan []byte, 5)}
 
 	payload, _ := json.Marshal(SetConversationStatusPayload{EntryID: "entry-1", EntryType: "telegram", Status: "finished"})

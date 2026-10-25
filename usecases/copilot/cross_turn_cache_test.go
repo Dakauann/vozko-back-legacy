@@ -38,7 +38,7 @@ func (p *pagedMessages) add(n int) {
 func TestHistoryKeepsAStablePrefixFromTheStartUntilTheNextCheckpoint(t *testing.T) {
 	messages := &pagedMessages{}
 	messages.add(45)
-	svc := NewService(agentloop.Engine{}, NewRegistry(), &fakeAccess{}, openFunds{}, &fakeThreads{thread: testThread()}, messages, nil, nil, func() string { return "a" })
+	svc := testService(Deps{Engine: agentloop.Engine{}, Registry: NewRegistry(), Access: &fakeAccess{}, Funds: openFunds{}, Threads: &fakeThreads{thread: testThread()}, Messages: messages, NewID: func() string { return "a" }})
 
 	history, err := svc.buildHistory("th", "m", true)
 	if err != nil {

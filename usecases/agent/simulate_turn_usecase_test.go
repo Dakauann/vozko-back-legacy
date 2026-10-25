@@ -345,6 +345,9 @@ func TestSimulateRoutesAndBillsUnderTheAgentsSimulationSession(t *testing.T) {
 	if aiSvc.lastInput.BillingReference != "agent_simulation:agent-1" {
 		t.Errorf("BillingReference = %q", aiSvc.lastInput.BillingReference)
 	}
+	if turn := aiSvc.lastInput.AgentTurn; turn.Source != "simulator" || turn.AgentID != "agent-1" || turn.AgentVersion != 0 {
+		t.Errorf("the simulation is recorded as a simulator run of the draft: %+v", turn)
+	}
 }
 
 func TestSimulateReportsGroundingCarriedByTheContextNote(t *testing.T) {
@@ -374,5 +377,40 @@ func TestSimulateReportsGroundingCarriedByTheContextNote(t *testing.T) {
 	messages := aiSvc.lastInput.Messages
 	if !strings.Contains(messages[len(messages)-1].Content, "TRECHO-DE-PRECO") {
 		t.Errorf("grounding missing from the context note: %+v", messages[len(messages)-1])
+	}
+}
+
+func TestAScenarioTurnCarriesItsMocksSourceAndRunID(t *testing.T) {
+	aiSvc := &simAI{output: &ai.GenerateOutput{
+		Messages: []string{"enviado"},
+		ToolCalls: []ai.ToolCall{{
+			Name:   "manage_lead_memory",
+			Result: &tools.ExecutionResult{Result: map[string]interface{}{"ok": true}, Mocked: true, Simulated: true},
+		}},
+	}}
+	repoAgent := simAgent()
+	repoAgent.InternalTools = []agent.ToolBinding{{ID: "t1", Name: "manage_lead_memory", Function: "manage_lead_memory"}}
+	uc := newSimUC(t, simAgentRepo{agent: repoAgent}, aiSvc, nil)
+
+	out, err := uc.Execute(context.Background(), agent.SimulateTurnInput{
+		WorkspaceID: "ws-1", AgentID: "agent-1", Message: "oi",
+		Scenario: true, RunID: "run-9", Mocks: map[string]tools.Mock{"t1": {Result: map[string]interface{}{"ok": true}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if aiSvc.lastInput.AgentTurn.Source != "scenario" || aiSvc.lastInput.AgentTurn.RunID != "run-9" || out.RunID != "run-9" {
+		t.Fatalf("turn %+v out run %q", aiSvc.lastInput.AgentTurn, out.RunID)
+	}
+	ctx := tools.WithInstance(aiSvc.lastCtx, &tools.InstanceRef{ID: "t1"})
+	if _, mocked := tools.MockFrom(ctx); !mocked {
+		t.Fatal("the mocks must reach the tool calls")
+	}
+	call := out.ToolCalls[0]
+	if call.ToolID != "t1" || !call.Mocked || call.Stubbed {
+		t.Fatalf("call %+v", call)
+	}
+	if output, _ := call.Output.(map[string]interface{}); output["ok"] != true {
+		t.Fatalf("output %+v", call.Output)
 	}
 }

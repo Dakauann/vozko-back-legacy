@@ -40,7 +40,7 @@ func cascadeJob(cascade *cascadeStub) (*analysisDebounceJob, *generateRecorder) 
 	subject.EnableAutoStaging = true
 	job, recorder := dealJob(subject, &dealSettingsStub{pipeline: "deals"})
 	job.toolRegistry.(registryStub).handlers[tools_usecase.ManageEntryStageToolName] = describingStageTool{}
-	job.SetQuietCascade(cascade)
+	job.cascade = cascade
 	return job, recorder
 }
 

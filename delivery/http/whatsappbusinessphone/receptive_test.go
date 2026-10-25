@@ -39,9 +39,7 @@ func receptiveRequest(method, body string) *http.Request {
 }
 
 func receptiveHandler(uc ReceptiveUseCase) *WhatsAppBusinessPhoneHandler {
-	h := &WhatsAppBusinessPhoneHandler{}
-	h.SetReceptive(uc)
-	return h
+	return &WhatsAppBusinessPhoneHandler{receptive: uc}
 }
 
 func decodeAutomation(t *testing.T, rec *httptest.ResponseRecorder) NumberAutomationResponse {
@@ -98,12 +96,13 @@ func TestNumberAutomationErrorsMapToStatuses(t *testing.T) {
 	}
 }
 
-func TestNumberAutomationRefusesWhenUnavailable(t *testing.T) {
-	rec := httptest.NewRecorder()
-	(&WhatsAppBusinessPhoneHandler{}).UpdateNumberAutomation(rec, receptiveRequest(http.MethodPut, `{"enableAnalysis":true}`))
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status %d", rec.Code)
-	}
+func TestTheBusinessPhoneHandlerRefusesMissingWorkspaceDependencies(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("a handler without workspace phones and receptive was built")
+		}
+	}()
+	NewWhatsAppBusinessPhoneHandler(WhatsAppBusinessPhoneHandlerConfig{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, WorkspaceDeps{})
 }
 
 func TestNumberAutomationRejectsAMalformedBody(t *testing.T) {

@@ -12,8 +12,6 @@ import (
 	"vozko/domain/whatsappform"
 )
 
-var errFormRepliesUnwired = errors.New("conversation: a form answer arrived but no form receiver is wired")
-
 type InboundFormReply struct {
 	WorkspaceID      string
 	BusinessPhoneID  string
@@ -38,10 +36,6 @@ type FormReplyReceiver interface {
 	ReceiveFormReply(ctx context.Context, in InboundFormReply) (ReceivedFormReply, error)
 }
 
-func (uc *handleWhatsAppMessageUseCase) SetFormReplies(r FormReplyReceiver) {
-	uc.formReplies = r
-}
-
 type formReplyTarget struct {
 	workspaceID     string
 	entryID         string
@@ -63,9 +57,6 @@ func (uc *handleWhatsAppMessageUseCase) receiveFormReply(ctx context.Context, me
 	if target.entryID == "" || target.workspaceID == "" {
 		log.Printf("[whatsapp-forms] answer %s has no conversation to land in", message.ID)
 		return nil, nil
-	}
-	if uc.formReplies == nil {
-		return nil, errFormRepliesUnwired
 	}
 	in := InboundFormReply{
 		WorkspaceID: target.workspaceID, BusinessPhoneID: target.businessPhoneID, ContactNumber: contactNumberOf(message.From),

@@ -18,10 +18,6 @@ type ReceptiveUseCase interface {
 	Update(workspaceID, phoneID string, settings wc.ReceptiveSettings) (wc.ReceptiveSettings, error)
 }
 
-func (h *WhatsAppBusinessPhoneHandler) SetReceptive(receptive ReceptiveUseCase) {
-	h.receptive = receptive
-}
-
 // @Summary		Consultar a automação do número
 // @Description	Retorna a automação de atendimento receptivo do número (agente ou fluxo, funil e análises), no mesmo formato dos outros canais. Só o workspace dono do número pode consultar e configurar; workspaces com acesso concedido recebem 403.
 // @Tags			Telefones do WhatsApp Business
@@ -32,14 +28,9 @@ func (h *WhatsAppBusinessPhoneHandler) SetReceptive(receptive ReceptiveUseCase) 
 // @Failure		403	{object}	response.ErrorResponse
 // @Failure		404	{object}	response.ErrorResponse
 // @Failure		500	{object}	response.ErrorResponse
-// @Failure		503	{object}	response.ErrorResponse
 // @Security		BearerAuth
 // @Router			/whatsapp/business-phones/{id}/automation [get]
 func (h *WhatsAppBusinessPhoneHandler) GetNumberAutomation(w http.ResponseWriter, r *http.Request) {
-	if h.receptive == nil {
-		response.WriteError(w, http.StatusServiceUnavailable, "Number automation is unavailable", nil)
-		return
-	}
 	id := mux.Vars(r)["id"]
 	settings, err := h.receptive.Get(middleware.GetWorkspaceID(r), id)
 	if err != nil {
@@ -62,14 +53,9 @@ func (h *WhatsAppBusinessPhoneHandler) GetNumberAutomation(w http.ResponseWriter
 // @Failure		403	{object}	response.ErrorResponse
 // @Failure		404	{object}	response.ErrorResponse
 // @Failure		500	{object}	response.ErrorResponse
-// @Failure		503	{object}	response.ErrorResponse
 // @Security		BearerAuth
 // @Router			/whatsapp/business-phones/{id}/automation [put]
 func (h *WhatsAppBusinessPhoneHandler) UpdateNumberAutomation(w http.ResponseWriter, r *http.Request) {
-	if h.receptive == nil {
-		response.WriteError(w, http.StatusServiceUnavailable, "Number automation is unavailable", nil)
-		return
-	}
 	var body NumberAutomationRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		response.WriteError(w, http.StatusBadRequest, "Invalid request body", nil)

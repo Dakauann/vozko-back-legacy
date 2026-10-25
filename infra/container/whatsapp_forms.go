@@ -6,6 +6,7 @@ import (
 
 	"vozko/delivery/http/whatsappformhttp"
 	"vozko/domain/copilot"
+	"vozko/domain/shared/deps"
 	"vozko/domain/whatsappform"
 	workflow_domain "vozko/domain/workflow"
 	"vozko/infra/meta"
@@ -13,6 +14,7 @@ import (
 	"vozko/infra/whatsapp/flows"
 	conversation_usecase "vozko/usecases/conversation"
 	"vozko/usecases/copilot/copilottools/formtools"
+	template_usecase "vozko/usecases/whatsapp/template"
 	whatsappform_usecase "vozko/usecases/whatsappform"
 	workflow_usecase "vozko/usecases/workflow"
 )
@@ -70,15 +72,14 @@ func (c *Container) whatsappForms() *whatsappform_usecase.Service {
 }
 
 func (c *Container) wireWhatsAppForms() {
-	inbound, ok := c.useCases.handleWhatsAppMessage.(interface {
-		SetFormReplies(conversation_usecase.FormReplyReceiver)
-	})
-	if !ok {
-		log.Fatalf("[whatsapp-forms] the official WhatsApp inbound handler cannot take form answers")
-	}
 	forms := c.whatsappForms()
-	inbound.SetFormReplies(formReplies{forms: forms})
+	if err := c.formRepliesHandle().Bind(formReplies{forms: forms}); err != nil {
+		log.Fatalf("[whatsapp-forms] %v", err)
+	}
 	c.formSenderRelay.Bind(forms)
+	if err := c.formSendsHandle().Bind(forms); err != nil {
+		log.Fatalf("[whatsapp-forms] %v", err)
+	}
 	consumer := whatsappform_usecase.NewFlowConsumer(whatsappform_usecase.FlowConsumerDeps{
 		QueueSub:    c.services.webhookQueueSub,
 		QueuePub:    c.services.webhookQueuePub,
@@ -99,16 +100,31 @@ func (c *Container) formPublications() *whatsappform_repository.PublicationStore
 	return whatsappform_repository.NewPublicationStore(c.db)
 }
 
-type lazyFormSends struct {
-	c *Container
+func (c *Container) formSendsHandle() *deps.Handle[template_usecase.FormSends] {
+	if c.formSends == nil {
+		c.formSends = deps.Tracked[template_usecase.FormSends](&c.handles, "whatsapp form sends")
+	}
+	return c.formSends
 }
 
-func (l lazyFormSends) PrepareTemplateSend(ctx context.Context, in whatsappform_usecase.TemplateSend) (whatsappform.Send, error) {
-	return l.c.whatsappForms().PrepareTemplateSend(ctx, in)
+type lateFormSends struct {
+	forms *deps.Handle[template_usecase.FormSends]
 }
 
-func (l lazyFormSends) SettleTemplateSend(ctx context.Context, token, messageID string, sendErr error) error {
-	return l.c.whatsappForms().SettleTemplateSend(ctx, token, messageID, sendErr)
+func (l lateFormSends) PrepareTemplateSend(ctx context.Context, in whatsappform_usecase.TemplateSend) (whatsappform.Send, error) {
+	forms, err := l.forms.Get()
+	if err != nil {
+		return whatsappform.Send{}, err
+	}
+	return forms.PrepareTemplateSend(ctx, in)
+}
+
+func (l lateFormSends) SettleTemplateSend(ctx context.Context, token, messageID string, sendErr error) error {
+	forms, err := l.forms.Get()
+	if err != nil {
+		return err
+	}
+	return forms.SettleTemplateSend(ctx, token, messageID, sendErr)
 }
 
 func (c *Container) wireFormWorkflows(engine *workflow_usecase.RunEngine) {

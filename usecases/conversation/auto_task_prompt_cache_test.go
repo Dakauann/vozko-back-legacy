@@ -236,12 +236,12 @@ func autoStageCampaign() *agentContext {
 func autoStageAfterReply(t *testing.T, history []*conversation.Message) ai.GenerateInput {
 	t.Helper()
 	recorder := &generateRecorder{}
-	uc := &handleWhatsAppMessageUseCase{
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{
 		aiService:    recorder,
 		toolRegistry: registryStub{handlers: map[string]toolsdomain.Handler{tools_usecase.ManageEntryStageToolName: describingStageTool{}}},
 		messageRepo:  grownTranscript{history: history},
 		spendGuard:   balance_usecase.NewSpendGuard(nil, "auto stage test"),
-	}
+	})
 	uc.maybeRunWhatsAppCampaignTools(context.Background(), autoStageCampaign(), nil, "conv-1", history)
 	if len(recorder.inputs) != 1 {
 		t.Fatalf("auto-stage calls = %d", len(recorder.inputs))

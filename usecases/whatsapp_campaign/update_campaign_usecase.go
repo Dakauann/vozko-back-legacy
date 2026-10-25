@@ -6,6 +6,8 @@ import (
 
 	"vozko/domain/buttonaction"
 	"vozko/domain/campaign"
+	"vozko/domain/campaign/launchcheck"
+	"vozko/domain/shared/deps"
 	businessphone "vozko/domain/whatsapp/business_phone"
 	"vozko/domain/whatsapp/template"
 	wc "vozko/domain/whatsapp_campaign"
@@ -23,34 +25,50 @@ type updateCampaignUseCase struct {
 	automation        campaignautomation.Rules
 	exitRisk          ExitRiskGate
 	templateGrants    TemplateGrants
+	scheduleCheck     ScheduleCheck
 }
 
-func (uc *updateCampaignUseCase) SetTemplateGrants(grants TemplateGrants) {
-	uc.templateGrants = grants
+type ScheduleCheck interface {
+	RunOn(ctx context.Context, camp *wc.Campaign) (launchcheck.Report, error)
 }
 
-func (uc *updateCampaignUseCase) SetExitRiskGate(gate ExitRiskGate) {
-	uc.exitRisk = gate
+type UpdateCampaignDeps struct {
+	Campaigns      wc.Repository
+	Entries        wce.Repository
+	Templates      template.Repository
+	Phones         businessphone.Repository
+	PhoneAccess    workspace_phone_access.Repository
+	Automation     campaignautomation.Rules
+	ExitRisk       ExitRiskGate
+	TemplateGrants TemplateGrants
+	ScheduleCheck  ScheduleCheck
 }
 
-func (uc *updateCampaignUseCase) SetAutomation(automation campaignautomation.Rules) {
-	uc.automation = automation
-}
-
-func NewUpdateCampaignUseCase(
-	campaignRepo wc.Repository,
-	entryRepo wce.Repository,
-	templateRepo template.Repository,
-	businessPhoneRepo businessphone.Repository,
-	phoneAccessRepo workspace_phone_access.Repository,
-) wc.UpdateCampaignUseCase {
-	return &updateCampaignUseCase{
-		campaignRepo:      campaignRepo,
-		entryRepo:         entryRepo,
-		templateRepo:      templateRepo,
-		businessPhoneRepo: businessPhoneRepo,
-		phoneAccessRepo:   phoneAccessRepo,
+func NewUpdateCampaignUseCase(d UpdateCampaignDeps) (wc.UpdateCampaignUseCase, error) {
+	if err := deps.Require("official campaign update", map[string]any{
+		"campaigns":       d.Campaigns,
+		"entries":         d.Entries,
+		"templates":       d.Templates,
+		"phones":          d.Phones,
+		"phone access":    d.PhoneAccess,
+		"automation":      d.Automation,
+		"exit risk gate":  d.ExitRisk,
+		"template grants": d.TemplateGrants,
+		"schedule check":  d.ScheduleCheck,
+	}); err != nil {
+		return nil, err
 	}
+	return &updateCampaignUseCase{
+		campaignRepo:      d.Campaigns,
+		entryRepo:         d.Entries,
+		templateRepo:      d.Templates,
+		businessPhoneRepo: d.Phones,
+		phoneAccessRepo:   d.PhoneAccess,
+		automation:        d.Automation,
+		exitRisk:          d.ExitRisk,
+		templateGrants:    d.TemplateGrants,
+		scheduleCheck:     d.ScheduleCheck,
+	}, nil
 }
 
 func (uc *updateCampaignUseCase) Execute(ctx context.Context, campaignID string, input *wc.Campaign) (*wc.Campaign, error) {
@@ -113,6 +131,9 @@ func (uc *updateCampaignUseCase) Execute(ctx context.Context, campaignID string,
 	if err != nil {
 		return nil, err
 	}
+	if err := uc.admitSchedule(ctx, existing, input); err != nil {
+		return nil, err
+	}
 
 	if err := uc.campaignRepo.Update(campaignID, existing); err != nil {
 		return nil, err
@@ -128,11 +149,8 @@ func (uc *updateCampaignUseCase) Execute(ctx context.Context, campaignID string,
 		return nil, err
 	}
 
-	if uc.entryRepo != nil {
-		counts, err := uc.entryRepo.CountByStatus(campaignID)
-		if err == nil {
-			saved.Metrics = wc.NewCampaignMetrics(counts)
-		}
+	if counts, err := uc.entryRepo.CountByStatus(campaignID); err == nil {
+		saved.Metrics = wc.NewCampaignMetrics(counts)
 	}
 
 	return saved, nil
@@ -153,6 +171,24 @@ func (uc *updateCampaignUseCase) SetArchived(_ context.Context, campaignID strin
 	return uc.campaignRepo.Update(campaignID, existing)
 }
 
+func (uc *updateCampaignUseCase) admitSchedule(ctx context.Context, edited, input *wc.Campaign) error {
+	if edited.ScheduledStart.IsZero() {
+		return edited.AdmitSchedule(launchcheck.Report{}, "", "")
+	}
+	if err := campaign.RefuseSelectionSchedule(edited.Source, true); err != nil {
+		return err
+	}
+	report, err := uc.scheduleCheck.RunOn(ctx, edited)
+	if err != nil {
+		return err
+	}
+	confirmed := input.ScheduleConfirmedFingerprint
+	if confirmed == "" {
+		confirmed = edited.ScheduleConfirmedFingerprint
+	}
+	return edited.AdmitSchedule(report, confirmed, input.ScheduledBy)
+}
+
 type sendingChange struct {
 	template bool
 	phone    bool
@@ -169,9 +205,6 @@ func (uc *updateCampaignUseCase) admitSendingChange(ctx context.Context, edited 
 	businessPhone, err := uc.sendingPhone(edited, change.phone)
 	if err != nil {
 		return nil, err
-	}
-	if uc.templateRepo == nil {
-		return nil, wc.ErrCampaignTemplateNotFound
 	}
 	if change.template && !uc.granted(edited.WorkspaceID, edited.TemplateID) {
 		return nil, wc.ErrCampaignTemplateNotFound
@@ -199,7 +232,7 @@ func (uc *updateCampaignUseCase) admitSendingChange(ctx context.Context, edited 
 }
 
 func (uc *updateCampaignUseCase) sendingPhone(edited *wc.Campaign, changed bool) (*businessphone.WhatsAppBusinessPhoneNumber, error) {
-	if uc.businessPhoneRepo == nil || edited.BusinessPhoneID == "" {
+	if edited.BusinessPhoneID == "" {
 		return nil, nil
 	}
 	businessPhone, err := uc.businessPhoneRepo.FindByID(edited.BusinessPhoneID)
@@ -223,9 +256,6 @@ func (uc *updateCampaignUseCase) sendingPhone(edited *wc.Campaign, changed bool)
 }
 
 func (uc *updateCampaignUseCase) storedAutomationEntries(campaignID string) campaignautomation.StoredEntries {
-	if uc.entryRepo == nil {
-		return nil
-	}
 	return func(visit func(campaign.EntryMetadata) error) error {
 		return uc.entryRepo.EachStored(campaignID, func(entry wce.StoredEntry) error {
 			return visit(entry.AutomationMetadata())
@@ -237,9 +267,6 @@ func (uc *updateCampaignUseCase) requireFillableTemplate(campaignID string, requ
 	if requiredParams == 0 {
 		return nil
 	}
-	if uc.entryRepo == nil {
-		return fmt.Errorf("campaign %s: the saved entries cannot be read to check the new template", campaignID)
-	}
 	return uc.entryRepo.EachStored(campaignID, func(entry wce.StoredEntry) error {
 		if !entry.AwaitsSending() {
 			return nil
@@ -249,9 +276,6 @@ func (uc *updateCampaignUseCase) requireFillableTemplate(campaignID string, requ
 }
 
 func (uc *updateCampaignUseCase) admitTemplate(ctx context.Context, workspaceID string, tmpl *template.Template, acknowledgedBy string) (*buttonaction.CampaignAdmission, error) {
-	if uc.exitRisk == nil {
-		return nil, buttonaction.ErrUnavailable
-	}
 	admission, err := uc.exitRisk.AdmitCampaign(ctx, workspaceID, tmpl, acknowledgedBy)
 	if err != nil {
 		return nil, err
@@ -260,9 +284,6 @@ func (uc *updateCampaignUseCase) admitTemplate(ctx context.Context, workspaceID 
 }
 
 func (uc *updateCampaignUseCase) granted(workspaceID, templateID string) bool {
-	if uc.templateGrants == nil {
-		return false
-	}
 	granted, err := uc.templateGrants.HasAccess(workspaceID, templateID)
 	return err == nil && granted
 }

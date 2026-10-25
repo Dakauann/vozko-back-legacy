@@ -72,7 +72,7 @@ func (c *Container) initRouter() {
 		c.handlers.issue,
 		c.handlers.workflow,
 		c.handlers.workflowWebhook,
-		c.handlers.workflowSecret,
+		c.handlers.workspaceSecret,
 		c.handlers.workflowAlert,
 		c.handlers.wsWorkflowSimulator,
 		c.handlers.wsWorkflowAIBuilder,
@@ -131,6 +131,7 @@ func (c *Container) initRouter() {
 		c.choiceStatsHandler(),
 		c.workflowRunExportHandler(),
 		campaignDraftRoutes(c),
+		agentRoutes(c),
 	)
 
 }

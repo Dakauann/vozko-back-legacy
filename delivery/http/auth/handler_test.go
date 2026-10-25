@@ -103,7 +103,7 @@ func newTestHandler() *AuthHandler {
 		&stubResetPassword{},
 		&stubSendEmailVerification{},
 		&stubVerifyEmail{},
-		nil, nil, nil, nil, nil)
+		nil, nil, nil, nil, nil, CookieConfig{})
 
 }
 
@@ -181,7 +181,7 @@ func TestLogin_InvalidBody(t *testing.T) {
 
 func TestLogin_InvalidCredentials(t *testing.T) {
 	h := NewAuthHandler(
-		&stubCredentialsLogin{err: authdomain.ErrInvalidCredentials}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubCredentialsLogin{err: authdomain.ErrInvalidCredentials}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Login, "/auth/login", map[string]string{
 		"email":    "user@test.com",
@@ -195,7 +195,7 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 
 func TestLogin_InternalError(t *testing.T) {
 	h := NewAuthHandler(
-		&stubCredentialsLogin{err: errors.New("db error")}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubCredentialsLogin{err: errors.New("db error")}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Login, "/auth/login", map[string]string{
 		"email":    "user@test.com",
@@ -241,7 +241,7 @@ func TestRefreshToken_InvalidBody(t *testing.T) {
 func TestRefreshToken_Invalid(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil,
-		&stubRefreshToken{err: authdomain.ErrInvalidCredentials}, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRefreshToken{err: authdomain.ErrInvalidCredentials}, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.RefreshToken, "/auth/refresh", map[string]string{
 		"refreshToken": "bad-rt",
@@ -255,7 +255,7 @@ func TestRefreshToken_Invalid(t *testing.T) {
 func TestRefreshToken_InternalError(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil,
-		&stubRefreshToken{err: errors.New("db error")}, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRefreshToken{err: errors.New("db error")}, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.RefreshToken, "/auth/refresh", map[string]string{
 		"refreshToken": "rt",
@@ -352,7 +352,7 @@ func TestResetPassword_InvalidToken(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil, nil, nil,
 		&stubResetPassword{err: authdomain.ErrInvalidResetToken},
-		nil, nil, nil, nil, nil, nil, nil)
+		nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.ResetPassword, "/auth/reset-password", map[string]string{
 		"token":       "bad",
@@ -368,7 +368,7 @@ func TestResetPassword_UsedToken(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil, nil, nil,
 		&stubResetPassword{err: authdomain.ErrResetTokenUsed},
-		nil, nil, nil, nil, nil, nil, nil)
+		nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.ResetPassword, "/auth/reset-password", map[string]string{
 		"token":       "used",
@@ -384,7 +384,7 @@ func TestResetPassword_WeakPassword(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil, nil, nil,
 		&stubResetPassword{err: authdomain.ErrWeakPassword},
-		nil, nil, nil, nil, nil, nil, nil)
+		nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.ResetPassword, "/auth/reset-password", map[string]string{
 		"token":       "123456",
@@ -400,7 +400,7 @@ func TestResetPassword_InternalError(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil, nil, nil,
 		&stubResetPassword{err: errors.New("db error")},
-		nil, nil, nil, nil, nil, nil, nil)
+		nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.ResetPassword, "/auth/reset-password", map[string]string{
 		"token":       "123456",
@@ -446,7 +446,7 @@ func TestSendEmailVerification_InvalidBody(t *testing.T) {
 func TestSendEmailVerification_RateLimit(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil, nil, nil, nil,
-		&stubSendEmailVerification{err: authdomain.ErrEmailVerificationRateExceeded}, nil, nil, nil, nil, nil, nil)
+		&stubSendEmailVerification{err: authdomain.ErrEmailVerificationRateExceeded}, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.SendEmailVerification, "/auth/send-email-verification", map[string]string{
 		"email": "user@test.com",
@@ -460,7 +460,7 @@ func TestSendEmailVerification_RateLimit(t *testing.T) {
 func TestSendEmailVerification_InternalError(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil, nil, nil, nil,
-		&stubSendEmailVerification{err: errors.New("redis error")}, nil, nil, nil, nil, nil, nil)
+		&stubSendEmailVerification{err: errors.New("redis error")}, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.SendEmailVerification, "/auth/send-email-verification", map[string]string{
 		"email": "user@test.com",
@@ -505,7 +505,7 @@ func TestVerifyEmail_InvalidBody(t *testing.T) {
 func TestVerifyEmail_InvalidToken(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil, nil, nil, nil, nil,
-		&stubVerifyEmail{err: authdomain.ErrInvalidVerificationToken}, nil, nil, nil, nil, nil)
+		&stubVerifyEmail{err: authdomain.ErrInvalidVerificationToken}, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.VerifyEmail, "/auth/verify-email", map[string]string{
 		"token": "bad",
@@ -519,7 +519,7 @@ func TestVerifyEmail_InvalidToken(t *testing.T) {
 func TestVerifyEmail_UsedToken(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil, nil, nil, nil, nil,
-		&stubVerifyEmail{err: authdomain.ErrVerificationTokenUsed}, nil, nil, nil, nil, nil)
+		&stubVerifyEmail{err: authdomain.ErrVerificationTokenUsed}, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.VerifyEmail, "/auth/verify-email", map[string]string{
 		"token": "used",
@@ -533,7 +533,7 @@ func TestVerifyEmail_UsedToken(t *testing.T) {
 func TestVerifyEmail_InternalError(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil, nil, nil, nil, nil,
-		&stubVerifyEmail{err: errors.New("db error")}, nil, nil, nil, nil, nil)
+		&stubVerifyEmail{err: errors.New("db error")}, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.VerifyEmail, "/auth/verify-email", map[string]string{
 		"token": "123456",
@@ -680,7 +680,7 @@ func TestRegister_CompanyMissingCNPJ(t *testing.T) {
 func TestRegister_EmailAlreadyExists(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrEmailAlreadyExists}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrEmailAlreadyExists}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Test",
@@ -699,7 +699,7 @@ func TestRegister_EmailAlreadyExists(t *testing.T) {
 func TestRegister_InvalidVerificationToken(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrInvalidVerificationToken}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrInvalidVerificationToken}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Test",
@@ -718,7 +718,7 @@ func TestRegister_InvalidVerificationToken(t *testing.T) {
 func TestRegister_DocumentAlreadyExists(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrDocumentAlreadyExists}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrDocumentAlreadyExists}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Test",
@@ -804,7 +804,7 @@ func TestAdminRegister_NameTooShort(t *testing.T) {
 func TestAdminRegister_EmailAlreadyExists(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil,
-		&stubAdminRegister{err: authdomain.ErrEmailAlreadyExists}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubAdminRegister{err: authdomain.ErrEmailAlreadyExists}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.AdminRegister, "/admin/users/register", map[string]string{
 		"name":         "Admin",
@@ -822,7 +822,7 @@ func TestAdminRegister_EmailAlreadyExists(t *testing.T) {
 func TestRegister_VerificationTokenUsed(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrVerificationTokenUsed}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrVerificationTokenUsed}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Test",
@@ -841,7 +841,7 @@ func TestRegister_VerificationTokenUsed(t *testing.T) {
 func TestRegister_MissingVerificationTokenError(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrMissingVerificationToken}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrMissingVerificationToken}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Test",
@@ -860,7 +860,7 @@ func TestRegister_MissingVerificationTokenError(t *testing.T) {
 func TestRegister_InvalidCustomerTypeError(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrInvalidCustomerType}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrInvalidCustomerType}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Test",
@@ -879,7 +879,7 @@ func TestRegister_InvalidCustomerTypeError(t *testing.T) {
 func TestRegister_MissingCustomerDocumentError(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrMissingCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrMissingCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Test",
@@ -898,7 +898,7 @@ func TestRegister_MissingCustomerDocumentError(t *testing.T) {
 func TestRegister_InvalidCustomerDocumentError(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrInvalidCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrInvalidCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Test",
@@ -917,7 +917,7 @@ func TestRegister_InvalidCustomerDocumentError(t *testing.T) {
 func TestRegister_InvalidCustomerDocumentError_Company(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrInvalidCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrInvalidCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Company",
@@ -936,7 +936,7 @@ func TestRegister_InvalidCustomerDocumentError_Company(t *testing.T) {
 func TestRegister_MissingCustomerDocumentError_Company(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrMissingCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrMissingCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Company",
@@ -955,7 +955,7 @@ func TestRegister_MissingCustomerDocumentError_Company(t *testing.T) {
 func TestRegister_InternalError(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: errors.New("db error")}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: errors.New("db error")}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Test",
@@ -1114,7 +1114,7 @@ func TestAdminRegister_NameTooLong(t *testing.T) {
 func TestAdminRegister_InvalidCustomerTypeError(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil,
-		&stubAdminRegister{err: authdomain.ErrInvalidCustomerType}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubAdminRegister{err: authdomain.ErrInvalidCustomerType}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.AdminRegister, "/admin/users/register", map[string]string{
 		"name":         "Admin",
@@ -1132,7 +1132,7 @@ func TestAdminRegister_InvalidCustomerTypeError(t *testing.T) {
 func TestAdminRegister_MissingDocumentError(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil,
-		&stubAdminRegister{err: authdomain.ErrMissingCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubAdminRegister{err: authdomain.ErrMissingCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.AdminRegister, "/admin/users/register", map[string]string{
 		"name":         "Admin",
@@ -1150,7 +1150,7 @@ func TestAdminRegister_MissingDocumentError(t *testing.T) {
 func TestAdminRegister_InvalidDocumentError(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil,
-		&stubAdminRegister{err: authdomain.ErrInvalidCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubAdminRegister{err: authdomain.ErrInvalidCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.AdminRegister, "/admin/users/register", map[string]string{
 		"name":         "Admin",
@@ -1168,7 +1168,7 @@ func TestAdminRegister_InvalidDocumentError(t *testing.T) {
 func TestAdminRegister_InvalidDocumentError_Company(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil,
-		&stubAdminRegister{err: authdomain.ErrInvalidCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubAdminRegister{err: authdomain.ErrInvalidCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.AdminRegister, "/admin/users/register", map[string]string{
 		"name":         "Company",
@@ -1186,7 +1186,7 @@ func TestAdminRegister_InvalidDocumentError_Company(t *testing.T) {
 func TestAdminRegister_MissingDocumentError_Company(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil,
-		&stubAdminRegister{err: authdomain.ErrMissingCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubAdminRegister{err: authdomain.ErrMissingCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.AdminRegister, "/admin/users/register", map[string]string{
 		"name":         "Company",
@@ -1204,7 +1204,7 @@ func TestAdminRegister_MissingDocumentError_Company(t *testing.T) {
 func TestAdminRegister_InternalError(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil,
-		&stubAdminRegister{err: errors.New("db error")}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubAdminRegister{err: errors.New("db error")}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.AdminRegister, "/admin/users/register", map[string]string{
 		"name":         "Admin",
@@ -1262,7 +1262,7 @@ func decodeErrorCode(t *testing.T, body []byte) string {
 func TestLogin_InvalidCredentialsEmitsCode(t *testing.T) {
 	h := NewAuthHandler(
 		&stubCredentialsLogin{err: authdomain.ErrInvalidCredentials},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Login, "/auth/login", map[string]string{
 		"email":    "u@t.com",
@@ -1280,7 +1280,7 @@ func TestLogin_InvalidCredentialsEmitsCode(t *testing.T) {
 func TestLogin_InternalErrorEmitsCode(t *testing.T) {
 	h := NewAuthHandler(
 		&stubCredentialsLogin{err: errors.New("db down")},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Login, "/auth/login", map[string]string{
 		"email":    "u@t.com",
@@ -1298,7 +1298,7 @@ func TestLogin_InternalErrorEmitsCode(t *testing.T) {
 func TestRegister_EmailExistsEmitsCode(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrEmailAlreadyExists}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrEmailAlreadyExists}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Test",
@@ -1320,7 +1320,7 @@ func TestRegister_EmailExistsEmitsCode(t *testing.T) {
 func TestRegister_InvalidVerificationTokenEmitsCode(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrInvalidVerificationToken}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrInvalidVerificationToken}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Test",
@@ -1342,7 +1342,7 @@ func TestRegister_InvalidVerificationTokenEmitsCode(t *testing.T) {
 func TestRegister_VerificationTokenUsedEmitsCode(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrVerificationTokenUsed}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrVerificationTokenUsed}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Test",
@@ -1361,7 +1361,7 @@ func TestRegister_VerificationTokenUsedEmitsCode(t *testing.T) {
 func TestRegister_InvalidDocumentEmitsCode(t *testing.T) {
 	h := NewAuthHandler(
 		nil,
-		&stubRegister{err: authdomain.ErrInvalidCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		&stubRegister{err: authdomain.ErrInvalidCustomerDocument}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.Register, "/auth/register", map[string]string{
 		"name":              "Test",
@@ -1383,7 +1383,7 @@ func TestRegister_InvalidDocumentEmitsCode(t *testing.T) {
 func TestSendEmailVerification_RateLimitEmitsCode(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil, nil, nil, nil,
-		&stubSendEmailVerification{err: authdomain.ErrEmailVerificationRateExceeded}, nil, nil, nil, nil, nil, nil)
+		&stubSendEmailVerification{err: authdomain.ErrEmailVerificationRateExceeded}, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.SendEmailVerification, "/auth/send-email-verification", map[string]string{
 		"email": "user@test.com",
@@ -1400,7 +1400,7 @@ func TestSendEmailVerification_RateLimitEmitsCode(t *testing.T) {
 func TestSendEmailVerification_DeliveryFailureEmitsCode(t *testing.T) {
 	h := NewAuthHandler(
 		nil, nil, nil, nil, nil, nil,
-		&stubSendEmailVerification{err: errors.New("smtp down")}, nil, nil, nil, nil, nil, nil)
+		&stubSendEmailVerification{err: errors.New("smtp down")}, nil, nil, nil, nil, nil, nil, CookieConfig{})
 
 	rr := postJSON(h.SendEmailVerification, "/auth/send-email-verification", map[string]string{
 		"email": "user@test.com",

@@ -70,7 +70,7 @@ func groupRow(entryID, contactID, account, from string, kind conversation.Sender
 }
 
 func groupInboxService(directory *groupDirectory) *HistoryProviderService {
-	svc := &HistoryProviderService{}
+	svc := historyWith(HistoryProviderService{})
 	svc.SetContactIdentityLookup(shared.EntryTypeUnofficialWhatsApp, directory)
 	return svc
 }

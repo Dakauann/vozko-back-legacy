@@ -60,9 +60,8 @@ func (stubStageProvider) GetEntryStage(string, string, string) (*conversation.In
 }
 
 func hubWithConnections(auth conversation.ConversationAuthorizer, workspaceID string, n int) *ConversationHub {
-	hub := NewConversationHub(auth, nil, nil, &eligibilityFakeSharedState{}, "test-replica", "")
-	hub.SetWSMetrics(noopWSMetricsRecorder{})
-	hub.SetStageProvider(stubStageProvider{})
+	hub := testHub(ConversationHubDeps{Authorizer: auth, SharedState: &eligibilityFakeSharedState{}})
+	hub.stageProvider = stubStageProvider{}
 	for i := 0; i < n; i++ {
 		id := fmt.Sprintf("conn-%d", i)
 		user := fmt.Sprintf("user-%d", i)
@@ -111,11 +110,18 @@ func TestBroadcast_ResolvesOncePerDistinctWorkspace(t *testing.T) {
 		hub.userConnections[user] = map[string]bool{id: true}
 	}
 
+	admin := &WSConnection{
+		ID: "other-admin", UserID: "other-admin", WorkspaceID: "ws-2", IsAdmin: true,
+		Send: make(chan []byte, 8), Done: make(chan struct{}),
+	}
+	hub.connections[admin.ID] = admin
+	hub.userConnections[admin.UserID] = map[string]bool{admin.ID: true}
+
 	hub.broadcastStageUpdateLocal("ws-1", "entry-1", "whatsapp")
 
 	resolves, _ := auth.counts()
 	if resolves != 2 {
-		t.Fatalf("two workspaces are connected, so exactly two resolutions are expected, got %d", resolves)
+		t.Fatalf("two workspaces have a connection that must be checked, so exactly two resolutions are expected, got %d", resolves)
 	}
 }
 

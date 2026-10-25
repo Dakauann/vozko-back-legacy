@@ -82,7 +82,7 @@ func newAutoHarness(t *testing.T, src CampaignAutomationSource) *autoHarness {
 		ai:        &recordingAI{},
 		convs:     newFakeConversationRepo(),
 	}
-	h.uc = NewHandleWebhookUseCase(HandleWebhookDeps{
+	h.uc = webhookFor(HandleWebhookDeps{
 		Instances:     newFakeInstanceRepo(instance),
 		Servers:       newFakeServerRepo(&uw.Server{ID: "srv-1", BaseURL: "https://host.test"}),
 		Contacts:      newFakeContactRepo(),
@@ -97,7 +97,7 @@ func newAutoHarness(t *testing.T, src CampaignAutomationSource) *autoHarness {
 		AIReply:       h.ai,
 	})
 	if src != nil {
-		h.uc.SetCampaignAutomationSource(src)
+		h.uc.campaignAutomation = src
 	}
 	return h
 }

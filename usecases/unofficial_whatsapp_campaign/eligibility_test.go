@@ -103,14 +103,6 @@ func TestCreateWritesNothingWhenEligibilityIsUnknown(t *testing.T) {
 		t.Fatalf("campaigns %d entries %d, want nothing written", campaigns.count(), entries.count())
 	}
 
-	bare := NewCreateCampaignUseCase(campaigns, entries, newFakeLeadRepo(), &fakeGateway{instance: &uw.Instance{ID: "inst-1", WorkspaceID: "ws-1", Status: uw.StatusConnected}}, nil, fakeDepartments{id: "dept-1"})
-	bare.(*createCampaignUseCase).SetAutomation(automationThatAllows{})
-	if _, err := bare.Execute(context.Background(), draft(), uw.Unrestricted()); !errors.Is(err, campaignguard.ErrUnavailable) {
-		t.Fatalf("no eligibility check: err = %v, want ErrUnavailable", err)
-	}
-	if campaigns.count() != 0 || entries.count() != 0 {
-		t.Fatal("nothing may be written without the eligibility check")
-	}
 }
 
 func (f *fakeCampaignRepo) count() int {

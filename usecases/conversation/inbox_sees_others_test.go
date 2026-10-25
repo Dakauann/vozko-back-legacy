@@ -37,7 +37,7 @@ func TestTheInboxShowsOthersConversationsOnlyToWhoMaySeeThem(t *testing.T) {
 			authorizer := &seesOthersAuthorizer{inboxServiceTestAuthorizer: inboxServiceTestAuthorizer{
 				canAccessCampaign: true, departmentScopeOkay: true, ownerOrAdmin: tc.ownerOrAdmin, viewOthers: tc.viewOthers,
 			}}
-			service := NewInboxService(history, nil, nil, &inboxServiceTestResolver{}, nil, authorizer, nil, nil)
+			service := NewInboxService(history, nil, nil, &inboxServiceTestResolver{}, nil, authorizer, nil, nil, inboxSources())
 
 			if _, _, err := service.SearchInbox("user-1", conversation.SearchInboxInput{
 				WorkspaceID: tc.workspaceID, AssignedUserID: "user-1", IsAdmin: tc.admin, Page: 1, PageSize: 20,

@@ -2,7 +2,6 @@ package crmbulk_usecase
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"testing"
 
@@ -78,8 +77,7 @@ func newConversationFixture() conversationFixture {
 			"conversations:read": true,
 		}},
 	}
-	f.svc = NewService(&mockStageAssigner{}, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{}, f.authz, f.bc)
-	f.svc.SetConversationActions(ConversationActions{Finish: f.finish, Read: f.read, Personal: f.personal})
+	f.svc = newTestService(Deps{Stages: &mockStageAssigner{}, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: f.authz, Broadcaster: f.bc, Conversations: ConversationActions{Finish: f.finish, Read: f.read, Personal: f.personal}})
 	return f
 }
 
@@ -153,16 +151,5 @@ func TestBulkConversationActionsSkipEntriesOutsideTheActorsScope(t *testing.T) {
 	}
 	if len(f.finish.calls) != 1 {
 		t.Fatalf("an entry outside the scope must not reach the finisher: %+v", f.finish.calls)
-	}
-}
-
-func TestBulkConversationActionsRefuseWhenNotWired(t *testing.T) {
-	svc := NewService(&mockStageAssigner{}, &mockLabelAssigner{}, &mockLabelRemover{}, &mockEntryAssigner{},
-		&mockAuthorizer{allowPerm: map[string]bool{"conversations:send": true, "conversations:read": true}}, &mockBroadcaster{})
-	for _, action := range []string{ActionClose, ActionMarkRead} {
-		res := run(svc, BulkInput{WorkspaceID: "ws-1", ActorID: "a", Action: action, Selection: byIDs, Targets: targets("e1")})
-		if !errors.Is(res.err, ErrActionUnavailable) {
-			t.Errorf("%s err = %v, want ErrActionUnavailable", action, res.err)
-		}
 	}
 }

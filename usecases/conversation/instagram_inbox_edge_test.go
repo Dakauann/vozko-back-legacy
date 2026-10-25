@@ -13,8 +13,8 @@ import (
 
 func TestHydrateInstagramSenders_WhatsAppOnlyWorkspaceUntouched(t *testing.T) {
 	fake := igContactsFixture()
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(fake)
+	svc := historyWith(HistoryProviderService{})
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, fake)
 
 	before := []conversation.InboxEntry{
 		{EntryID: "wa-1", EntryType: "whatsapp", LeadID: "lead-1", LeadName: "Ana", LeadNumber: "+5511111111111", LeadPicture: "p1", LastMessageSender: "Ana"},
@@ -46,8 +46,8 @@ func TestHydrateInstagramSenders_WhatsAppOnlyWorkspaceUntouched(t *testing.T) {
 }
 
 func TestHydrateInstagramSenders_EntryTypeIsTheDiscriminator(t *testing.T) {
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(igContactsFixture())
+	svc := historyWith(HistoryProviderService{})
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, igContactsFixture())
 
 	entries := []conversation.InboxEntry{
 		{EntryID: "wa-1", EntryType: "whatsapp", LeadID: "contact-1", LeadName: "Real Lead", LeadNumber: "+5511999999999"},
@@ -60,8 +60,8 @@ func TestHydrateInstagramSenders_EntryTypeIsTheDiscriminator(t *testing.T) {
 }
 
 func TestHydrateInstagramSenders_MixedChannelPage(t *testing.T) {
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(igContactsFixture())
+	svc := historyWith(HistoryProviderService{})
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, igContactsFixture())
 
 	entries := []conversation.InboxEntry{
 		{EntryID: "wa-1", EntryType: "whatsapp", LeadID: "lead-1", LeadName: "Ana", LeadNumber: "+5511111111111"},
@@ -80,14 +80,14 @@ func TestHydrateInstagramSenders_MixedChannelPage(t *testing.T) {
 }
 
 func TestHydrateInstagramSenders_EdgeCaseInputs(t *testing.T) {
-	(&HistoryProviderService{}).hydrateContactSenders(nil)
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(igContactsFixture())
+	(historyWith(HistoryProviderService{})).hydrateContactSenders(nil)
+	svc := historyWith(HistoryProviderService{})
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, igContactsFixture())
 	svc.hydrateContactSenders([]conversation.InboxEntry{})
 
 	fake := igContactsFixture()
-	svc2 := &HistoryProviderService{}
-	svc2.SetInstagramContacts(fake)
+	svc2 := historyWith(HistoryProviderService{})
+	svc2.SetContactIdentityLookup(shared.EntryTypeInstagram, fake)
 	entries := []conversation.InboxEntry{{EntryID: "ig-1", EntryType: "instagram", LeadID: ""}}
 	svc2.hydrateContactSenders(entries)
 	if fake.calls != 0 {
@@ -102,8 +102,8 @@ func TestHydrateInstagramSenders_EdgeCaseInputs(t *testing.T) {
 }
 
 func TestHydrateInstagramSenders_PreservesExistingSenderLabel(t *testing.T) {
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(igContactsFixture())
+	svc := historyWith(HistoryProviderService{})
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, igContactsFixture())
 
 	entries := []conversation.InboxEntry{{
 		EntryID:                 "ig-1",
@@ -163,12 +163,12 @@ func TestInstagramDisplayNames_LongValuesPassThrough(t *testing.T) {
 
 func TestAdapterFor_InstagramAdapterNeverServesOtherChannels(t *testing.T) {
 	expires := time.Now().Add(6 * time.Hour)
-	svc := &HistoryProviderService{}
-	svc.SetChannelAdapters(conversation.NewAdapterRegistry(&fakeWindowAdapter{
+	svc := historyWith(HistoryProviderService{})
+	svc.channelAdapters = conversation.NewAdapterRegistry(&fakeWindowAdapter{
 		entryType: shared.EntryTypeInstagram,
 		open:      true,
 		expiresAt: &expires,
-	}))
+	})
 
 	if a := svc.adapterFor("whatsapp"); a != nil {
 		t.Error("an Instagram adapter must never be resolved for WhatsApp")
@@ -182,17 +182,17 @@ func TestAdapterFor_InstagramAdapterNeverServesOtherChannels(t *testing.T) {
 		t.Error("instagram must resolve to its adapter")
 	}
 
-	if a := (&HistoryProviderService{}).adapterFor("instagram"); a != nil {
+	if a := (historyWith(HistoryProviderService{})).adapterFor("instagram"); a != nil {
 		t.Error("no adapter should resolve without a registry")
 	}
 }
 
 func TestGetWindowStatusForEntry_UnknownChannelFailsClosed(t *testing.T) {
-	svc := &HistoryProviderService{}
-	svc.SetChannelAdapters(conversation.NewAdapterRegistry(&fakeWindowAdapter{
+	svc := historyWith(HistoryProviderService{})
+	svc.channelAdapters = conversation.NewAdapterRegistry(&fakeWindowAdapter{
 		entryType: shared.EntryTypeInstagram,
 		open:      true,
-	}))
+	})
 	for _, entryType := range []string{"sms", "email", "", "INSTAGRAM"} {
 		if svc.GetWindowStatusForEntry("x", entryType).Open {
 			t.Errorf("entry type %q must fail closed", entryType)
@@ -201,11 +201,11 @@ func TestGetWindowStatusForEntry_UnknownChannelFailsClosed(t *testing.T) {
 }
 
 func TestGetWindowStatusForEntry_InstagramClosedWindow(t *testing.T) {
-	svc := &HistoryProviderService{}
-	svc.SetChannelAdapters(conversation.NewAdapterRegistry(&fakeWindowAdapter{
+	svc := historyWith(HistoryProviderService{})
+	svc.channelAdapters = conversation.NewAdapterRegistry(&fakeWindowAdapter{
 		entryType: shared.EntryTypeInstagram,
 		open:      false,
-	}))
+	})
 	window := svc.GetWindowStatusForEntry("ig-1", "instagram")
 	open, expiresAt := window.Open, window.ExpiresAt
 	if open {
@@ -217,8 +217,8 @@ func TestGetWindowStatusForEntry_InstagramClosedWindow(t *testing.T) {
 }
 
 func TestGetEntryInfo_ChannelRouting(t *testing.T) {
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(igContactsFixture())
+	svc := historyWith(HistoryProviderService{})
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, igContactsFixture())
 
 	for _, entryType := range []string{"sms", "email", "", "Instagram"} {
 		if _, err := svc.GetEntryInfo("x", entryType); err == nil {
@@ -232,16 +232,16 @@ func TestGetEntryInfo_ChannelRouting(t *testing.T) {
 }
 
 func TestGetEntryInfo_InstagramLookupFailurePropagates(t *testing.T) {
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(&fakeInstagramContacts{err: errors.New("meta down")})
+	svc := historyWith(HistoryProviderService{})
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, &fakeInstagramContacts{err: errors.New("meta down")})
 	if _, err := svc.GetEntryInfo("conv-1", "instagram"); err == nil {
 		t.Error("a lookup failure must propagate, not yield an empty header")
 	}
 }
 
 func TestHydrateInstagramSenders_ConcurrentPages(t *testing.T) {
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(&concurrentSafeContacts{inner: igContactsFixture()})
+	svc := historyWith(HistoryProviderService{})
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, &concurrentSafeContacts{inner: igContactsFixture()})
 
 	done := make(chan struct{})
 	for i := 0; i < 8; i++ {
@@ -288,8 +288,8 @@ func (c *concurrentSafeContacts) ContactForConversation(ctx context.Context, id 
 
 func TestHydrateInstagramSenders_ReplacesRawProviderIDSender(t *testing.T) {
 	const igsid = "17841458366137975"
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(&fakeInstagramContacts{
+	svc := historyWith(HistoryProviderService{})
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, &fakeInstagramContacts{
 		byID: map[string]InstagramContactDisplay{
 			"contact-1": {ContactID: "contact-1", Ref: igsid, Handle: "mariasilva", Name: "Maria Silva", PictureURL: "pic"},
 		},
@@ -319,8 +319,8 @@ func TestHydrateInstagramSenders_ReplacesRawProviderIDSender(t *testing.T) {
 }
 
 func TestHydrateInstagramSenders_Idempotent(t *testing.T) {
-	svc := &HistoryProviderService{}
-	svc.SetInstagramContacts(igContactsFixture())
+	svc := historyWith(HistoryProviderService{})
+	svc.SetContactIdentityLookup(shared.EntryTypeInstagram, igContactsFixture())
 
 	entries := []conversation.InboxEntry{{EntryID: "ig-1", EntryType: "instagram", LeadID: "contact-1"}}
 	svc.hydrateContactSenders(entries)

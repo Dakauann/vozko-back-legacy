@@ -163,29 +163,27 @@ func (c *Container) reportPDFDisabledReason() string {
 }
 
 func (c *Container) buildReportService() *report_usecase.Service {
-	if c.repositories.report == nil || c.s3 == nil || c.services.reportQueuePub == nil {
-		log.Printf("[report] disabled: the repository, object storage or queue is not configured")
-		return nil
+	service, err := report_usecase.NewService(report_usecase.Deps{
+		Repo:        c.repositories.report,
+		Registry:    c.buildReportRegistry(),
+		Publisher:   c.services.reportQueuePub,
+		Storage:     s3ReportStorage{files: c.s3},
+		Access:      c.services.conversationAuth,
+		PrintSecret: c.cfg.AuthJWTSecret,
+	})
+	if err != nil {
+		log.Fatalf("[report] %v", err)
 	}
-
-	service := report_usecase.NewService(
-		c.repositories.report,
-		c.buildReportRegistry(),
-		c.services.reportQueuePub,
-		s3ReportStorage{files: c.s3},
-	)
-	service.SetPrintSecret(c.cfg.AuthJWTSecret)
-	service.SetAccess(c.services.conversationAuth)
 	return service
 }
 
 func (c *Container) startReportWorker() {
-	if c.services.reportService == nil || c.services.reportQueueSub == nil {
-		return
+	worker, err := report_usecase.NewWorker(c.services.reportService, c.services.reportQueueSub)
+	if err != nil {
+		log.Fatalf("[report] %v", err)
 	}
-	if err := report_usecase.NewWorker(c.services.reportService, c.services.reportQueueSub).Start(); err != nil {
-		log.Printf("[report] the worker did not start, requested reports will stay queued: %v", err)
-		return
+	if err := worker.Start(); err != nil {
+		log.Fatalf("[report] the worker did not start: %v", err)
 	}
 	log.Printf("[report] worker listening on %v", report_domain.QueueTopics())
 }

@@ -4,11 +4,10 @@ import (
 	uwhttp "vozko/delivery/http/unofficial_whatsapp"
 	uwrepo "vozko/infra/repositories/unofficial_whatsapp"
 	uwgrepo "vozko/infra/repositories/unofficial_whatsapp_group"
-	uwuc "vozko/usecases/unofficial_whatsapp"
 	uwguc "vozko/usecases/unofficial_whatsapp_group"
 )
 
-func (c *Container) initWorkspaceGroups(bundle *unofficialWhatsAppBundle, webhook *uwuc.HandleWebhookUseCase) {
+func (c *Container) initWorkspaceGroups(bundle *unofficialWhatsAppBundle) {
 	bundle.WorkspaceGroups = uwguc.New(uwguc.Deps{
 		Groups:    uwgrepo.NewGroupRepository(c.db),
 		Members:   uwgrepo.NewMemberRepository(c.db),
@@ -32,12 +31,11 @@ func (c *Container) initWorkspaceGroups(bundle *unofficialWhatsAppBundle, webhoo
 		Balance:   c.services.cachedBalanceChecker,
 		Owner:     c.replicaID,
 	})
-	webhook.SetGroupWatcher(bundle.WorkspaceGroups)
 	bundle.WorkspaceGroupHandler = uwhttp.NewWorkspaceGroupHandler(bundle.WorkspaceGroups, c.services.conversationAuthImpl)
 }
 
 func unofficialWhatsAppWorkspaceGroupHandler(c *Container) *uwhttp.WorkspaceGroupHandler {
-	if c.unofficialWhatsApp == nil || !c.unofficialWhatsApp.Enabled {
+	if c.unofficialWhatsApp == nil {
 		return nil
 	}
 	return c.unofficialWhatsApp.WorkspaceGroupHandler

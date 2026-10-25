@@ -101,11 +101,6 @@ func TestNoSeedsFallsThroughToWhatsApp(t *testing.T) {
 	}
 }
 
-func TestNoRegistryFallsThroughToWhatsApp(t *testing.T) {
-	if _, _, ok := resolveToolAdapter(context.Background(), nil, telegramSeeds()); ok {
-		t.Error("a nil registry must not resolve")
-	}
-}
 
 func TestMediaIsSentThroughTheAdapter(t *testing.T) {
 	adapter := &toolAdapter{entryType: shared.EntryTypeTelegram, windowOpen: true}

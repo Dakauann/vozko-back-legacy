@@ -11,11 +11,11 @@ var due = time.Date(2026, 10, 16, 15, 0, 0, 0, time.UTC)
 
 func TestClaimingAScheduleClearsItOnlyWhileItIsStillDue(t *testing.T) {
 	db, mock := newKeyedMockDB(t)
-	mock.ExpectExec(`UPDATE "whatsapp_campaigns" SET "scheduled_start"=\$1,"updated_at"=\$2 WHERE \(id = \$3 AND scheduled_start > \$4 AND scheduled_start <= \$5\) AND "whatsapp_campaigns"."deleted_at" IS NULL`).
-		WithArgs(time.Time{}, sqlmock.AnyArg(), "c-1", time.Time{}, due).
+	mock.ExpectExec(`UPDATE "whatsapp_campaigns" SET "schedule_fingerprint"=\$1,"scheduled_by"=\$2,"scheduled_start"=\$3,"updated_at"=\$4 WHERE \(id = \$5 AND scheduled_start > \$6 AND scheduled_start <= \$7\) AND "whatsapp_campaigns"."deleted_at" IS NULL`).
+		WithArgs("", "", time.Time{}, sqlmock.AnyArg(), "c-1", time.Time{}, due).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`UPDATE "whatsapp_campaigns" SET "scheduled_start"=\$1,"updated_at"=\$2 WHERE`).
-		WithArgs(time.Time{}, sqlmock.AnyArg(), "c-1", time.Time{}, due).
+	mock.ExpectExec(`UPDATE "whatsapp_campaigns" SET "schedule_fingerprint"=\$1,"scheduled_by"=\$2,"scheduled_start"=\$3,"updated_at"=\$4 WHERE`).
+		WithArgs("", "", time.Time{}, sqlmock.AnyArg(), "c-1", time.Time{}, due).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
 	repo := NewRepository(db).(*repository)

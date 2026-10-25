@@ -7,12 +7,12 @@ import (
 
 	smartcampaignhttp "vozko/delivery/http/smartcampaignhttp"
 	balance_domain "vozko/domain/balance"
+	"vozko/domain/shared/deps"
 	wc_domain "vozko/domain/whatsapp_campaign"
 	wcw_repository "vozko/infra/repositories/whatsapp_campaign_wave"
 	"vozko/usecases/campaignqueue"
 	smartcampaign_usecase "vozko/usecases/smartcampaign"
 	businessphone_usecase "vozko/usecases/whatsapp/business_phone"
-	whatsapp_template_usecase "vozko/usecases/whatsapp/template"
 	wc_usecase "vozko/usecases/whatsapp_campaign"
 )
 
@@ -21,6 +21,7 @@ type smartCampaignWiring struct {
 	engine       *smartcampaign_usecase.Engine
 	configurator *smartcampaign_usecase.Configurator
 	signals      *smartcampaign_usecase.Signals
+	handle       *deps.Handle[wc_usecase.SmartCampaigns]
 }
 
 func (c *Container) observedCampaignEntries() *smartcampaign_usecase.ObservedEntries {
@@ -30,22 +31,10 @@ func (c *Container) observedCampaignEntries() *smartcampaign_usecase.ObservedEnt
 	return c.smartCampaigns.entries
 }
 
-func (c *Container) wireSmartCampaigns(consumer wc_domain.MessageConsumerUseCase, dispatch wc_domain.DispatchCampaignUseCase, dashboardURL string) {
+func (c *Container) wireSmartCampaigns(consumer wc_domain.MessageConsumerUseCase, dashboardURL string) {
 	caps, ok := c.repositories.monthlySendCaps.(balance_domain.MonthlySendCapUsageReader)
 	if !ok {
 		log.Fatalf("[smart-campaign] the monthly send cap repository cannot read what is left of the cap")
-	}
-	consumerSetter, ok := consumer.(interface {
-		SetSmartCampaigns(wc_usecase.SmartCampaigns)
-	})
-	if !ok {
-		log.Fatalf("[smart-campaign] the campaign consumer cannot leave completion to the wave engine")
-	}
-	dispatchSetter, ok := dispatch.(interface {
-		SetSmartCampaigns(wc_usecase.SmartStarter)
-	})
-	if !ok {
-		log.Fatalf("[smart-campaign] the campaign dispatch cannot hand starts to the wave engine")
 	}
 
 	waves := wcw_repository.NewRepository(c.db)
@@ -67,19 +56,12 @@ func (c *Container) wireSmartCampaigns(consumer wc_domain.MessageConsumerUseCase
 	})
 
 	c.observedCampaignEntries().Attach(engine)
-	consumerSetter.SetSmartCampaigns(engine)
-	dispatchSetter.SetSmartCampaigns(engine)
+	if err := c.smartCampaignsHandle().Bind(engine); err != nil {
+		log.Fatalf("[smart-campaign] %v", err)
+	}
 	c.smartCampaigns.engine = engine
 	c.smartCampaigns.configurator = smartcampaign_usecase.NewConfigurator(waves, c.repositories.workspaceConfig, c.repositories.workspaceDepartment)
 	c.smartCampaigns.signals = smartcampaign_usecase.NewSignals(c.repositories.whatsappTemplate, engine)
-}
-
-func (c *Container) signalTemplateHealth(webhook interface{}) {
-	signalling, ok := webhook.(whatsapp_template_usecase.HealthSignalling)
-	if !ok {
-		log.Fatalf("[smart-campaign] the template webhook cannot report health changes")
-	}
-	signalling.SetHealthSignals(c.smartCampaigns.signals)
 }
 
 func (c *Container) smartCampaignTick(ctx context.Context) error {
@@ -96,4 +78,23 @@ func (c *Container) smartCampaignHandler() *smartcampaignhttp.Handler {
 
 func (c *Container) createWithWavePolicy(create wc_domain.CreateCampaignUseCase, remove wc_domain.DeleteCampaignUseCase) wc_domain.CreateCampaignUseCase {
 	return smartcampaign_usecase.CreateWithPolicy(create, c.smartCampaigns.configurator, remove)
+}
+
+func (c *Container) smartCampaignsHandle() *deps.Handle[wc_usecase.SmartCampaigns] {
+	if c.smartCampaigns.handle == nil {
+		c.smartCampaigns.handle = deps.Tracked[wc_usecase.SmartCampaigns](&c.handles, "smart campaign engine")
+	}
+	return c.smartCampaigns.handle
+}
+
+type lateSmartCampaigns struct {
+	engine *deps.Handle[wc_usecase.SmartCampaigns]
+}
+
+func (l lateSmartCampaigns) Manages(campaignID string) (bool, error) {
+	engine, err := l.engine.Get()
+	if err != nil {
+		return false, err
+	}
+	return engine.Manages(campaignID)
 }

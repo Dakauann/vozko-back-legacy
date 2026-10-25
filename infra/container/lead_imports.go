@@ -45,7 +45,7 @@ func (c *Container) buildLeadImports() *lead_usecase.Import {
 		log.Fatalf("[lead-import] %v", err)
 	}
 	var seeder leadimport.Seeder
-	if c.unofficialWhatsApp != nil && c.unofficialWhatsApp.Enabled && c.unofficialWhatsApp.SeedInboxPublisher != nil {
+	if c.unofficialWhatsApp != nil && c.unofficialWhatsApp.SeedInboxPublisher != nil {
 		seeder = c.unofficialWhatsApp.SeedInboxPublisher
 	}
 	service, err := lead_usecase.NewImport(lead_usecase.ImportDeps{

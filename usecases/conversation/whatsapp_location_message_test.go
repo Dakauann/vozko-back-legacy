@@ -23,7 +23,7 @@ func locationPayload(t *testing.T, message string) *conversation.WhatsAppWebhook
 }
 
 func TestAnInboundLocationMessageIsKeptWithItsCoordinates(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	payload := locationPayload(t, `{"from":"5511999990000","id":"wamid.loc","timestamp":"1759900000","type":"location",`+
 		`"location":{"latitude":-23.55052,"longitude":-46.633308,"name":"Casa","address":"Rua A, 10"}}`)
 	message, _, contact := uc.extractInboundMessage(payload)
@@ -50,7 +50,7 @@ func TestAnInboundLocationMessageIsKeptWithItsCoordinates(t *testing.T) {
 }
 
 func TestATextMessageRecordCarriesNoLocation(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	payload := locationPayload(t, `{"from":"5511999990000","id":"wamid.txt","timestamp":"1759900000","type":"text","text":{"body":"oi"}}`)
 	message, _, _ := uc.extractInboundMessage(payload)
 	if message == nil {
@@ -63,7 +63,7 @@ func TestATextMessageRecordCarriesNoLocation(t *testing.T) {
 }
 
 func TestALocationMessageWithoutCoordinatesIsStillDropped(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	payload := locationPayload(t, `{"from":"5511999990000","id":"wamid.loc","timestamp":"1759900000","type":"location"}`)
 	if message, _, _ := uc.extractInboundMessage(payload); message != nil {
 		t.Fatalf("a location message without its location was kept: %+v", message)

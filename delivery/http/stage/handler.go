@@ -10,6 +10,7 @@ import (
 
 	"vozko/delivery/http/response"
 	"vozko/domain/conversation"
+	"vozko/domain/shared/deps"
 	"vozko/domain/shared"
 	stagedomain "vozko/domain/stage"
 	"vozko/domain/user"
@@ -44,8 +45,13 @@ func NewStageHandler(
 	getBatchEntryTagsUC stagedomain.GetBatchEntryStagesUseCase,
 	reorderUC stagedomain.ReorderStagesUseCase,
 	broadcaster conversation.EventBroadcaster,
+	funnelStages FunnelStagesLister,
 ) *StageHandler {
+	if err := deps.Require("stage handler", map[string]any{"funnel stages": funnelStages}); err != nil {
+		panic(err.Error())
+	}
 	return &StageHandler{
+		funnelStages:        funnelStages,
 		createUseCase:       createUC,
 		updateUseCase:       updateUC,
 		deleteUseCase:       deleteUC,
@@ -533,10 +539,6 @@ type FunnelStagesLister interface {
 	Execute(workspaceID string) ([]stagedomain.FunnelStages, error)
 }
 
-func (h *StageHandler) SetFunnelStagesLister(l FunnelStagesLister) {
-	h.funnelStages = l
-}
-
 // @Summary		Listar etapas agrupadas por funil
 // @Description	Retorna todas as etapas de conversa do workspace, agrupadas pelo funil a que pertencem. Diferente de GET /stages, que resolve um único funil (o da campanha ou o padrão do workspace), este endpoint enxerga todos os funis — é o que o filtro do atendimento usa para oferecer etapas de qualquer funil, e não apenas do funil resolvido.
 // @Tags			Etapas
@@ -544,16 +546,11 @@ func (h *StageHandler) SetFunnelStagesLister(l FunnelStagesLister) {
 // @Success		200	{array}		stage.FunnelStages
 // @Failure		400	{object}	response.ErrorResponse
 // @Failure		401	{object}	response.ErrorResponse
-// @Failure		501	{object}	response.ErrorResponse
 // @Security		BearerAuth
 // @Router			/stages/by-funnel [get]
 func (h *StageHandler) ListByFunnel(w http.ResponseWriter, r *http.Request) {
 	if middleware.GetClaims(r) == nil {
 		response.WriteError(w, http.StatusUnauthorized, "Unauthorized", nil)
-		return
-	}
-	if h.funnelStages == nil {
-		response.WriteError(w, http.StatusNotImplemented, "Grouped stage listing is not available on this deployment", nil)
 		return
 	}
 

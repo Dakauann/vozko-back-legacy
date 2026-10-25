@@ -22,9 +22,9 @@ func TestTheStuckRunSweepRaisesARunStuckAlertForEachRunItErrors(t *testing.T) {
 	runs := NewMockWorkflowRunRepository()
 	stale := time.Now().UTC().Add(-time.Hour)
 	_ = runs.Create(&workflow.WorkflowRun{ID: "run-1", WorkflowID: "wf-1", WorkspaceID: "ws-1", EntryID: "e-1", Status: workflow.RunStatusRunning, UpdatedAt: stale, State: workflow.NewRunState()})
-	engine := NewRunEngine(runs, NewMockWorkflowRunLogRepository(), NewNodeExecutorRegistry())
+	engine := testEngine(runs, NewMockWorkflowRunLogRepository(), NewNodeExecutorRegistry())
 	spy := &alertRecorderSpy{err: errors.New("db down")}
-	engine.SetRuntimeAlerts(spy)
+	engine.alerts = spy
 
 	NewWorkflowManager(NewMockWorkflowRepository(), runs, engine).Tick()
 
@@ -41,9 +41,9 @@ func TestTheStuckRunSweepRaisesARunStuckAlertForEachRunItErrors(t *testing.T) {
 }
 
 func TestAFailedWaitingRunLookupRaisesTheInboundAlertForTheWorkspace(t *testing.T) {
-	engine := NewRunEngine(&recordingRunRepo{}, stubRunLogRepo{}, NewNodeExecutorRegistry())
+	engine := testEngine(&recordingRunRepo{}, stubRunLogRepo{}, NewNodeExecutorRegistry())
 	spy := &alertRecorderSpy{}
-	engine.SetRuntimeAlerts(spy)
+	engine.alerts = spy
 	waiters := NewReplyWaiters(stubWorkflowRepo{}, lookupFailingRuns{&recordingRunRepo{}}, engine)
 
 	if _, err := waiters.WaitingForReply(messageEvent()); err == nil {

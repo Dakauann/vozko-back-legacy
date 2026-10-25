@@ -50,16 +50,6 @@ func TestRegisterAnalysisChannelsGivesEverySinkEveryChannel(t *testing.T) {
 	}
 }
 
-func TestRegisterAnalysisChannelsToleratesAMissingSink(t *testing.T) {
-	sweep := newRecordingSink()
-	registerAnalysisChannels(
-		[]analysisChannel{{shared.EntryTypeWhatsApp, resolverFor(shared.EntryTypeWhatsApp)}},
-		sweep, nil,
-	)
-	if len(sweep.registered) != 1 {
-		t.Fatalf("the present sink got %d channels", len(sweep.registered))
-	}
-}
 
 func TestAdapterSinkRegistersOnTheAnalysisAdapter(t *testing.T) {
 	adapter := conversation_usecase.NewAnalysisAdapter(nil, nil)

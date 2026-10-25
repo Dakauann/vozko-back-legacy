@@ -51,8 +51,9 @@ func TestTheSandboxNeverRecordsChoiceStatsEvenWhenTheRecorderIsWired(t *testing.
 		t.Fatalf("a test run counted toward the click-through: %+v", spy.sends)
 	}
 
-	if newSandboxEngine(nil, nil, NewNodeExecutorRegistry(), nil).choices != nil {
-		t.Fatal("the sandbox engine has no recorder, so its replies are never counted")
+	sandbox := newSandboxEngine(NewMockWorkflowRunRepository(), NewMockWorkflowRunLogRepository(), NewNodeExecutorRegistry(), workflow.PassThroughStepGate{})
+	if _, silent := sandbox.choices.(sandboxRuntime); !silent {
+		t.Fatal("the sandbox engine must record no choices, so its replies are never counted")
 	}
 }
 

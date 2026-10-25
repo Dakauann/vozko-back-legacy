@@ -50,16 +50,16 @@ func memoryJob(agents ProfileAgents, handlers ...string) (*analysisDebounceJob, 
 	}
 	subject := instagramSubject()
 	subject.EnableAutoMemory = true
-	job := &analysisDebounceJob{
+	job := debounceWith(&analysisDebounceJob{
 		messageRepo:  transcriptStub{},
 		aiService:    recorder,
 		toolRegistry: registryStub{handlers: registered},
 		resolvers: map[shared.EntryType]AnalysisSubjectResolver{
 			shared.EntryTypeInstagram: func(context.Context, string) (*AnalysisSubject, error) { return &subject, nil },
 		},
-	}
+	})
 	if agents != nil {
-		job.SetProfileAgents(agents)
+		job.profileAgents = agents
 	}
 	return job, recorder
 }

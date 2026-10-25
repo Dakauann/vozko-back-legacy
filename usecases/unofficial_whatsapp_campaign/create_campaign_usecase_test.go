@@ -61,9 +61,7 @@ func newCreateHarness(t *testing.T) (uwc.CreateCampaignUseCase, *fakeCampaignRep
 	}}
 	spam := &fakeSpam{skip: map[string]bool{}}
 
-	uc := NewCreateCampaignUseCase(campaigns, entries, newFakeLeadRepo(), gateway, spam,
-		fakeDepartments{id: "dept-1"})
-	uc.(*createCampaignUseCase).SetAutomation(automationThatAllows{})
+	uc := createWith(CreateCampaignDeps{Campaigns: campaigns, Entries: entries, Leads: newFakeLeadRepo(), Instances: gateway, Eligibility: spam, Departments: fakeDepartments{id: "dept-1"}})
 	return uc, campaigns, entries, gateway, spam
 }
 
@@ -285,9 +283,7 @@ func (droppingLeadRepo) FindOrCreateMany(string, []lead.BulkLeadInput) (map[stri
 
 func TestCreateFailsWhenATargetCannotBecomeALead(t *testing.T) {
 	gateway := &fakeGateway{instance: &uw.Instance{ID: "inst-1", WorkspaceID: "ws-1", Status: uw.StatusConnected}}
-	uc := NewCreateCampaignUseCase(newFakeCampaignRepo(), newFakeEntryRepo(), droppingLeadRepo{}, gateway,
-		&fakeSpam{skip: map[string]bool{}}, fakeDepartments{id: "dept-1"})
-	uc.(*createCampaignUseCase).SetAutomation(automationThatAllows{})
+	uc := createWith(CreateCampaignDeps{Campaigns: newFakeCampaignRepo(), Entries: newFakeEntryRepo(), Leads: droppingLeadRepo{}, Instances: gateway, Eligibility: &fakeSpam{skip: map[string]bool{}}, Departments: fakeDepartments{id: "dept-1"}})
 
 	if _, err := uc.Execute(context.Background(), draft(), uw.Unrestricted()); !errors.Is(err, uwc.ErrCampaignTargetInvalid) {
 		t.Fatalf("err = %v, a campaign must never be created with its contacts silently dropped", err)

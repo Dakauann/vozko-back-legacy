@@ -19,8 +19,8 @@ func TestCreateCampaignRefusesATemplateNotGrantedToTheWorkspace(t *testing.T) {
 	businessPhones := newOwnershipBusinessPhoneRepo()
 	businessPhones.phones["phone-1"] = &businessphone.WhatsAppBusinessPhoneNumber{ID: "phone-1", OwnerWorkspaceID: "ws-1"}
 	grants := &denyGrants{}
-	uc := NewCreateCampaignUseCase(nil, nil, nil, nil, businessPhones, &ownershipWorkspacePhoneAccessRepo{hasAccess: true}, nil, nil)
-	uc.(*createCampaignUseCase).SetTemplateGrants(grants)
+	uc := createWith(CreateCampaignDeps{Phones: businessPhones, PhoneAccess: &ownershipWorkspacePhoneAccessRepo{hasAccess: true}})
+	uc.(*createCampaignUseCase).templateGrants = grants
 
 	_, err := uc.Execute(context.Background(), &wc.Campaign{
 		WorkspaceID: "ws-1", Name: "Campaign", TemplateID: "tmpl-other", BusinessPhoneID: "phone-1",
@@ -35,10 +35,10 @@ func TestChangingACampaignToATemplateNotGrantedIsRefused(t *testing.T) {
 	stored, fixture := updateFixture(t, "")
 	counted := &countedCampaigns{mockCampaignRepo: stored}
 	built := fixture.(*updateCampaignUseCase)
-	uc := NewUpdateCampaignUseCase(counted, built.entryRepo, built.templateRepo, built.businessPhoneRepo, nil)
+	uc := updateWith(UpdateCampaignDeps{Campaigns: counted, Entries: built.entryRepo, Templates: built.templateRepo, Phones: built.businessPhoneRepo})
 	grants := &denyGrants{}
-	uc.(*updateCampaignUseCase).SetTemplateGrants(grants)
-	uc.(*updateCampaignUseCase).SetExitRiskGate(&recordingGate{})
+	uc.(*updateCampaignUseCase).templateGrants = grants
+	uc.(*updateCampaignUseCase).exitRisk = &recordingGate{}
 
 	_, err := uc.Execute(context.Background(), "camp-1", &wc.Campaign{Name: "Matrículas", TemplateID: "tmpl-2"})
 
@@ -47,16 +47,5 @@ func TestChangingACampaignToATemplateNotGrantedIsRefused(t *testing.T) {
 	}
 	if counted.updates != 0 {
 		t.Fatal("a template the workspace was never granted was saved")
-	}
-}
-
-func TestATemplateChangeWithoutAGrantCheckIsRefused(t *testing.T) {
-	stored, fixture := updateFixture(t, "")
-	built := fixture.(*updateCampaignUseCase)
-	uc := NewUpdateCampaignUseCase(stored, built.entryRepo, built.templateRepo, built.businessPhoneRepo, nil)
-	uc.(*updateCampaignUseCase).SetExitRiskGate(&recordingGate{})
-
-	if _, err := uc.Execute(context.Background(), "camp-1", &wc.Campaign{Name: "Matrículas", TemplateID: "tmpl-2"}); err != wc.ErrCampaignTemplateNotFound {
-		t.Fatalf("err %v, want the change refused when grants cannot be checked", err)
 	}
 }

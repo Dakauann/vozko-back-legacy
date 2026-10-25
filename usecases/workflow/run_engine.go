@@ -13,6 +13,7 @@ import (
 
 	"vozko/domain/choicestats"
 	"vozko/domain/metrics"
+	"vozko/domain/shared/deps"
 	"vozko/domain/workflow"
 	"vozko/usecases/workflow/node_executors"
 )
@@ -97,52 +98,52 @@ type RunEngine struct {
 
 const runLockTTL = 5 * time.Minute
 
-func NewRunEngine(
-	runRepo workflow.WorkflowRunRepository,
-	logRepo workflow.WorkflowRunLogRepository,
-	registry *NodeExecutorRegistry,
-) *RunEngine {
-	return &RunEngine{
-		runRepo:  runRepo,
-		logRepo:  logRepo,
-		registry: registry,
+type RunEngineDeps struct {
+	Runs         workflow.WorkflowRunRepository
+	Logs         workflow.WorkflowRunLogRepository
+	Registry     *NodeExecutorRegistry
+	Wakes        workflow.WakeScheduler
+	Locks        workflow.RunLocker
+	Automation   workflow.AutomationGate
+	Metrics      metrics.WorkflowMetricsRecorder
+	Statuses     workflow.RunStatusReader
+	AgentRunEnds workflow.AgentRunFinishedPublisher
+	Alerts       workflow.RuntimeAlertRecorder
+	Steps        workflow.StepGate
+	Choices      choicestats.Recorder
+}
+
+func NewRunEngine(d RunEngineDeps) (*RunEngine, error) {
+	if err := deps.Require("workflow run engine", map[string]any{
+		"runs":           d.Runs,
+		"logs":           d.Logs,
+		"registry":       d.Registry,
+		"wakes":          d.Wakes,
+		"locks":          d.Locks,
+		"automation":     d.Automation,
+		"metrics":        d.Metrics,
+		"statuses":       d.Statuses,
+		"agent run ends": d.AgentRunEnds,
+		"alerts":         d.Alerts,
+		"steps":          d.Steps,
+		"choices":        d.Choices,
+	}); err != nil {
+		return nil, err
 	}
-}
-
-func (e *RunEngine) SetWakeScheduler(scheduler workflow.WakeScheduler) {
-	e.wakeScheduler = scheduler
-}
-
-func (e *RunEngine) SetRunLocker(locker workflow.RunLocker) {
-	e.runLocker = locker
-}
-
-func (e *RunEngine) SetAutomationGate(gate workflow.AutomationGate) {
-	e.automationGate = gate
-}
-
-func (e *RunEngine) SetMetrics(recorder metrics.WorkflowMetricsRecorder) {
-	e.metrics = recorder
-}
-
-func (e *RunEngine) SetChoiceRecorder(recorder choicestats.Recorder) {
-	e.choices = recorder
-}
-
-func (e *RunEngine) SetRunStatusReader(statuses workflow.RunStatusReader) {
-	e.statuses = statuses
-}
-
-func (e *RunEngine) SetAgentRunFinishedPublisher(publisher workflow.AgentRunFinishedPublisher) {
-	e.agentRunEnds = publisher
-}
-
-func (e *RunEngine) SetRuntimeAlerts(recorder workflow.RuntimeAlertRecorder) {
-	e.alerts = recorder
-}
-
-func (e *RunEngine) SetStepGate(gate workflow.StepGate) {
-	e.gate = gate
+	return &RunEngine{
+		runRepo:        d.Runs,
+		logRepo:        d.Logs,
+		registry:       d.Registry,
+		wakeScheduler:  d.Wakes,
+		runLocker:      d.Locks,
+		automationGate: d.Automation,
+		metrics:        d.Metrics,
+		statuses:       d.Statuses,
+		agentRunEnds:   d.AgentRunEnds,
+		alerts:         d.Alerts,
+		gate:           d.Steps,
+		choices:        d.Choices,
+	}, nil
 }
 
 func (e *RunEngine) passGate(run *workflow.WorkflowRun, node *workflow.Node) (*workflow.GatedStep, error) {
@@ -164,7 +165,7 @@ func (e *RunEngine) passGate(run *workflow.WorkflowRun, node *workflow.Node) (*w
 }
 
 func (e *RunEngine) raiseAlert(signal workflow.RuntimeAlertSignal) {
-	if e == nil || e.alerts == nil {
+	if e == nil {
 		return
 	}
 	if err := e.alerts.RecordRuntimeAlert(signal); err != nil {
@@ -177,9 +178,6 @@ func (e *RunEngine) raiseAlert(signal workflow.RuntimeAlertSignal) {
 var errFinishedElsewhere = errors.New("the run was finished elsewhere (cancelled, completed or failed) while this step ran; it stopped here")
 
 func (e *RunEngine) finishedElsewhere(run *workflow.WorkflowRun) error {
-	if e.statuses == nil {
-		return nil
-	}
 	status, err := e.statuses.RunStatus(run.ID)
 	if err != nil {
 		slog.Error("workflow.engine.status_unreadable", append(runLogAttrs(run, run.CurrentNodeID), slog.String("error", err.Error()))...)
@@ -197,18 +195,13 @@ func (e *RunEngine) stopFinishedElsewhere(run *workflow.WorkflowRun, cause error
 }
 
 func (e *RunEngine) announceAgentRunEnd(run *workflow.WorkflowRun) {
-	if e.agentRunEnds == nil {
-		return
-	}
 	ev, ok := workflow.AgentRunFinishedOf(run)
 	if !ok || ev.Continuation() == workflow.ContinuationNone {
 		return
 	}
 	if err := e.agentRunEnds.PublishAgentRunFinished(ev); err != nil {
 		slog.Error("workflow.engine.agent_run_end_publish_failed", append(runLogAttrs(run, run.CurrentNodeID), slog.String("error", err.Error()))...)
-		if e.metrics != nil {
-			e.metrics.IncWorkflowAgentContinuation("publish_failed")
-		}
+		e.metrics.IncWorkflowAgentContinuation("publish_failed")
 	}
 }
 
@@ -216,14 +209,9 @@ type SandboxAutomationGate struct{}
 
 func (SandboxAutomationGate) AutomationEnabled(string, string) (bool, error) { return true, nil }
 
-var errNoAutomationGate = errors.New("no automation gate is wired")
-
 func (e *RunEngine) automationOff(entryID, entryType string) (bool, error) {
 	if entryID == "" {
 		return false, nil
-	}
-	if e == nil || e.automationGate == nil {
-		return false, fmt.Errorf("%w: entry %s (%s): %v", workflow.ErrAutomationStateUnreadable, entryID, entryType, errNoAutomationGate)
 	}
 	enabled, err := e.automationGate.AutomationEnabled(entryID, entryType)
 	if err != nil {
@@ -247,9 +235,6 @@ func runLogAttrs(run *workflow.WorkflowRun, nodeID string) []any {
 }
 
 func (e *RunEngine) TryLockRun(runID string) bool {
-	if e.runLocker == nil {
-		return true
-	}
 	acquired, err := e.runLocker.TryLock(runID, runLockTTL)
 	if err != nil {
 		slog.Warn("workflow.engine.lock_unreadable_retry_later", slog.String("run_id", runID), slog.String("error", err.Error()))
@@ -259,9 +244,6 @@ func (e *RunEngine) TryLockRun(runID string) bool {
 }
 
 func (e *RunEngine) UnlockRun(runID string) {
-	if e.runLocker == nil {
-		return
-	}
 	if err := e.runLocker.Unlock(runID); err != nil {
 		slog.Warn("workflow.engine.unlock_failed", slog.String("run_id", runID), slog.String("error", err.Error()))
 	}
@@ -370,9 +352,7 @@ func (e *RunEngine) saveWith(runs workflow.WorkflowRunRepository, run *workflow.
 	if e == nil || !run.Status.IsTerminal() {
 		return nil
 	}
-	if e.metrics != nil {
-		e.metrics.IncWorkflowRunFinished(string(run.Status))
-	}
+	e.metrics.IncWorkflowRunFinished(string(run.Status))
 	e.announceAgentRunEnd(run)
 	return nil
 }
@@ -390,7 +370,7 @@ func (e *RunEngine) stopByGuard(run *workflow.WorkflowRun, nodeID string, nodeTy
 
 func (e *RunEngine) execute(run *workflow.WorkflowRun, w *workflow.Workflow, runtime interface{}) error {
 	guard := newStepGuard(&w.Graph, &run.State)
-	if guard.firstStep() && e.metrics != nil {
+	if guard.firstStep() {
 		e.metrics.IncWorkflowRunStarted(string(run.TriggerType))
 	}
 
@@ -425,13 +405,9 @@ func (e *RunEngine) execute(run *workflow.WorkflowRun, w *workflow.Workflow, run
 			return e.stopByGuard(run, node.ID, node.Type, err)
 		}
 
-		var served *workflow.GatedStep
-		if e.gate != nil {
-			gated, err := e.passGate(run, node)
-			if err != nil {
-				return e.save(run)
-			}
-			served = gated
+		served, gateErr := e.passGate(run, node)
+		if gateErr != nil {
+			return e.save(run)
 		}
 
 		if node.Type.IsEnd() {
@@ -496,9 +472,7 @@ func (e *RunEngine) execute(run *workflow.WorkflowRun, w *workflow.Workflow, run
 			return err
 		}
 		guard.executed()
-		if e.metrics != nil {
-			e.metrics.ObserveWorkflowStepDuration(string(node.Type), finished.Sub(started))
-		}
+		e.metrics.ObserveWorkflowStepDuration(string(node.Type), finished.Sub(started))
 		ran := step{nodeID: node.ID, nodeType: node.Type, attempt: attempt, started: started, finished: finished, input: input, trace: trace, pinned: served != nil && served.Pinned}
 		verdict, nextNodeID := judgeStep(&ran, &w.Graph, node, result, err, workflow.InCall(runtime))
 
@@ -604,9 +578,6 @@ func routedFailure(result *workflow.NodeResult) (string, workflow.ErrorKind) {
 }
 
 func (e *RunEngine) scheduleWake(run *workflow.WorkflowRun, node *workflow.Node, wakeAt int64) {
-	if e.wakeScheduler == nil {
-		return
-	}
 	err := e.wakeScheduler.ScheduleRunWake(run.ID, wakeAt)
 	if err == nil {
 		return

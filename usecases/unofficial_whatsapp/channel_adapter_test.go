@@ -37,7 +37,7 @@ func adapterFixture(t *testing.T, mutate func(*uw.Instance, *uw.Contact)) (
 
 	instances := newFakeInstanceRepo(instance)
 	messaging := &fakeMessaging{}
-	adapter := NewChannelAdapter(
+	adapter := adapterFor(
 		instances,
 		newFakeServerRepo(healthyServer("srv-a", 10, 1)),
 		newFakeContactRepo(contact),
@@ -378,9 +378,7 @@ func (f *fakeVoiceTranscoder) ToVoiceNote(_ context.Context, url string) ([]byte
 func TestWavRecordingIsConvertedRatherThanRefused(t *testing.T) {
 	adapter, messaging, ec, _ := adapterFixture(t, nil)
 	voice := &fakeVoiceTranscoder{}
-	adapter.(interface {
-		SetVoiceTranscoder(uw.VoiceTranscoder)
-	}).SetVoiceTranscoder(voice)
+	adapter.(*channelAdapter).voice = voice
 
 	_, err := adapter.SendMedia(context.Background(), ec, conversation.SendMediaRequest{
 		Kind: "audio", URL: "https://media.example.com/a.wav",
@@ -411,19 +409,6 @@ func TestWavRecordingIsConvertedRatherThanRefused(t *testing.T) {
 	}
 }
 
-func TestAudioWithoutATranscoderFailsWithAReason(t *testing.T) {
-	adapter, _, ec, _ := adapterFixture(t, nil)
-
-	_, err := adapter.SendMedia(context.Background(), ec, conversation.SendMediaRequest{
-		Kind: "audio", URL: "https://media.example.com/a.wav", MIMEType: "audio/wav",
-	})
-	if err == nil {
-		t.Fatal("audio was accepted with no transcoder configured")
-	}
-	if !strings.Contains(err.Error(), "transcoder") {
-		t.Errorf("err = %q; it must name the missing piece", err)
-	}
-}
 
 func TestTheAdapterDeclaresWhatsAppEditAndDeleteWindows(t *testing.T) {
 	adapter, _, _, _ := adapterFixture(t, nil)

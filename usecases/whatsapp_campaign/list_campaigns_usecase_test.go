@@ -18,6 +18,8 @@ type listWAEntryStub struct {
 	recentByID      map[string][]wce.WhatsAppCampaignEntry
 	recentCallCount int
 	recentErr       error
+	recentIDs       []string
+	recentLimit     int
 }
 
 func (s *listWAEntryStub) CountByStatusForCampaigns(ids []string) (map[string]*wce.StatusCounts, error) {
@@ -29,12 +31,14 @@ func (s *listWAEntryStub) CountByStatusForCampaigns(ids []string) (map[string]*w
 	return s.counts, nil
 }
 
-func (s *listWAEntryStub) ListRecentlyUpdated(campaignID string, _ int) ([]wce.WhatsAppCampaignEntry, error) {
+func (s *listWAEntryStub) ListRecentlyUpdatedForCampaigns(campaignIDs []string, limit int) (map[string][]wce.WhatsAppCampaignEntry, error) {
 	s.recentCallCount++
+	s.recentIDs = campaignIDs
+	s.recentLimit = limit
 	if s.recentErr != nil {
 		return nil, s.recentErr
 	}
-	return s.recentByID[campaignID], nil
+	return s.recentByID, nil
 }
 
 type listWACampaignStub struct {
@@ -91,6 +95,45 @@ func TestListCampaignsBatchesMetricsInOneCall(t *testing.T) {
 	}
 	if c2.Metrics.TotalNumbers != 0 || c2.Metrics.Dispatches != 0 {
 		t.Errorf("c2 expected zeroed metrics, got %+v", c2.Metrics)
+	}
+}
+
+func TestListCampaignsReadsRecentEntriesForThePageInOneCall(t *testing.T) {
+	campaigns := []*wc.Campaign{{ID: "c1"}, {ID: "c2"}, {ID: "c3"}}
+	campaignRepo := &listWACampaignStub{
+		result: &shared.PaginatedResult[*wc.Campaign]{Items: campaigns},
+	}
+	entryRepo := &listWAEntryStub{
+		recentByID: map[string][]wce.WhatsAppCampaignEntry{
+			"c1": {{ID: "e2"}, {ID: "e1"}},
+			"c2": {},
+			"c3": {{ID: "e3"}},
+		},
+	}
+
+	uc := NewListCampaignsUseCase(campaignRepo, entryRepo, nil)
+	result, err := uc.Execute(wc.ListCampaignsInput{})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if entryRepo.recentCallCount != 1 {
+		t.Fatalf("recent entries read %d times, want exactly 1 for the page", entryRepo.recentCallCount)
+	}
+	if len(entryRepo.recentIDs) != 3 || entryRepo.recentIDs[0] != "c1" || entryRepo.recentIDs[2] != "c3" {
+		t.Errorf("recent entries ids = %v, want the page ids", entryRepo.recentIDs)
+	}
+	if entryRepo.recentLimit != recentEntriesLimit {
+		t.Errorf("recent entries limit = %d, want %d", entryRepo.recentLimit, recentEntriesLimit)
+	}
+	if got := result.Items[0].RecentEntries; len(got) != 2 || got[0].ID != "e2" || got[1].ID != "e1" {
+		t.Errorf("c1 recent entries = %+v, want e2, e1", got)
+	}
+	if got := result.Items[1].RecentEntries; got == nil || len(got) != 0 {
+		t.Errorf("c2 recent entries = %#v, want an empty list", got)
+	}
+	if got := result.Items[2].RecentEntries; len(got) != 1 || got[0].ID != "e3" {
+		t.Errorf("c3 recent entries = %+v, want e3", got)
 	}
 }
 

@@ -12,7 +12,7 @@ import (
 func claimService(repo *mockRepo) (*AssignmentService, *recordingHistory) {
 	history := &recordingHistory{}
 	svc := outreachService(repo, &stubOutreach{userID: "u3"}, "u1", "u2", "u3")
-	svc.SetHistory(history)
+	svc.telemetry = historyTelemetry{store: history}
 	return svc, history
 }
 
@@ -61,7 +61,7 @@ func TestOpeningAClaimedConversationKeepsTheSender(t *testing.T) {
 	_, err := svc.ClaimIfUnassigned("entry-1", "whatsapp", "phone-1", "ws-1", "u2", ia.TriggerOutreachSent)
 	require.NoError(t, err)
 
-	opened, err := svc.AssignOnOpen("entry-1", "whatsapp", "phone-1", "ws-1", "u1")
+	opened, err := svc.ClaimIfUnassigned("entry-1", "whatsapp", "phone-1", "ws-1", "u1", ia.TriggerOpen)
 
 	require.NoError(t, err)
 	require.False(t, opened)

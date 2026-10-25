@@ -16,14 +16,14 @@ import (
 
 func operatorMediaSender(url string, downloads media.RemoteFiles) (*MessageSenderService, *stubAudioMessageRepo) {
 	msgRepo := &stubAudioMessageRepo{}
-	svc := &MessageSenderService{
+	svc := senderWith(&MessageSenderService{
 		whatsappRepo:          stubAudioEntryRepo{},
 		leadRepo:              stubAudioLeadRepo{},
 		messageWindowRepo:     stubAudioWindowRepo{},
 		mediaRepo:             stubAudioMediaRepo{url: url},
 		whatsappClientFactory: stubAudioClientFactory{client: stubAudioClient{out: &conversation.SendTextMessageOutput{MessageID: "wamid.1"}}},
 		messageRepo:           msgRepo,
-	}
+	})
 	svc.SetMediaDownloads(downloads)
 	return svc, msgRepo
 }

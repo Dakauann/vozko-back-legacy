@@ -65,6 +65,14 @@ func (m *mockRepository) ListDepartments(workspaceID string) ([]wd.Department, e
 	return result, nil
 }
 
+func (m *mockRepository) HasDepartments(workspaceID string) (bool, error) {
+	departments, err := m.ListDepartments(workspaceID)
+	if err != nil {
+		return false, err
+	}
+	return len(departments) > 0, nil
+}
+
 func (m *mockRepository) ListDepartmentsByIDs(ids []string) ([]wd.Department, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

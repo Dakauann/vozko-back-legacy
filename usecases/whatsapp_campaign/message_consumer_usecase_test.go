@@ -505,6 +505,9 @@ func (r *mockEntryRepo) ListByLeadID(_ string) ([]wce.WhatsAppCampaignEntry, err
 func (r *mockEntryRepo) ListRecentlyUpdated(_ string, _ int) ([]wce.WhatsAppCampaignEntry, error) {
 	return nil, nil
 }
+func (r *mockEntryRepo) ListRecentlyUpdatedForCampaigns(_ []string, _ int) (map[string][]wce.WhatsAppCampaignEntry, error) {
+	return nil, nil
+}
 func (r *mockEntryRepo) CountByCampaignID(_ string) (int64, error)         { return 0, nil }
 func (r *mockEntryRepo) CountByStatus(_ string) (*wce.StatusCounts, error) { return nil, nil }
 func (r *mockEntryRepo) CountByStatusForCampaigns(_ []string) (map[string]*wce.StatusCounts, error) {
@@ -983,25 +986,32 @@ func newTestHarness() *testHarness {
 	cachedBal := &mockCachedBalanceChecker{balanceMicros: 1_000_000}
 	screener := &fakeScreener{skip: map[string]campaign.SkipReason{}}
 
-	uc := &messageConsumerUseCase{
-		MessageQueueSub:         queueSub,
-		MessageQueuePub:         queuePub,
-		CampaignRepo:            campaignRepo,
-		EntryRepo:               entryRepo,
-		TemplateRepo:            templateRepo,
-		BusinessPhoneRepo:       &mockBusinessPhoneRepo{},
-		WhatsAppClientFactory:   &mockWhatsAppClientFactory{client: waClient},
-		ConsumeWhatsappTemplate: consumeTempl,
-		CheckBalance:            checkBal,
-		MessageHistoryManager:   &mockMessageHistoryManager{},
-		shared:                  sharedState,
-		Eligibility:             screener,
-		LeadCampaignSendRepo:    &mockLeadCampaignSendRepo{},
-		InflightReserver:        inflightReserver,
-		CachedBalanceChecker:    cachedBal,
+	built, err := NewMessageConsumerUseCase(ConsumerDeps{
+		QueueSub:     queueSub,
+		QueuePub:     queuePub,
+		Campaigns:    campaignRepo,
+		Entries:      entryRepo,
+		Templates:    templateRepo,
+		Phones:       &mockBusinessPhoneRepo{},
+		Clients:      &mockWhatsAppClientFactory{client: waClient},
+		Consume:      consumeTempl,
+		CheckBalance: checkBal,
+		History:      &mockMessageHistoryManager{},
+		Shared:       sharedState,
+		Eligibility:  screener,
+		LeadSends:    &mockLeadCampaignSendRepo{},
+		Inflight:     inflightReserver,
+		Balances:     cachedBal,
+		Smart:        &fakeSmartStarter{managed: map[string]bool{}},
+		Forms:        unsendableForms{},
+		Choices:      &spyChoices{},
+		ClickTokens:  testClickTokens,
+		Charges:      fakeChargeClock{},
+	})
+	if err != nil {
+		panic(err)
 	}
-	uc.SetChoiceStats(&spyChoices{}, "", testClickTokens)
-	uc.attachRunner(queueSub, queuePub, sharedState)
+	uc := built.(*messageConsumerUseCase)
 
 	return &testHarness{
 		consumer:             uc,
@@ -1078,26 +1088,6 @@ func TestStart_SubscribesToRunningCampaigns(t *testing.T) {
 	}
 	if !h.queueSub.isSubscribed(topic2) {
 		t.Error("expected queue subscription for camp-2")
-	}
-}
-
-func TestStart_NoQueueSub_ReturnsError(t *testing.T) {
-	h := newTestHarness()
-	h.consumer.MessageQueueSub = nil
-
-	err := h.consumer.Start()
-	if err == nil {
-		t.Fatal("expected error when MessageQueueSub is nil")
-	}
-}
-
-func TestStart_NoWhatsAppClientFactory_SkipsGracefully(t *testing.T) {
-	h := newTestHarness()
-	h.consumer.WhatsAppClientFactory = nil
-
-	err := h.consumer.Start()
-	if err != nil {
-		t.Fatalf("expected nil error, got: %v", err)
 	}
 }
 
@@ -1447,8 +1437,8 @@ func TestHandler_InsufficientBalance_RequeuesWithDelay(t *testing.T) {
 	if len(delayed) != 1 {
 		t.Fatalf("expected 1 delayed message for balance, got %d", len(delayed))
 	}
-	if delayed[0].delay != balanceRequeueDelay {
-		t.Errorf("expected delay %v, got %v", balanceRequeueDelay, delayed[0].delay)
+	if delayed[0].delay != noBalanceRetryDelay {
+		t.Errorf("expected delay %v, got %v", noBalanceRetryDelay, delayed[0].delay)
 	}
 
 	if h.consumeTempl.consumed.Load() != 0 {
@@ -1959,53 +1949,6 @@ func TestInflight_BudgetExactlyEquals_ReservationSucceeds(t *testing.T) {
 	}
 	if h.consumeTempl.consumed.Load() != 1 {
 		t.Error("expected 1 debit")
-	}
-}
-
-func TestInflight_NilReserver_FailsClosed(t *testing.T) {
-	h := newTestHarness()
-	campID := "camp-nil-reserver"
-	topic := makeTopic(campID)
-
-	h.consumer.InflightReserver = nil
-
-	h.campaignRepo.Create(&wc.Campaign{
-		ID: campID, Status: wc.CampaignStatusRunning,
-		WorkspaceID: "ws-1", BusinessPhoneID: "bp-1", TemplateID: "tmpl-1",
-	})
-	h.templateRepo.templates["tmpl-1"] = approvedMarketingTemplate("tmpl-1")
-	_ = h.consumer.SubscribeToCampaign(campID)
-
-	payload := makePayload(campID, "entry-1", "5584999990001")
-	ack := h.queueSub.deliver(topic, payload)
-
-	if !ack.nacked.Load() {
-		t.Error("expected nack when inflightReserver is nil (fail-closed)")
-	}
-	if h.consumeTempl.consumed.Load() != 0 {
-		t.Error("expected no debit when inflightReserver is nil")
-	}
-}
-
-func TestInflight_NilCachedBalanceChecker_FailsClosed(t *testing.T) {
-	h := newTestHarness()
-	campID := "camp-nil-checker"
-	topic := makeTopic(campID)
-
-	h.consumer.CachedBalanceChecker = nil
-
-	h.campaignRepo.Create(&wc.Campaign{
-		ID: campID, Status: wc.CampaignStatusRunning,
-		WorkspaceID: "ws-1", BusinessPhoneID: "bp-1", TemplateID: "tmpl-1",
-	})
-	h.templateRepo.templates["tmpl-1"] = approvedMarketingTemplate("tmpl-1")
-	_ = h.consumer.SubscribeToCampaign(campID)
-
-	payload := makePayload(campID, "entry-1", "5584999990001")
-	ack := h.queueSub.deliver(topic, payload)
-
-	if !ack.nacked.Load() {
-		t.Error("expected nack when cachedBalanceChecker is nil (fail-closed)")
 	}
 }
 

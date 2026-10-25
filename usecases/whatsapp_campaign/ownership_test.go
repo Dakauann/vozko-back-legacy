@@ -140,7 +140,7 @@ func TestCreateCampaignUseCase_RejectsBusinessPhoneOutsideWorkspace(t *testing.T
 	businessPhones.phones["phone-1"] = &businessphone.WhatsAppBusinessPhoneNumber{ID: "phone-1", OwnerWorkspaceID: "ws-2"}
 	phoneAccess := &ownershipWorkspacePhoneAccessRepo{hasAccess: true}
 
-	uc := NewCreateCampaignUseCase(nil, nil, nil, nil, businessPhones, phoneAccess, nil, nil)
+	uc := createWith(CreateCampaignDeps{Phones: businessPhones, PhoneAccess: phoneAccess})
 
 	_, err := uc.Execute(context.Background(), &wc.Campaign{
 		WorkspaceID:     "ws-1",
@@ -173,7 +173,7 @@ func TestUpdateCampaignUseCase_RejectsBusinessPhoneOutsideWorkspace(t *testing.T
 	businessPhones.phones["phone-2"] = &businessphone.WhatsAppBusinessPhoneNumber{ID: "phone-2", OwnerWorkspaceID: "ws-2"}
 	phoneAccess := &ownershipWorkspacePhoneAccessRepo{hasAccess: true}
 
-	uc := NewUpdateCampaignUseCase(campaignRepo, nil, nil, businessPhones, phoneAccess)
+	uc := updateWith(UpdateCampaignDeps{Campaigns: campaignRepo, Phones: businessPhones, PhoneAccess: phoneAccess})
 
 	_, err := uc.Execute(context.Background(), "camp-1", &wc.Campaign{
 		Name:            "Updated Campaign",
@@ -194,7 +194,7 @@ func TestCreateCampaignUseCase_AllowsGrantedBusinessPhoneAccessForOwnerlessPhone
 	businessPhones.phones["phone-1"] = &businessphone.WhatsAppBusinessPhoneNumber{ID: "phone-1"}
 	phoneAccess := &ownershipWorkspacePhoneAccessRepo{hasAccess: true}
 
-	uc := NewCreateCampaignUseCase(nil, nil, nil, nil, businessPhones, phoneAccess, nil, nil)
+	uc := createWith(CreateCampaignDeps{Phones: businessPhones, PhoneAccess: phoneAccess})
 
 	allowed, err := hasTemporaryCampaignBusinessPhoneAccess("ws-1", "phone-1", businessPhones.phones["phone-1"], phoneAccess)
 	if err != nil {
@@ -232,7 +232,7 @@ func TestUpdateCampaignUseCase_AllowsGrantedBusinessPhoneAccessForOwnerlessPhone
 	businessPhones.phones["phone-2"] = &businessphone.WhatsAppBusinessPhoneNumber{ID: "phone-2"}
 	phoneAccess := &ownershipWorkspacePhoneAccessRepo{hasAccess: true}
 
-	uc := NewUpdateCampaignUseCase(campaignRepo, nil, nil, businessPhones, phoneAccess)
+	uc := updateWith(UpdateCampaignDeps{Campaigns: campaignRepo, Phones: businessPhones, PhoneAccess: phoneAccess})
 
 	_, err := uc.Execute(context.Background(), "camp-1", &wc.Campaign{
 		Name:            "Updated Campaign",
@@ -270,7 +270,7 @@ func TestUpdateCampaignUseCase_SetArchivedPersistsTheFlag(t *testing.T) {
 	templates := newMockTemplateRepo()
 	templates.templates["tmpl-1"] = &template.Template{ID: "tmpl-1", Status: template.TemplateStatusApproved, WABAId: "waba-1"}
 
-	uc := NewUpdateCampaignUseCase(campaignRepo, newMockEntryRepo(), templates, businessPhones, nil)
+	uc := updateWith(UpdateCampaignDeps{Campaigns: campaignRepo, Entries: newMockEntryRepo(), Templates: templates, Phones: businessPhones})
 
 	if err := uc.SetArchived(context.Background(), "camp-1", true); err != nil {
 		t.Fatalf("archive failed: %v", err)

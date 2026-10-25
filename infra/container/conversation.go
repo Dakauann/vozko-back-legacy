@@ -9,11 +9,9 @@ import (
 	"time"
 
 	wsdelivery "vozko/delivery/ws"
-	"vozko/domain/ai"
 	conversation_domain "vozko/domain/conversation"
 	"vozko/domain/shared"
 	"vozko/domain/whatsapp/medialimits"
-	workflow_domain "vozko/domain/workflow"
 	conversation_infra "vozko/infra/conversation"
 	whatsapp_infra "vozko/infra/conversation/whatsapp"
 	"vozko/infra/conversation/whatsapp/media"
@@ -21,7 +19,10 @@ import (
 	ah_repository "vozko/infra/repositories/assignment_history"
 	conversation_repository "vozko/infra/repositories/conversation"
 	ia_repo "vozko/infra/repositories/inbox_assignment"
+	livedecision_repository "vozko/infra/repositories/livedecision"
 	wc_entry_repository "vozko/infra/repositories/whatsapp_campaign_entry"
+	workflow_repository "vozko/infra/repositories/workflow"
+	"vozko/usecases/agentturn"
 	aa_usecase "vozko/usecases/ai_attendance"
 	cauc "vozko/usecases/audience"
 	"vozko/usecases/channelmedia"
@@ -30,22 +31,25 @@ import (
 	crm_telemetry_usecase "vozko/usecases/crm_telemetry"
 	ia_usecase "vozko/usecases/inbox_assignment"
 	label_usecase "vozko/usecases/label"
+	livedecisions_usecase "vozko/usecases/livedecisions"
 	"vozko/usecases/messageaction"
 	"vozko/usecases/messagestate"
 	stage_usecase "vozko/usecases/stage"
+	workflow_usecase "vozko/usecases/workflow"
 )
 
 func (c *Container) wireConversationHub() {
 	workspaceResolver := conversation_usecase.NewCampaignWorkspaceResolver(
 		c.repositories.wcCampaign,
 		c.repositories.wcEntry,
+		c.repositories.departmentRoutes,
 	)
 
 	conversationAuthorizer := conversation_infra.NewAuthorizer(
 		c.repositories.wcEntry,
 		wc_entry_repository.NewPlacementDirectory(c.db),
 		c.repositories.workspace,
-		c.repositories.workspaceDepartment,
+		c.cachedDepartmentScope(),
 		c.repositories.inboxAssignment,
 		workspaceResolver,
 		c.redisProvider.SharedState(),
@@ -58,71 +62,6 @@ func (c *Container) wireConversationHub() {
 	c.services.liveOperatorSend = conversation_domain.NewLiveOperatorSend()
 	c.services.personSend = conversation_usecase.NewPersonSend(conversationAuthorizer, c.services.liveOperatorSend)
 
-	c.services.conversationHub = wsdelivery.NewConversationHub(
-		c.services.conversationAuth,
-		c.repositories.user,
-		c.services.liveOperatorSend,
-		c.redisProvider.SharedState(),
-		c.replicaID,
-		c.cfg.PublicReplicaURL,
-	)
-	c.services.conversationHub.SetWSMetrics(c.services.metrics)
-
-	historyProvider := conversation_usecase.NewHistoryProviderService(
-		c.repositories.conversation,
-		c.repositories.wcEntry,
-		c.repositories.lead,
-		c.repositories.user,
-		c.repositories.agent,
-		c.repositories.leadMessageWindow,
-	)
-	c.services.conversationHistory = historyProvider
-	historyProvider.SetEntryWorkspaces(workspaceResolver)
-	historyProvider.SetMediaRepo(c.repositories.conversationMedia)
-	c.services.conversationHub.SetHistoryProvider(historyProvider)
-	c.services.conversationHistoryReader = conversation_usecase.NewHistoryReader(conversationAuthorizer, historyProvider, c.adOriginReader())
-	c.services.conversationHub.SetHistoryReader(c.services.conversationHistoryReader)
-
-	if runs, ok := c.repositories.workflowRun.(interface {
-		FindActiveByEntries(entryIDs []string) (map[string]*workflow_domain.WorkflowRun, error)
-	}); ok {
-		if wfs, ok := c.repositories.workflow.(interface {
-			FindByIDs(ids []string) ([]*workflow_domain.Workflow, error)
-			workflow_domain.VersionReader
-		}); ok {
-			historyProvider.SetWorkflowLookups(runs, wfs)
-		}
-	}
-
-	messageMarker := conversation_usecase.NewMessageMarkerService(
-		c.repositories.conversation,
-		c.services.whatsappClientFactory,
-		c.repositories.wcEntry,
-	)
-	c.services.conversationHub.SetMessageMarker(messageMarker)
-	c.services.messageMarker = messageMarker
-
-	StageProvider := stage_usecase.NewStageProviderService(c.repositories.stage)
-	c.services.conversationHub.SetStageProvider(StageProvider)
-
-	InitialStageAssigner := stage_usecase.NewInitialStageAssignerService(c.repositories.stage)
-	c.services.conversationHub.SetInitialStageAssigner(InitialStageAssigner)
-
-	labelProvider := label_usecase.NewLabelProviderService(c.repositories.label)
-	c.services.conversationHub.SetLabelProvider(labelProvider)
-
-	var analysisProvider conversation_domain.AnalysisProvider
-	if c.repositories.conversationAnalyses != nil {
-		analysisProvider = cauc.NewConversationAnalysisProvider(c.repositories.conversationAnalyses)
-		c.services.conversationHub.SetAnalysisProvider(analysisProvider)
-	}
-
-	conversationStatusUpdater := conversation_usecase.NewConversationStatusService(
-		c.repositories.wcEntry,
-	)
-	c.services.conversationStatusService = conversationStatusUpdater
-	c.services.campaignWorkspaceResolver = workspaceResolver
-	c.wireOutcomeCapture()
 	if c.services.crmTelemetryPublisher == nil && c.services.crmTelemetryPub != nil {
 		drops := crm_telemetry_usecase.NewLogDropRecorder()
 		c.services.crmTelemetryPublisher = crm_telemetry_usecase.NewPublisherWithDrops(c.services.crmTelemetryPub, drops)
@@ -132,21 +71,121 @@ func (c *Container) wireConversationHub() {
 	}
 	telemetryPub := c.services.crmTelemetryPublisher
 	eventLoggerEarly := ce_usecase.NewLogger(telemetryPub)
-	conversationStatusUpdater.SetEventLogger(eventLoggerEarly)
-	conversationStatusUpdater.SetWorkspaceResolver(func(entryID, entryType string) string {
-		if workspaceResolver == nil {
-			return ""
-		}
-		ws, _ := workspaceResolver.GetEntryWorkspaceID(entryID, entryType)
-		return ws
-	})
-	c.services.conversationHub.SetConversationStatusUpdater(conversationStatusUpdater)
-	c.services.conversationHub.SetPersonFinish(conversation_usecase.NewPersonFinish(conversationAuthorizer, conversationStatusUpdater))
-	conversationStatusUpdater.SetStatusAnnouncer(c.services.conversationHub)
-	c.services.conversationStatusUpdater = conversationStatusUpdater
 
-	c.services.conversationHub.SetCampaignWorkspaceResolver(workspaceResolver)
-	c.services.conversationHub.SetWorkspaceDepartmentRepo(c.repositories.workspaceDepartment)
+	c.services.delegations = conversation_repository.NewDelegationRepository(c.db)
+	workflowRuns, ok := c.repositories.workflowRun.(conversation_usecase.WorkflowRunLookup)
+	if !ok {
+		log.Fatalf("[conversation-history] the workflow run repository cannot find active runs by conversation")
+	}
+	workflows, ok := c.repositories.workflow.(conversation_usecase.WorkflowLookup)
+	if !ok {
+		log.Fatalf("[conversation-history] the workflow repository cannot read workflows and their versions by id")
+	}
+	historyProvider, err := conversation_usecase.NewHistoryProviderService(conversation_usecase.HistoryDeps{
+		Messages:     c.repositories.conversation,
+		WhatsApp:     c.repositories.wcEntry,
+		Leads:        c.repositories.lead,
+		Users:        c.repositories.user,
+		Agents:       c.repositories.agent,
+		Windows:      c.repositories.leadMessageWindow,
+		Media:        c.repositories.conversationMedia,
+		Assignments:  c.repositories.inboxAssignment,
+		Delegations:  c.services.delegations,
+		Adapters:     c.liveAdapterRegistry(),
+		Workspaces:   workspaceResolver,
+		WorkflowRuns: workflowRuns,
+		Workflows:    workflows,
+	})
+	if err != nil {
+		log.Fatalf("[conversation-history] %v", err)
+	}
+	c.services.conversationHistory = historyProvider
+	c.services.conversationHistoryReader = conversation_usecase.NewHistoryReader(conversationAuthorizer, historyProvider, c.adOriginReader())
+
+	messageMarker := conversation_usecase.NewMessageMarkerService(
+		c.repositories.conversation,
+		c.services.whatsappClientFactory,
+		c.repositories.wcEntry,
+		c.liveAdapterRegistry(),
+	)
+	c.services.messageMarker = messageMarker
+
+	StageProvider := stage_usecase.NewStageProviderService(c.repositories.stage)
+
+	InitialStageAssigner := stage_usecase.NewInitialStageAssignerService(c.repositories.stage)
+
+	labelProvider := label_usecase.NewLabelProviderService(c.repositories.label)
+	templateSender := conversation_usecase.NewTemplateSenderService(eventLoggerEarly)
+
+	hub, err := wsdelivery.NewConversationHub(wsdelivery.ConversationHubDeps{
+		Authorizer:    c.services.conversationAuth,
+		Users:         c.repositories.user,
+		OperatorSend:  c.services.liveOperatorSend,
+		SharedState:   c.redisProvider.SharedState(),
+		Metrics:       c.services.metrics,
+		ReplicaID:     c.replicaID,
+		PublicAddress: c.cfg.PublicReplicaURL,
+		History:       historyProvider,
+		HistoryReader: c.services.conversationHistoryReader,
+		Marker:        messageMarker,
+		Stages:        StageProvider,
+		Labels:        labelProvider,
+		Templates:     templateSender,
+		Workspaces:    workspaceResolver,
+		Messages:      c.repositories.conversation,
+		Campaigns:     c.repositories.wcCampaign,
+		Departments:   c.repositories.workspaceDepartment,
+		Presence:      crm_telemetry_usecase.NewPresenceAdapter(telemetryPub),
+		MediaLimits: channelmedia.Limits{
+			Adapters: c.liveAdapterRegistry(),
+			Official: medialimits.Official(),
+		},
+	})
+	if err != nil {
+		log.Fatalf("[container] %v", err)
+	}
+	c.services.conversationHub = hub
+
+	var analysisProvider conversation_domain.AnalysisProvider
+	if c.repositories.conversationAnalyses != nil {
+		analysisProvider = cauc.NewConversationAnalysisProvider(c.repositories.conversationAnalyses)
+	}
+
+	c.services.campaignWorkspaceResolver = workspaceResolver
+	c.services.aiAttendanceService = aa_usecase.NewAsyncSessionService(telemetryPub)
+	agentRuns, err := workflow_usecase.NewAgentRunFinishCanceller(workflow_repository.NewAgentCallRunsRepository(c.db), c.repositories.workflowRunLog)
+	if err != nil {
+		log.Fatalf("[conversation-status] %v", err)
+	}
+	conversationStatusUpdater, err := conversation_usecase.NewConversationStatusService(conversation_usecase.StatusDeps{
+		WhatsApp:    c.repositories.wcEntry,
+		Delegations: c.services.delegations,
+		Events:      eventLoggerEarly,
+		WorkspaceOf: func(entryID, entryType string) string {
+			ws, _ := workspaceResolver.GetEntryWorkspaceID(entryID, entryType)
+			return ws
+		},
+		AISessions:  c.services.aiAttendanceService,
+		Outcomes:    outcomeCaptureReader{configs: c.repositories.workspaceConfig},
+		Announcer:   c.services.conversationHub,
+		Departments: c.entryDepartmentResolver(),
+		AgentRuns:   agentRuns,
+	})
+	if err != nil {
+		log.Fatalf("[conversation-status] %v", err)
+	}
+	c.services.conversationStatusService = conversationStatusUpdater
+	c.services.personFinish = conversation_usecase.NewPersonFinish(conversationAuthorizer, conversationStatusUpdater)
+	c.services.conversationStatusUpdater = conversationStatusUpdater
+	c.services.messageArrivals, err = conversation_usecase.NewMessageArrivals(conversation_usecase.MessageArrivalsDeps{
+		Broadcaster: hub,
+		Workspaces:  workspaceResolver,
+		Stages:      InitialStageAssigner,
+		Status:      conversationStatusUpdater,
+	})
+	if err != nil {
+		log.Fatalf("[message-arrivals] %v", err)
+	}
 
 	inboxSvc := conversation_usecase.NewInboxService(
 		historyProvider,
@@ -157,64 +196,62 @@ func (c *Container) wireConversationHub() {
 		c.services.conversationAuth,
 		analysisProvider,
 		conversationStatusUpdater,
+		conversation_usecase.InboxSources{
+			Schedules: conversation_usecase.NewAnalysisScheduleReader(c.redisProvider.SharedState()),
+			Templates: templateSender,
+			LiveReads: livedecisions_usecase.InboxReads{Reads: livedecision_repository.NewReadStore(c.db)},
+		},
 	)
 	c.services.inboxService = inboxSvc
 	c.services.conversationEntryLookup = conversation_usecase.NewEntryLookup(c.services.conversationAuth, inboxSvc)
-	if setter, ok := inboxSvc.(interface {
-		SetAnalysisScheduleReader(conversation_domain.AnalysisScheduleReader)
-	}); ok {
-		setter.SetAnalysisScheduleReader(
-			conversation_usecase.NewAnalysisScheduleReader(c.redisProvider.SharedState()),
-		)
-	}
 
 	assignmentRepo := ia_repo.New(c.db)
-	c.services.assignmentService = ia_usecase.NewAssignmentService(assignmentRepo, c.services.conversationHub, workspaceResolver, c.repositories.workspaceConfig)
-	c.services.assignmentService.SetTelemetry(telemetryPub)
-	c.services.assignmentService.SetEventLogger(eventLoggerEarly)
-	c.services.assignmentService.SetOutreach(ia_repo.NewOutreachRepository(c.db))
-	c.services.assignmentService.SetPortfolio(c.customerPortfolioEntries())
-	c.services.assignmentService.SetRoster(ia_usecase.NewRosterService(
-		c.repositories.workspace,
-		c.repositories.workspaceDepartment,
-		c.services.conversationAuth,
-		c.redisProvider.SharedState(),
-	))
-	c.services.assignmentService.SetPresence(c.repositories.agentPresence)
-	c.services.assignmentService.SetWorkload(ia_repo.NewWorkloadRepository(c.db))
-	c.services.assignmentService.SetHandouts(ah_repository.NewHandoutReader(c.db))
-	c.services.delegations = conversation_repository.NewDelegationRepository(c.db)
-	entryInfo := conversation_repository.NewEntryAutomationReader(c.db)
-	c.services.assignmentService.SetAutomationGovernance(entryInfo)
-	c.services.assignmentService.SetEntryAccountReader(entryInfo)
-	c.services.assignmentService.SetDepartmentLookup(c.repositories.workspaceDepartment)
-	c.services.assignmentService.SetConversationReceivers(c.services.conversationAuth)
-	c.services.assignmentService.SetEntryBroadcaster(c.services.conversationHub)
-
 	c.services.conversationAutomation = conversation_usecase.NewConversationAutomationService(
 		c.services.conversationHub,
 	).WithDelegations(c.services.delegations)
-	c.services.assignmentService.SetAutomationPauser(c.services.conversationAutomation)
-	c.services.aiAttendanceService = aa_usecase.NewAsyncSessionService(telemetryPub)
-	c.services.assignmentService.SetAISessionEnder(c.services.aiAttendanceService)
-	conversationStatusUpdater.SetAISessionEnder(c.services.aiAttendanceService)
-
-	templateSender := conversation_usecase.NewTemplateSenderService(eventLoggerEarly)
-	c.services.templateSender = templateSender
-	c.services.conversationHub.SetTemplateSender(templateSender)
-	c.services.personTemplateSend = conversation_usecase.NewPersonTemplateSend(c.services.conversationAuth, templateSender)
-
-	if setter, ok := inboxSvc.(interface {
-		SetTemplateSender(conversation_domain.TemplateSender)
-	}); ok {
-		setter.SetTemplateSender(templateSender)
+	candidates, err := ia_usecase.NewCandidateResolver(ia_usecase.CandidateDeps{
+		Online: c.services.conversationHub,
+		Roster: ia_usecase.NewRosterService(
+			c.repositories.workspace,
+			c.repositories.workspaceDepartment,
+			c.services.conversationAuth,
+			c.redisProvider.SharedState(),
+		),
+		Presence: c.repositories.agentPresence,
+		Workload: ia_repo.NewWorkloadRepository(c.db),
+		Handouts: ah_repository.NewHandoutReader(c.db),
+	})
+	if err != nil {
+		log.Fatalf("[inbox-assignment] %v", err)
+	}
+	entryInfo := conversation_repository.NewEntryAutomationReader(c.db)
+	c.services.assignmentService, err = ia_usecase.NewAssignmentService(ia_usecase.AssignmentDeps{
+		Assignments:       assignmentRepo,
+		Candidates:        candidates,
+		WorkspaceResolver: workspaceResolver,
+		WorkspaceConfig:   c.repositories.workspaceConfig,
+		Telemetry:         telemetryPub,
+		Events:            eventLoggerEarly,
+		Outreach:          ia_repo.NewOutreachRepository(c.db),
+		Routes:            c.repositories.departmentRoutes,
+		AccessRevoker:     c.services.conversationAuthImpl,
+		Portfolio:         c.customerPortfolioEntries(),
+		Automation:        entryInfo,
+		Entries:           c.services.conversationHub,
+		Alerts:            c.services.conversationHub,
+		Pauser:            c.services.conversationAutomation,
+		AISessions:        c.services.aiAttendanceService,
+		Departments:       c.repositories.workspaceDepartment,
+		Accounts:          entryInfo,
+		Receivers:         c.services.conversationAuth,
+	})
+	if err != nil {
+		log.Fatalf("[inbox-assignment] %v", err)
 	}
 
-	c.services.conversationHub.SetInboxService(c.services.inboxService)
-	c.services.conversationHub.SetMessageRepo(c.repositories.conversation)
-	c.services.conversationHub.SetWACampaignRepo(c.repositories.wcCampaign)
-	c.services.conversationHub.SetAssignmentRepo(assignmentRepo)
-	c.services.conversationHub.SetAssignmentService(c.services.assignmentService)
+	c.services.templateSender = templateSender
+	c.services.personTemplateSend = conversation_usecase.NewPersonTemplateSend(c.services.conversationAuth, templateSender)
+
 	operatorSendFinalizer, err := conversation_usecase.NewOperatorSendFinalizer(
 		conversationStatusUpdater,
 		workspaceResolver,
@@ -226,9 +263,6 @@ func (c *Container) wireConversationHub() {
 		log.Fatalf("[container] %v", err)
 	}
 	c.services.operatorSendFinalizer = operatorSendFinalizer
-	c.services.conversationHub.SetPresenceRecorder(crm_telemetry_usecase.NewPresenceAdapter(telemetryPub))
-	c.services.conversationHub.SetWorkspaceConfigRepo(c.repositories.workspaceConfig)
-	historyProvider.SetAssignmentRepo(assignmentRepo)
 	{
 		callRegistry := whatsapp_infra.NewInMemoryCallRegistry()
 		signaling := whatsapp_infra.NewCallSignalingClient(c.repositories.businessPhone, nil, "")
@@ -264,30 +298,21 @@ func (c *Container) wireConversationHub() {
 			c.cfg.WhatsAppStunServers,
 			log.Default(),
 		)
-		c.services.whatsappCallWebhook = conversation_usecase.NewWhatsAppCallWebhookConsumer(callRegistry)
+		c.services.whatsappCallWebhook = conversation_usecase.NewWhatsAppCallWebhookConsumer(callRegistry, lateInboundCalls{handle: c.inboundCallsHandle()})
 		c.services.whatsappCallPermissionWebhook = conversation_usecase.NewWhatsAppCallPermissionConsumer(
 			c.repositories.businessPhone,
 			c.repositories.callPermission,
 			c.repositories.wcEntry,
 			c.repositories.conversation,
-			c.services.conversationHub,
+			c.services.messageArrivals,
 		)
 
 		callSource := conversation_usecase.NewDispatchingCallSource(whatsappCallSource, c.sipTrunks.CallSource)
 		c.services.crmCallSource = callSource
-		c.services.conversationHub.SetCallSource(callSource)
 	}
-	c.services.conversationHub.SetBillingPub(c.services.billingQueuePub)
-
-	c.services.conversationHub.SetEventLogger(eventLoggerEarly)
-
 }
 
-func (c *Container) agentTurnAI() ai.Service {
-	return aa_usecase.CountToolCalls(c.services.ai, c.services.aiAttendanceService, c.aiToolCallLog(), c.services.metrics)
-}
-
-func (c *Container) initConversationSenders() {
+func (c *Container) initConversationSenders(turnAssembler *agentturn.Assembler) {
 	messageSender := conversation_usecase.NewMessageSenderService(
 		c.repositories.conversation,
 		c.repositories.lead,
@@ -295,12 +320,13 @@ func (c *Container) initConversationSenders() {
 		c.repositories.leadMessageWindow,
 		c.repositories.conversationMedia,
 		c.services.whatsappClientFactory,
-		c.services.conversationHub,
+		c.services.messageArrivals,
 		c.repositories.wcCampaign,
 		c.services.ai,
 		c.services.toolRegistry,
 		c.repositories.stage,
 		c.services.analysisScheduler,
+		c.liveAdapterRegistry(),
 	)
 	messageSender.SetCallPermissionRepo(c.repositories.callPermission)
 	messageSender.SetMediaLibrary(c.repositories.media)
@@ -321,15 +347,21 @@ func (c *Container) initConversationSenders() {
 	c.services.liveOperatorSend.Use(operatorSend)
 	c.wireMessageActions(messageSender)
 
-	c.services.channelAIReply = conversation_usecase.NewChannelAIReplyService(
-		c.repositories.agent,
-		c.agentTurnAI(),
-		c.repositories.conversation,
-		messageSender,
-		c.liveAdapterRegistry(),
-		c.services.assignmentService,
-		ce_usecase.NewLogger(c.services.crmTelemetryPublisher),
-	)
+	c.services.channelAIReply = conversation_usecase.NewChannelAIReplyService(conversation_usecase.ChannelAIReplyDeps{
+		Agents:        c.publishedAgents(),
+		AI:            c.agentTurnAI(),
+		Messages:      c.repositories.conversation,
+		Sender:        messageSender,
+		Adapters:      c.liveAdapterRegistry(),
+		HandOff:       c.services.assignmentService,
+		Events:        ce_usecase.NewLogger(c.services.crmTelemetryPublisher),
+		Guard:         c.loopGuard(),
+		Assembler:     turnAssembler,
+		TurnLock:      c.agentTurnLock(),
+		Attendance:    c.services.aiAttendanceService,
+		Leads:         c.repositories.lead,
+		WorkflowNames: c.actorNames(),
+	})
 }
 
 func (c *Container) wireMessageActions(messageSender *conversation_usecase.MessageSenderService) {
@@ -346,11 +378,7 @@ func (c *Container) wireMessageActions(messageSender *conversation_usecase.Messa
 	if err != nil {
 		log.Fatalf("[container] %v", err)
 	}
-	c.services.conversationHub.SetMessageActions(actions)
-	c.services.conversationHub.SetMediaLimits(channelmedia.Limits{
-		Adapters: c.liveAdapterRegistry(),
-		Official: medialimits.Official(),
-	})
+	c.services.messageActions = actions
 }
 
 func (c *Container) mustChannelAIReply() *conversation_usecase.ChannelAIReplyService {
@@ -362,8 +390,6 @@ func (c *Container) mustChannelAIReply() *conversation_usecase.ChannelAIReplySer
 }
 
 func (c *Container) startConversationHub() {
-	messageSender := c.services.messageSender
-
 	if c.repositories.wcEntry != nil {
 		wcEntries := c.repositories.wcEntry
 		c.services.conversationAutomation.Register(
@@ -374,10 +400,19 @@ func (c *Container) startConversationHub() {
 		)
 	}
 
-	c.services.requestCallPermission = messageSender
-
-	c.services.conversationHub.SetPersonAssign(c.services.personAssign)
-
+	if err := c.services.conversationHub.BindCommands(wsdelivery.HubCommands{
+		Assigner:       c.services.assignmentService,
+		Attention:      c.services.assignmentService,
+		PersonAssign:   c.services.personAssign,
+		Status:         c.services.conversationStatusUpdater,
+		PersonFinish:   c.services.personFinish,
+		MessageActions: c.services.messageActions,
+		PersonalMarks:  c.services.personalInbox,
+		TeamChat:       c.teamChat(),
+		Inbox:          c.services.inboxService,
+	}); err != nil {
+		log.Fatalf("[conversation-hub] %v", err)
+	}
 	go c.services.conversationHub.Run()
 }
 
@@ -389,21 +424,7 @@ func (c *Container) registerChannelAdapter(adapter conversation_domain.ChannelAd
 		log.Fatalf("[container] %v", err)
 	}
 	c.services.channelAdapters = append(c.services.channelAdapters, adapter)
-	registry := conversation_domain.NewAdapterRegistry(c.services.channelAdapters...)
-
 	c.liveAdapterRegistry().Replace(c.services.channelAdapters...)
-
-	if c.services.messageSender != nil {
-		c.services.messageSender.SetChannelAdapters(registry)
-	}
-	if c.services.messageMarker != nil {
-		c.services.messageMarker.SetChannelAdapters(registry)
-	}
-	if setter, ok := c.services.conversationHistory.(interface {
-		SetChannelAdapters(conversation_domain.AdapterRegistry)
-	}); ok {
-		setter.SetChannelAdapters(registry)
-	}
 }
 
 func channelAdapterPortsGap(adapter conversation_domain.ChannelAdapter) error {

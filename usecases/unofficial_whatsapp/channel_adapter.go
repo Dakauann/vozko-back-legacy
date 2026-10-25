@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"time"
+	"vozko/domain/shared/deps"
 
 	"vozko/domain/channel"
 	"vozko/domain/conversation"
@@ -31,7 +32,23 @@ func NewChannelAdapter(
 	contacts uw.ContactRepository,
 	conversations uw.ConversationRepository,
 	messaging uw.MessagingAPI,
+	voice uw.VoiceTranscoder,
 ) conversation.ChannelAdapter {
+	if err := deps.Require("unofficial whatsapp channel adapter", map[string]any{"voice transcoder": voice}); err != nil {
+		panic(err.Error())
+	}
+	adapter := newTextAdapter(instances, servers, contacts, conversations, messaging)
+	adapter.voice = voice
+	return adapter
+}
+
+func newTextAdapter(
+	instances uw.InstanceRepository,
+	servers uw.ServerRepository,
+	contacts uw.ContactRepository,
+	conversations uw.ConversationRepository,
+	messaging uw.MessagingAPI,
+) *channelAdapter {
 	return &channelAdapter{
 		instances:     instances,
 		servers:       servers,
@@ -42,8 +59,6 @@ func NewChannelAdapter(
 		jitter:        defaultJitter,
 	}
 }
-
-func (a *channelAdapter) SetVoiceTranscoder(v uw.VoiceTranscoder) { a.voice = v }
 
 var (
 	_ conversation.ChannelAdapter     = (*channelAdapter)(nil)
@@ -215,9 +230,6 @@ func (a *channelAdapter) SendMedia(
 	kind := mediaKindFromRequest(req)
 
 	if kind == uw.MediaVoice || kind == uw.MediaAudio {
-		if a.voice == nil {
-			return nil, fmt.Errorf("unofficial whatsapp: audio cannot be sent, no transcoder is configured")
-		}
 		source := req.URL
 		if source == "" {
 			return nil, conversation.ErrCapabilityUnsupported

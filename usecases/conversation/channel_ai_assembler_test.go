@@ -64,14 +64,14 @@ func agentWithTools() *agent.Agent {
 
 func newAssembledService(t *testing.T) *ChannelAIReplyService {
 	t.Helper()
-	s := &ChannelAIReplyService{}
-	s.SetAssembler(agentturn.New(
+	s := channelAIDefaults(&ChannelAIReplyService{})
+	s.assembler = agentturn.New(
 		assemblerTestRegistry{defs: []tools.Definition{{Name: "finish_conversation"}}},
 		assemblerTestRAG{results: []rag.QueryResult{
 			{DocumentName: "entregas", Content: "Entregamos em todo o Nordeste.", Score: 0.9},
 		}},
 		nil,
-	))
+	)
 	return s
 }
 
@@ -179,23 +179,6 @@ func TestTelegramTurnDoesNotDuplicateTheLastMessage(t *testing.T) {
 	}
 }
 
-func TestWithoutAnAssemblerTheServiceFallsBackToAPlainPrompt(t *testing.T) {
-	s := &ChannelAIReplyService{}
-	req := telegramReplyRequest()
-
-	in := s.generateInput(context.Background(), req, agentWithTools(), nil, req.Text)
-
-	if in.SystemPrompt != "Você é a Bia." {
-		t.Errorf("SystemPrompt = %q, want the raw agent prompt", in.SystemPrompt)
-	}
-	if len(in.Tools) != 0 {
-		t.Errorf("tools = %+v, want none without an assembler", in.Tools)
-	}
-	if in.Model != "gpt-x" || in.WorkspaceID != "ws-1" {
-		t.Errorf("model/workspace not carried: %+v", in)
-	}
-}
-
 func TestInstagramGetsTheSameCapabilitiesAsTelegram(t *testing.T) {
 	s := newAssembledService(t)
 	req := telegramReplyRequest()
@@ -223,8 +206,8 @@ func (s assemblerTestMemories) Execute(context.Context, leadmemory.ListInput) (*
 
 func newAssembledServiceWithMemories(t *testing.T) *ChannelAIReplyService {
 	t.Helper()
-	s := &ChannelAIReplyService{}
-	s.SetAssembler(agentturn.New(
+	s := channelAIDefaults(&ChannelAIReplyService{})
+	s.assembler = agentturn.New(
 		assemblerTestRegistry{defs: []tools.Definition{{Name: "finish_conversation"}}},
 		assemblerTestRAG{},
 		assemblerTestMemories{items: []leadmemory.MemoryView{{
@@ -234,7 +217,7 @@ func newAssembledServiceWithMemories(t *testing.T) *ChannelAIReplyService {
 				Content:  "Prefere boleto a PIX.",
 			},
 		}}},
-	))
+	)
 	return s
 }
 

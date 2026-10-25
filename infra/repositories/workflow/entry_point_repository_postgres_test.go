@@ -29,7 +29,7 @@ type entryPointFixture struct {
 func entryPointTables() []interface{} {
 	return []interface{}{
 		&schema.WorkflowSchema{}, &schema.WorkflowVersionSchema{}, &schema.WorkflowRunSchema{},
-		&schema.WorkflowWebhookSchema{}, &schema.WorkflowWebhookDeliverySchema{}, &schema.Agent{}, &schema.WhatsAppForm{},
+		&schema.WorkflowWebhookSchema{}, &schema.WorkflowWebhookDeliverySchema{}, &schema.Agent{}, &schema.AgentTool{}, &schema.WhatsAppForm{},
 		&schema.WhatsAppCampaign{}, &schema.UnofficialWhatsAppCampaign{}, &schema.UnofficialWhatsAppInstance{},
 		&schema.FacebookPage{}, &schema.InstagramAccount{}, &schema.TelegramAccount{}, &schema.TikTokAccount{},
 		&schema.MercadoLivreAccount{}, &schema.WebchatWidget{}, &schema.TemplateButtonAction{}, &schema.WhatsAppCampaignButtonRoutes{},
@@ -40,6 +40,13 @@ func entryPointTables() []interface{} {
 func (f *entryPointFixture) create(t *testing.T, rows ...interface{}) {
 	t.Helper()
 	for _, row := range rows {
+		if seed, ok := row.(*agentSeed); ok {
+			f.create(t, seed.Agent)
+			for i := range seed.tools {
+				f.create(t, &seed.tools[i])
+			}
+			continue
+		}
 		if err := f.db.Omit(clause.Associations).Create(row).Error; err != nil {
 			t.Fatalf("create %T: %v", row, err)
 		}
@@ -57,16 +64,27 @@ func jsonOf(t *testing.T, v interface{}) string {
 
 func strPtr(s string) *string { return &s }
 
-func agentRow(workspaceID, name, bindings string) *schema.Agent {
-	return &schema.Agent{ID: uuid.NewString(), WorkspaceID: workspaceID, Name: name, MessagingPrompt: "p", IsActive: true,
-		Tags: "[]", Metadata: "{}", MediaIDs: "[]", Variables: "[]", ToolBindings: bindings}
+type agentSeed struct {
+	*schema.Agent
+	tools []schema.AgentTool
 }
 
-func runWorkflowBindings(t *testing.T, workflowID string) string {
-	return jsonOf(t, map[string]interface{}{"bindings": []map[string]interface{}{
-		{"name": "http_request", "config": map[string]interface{}{"workflow_id": workflowID}},
-		{"name": workflow.AgentRunWorkflowTool, "config": map[string]interface{}{"workflow_id": workflowID}},
-	}})
+func agentRow(workspaceID, name string, tools ...schema.AgentTool) *agentSeed {
+	seed := &agentSeed{Agent: &schema.Agent{ID: uuid.NewString(), WorkspaceID: workspaceID, Name: name, MessagingPrompt: "p", IsActive: true,
+		Tags: "[]", Metadata: "{}", MediaIDs: "[]", Variables: "[]", ToolBindings: `{"bindings":[]}`}}
+	for i, tool := range tools {
+		tool.ID, tool.WorkspaceID, tool.AgentID, tool.Position = uuid.NewString(), workspaceID, seed.Agent.ID, i
+		tool.Revision, tool.CreatedAt, tool.UpdatedAt = 1, time.Now(), time.Now()
+		seed.tools = append(seed.tools, tool)
+	}
+	return seed
+}
+
+func runWorkflowBindings(t *testing.T, workflowID string) []schema.AgentTool {
+	return []schema.AgentTool{
+		{Type: "http_request", Name: "http_request", Config: jsonOf(t, map[string]interface{}{"workflow_id": workflowID}), Visibility: "[]"},
+		{Type: workflow.AgentRunWorkflowTool, Name: "run_workflow_" + workflowID, Config: jsonOf(t, map[string]interface{}{"workflow_id": workflowID}), Visibility: "[]", TargetKey: "target:" + workflowID},
+	}
 }
 
 func seedEntryPoints(t *testing.T) *entryPointFixture {
@@ -211,13 +229,13 @@ func TestEntryPointBindingsAgainstPostgres(t *testing.T) {
 	foreignForm := uuid.NewString()
 	now := f.at
 	f.create(t,
-		agentRow(f.workspace, "Bia", runWorkflowBindings(t, f.published)),
-		agentRow(f.workspace, "Arquivada", runWorkflowBindings(t, f.published)),
-		agentRow(f.other, "Outro workspace", runWorkflowBindings(t, f.published)),
-		agentRow(f.workspace, "Outro fluxo", runWorkflowBindings(t, other)),
-		agentRow(f.workspace, "Legado", `{"run_workflow":"x"}`),
-		agentRow(f.workspace, "Sem ferramentas", `{"bindings":[]}`),
-		agentRow(f.workspace, "Ana", runWorkflowBindings(t, f.published)),
+		agentRow(f.workspace, "Bia", runWorkflowBindings(t, f.published)...),
+		agentRow(f.workspace, "Arquivada", runWorkflowBindings(t, f.published)...),
+		agentRow(f.other, "Outro workspace", runWorkflowBindings(t, f.published)...),
+		agentRow(f.workspace, "Outro fluxo", runWorkflowBindings(t, other)...),
+		agentRow(f.workspace, "Legado"),
+		agentRow(f.workspace, "Sem ferramentas"),
+		agentRow(f.workspace, "Ana", runWorkflowBindings(t, f.published)...),
 		&schema.WhatsAppForm{ID: published, WorkspaceID: f.workspace, Name: "Matrícula", Kind: "survey", DraftVersionID: uuid.NewString(), PublishedVersionID: schema.OptionalText(uuid.NewString()), CreatedAt: now, UpdatedAt: now},
 		&schema.WhatsAppForm{ID: draftForm, WorkspaceID: f.workspace, Name: "Rascunho", Kind: "survey", DraftVersionID: uuid.NewString(), CreatedAt: now, UpdatedAt: now},
 		&schema.WhatsAppForm{ID: archivedForm, WorkspaceID: f.workspace, Name: "Arquivado", Kind: "survey", DraftVersionID: uuid.NewString(), PublishedVersionID: schema.OptionalText(uuid.NewString()), CreatedAt: now, UpdatedAt: now, ArchivedAt: &now},

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"vozko/domain/cache"
+	"vozko/domain/shared/deps"
 )
 
 type fakeSharedState struct {
@@ -139,13 +140,16 @@ const (
 func newGuardForTest() (Guard, *fakeSharedState, *fakeMetrics) {
 	st := newFakeSharedState()
 	mx := newFakeMetrics()
-	g := NewGuard(st, Config{
+	g, err := NewGuard(st, Config{
 		DuplicateWindow:    10 * time.Minute,
 		DuplicateThreshold: 3,
 		AIRateWindow:       5 * time.Minute,
 		AIRateMax:          4,
 		KeyPrefix:          "lg_test",
 	}, mx)
+	if err != nil {
+		panic(err)
+	}
 	return g, st, mx
 }
 
@@ -361,18 +365,10 @@ func TestRecordAIResponse_FailsOpenOnBackendError(t *testing.T) {
 	}
 }
 
-func TestNewGuard_NilStateReturnsAlwaysAllow(t *testing.T) {
+func TestNewGuardRefusesAMissingStore(t *testing.T) {
 	t.Parallel()
-	g := NewGuard(nil, Config{}, nil)
-	ctx := context.Background()
-
-	for i := 0; i < 1000; i++ {
-		if dec := g.CheckInbound(ctx, tWs, tConv, "anything"); dec.Block {
-			t.Fatalf("AlwaysAllow must never block (CheckInbound)")
-		}
-		if dec := g.RecordAIResponse(ctx, tWs, tConv); dec.Block {
-			t.Fatalf("AlwaysAllow must never block (RecordAIResponse)")
-		}
+	if g, err := NewGuard(nil, Config{}, NoopMetrics{}); g != nil || !errors.Is(err, deps.ErrMissing) {
+		t.Fatalf("g = %v err = %v, want the missing store refused", g, err)
 	}
 }
 
@@ -446,13 +442,16 @@ func TestMetrics_PassAndBlockAreLabeled(t *testing.T) {
 func TestKeyPrefixIsApplied(t *testing.T) {
 	t.Parallel()
 	st := newFakeSharedState()
-	g := NewGuard(st, Config{
+	g, err := NewGuard(st, Config{
 		DuplicateWindow:    time.Minute,
 		DuplicateThreshold: 3,
 		AIRateWindow:       time.Minute,
 		AIRateMax:          5,
 		KeyPrefix:          "customprefix",
 	}, NoopMetrics{})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	g.CheckInbound(context.Background(), tWs, tConv, "hello")
 	st.mu.Lock()

@@ -23,7 +23,7 @@ func TestSessionBackstopOnlyProbesStaleInstances(t *testing.T) {
 		},
 	}
 
-	uc := NewCheckInstanceHealthUseCase(instances, newFakeServerRepo(), provider, testWebhookBase)
+	uc := healthFor(instances, newFakeServerRepo(), provider, testWebhookBase)
 	if err := uc.Execute(context.Background()); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestSessionBackstopDoesNotRunTheIntegrityProbes(t *testing.T) {
 		},
 	}
 
-	uc := NewCheckInstanceHealthUseCase(
+	uc := healthFor(
 		instances, newFakeServerRepo(healthyServer("srv-a", 10, 1)), provider, testWebhookBase)
 	if err := uc.Execute(context.Background()); err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -75,7 +75,7 @@ func TestIntegritySweepReRegistersAMissingWebhook(t *testing.T) {
 		},
 	}
 
-	uc := NewCheckInstanceHealthUseCase(
+	uc := healthFor(
 		instances, newFakeServerRepo(healthyServer("srv-a", 10, 1)), provider, testWebhookBase)
 	if err := uc.VerifyIntegrity(context.Background()); err != nil {
 		t.Fatalf("VerifyIntegrity: %v", err)
@@ -107,7 +107,7 @@ func TestIntegritySweepLeavesAHealthyWebhookAlone(t *testing.T) {
 		},
 	}
 
-	uc := NewCheckInstanceHealthUseCase(
+	uc := healthFor(
 		instances, newFakeServerRepo(healthyServer("srv-a", 10, 1)), provider, testWebhookBase)
 	if err := uc.VerifyIntegrity(context.Background()); err != nil {
 		t.Fatalf("VerifyIntegrity: %v", err)
@@ -132,7 +132,7 @@ func TestIntegritySweepResubscribesWhenEventsAreMissing(t *testing.T) {
 		},
 	}
 
-	uc := NewCheckInstanceHealthUseCase(
+	uc := healthFor(
 		instances, newFakeServerRepo(healthyServer("srv-a", 10, 1)), provider, testWebhookBase)
 	if err := uc.VerifyIntegrity(context.Background()); err != nil {
 		t.Fatalf("VerifyIntegrity: %v", err)
@@ -169,7 +169,7 @@ func TestIntegritySweepTreatsADisabledWebhookAsMissing(t *testing.T) {
 		},
 	}
 
-	uc := NewCheckInstanceHealthUseCase(
+	uc := healthFor(
 		instances, newFakeServerRepo(healthyServer("srv-a", 10, 1)), provider, testWebhookBase)
 	if err := uc.VerifyIntegrity(context.Background()); err != nil {
 		t.Fatalf("VerifyIntegrity: %v", err)
@@ -194,7 +194,7 @@ func TestBackstopDoesNotDisconnectOnATransientFailure(t *testing.T) {
 		},
 	}
 
-	uc := NewCheckInstanceHealthUseCase(
+	uc := healthFor(
 		instances, newFakeServerRepo(healthyServer("srv-a", 10, 1)), provider, testWebhookBase)
 	if err := uc.Execute(context.Background()); err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -220,7 +220,7 @@ func TestSweepsIsolatePerInstanceFailures(t *testing.T) {
 	}
 	provider := &fakeProvider{}
 
-	uc := NewCheckInstanceHealthUseCase(
+	uc := healthFor(
 		instances, newFakeServerRepo(healthyServer("srv-a", 10, 1)), provider, testWebhookBase)
 	if err := uc.VerifyIntegrity(context.Background()); err != nil {
 		t.Fatalf("an unresolvable host must not abort the sweep: %v", err)

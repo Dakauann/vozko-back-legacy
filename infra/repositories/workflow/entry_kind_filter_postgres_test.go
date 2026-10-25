@@ -56,12 +56,12 @@ func seedEntryKinds(t *testing.T) (*entryPointFixture, map[string]string) {
 	f.create(t, &schema.WorkflowSchema{ID: foreign, WorkspaceID: f.other, Name: "foreign", Status: "draft", Type: "messages", TriggerConfig: "{}", Graph: graphOf(t, workflow.NodeTypeTriggerWebhook), Version: 1})
 
 	campaign := uuid.NewString()
-	active, idle := agentRow(f.workspace, "Bia", runWorkflowBindings(t, agentBound)), agentRow(f.workspace, "Ana", runWorkflowBindings(t, idleAgent))
+	active, idle := agentRow(f.workspace, "Bia", runWorkflowBindings(t, agentBound)...), agentRow(f.workspace, "Ana", runWorkflowBindings(t, idleAgent)...)
 	f.create(t,
 		&schema.WorkflowWebhookSchema{WorkflowID: unboundHook, WorkspaceID: f.workspace, Token: uuid.NewString(), AuthMode: "header_token", Method: "POST", Active: true},
 		&schema.WorkflowWebhookSchema{WorkflowID: closedHook, WorkspaceID: f.workspace, Token: uuid.NewString(), AuthMode: "header_token", Method: "POST", Active: true},
 		active, idle,
-		agentRow(f.other, "Alheia", runWorkflowBindings(t, hook)),
+		agentRow(f.other, "Alheia", runWorkflowBindings(t, hook)...),
 		&schema.WhatsAppCampaign{ID: campaign, WorkspaceID: f.workspace, Name: "Promo"},
 		&schema.WhatsAppCampaignButtonRoutes{CampaignID: campaign, WorkspaceID: f.workspace, TemplateName: "promo", Language: "pt_BR", Version: 1, UpdatedAt: f.at, Routes: []byte(jsonOf(t, []map[string]interface{}{
 			{"buttonIndex": 0, "buttonText": "Matricular", "kind": "start_workflow", "params": map[string]string{"workflowId": campaignExit}},

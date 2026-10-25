@@ -32,8 +32,37 @@ func newPrivateReplyUC(
 	contacts igdomain.ContactRepository,
 	convs igdomain.ConversationRepository,
 ) *SendPrivateReplyUseCase {
-	return NewSendPrivateReplyUseCase(accounts, messaging, &fakeCommentService{}, commentsRepo,
-		cauc.NewPrivateReplySender(claims), contacts, convs)
+	return privateReplyWith(accounts, messaging, &fakeCommentService{}, commentsRepo, claims, contacts, convs, &recordedHistory{})
+}
+
+func privateReplyWith(
+	accounts igdomain.AccountRepository,
+	messaging igdomain.MessagingService,
+	comments igdomain.CommentService,
+	commentsRepo igdomain.CommentRepository,
+	claims *fakePrivateReplyRepo,
+	contacts igdomain.ContactRepository,
+	convs igdomain.ConversationRepository,
+	history conversation.MessageHistoryManager,
+) *SendPrivateReplyUseCase {
+	uc, err := NewSendPrivateReplyUseCase(accounts, messaging, comments, commentsRepo,
+		cauc.NewPrivateReplySender(claims), contacts, convs, history)
+	if err != nil {
+		panic(err)
+	}
+	return uc
+}
+
+type forgottenComments struct{ ids []string }
+
+func (f *forgottenComments) Forget(_ context.Context, igCommentID string) { f.ids = append(f.ids, igCommentID) }
+
+func moderation(accounts igdomain.AccountRepository, service igdomain.CommentService, comments igdomain.CommentRepository) *ModerateCommentUseCase {
+	uc, err := NewModerateCommentUseCase(accounts, service, comments, &forgottenComments{})
+	if err != nil {
+		panic(err)
+	}
+	return uc
 }
 
 func TestSendPrivateReply_RefusesWhenTheCommentTimeIsUnknown(t *testing.T) {
@@ -43,8 +72,7 @@ func TestSendPrivateReply_RefusesWhenTheCommentTimeIsUnknown(t *testing.T) {
 	unknown := &fakeCommentService{GetFn: func(context.Context, string, string) (*igdomain.RemoteComment, error) {
 		return nil, igdomain.ErrCommentNotFound
 	}}
-	uc := NewSendPrivateReplyUseCase(accountRepoFor(account), messaging, unknown, &fakeCommentRepo{},
-		cauc.NewPrivateReplySender(claims), &fakeContactRepo{}, &fakeConversationRepo{})
+	uc := privateReplyWith(accountRepoFor(account), messaging, unknown, &fakeCommentRepo{}, claims, &fakeContactRepo{}, &fakeConversationRepo{}, &recordedHistory{})
 
 	err := uc.Execute(context.Background(), account.WorkspaceID, account.ID, "comment-1", conversation.SentByPerson("user-1"), "oi")
 	if !errors.Is(err, privatereply.ErrDeadlineUnknown) {
@@ -243,7 +271,7 @@ func TestModerateComment_DeleteRefusedForOthersComments(t *testing.T) {
 	}
 	service := &fakeCommentService{}
 
-	uc := NewModerateCommentUseCase(accountRepoFor(account), service, comments)
+	uc := moderation(accountRepoFor(account), service, comments)
 
 	if err := uc.Delete(context.Background(), account.WorkspaceID, account.ID, "c1"); err == nil {
 		t.Fatal("delete succeeded on someone else's comment")
@@ -262,7 +290,7 @@ func TestModerateComment_DeleteAllowedForOurOwnReply(t *testing.T) {
 	}
 	service := &fakeCommentService{}
 
-	uc := NewModerateCommentUseCase(accountRepoFor(account), service, comments)
+	uc := moderation(accountRepoFor(account), service, comments)
 
 	if err := uc.Delete(context.Background(), account.WorkspaceID, account.ID, "c1"); err != nil {
 		t.Fatalf("Delete: %v", err)
@@ -280,7 +308,7 @@ func TestModerateComment_HideMirrorsState(t *testing.T) {
 	comments := &fakeCommentRepo{}
 	service := &fakeCommentService{}
 
-	uc := NewModerateCommentUseCase(accountRepoFor(account), service, comments)
+	uc := moderation(accountRepoFor(account), service, comments)
 
 	if err := uc.SetHidden(context.Background(), account.WorkspaceID, account.ID, "c1", true); err != nil {
 		t.Fatalf("SetHidden: %v", err)
@@ -295,7 +323,7 @@ func TestModerateComment_HideMirrorsState(t *testing.T) {
 
 func TestAccountResolver_EnforcesWorkspaceOwnership(t *testing.T) {
 	account := connectedAccount()
-	uc := NewModerateCommentUseCase(accountRepoFor(account), &fakeCommentService{}, &fakeCommentRepo{})
+	uc := moderation(accountRepoFor(account), &fakeCommentService{}, &fakeCommentRepo{})
 
 	err := uc.SetHidden(context.Background(), "another-workspace", account.ID, "c1", true)
 	if !errors.Is(err, igdomain.ErrAccountNotFound) {

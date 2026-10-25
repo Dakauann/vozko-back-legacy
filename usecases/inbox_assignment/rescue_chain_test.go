@@ -134,10 +134,10 @@ func newChainFixture(t *testing.T, ring []string, seen map[string]time.Time) *ch
 
 	c := &chainFixture{t: t, base: base, now: testNow}
 	c.store = newIntervalStore(func() time.Time { return c.now })
-	base.svc.SetHistory(c.store)
+	base.svc.telemetry = historyTelemetry{store: c.store}
 
-	c.job = NewRescueJob(base.cfg, c.store, base.att, base.status, base.svc)
-	c.job.SetClock(func() time.Time { return c.now })
+	c.job = rescueJob(base.cfg, c.store, base.att, base.status, base.svc)
+	c.job.now = func() time.Time { return c.now }
 	return c
 }
 

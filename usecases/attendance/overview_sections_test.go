@@ -71,9 +71,16 @@ func (v *memoryVersions) Bump(scope string) error {
 }
 
 type trackingGate struct {
-	mu      sync.Mutex
-	held    int
-	busyErr error
+	mu       sync.Mutex
+	held     int
+	acquired int
+	busyErr  error
+}
+
+func (g *trackingGate) acquisitions() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.acquired
 }
 
 func (g *trackingGate) Acquire(context.Context) (func(), error) {
@@ -83,6 +90,7 @@ func (g *trackingGate) Acquire(context.Context) (func(), error) {
 		return nil, g.busyErr
 	}
 	g.held++
+	g.acquired++
 	var once sync.Once
 	return func() {
 		once.Do(func() {
@@ -100,10 +108,9 @@ func (g *trackingGate) holding() int {
 }
 
 func cachedUseCase(repo *stubOverviewRepo, targets *stubTargetRepo) (*getOverviewUseCase, *memoryVersions, *trackingGate) {
-	uc := newTestUseCase(repo, businessConfig(), nil, targets)
 	versions := newMemoryVersions()
 	gate := &trackingGate{}
-	uc.SetCaching(SectionCaching{Memo: newMemoryMemo(), Gate: gate, Versions: versions, TTL: time.Minute})
+	uc := overviewWith(repo, businessConfig(), nil, targets, SectionCaching{Memo: newMemoryMemo(), Gate: gate, Versions: versions, TTL: time.Minute})
 	return uc, versions, gate
 }
 
@@ -162,8 +169,7 @@ func TestChangingTheRankingMetricRereadsOnlyTheTeam(t *testing.T) {
 func TestSavingATargetRecomputesTheWorkspaceSections(t *testing.T) {
 	repo := &stubOverviewRepo{}
 	targets := &stubTargetRepo{}
-	uc, versions, _ := cachedUseCase(repo, targets)
-	uc.targets.SetVersions(versions)
+	uc, _, _ := cachedUseCase(repo, targets)
 	ctx := context.Background()
 
 	if _, err := uc.Summary(ctx, "ws1", attendance.OverviewFilter{}); err != nil {
@@ -272,9 +278,8 @@ func (m *countingMemo) Remember(
 
 func TestLiveIsNeverServedFromTheCache(t *testing.T) {
 	repo := &stubOverviewRepo{}
-	uc := newTestUseCase(repo, businessConfig(), nil, &stubTargetRepo{})
 	memo := &countingMemo{memoryMemo: memoryMemo{values: map[string][]byte{}}}
-	uc.SetCaching(SectionCaching{Memo: memo, Gate: &trackingGate{}, Versions: newMemoryVersions(), TTL: time.Minute})
+	uc := overviewWith(repo, businessConfig(), nil, &stubTargetRepo{}, SectionCaching{Memo: memo, Gate: &trackingGate{}, Versions: newMemoryVersions(), TTL: time.Minute})
 
 	out, err := uc.Live(context.Background(), "ws1", attendance.OverviewFilter{})
 	if err != nil {
@@ -288,5 +293,136 @@ func TestLiveIsNeverServedFromTheCache(t *testing.T) {
 	}
 	if len(repo.reads) != 0 {
 		t.Fatalf("Live() read overview sections %v; it must never build the scope", repo.reads)
+	}
+}
+
+func sameShare(t *testing.T, repo *stubOverviewRepo, sections ...string) {
+	t.Helper()
+	want := 0
+	for _, section := range sections {
+		shares := repo.sharesOf(section)
+		if len(shares) != 1 || shares[0] == 0 {
+			t.Fatalf("%s reads ran in shared scopes %v, want exactly one shared scope", section, shares)
+		}
+		if want == 0 {
+			want = shares[0]
+		}
+		if shares[0] != want {
+			t.Fatalf("%s read the scope of request %d, want %d: one request builds its scope once", section, shares[0], want)
+		}
+	}
+}
+
+func TestADependentSectionReadsItsSummaryFromTheSameScope(t *testing.T) {
+	for _, section := range []string{"team", "trend"} {
+		t.Run(section, func(t *testing.T) {
+			repo := &stubOverviewRepo{}
+			uc, _, gate := cachedUseCase(repo, &stubTargetRepo{})
+			ctx := context.Background()
+
+			var err error
+			if section == "team" {
+				_, err = uc.Team(ctx, "ws1", attendance.OverviewFilter{})
+			} else {
+				_, err = uc.Trend(ctx, "ws1", attendance.OverviewFilter{})
+			}
+			if err != nil {
+				t.Fatalf("%s() error = %v", section, err)
+			}
+			sameShare(t, repo, "summary", section)
+			if gate.acquisitions() != 1 {
+				t.Fatalf("the request took %d slots, want 1 held from the summary to its own rows", gate.acquisitions())
+			}
+			if gate.holding() != 0 {
+				t.Fatalf("%d slots were never released", gate.holding())
+			}
+		})
+	}
+}
+
+func TestADependentSectionWithACachedSummaryTakesItsOwnSlot(t *testing.T) {
+	repo := &stubOverviewRepo{}
+	uc, _, gate := cachedUseCase(repo, &stubTargetRepo{})
+	ctx := context.Background()
+
+	if _, err := uc.Summary(ctx, "ws1", attendance.OverviewFilter{}); err != nil {
+		t.Fatalf("Summary() error = %v", err)
+	}
+	if _, err := uc.Team(ctx, "ws1", attendance.OverviewFilter{}); err != nil {
+		t.Fatalf("Team() error = %v", err)
+	}
+	if repo.calls("summary") != 1 || repo.calls("team") != 1 {
+		t.Fatalf("reads = %d summary / %d team, want 1 each", repo.calls("summary"), repo.calls("team"))
+	}
+	if gate.acquisitions() != 2 || gate.holding() != 0 {
+		t.Fatalf("slots taken = %d, still held = %d, want 2 and 0", gate.acquisitions(), gate.holding())
+	}
+}
+
+func TestExecuteBuildsOneScopeForTheWholeReport(t *testing.T) {
+	repo := &stubOverviewRepo{}
+	uc, _, gate := cachedUseCase(repo, &stubTargetRepo{})
+
+	if _, err := uc.Execute("ws1", attendance.OverviewFilter{}); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	sameShare(t, repo, "summary", "trend", "team", "stages", "backlog", "rework")
+	if gate.acquisitions() != 1 || gate.holding() != 0 {
+		t.Fatalf("slots taken = %d, still held = %d, want 1 and 0", gate.acquisitions(), gate.holding())
+	}
+}
+
+func TestABusySlotStopsASharedRequestBeforeItReads(t *testing.T) {
+	repo := &stubOverviewRepo{}
+	uc, _, gate := cachedUseCase(repo, &stubTargetRepo{})
+	gate.busyErr = cache.ErrGateBusy
+
+	if _, err := uc.Team(context.Background(), "ws1", attendance.OverviewFilter{}); !errors.Is(err, cache.ErrGateBusy) {
+		t.Fatalf("Team() error = %v, want ErrGateBusy", err)
+	}
+	if _, err := uc.Execute("ws1", attendance.OverviewFilter{}); !errors.Is(err, cache.ErrGateBusy) {
+		t.Fatalf("Execute() error = %v, want ErrGateBusy", err)
+	}
+	if len(repo.reads) != 0 {
+		t.Fatalf("sections were read although the gate refused: %v", repo.reads)
+	}
+}
+
+type detachedMemo struct {
+	memoryMemo
+}
+
+func (m *detachedMemo) Remember(
+	ctx context.Context,
+	key string,
+	ttl time.Duration,
+	compute func(context.Context) ([]byte, error),
+) ([]byte, error) {
+	type result struct {
+		value []byte
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		value, err := m.memoryMemo.Remember(context.WithoutCancel(ctx), key, ttl, compute)
+		done <- result{value: value, err: err}
+	}()
+	res := <-done
+	return res.value, res.err
+}
+
+func TestASharedScopeCrossesTheMemosOwnGoroutine(t *testing.T) {
+	repo := &stubOverviewRepo{}
+	gate := &trackingGate{}
+	uc := overviewWith(repo, businessConfig(), nil, &stubTargetRepo{}, SectionCaching{
+		Memo: &detachedMemo{memoryMemo: memoryMemo{values: map[string][]byte{}}}, Gate: gate, Versions: newMemoryVersions(), TTL: time.Minute,
+	})
+
+	if _, err := uc.Team(context.Background(), "ws1", attendance.OverviewFilter{}); err != nil {
+		t.Fatalf("Team() error = %v", err)
+	}
+	sameShare(t, repo, "summary", "team")
+	if gate.acquisitions() != 1 || gate.holding() != 0 {
+		t.Fatalf("slots taken = %d, still held = %d, want 1 and 0", gate.acquisitions(), gate.holding())
 	}
 }

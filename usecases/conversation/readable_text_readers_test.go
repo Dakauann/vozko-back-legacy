@@ -44,7 +44,7 @@ func TestTheChannelAIReplyHistoryHearsTheAudioAndSkipsRetractedMessages(t *testi
 }
 
 func TestTheOfficialAIHistoryHearsTheAudioAndSkipsRetractedMessages(t *testing.T) {
-	uc := &handleWhatsAppMessageUseCase{}
+	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
 	history := uc.composeConversationHistory(spokenAndRetracted(), "551140001234", "5511999990000")
 	var contents []string
 	for _, m := range history {

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"vozko/domain/agent"
-	"vozko/domain/agent/mcp"
 	"vozko/domain/copilot"
 	"vozko/domain/rag"
 )
@@ -23,24 +22,9 @@ func (k knowledgeShelf) Execute(_ context.Context, workspaceID string, _ *string
 	return &rag.KnowledgeBaseListOutput{Items: items}, nil
 }
 
-type collectionShelf []*mcp.MCPCollection
-
-func (c collectionShelf) ListByIDs(_ context.Context, workspaceID string, ids []string) ([]*mcp.MCPCollection, error) {
-	var out []*mcp.MCPCollection
-	for _, col := range c {
-		for _, id := range ids {
-			if col.ID == id && col.WorkspaceID == workspaceID {
-				out = append(out, col)
-			}
-		}
-	}
-	return out, nil
-}
-
 func agentCardFixture() AgentDeps {
 	return AgentDeps{
 		KnowledgeBases: knowledgeShelf{{ID: "kb-1", WorkspaceID: "ws-1", Name: "Tabela de preços"}, {ID: "kb-x", WorkspaceID: "ws-2", Name: "Alheia"}},
-		Collections:    collectionShelf{{ID: "mcp-1", WorkspaceID: "ws-1", Name: "CRM externo"}},
 	}
 }
 
@@ -66,7 +50,6 @@ func TestTheAgentUpdateCardShowsEverythingTheChangeDoes(t *testing.T) {
 			"config": map[string]interface{}{"url": "https://coleta.exemplo.com/{id}", "method": "POST", "headers": map[string]interface{}{"Authorization": "Bearer segredo"}},
 		}},
 		"addKnowledgeBaseIds": []interface{}{"kb-1"},
-		"addMcpCollectionIds": []interface{}{"mcp-1"},
 	})
 
 	if cardValue(fields, "agent") != "Atendente Maria" {
@@ -82,8 +65,8 @@ func TestTheAgentUpdateCardShowsEverythingTheChangeDoes(t *testing.T) {
 	if strings.Contains(tools, "Bearer segredo") {
 		t.Fatal("header values stay off the card")
 	}
-	if cardValue(fields, "addKnowledgeBases") != "Tabela de preços" || cardValue(fields, "addMcpCollections") != "CRM externo" {
-		t.Fatalf("linked bases and collections must be named: %+v", fields)
+	if cardValue(fields, "addKnowledgeBases") != "Tabela de preços" {
+		t.Fatalf("linked bases must be named: %+v", fields)
 	}
 }
 
@@ -95,9 +78,9 @@ func TestAnAgentCannotBeLinkedToAnotherWorkspacesKnowledge(t *testing.T) {
 	}
 	create := NewCreateAgentTool(&fakeCreateAgent{}, agentCardFixture())
 	err = create.(copilot.Validator).Validate(context.Background(), okContext(), map[string]interface{}{
-		"name": "Nova", "messagingPrompt": "p", "messagingModel": "m", "provider": "openrouter", "mcpCollectionIds": []interface{}{"mcp-other"},
+		"name": "Nova", "messagingPrompt": "p", "messagingModel": "m", "provider": "openrouter", "knowledgeBaseIds": []interface{}{"kb-x"},
 	})
-	if err == nil || !strings.Contains(err.Error(), "coleção MCP desconhecida") {
+	if err == nil || !strings.Contains(err.Error(), "base de conhecimento desconhecida") {
 		t.Fatalf("err = %v", err)
 	}
 }

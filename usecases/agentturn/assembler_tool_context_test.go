@@ -50,3 +50,18 @@ func TestContextualToolsSeeTheConversation(t *testing.T) {
 		t.Fatalf("tool context = %+v, want the conversation conv-1 (unofficial_whatsapp) in ws1", *seen)
 	}
 }
+
+func TestEveryToolConfigCarriesTheAgentVariables(t *testing.T) {
+	reg := stubRegistry{defs: []tools.Definition{{Name: "manage_entry_stage"}}}
+	assembled := New(reg, nil, nil).Assemble(context.Background(), Request{
+		Agent:                &agent.Agent{WorkspaceID: "ws1", InternalTools: []agent.ToolBinding{{Name: "manage_entry_stage"}}},
+		ResolveInternalTools: true,
+		Visibility:           agent.ToolVisibilityMessaging,
+		Vars:                 map[string]string{"loja": "matriz"},
+		ToolSeed:             map[string]interface{}{"__entry_id": "conv-1"},
+	})
+	vars, _ := assembled.Input.ToolConfigs["manage_entry_stage"]["__vars"].(map[string]string)
+	if vars["loja"] != "matriz" || assembled.Input.ToolConfigs["manage_entry_stage"]["__entry_id"] != "conv-1" {
+		t.Fatalf("configs %+v", assembled.Input.ToolConfigs)
+	}
+}

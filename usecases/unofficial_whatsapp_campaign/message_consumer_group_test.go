@@ -254,21 +254,6 @@ func TestAPoolNumberOfAnotherWorkspaceIsIgnored(t *testing.T) {
 	}
 }
 
-func TestAGroupEntryWaitsWhenGroupSendingIsNotWired(t *testing.T) {
-	h := newHarness(t)
-	w := h.seedGroup(t, []string{"inst-1"}, seatIn("inst-1", false, false))
-	h.consumer.deps.Groups = nil
-
-	got := runGroup(h, w)
-
-	if got.Outcome == campaignqueue.OutcomeDone || h.sender.count() != 0 {
-		t.Fatalf("outcome = %v sends %d, want a held entry and no send", got.Outcome, h.sender.count())
-	}
-	if status := h.entries.get(w.entry).Status; status != campaign.SendStatusPending {
-		t.Fatalf("status = %q, want the entry kept pending", status)
-	}
-}
-
 func TestAGroupCampaignWithoutAUsableNumberDoesNotStart(t *testing.T) {
 	h := newHarness(t)
 	w := h.seedGroup(t, []string{"inst-9"}, seatIn("inst-1", false, false))

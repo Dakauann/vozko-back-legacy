@@ -173,6 +173,20 @@ func TestUnofficialDraftNowBlockedCreatesNothing(t *testing.T) {
 	}
 }
 
+func TestUnofficialDraftScheduleOfABlockedCampaignCreatesNothing(t *testing.T) {
+	f := newUnofficialDraftFixture()
+	f.gateway.instance.Status = uw.StatusBanned
+	at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	_, err := f.launch.Launch(context.Background(), DraftLaunchInput{Campaign: leadsDraft(), Launch: campaign.Launch{Mode: campaign.LaunchSchedule, At: at}})
+	var refused *launchcheck.RefusedError
+	if !errors.As(err, &refused) || !hasBlock(refused.Report, launchcheck.CodeNumberUnusable) {
+		t.Fatalf("got %v", err)
+	}
+	if len(f.creator.created) != 0 {
+		t.Fatal("a blocked campaign was scheduled")
+	}
+}
+
 func TestUnofficialDraftNowWithNoAudienceCreatesNothing(t *testing.T) {
 	f := newUnofficialDraftFixture()
 	f.counter.sendable = 0

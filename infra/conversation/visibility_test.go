@@ -7,13 +7,12 @@ import (
 	"vozko/domain/inbox_assignment"
 	"vozko/domain/shared"
 	"vozko/domain/workspace"
-	workspace_department "vozko/domain/workspace/workspace_department"
 )
 
 type memberOfAnotherDepartment struct{}
 
-func (memberOfAnotherDepartment) ListDepartments(workspaceID string) ([]workspace_department.Department, error) {
-	return []workspace_department.Department{{ID: testDepartment, WorkspaceID: workspaceID}, {ID: "dept-2", WorkspaceID: workspaceID}}, nil
+func (memberOfAnotherDepartment) HasDepartments(string) (bool, error) {
+	return true, nil
 }
 
 func (memberOfAnotherDepartment) GetMemberDepartmentIDs(string, string) ([]string, error) {

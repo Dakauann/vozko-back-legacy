@@ -125,7 +125,7 @@ func testThread() *aichat.Thread {
 }
 
 func newService(prov *scriptAI, th *fakeThreads, ms *fakeMessages, ts ...copilot.Tool) *Service {
-	return NewService(agentloop.Engine{AI: prov}, NewRegistry(ts...), &fakeAccess{}, openFunds{}, th, ms, nil, nil, func() string { return "act-1" })
+	return testService(Deps{Engine: agentloop.Engine{AI: prov}, Registry: NewRegistry(ts...), Access: &fakeAccess{}, Funds: openFunds{}, Threads: th, Messages: ms, NewID: func() string { return "act-1" }})
 }
 
 func (f *fakeMessages) last() *aichat.Message {
@@ -522,7 +522,7 @@ func TestService_TheModelSeesTheWorkspaceStateEveryTurn(t *testing.T) {
 	state := &fixedState{snap: &readiness.Snapshot{SubscriptionActive: true, Capabilities: []readiness.Status{
 		{Capability: readiness.OfficialWhatsApp, Usage: &readiness.Usage{Used: 0, Total: 1}, CanAdd: true},
 	}}}
-	svc := NewService(agentloop.Engine{AI: prov}, NewRegistry(), &fakeAccess{}, openFunds{}, th, &fakeMessages{}, nil, state, func() string { return "a" })
+	svc := testService(Deps{Engine: agentloop.Engine{AI: prov}, Registry: NewRegistry(), Access: &fakeAccess{}, Funds: openFunds{}, Threads: th, Messages: &fakeMessages{}, State: state, NewID: func() string { return "a" }})
 	if err := svc.Stream(context.Background(), th.thread, copilot.UserMessage{Content: "crie um modelo"}, ownerCtx, (&capture{}).emit); err != nil {
 		t.Fatalf("stream: %v", err)
 	}
@@ -619,7 +619,7 @@ func TestService_ADeniedApprovalNeverSaysTheToolIsRunning(t *testing.T) {
 	th := &fakeThreads{thread: testThread()}
 	ms := &fakeMessages{}
 	wt := &fakeTool{name: "generate_image", meta: writeMeta}
-	svc := NewService(agentloop.Engine{AI: &scriptAI{turns: [][]ai.ToolCall{{}}, texts: []string{"Sem permissão."}}}, NewRegistry(wt), &fakeAccess{err: errors.New("denied")}, openFunds{}, th, ms, nil, nil, func() string { return "act-1" })
+	svc := testService(Deps{Engine: agentloop.Engine{AI: &scriptAI{turns: [][]ai.ToolCall{{}}, texts: []string{"Sem permissão."}}}, Registry: NewRegistry(wt), Access: &fakeAccess{err: errors.New("denied")}, Funds: openFunds{}, Threads: th, Messages: ms, NewID: func() string { return "act-1" }})
 	ms.propose(copilot.PendingAction{ID: "act-1", ToolName: "generate_image"})
 	cp := &capture{}
 	if err := svc.Approve(context.Background(), th.thread, "act-1", copilot.Approval{}, ownerCtx, cp.emit); err != nil {

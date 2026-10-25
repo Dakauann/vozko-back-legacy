@@ -44,11 +44,11 @@ func TestChannelAIReplyGate(t *testing.T) {
 		{"blank agent id", func(r *conversation.AIReplyRequest) { r.AgentID = "   " }, false},
 	}
 
-	svc := &ChannelAIReplyService{
+	svc := channelAIDefaults(&ChannelAIReplyService{
 		agents:    stubAgentRepo{},
 		aiService: stubAIService{},
-		sender:    &MessageSenderService{},
-	}
+		sender:    senderWith(&MessageSenderService{}),
+	})
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -70,8 +70,8 @@ func TestChannelAIReplyGateRequiresFullWiring(t *testing.T) {
 
 	for name, svc := range map[string]*ChannelAIReplyService{
 		"no wiring at all": {},
-		"no ai service":    {agents: stubAgentRepo{}, sender: &MessageSenderService{}},
-		"no agent repo":    {aiService: stubAIService{}, sender: &MessageSenderService{}},
+		"no ai service":    {agents: stubAgentRepo{}, sender: senderWith(&MessageSenderService{})},
+		"no agent repo":    {aiService: stubAIService{}, sender: senderWith(&MessageSenderService{})},
 		"no sender":        {agents: stubAgentRepo{}, aiService: stubAIService{}},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -83,14 +83,14 @@ func TestChannelAIReplyGateRequiresFullWiring(t *testing.T) {
 }
 
 func TestBuildPromptReplaysHistoryOldestFirst(t *testing.T) {
-	svc := &ChannelAIReplyService{messages: stubMessageRepo{newestFirst: []*conversation.Message{
+	svc := channelAIDefaults(&ChannelAIReplyService{messages: stubMessageRepo{newestFirst: []*conversation.Message{
 		{Text: "?", MessageType: conversation.MessageTypeUserMessage},
 		{Text: "Olá! Eu sou um assistente virtual.", MessageType: conversation.MessageTypeAIResponse},
 		{Text: "Quero falar sobre o atual governo", MessageType: conversation.MessageTypeUserMessage},
 		{Text: "Olá! Como posso ajudar você hoje?", MessageType: conversation.MessageTypeAIResponse},
 		{Text: "Oi", MessageType: conversation.MessageTypeUserMessage},
 		{Text: "/start", MessageType: conversation.MessageTypeUserMessage},
-	}}}
+	}}})
 
 	got, err := svc.buildPrompt(conversation.AIReplyRequest{EntryID: "conv-1", EntryType: shared.EntryTypeTelegram}, "?")
 	if err != nil {
@@ -120,13 +120,13 @@ func TestBuildPromptReplaysHistoryOldestFirst(t *testing.T) {
 }
 
 func TestBuildPromptSkipsNonDialogueRows(t *testing.T) {
-	svc := &ChannelAIReplyService{messages: stubMessageRepo{newestFirst: []*conversation.Message{
+	svc := channelAIDefaults(&ChannelAIReplyService{messages: stubMessageRepo{newestFirst: []*conversation.Message{
 		{Text: "e o preço?", MessageType: conversation.MessageTypeUserMessage},
 		{Text: "{\"price\": 120}", MessageType: conversation.MessageTypeToolResult},
 		{Text: "consultar_preco", MessageType: conversation.MessageTypeToolCall},
 		{Text: "  ", MessageType: conversation.MessageTypeUserMessage},
 		{Text: "bom dia", MessageType: conversation.MessageTypeUserMessage},
-	}}}
+	}}})
 
 	got, err := svc.buildPrompt(conversation.AIReplyRequest{EntryID: "conv-1", EntryType: shared.EntryTypeTelegram}, "e o preço?")
 	if err != nil {
@@ -175,7 +175,7 @@ func conversationRows(total int) []*conversation.Message {
 func TestChannelHistoryWindowHoldsItsStartAcrossTurns(t *testing.T) {
 	oldest := map[string]bool{}
 	for total := 31; total <= 35; total++ {
-		svc := &ChannelAIReplyService{messages: stubMessageRepo{newestFirst: conversationRows(total)}}
+		svc := channelAIDefaults(&ChannelAIReplyService{messages: stubMessageRepo{newestFirst: conversationRows(total)}})
 		latest := fmt.Sprintf("m%03d", total-1)
 
 		got, err := svc.buildPrompt(conversation.AIReplyRequest{EntryID: "conv-1", EntryType: shared.EntryTypeTelegram}, latest)
@@ -196,12 +196,12 @@ func TestChannelHistoryWindowHoldsItsStartAcrossTurns(t *testing.T) {
 }
 
 func TestBuildPromptGivesTheCustomerRoleOnlyToTheContact(t *testing.T) {
-	svc := &ChannelAIReplyService{messages: stubMessageRepo{newestFirst: []*conversation.Message{
+	svc := channelAIDefaults(&ChannelAIReplyService{messages: stubMessageRepo{newestFirst: []*conversation.Message{
 		{Text: "enviado do celular", MessageType: conversation.MessageTypeUserMessage, SentBy: conversation.SentExternally()},
 		{Text: "catalogo.pdf", MessageType: conversation.MessageTypeMedia, SentBy: conversation.SentByWorkflow("wf-1")},
 		{Text: "posso ajudar", MessageType: conversation.MessageTypeOperator, SentBy: conversation.SentByPerson("user-1")},
 		{Text: "oi", MessageType: conversation.MessageTypeUserMessage, SentBy: conversation.SentByContact("5511")},
-	}}}
+	}}})
 
 	got, err := svc.buildPrompt(conversation.AIReplyRequest{EntryID: "conv-1", EntryType: shared.EntryTypeUnofficialWhatsApp}, "oi de novo")
 	if err != nil {

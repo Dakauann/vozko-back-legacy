@@ -51,7 +51,7 @@ func evaluatorOver(runs *startedRuns, workflows ...*workflow.Workflow) workflow.
 	for _, w := range workflows {
 		byID[w.ID] = w
 	}
-	return NewTriggerEvaluator(stubWorkflowRepo{byID: byID, active: workflows}, runs, NewRunEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
+	return NewTriggerEvaluator(stubWorkflowRepo{byID: byID, active: workflows}, runs, testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
 }
 
 func entered(cause stage.MoveCause) stage.Entered {
@@ -363,7 +363,7 @@ func (unreadableWorkflows) FindActiveByTrigger(string, workflow.TriggerType) ([]
 
 func TestAnEvaluationThatCannotReadTheWorkflowsReportsItSoTheMoveIsRetried(t *testing.T) {
 	runs := &startedRuns{}
-	evaluator := NewTriggerEvaluator(unreadableWorkflows{}, runs, NewRunEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
+	evaluator := NewTriggerEvaluator(unreadableWorkflows{}, runs, testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
 	event, _ := workflow.StageAddedEvent(workflow.StageEntry{MoveID: "row-1", WorkspaceID: "ws1", EntryID: "conv-1", StageID: "s1"})
 
 	if err := evaluator.EvaluateChecked(event); err == nil {

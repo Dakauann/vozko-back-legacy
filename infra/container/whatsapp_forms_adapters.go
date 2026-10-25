@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	formPhonesPageSize   = 100
+	formPhonesPageSize    = 100
 	formImageFetchTimeout = 15 * time.Second
 )
 

@@ -36,7 +36,7 @@ func (f *fakeChannelContacts) AuthorsByAccount(context.Context, map[string][]str
 }
 
 func TestHydrateContactSenders_OperatorsLeadNameSurvivesThePushname(t *testing.T) {
-	svc := &HistoryProviderService{}
+	svc := historyWith(HistoryProviderService{})
 	svc.SetContactIdentityLookup(shared.EntryTypeUnofficialWhatsApp, &fakeChannelContacts{
 		byID: map[string]ContactDisplay{
 			"lead-1": {ContactID: "lead-1", Ref: "5584994409624@s.whatsapp.net",
@@ -62,7 +62,7 @@ func TestHydrateContactSenders_OperatorsLeadNameSurvivesThePushname(t *testing.T
 }
 
 func TestHydrateContactSenders_StillFillsABlankLeadName(t *testing.T) {
-	svc := &HistoryProviderService{}
+	svc := historyWith(HistoryProviderService{})
 	svc.SetContactIdentityLookup(shared.EntryTypeUnofficialWhatsApp, &fakeChannelContacts{
 		byID: map[string]ContactDisplay{
 			"lead-1": {ContactID: "lead-1", Handle: "+5584994409624", Name: "Dakauann"},
@@ -83,7 +83,7 @@ func TestHydrateContactSenders_StillFillsABlankLeadName(t *testing.T) {
 }
 
 func TestHydrateContactSenders_SenderLabelUsesTheDisplayedName(t *testing.T) {
-	svc := &HistoryProviderService{}
+	svc := historyWith(HistoryProviderService{})
 	svc.SetContactIdentityLookup(shared.EntryTypeUnofficialWhatsApp, &fakeChannelContacts{
 		byID: map[string]ContactDisplay{
 			"lead-1": {ContactID: "lead-1", Ref: "5584994409624@s.whatsapp.net", Name: "Dakauann"},
@@ -106,7 +106,7 @@ func TestHydrateContactSenders_SenderLabelUsesTheDisplayedName(t *testing.T) {
 }
 
 func TestHydrateContactSenders_LeavesARealSenderLabelAlone(t *testing.T) {
-	svc := &HistoryProviderService{}
+	svc := historyWith(HistoryProviderService{})
 	svc.SetContactIdentityLookup(shared.EntryTypeUnofficialWhatsApp, &fakeChannelContacts{
 		byID: map[string]ContactDisplay{
 			"lead-1": {ContactID: "lead-1", Ref: "5584994409624@s.whatsapp.net", Name: "Dakauann"},
@@ -168,7 +168,7 @@ func TestGetEntryInfo_HeaderPrefersTheLeadNameOverThePushname(t *testing.T) {
 	leads := &headerLeadRepo{byID: map[string]*lead.Lead{
 		"lead-1": {ID: "lead-1", Name: "DakauannT", Number: "558494409624", Version: 6},
 	}}
-	svc := &HistoryProviderService{leadRepo: leads}
+	svc := historyWith(HistoryProviderService{leadRepo: leads})
 	svc.SetContactIdentityLookup(shared.EntryTypeUnofficialWhatsApp, &headerContacts{
 		ws: "ws-1",
 		contact: ContactDisplay{
@@ -199,7 +199,7 @@ func TestGetEntryInfo_HeaderPrefersTheLeadNameOverThePushname(t *testing.T) {
 
 func TestGetEntryInfo_HeaderKeepsThePushnameWithoutALead(t *testing.T) {
 	leads := &headerLeadRepo{byID: map[string]*lead.Lead{}}
-	svc := &HistoryProviderService{leadRepo: leads}
+	svc := historyWith(HistoryProviderService{leadRepo: leads})
 	svc.SetContactIdentityLookup(shared.EntryTypeUnofficialWhatsApp, &headerContacts{
 		ws:      "ws-1",
 		contact: ContactDisplay{ContactID: "group-1", Name: "Teste grupos", IsGroup: true},
@@ -223,7 +223,7 @@ func TestGetEntryInfo_HeaderFallsBackWhenTheLeadNameIsBlank(t *testing.T) {
 	leads := &headerLeadRepo{byID: map[string]*lead.Lead{
 		"lead-1": {ID: "lead-1", Name: "   "},
 	}}
-	svc := &HistoryProviderService{leadRepo: leads}
+	svc := historyWith(HistoryProviderService{leadRepo: leads})
 	svc.SetContactIdentityLookup(shared.EntryTypeUnofficialWhatsApp, &headerContacts{
 		ws: "ws-1",
 		contact: ContactDisplay{

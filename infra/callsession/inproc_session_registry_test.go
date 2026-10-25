@@ -358,7 +358,9 @@ func TestInProcSessionRegistry_ListAll(t *testing.T) {
 func TestInProcSessionRegistry_PresenceListener_FiresOnRegisterAndDeregister(t *testing.T) {
 	r := NewInProcSessionRegistry()
 	l := &fakeListener{}
-	r.SetPresenceListener(l)
+	if err := r.BindPresenceListener(l); err != nil {
+		t.Fatal(err)
+	}
 
 	s := newFakeSession("sess-1", "user-a", "ws-1")
 	dereg, err := r.Register(s)
@@ -382,7 +384,9 @@ func TestInProcSessionRegistry_PresenceListener_FiresOnRegisterAndDeregister(t *
 func TestInProcSessionRegistry_NotifyPresenceChanged_FiresListener(t *testing.T) {
 	r := NewInProcSessionRegistry()
 	l := &fakeListener{}
-	r.SetPresenceListener(l)
+	if err := r.BindPresenceListener(l); err != nil {
+		t.Fatal(err)
+	}
 
 	r.NotifyPresenceChanged("ws-7")
 	if got := l.calls.Load(); got != 1 {
@@ -398,28 +402,6 @@ func TestInProcSessionRegistry_NotifyPresenceChanged_FiresListener(t *testing.T)
 	}
 }
 
-func TestInProcSessionRegistry_SetPresenceListener_NilClears(t *testing.T) {
-	r := NewInProcSessionRegistry()
-	l := &fakeListener{}
-	r.SetPresenceListener(l)
-
-	if _, err := r.Register(newFakeSession("s-1", "u-1", "ws-1")); err != nil {
-		t.Fatalf("Register: %v", err)
-	}
-	if got := l.calls.Load(); got != 1 {
-		t.Fatalf("want 1 call before clear, got %d", got)
-	}
-
-	r.SetPresenceListener(nil)
-	r.NotifyPresenceChanged("ws-1")
-	if _, err := r.Register(newFakeSession("s-2", "u-2", "ws-1")); err != nil {
-		t.Fatalf("Register after clear: %v", err)
-	}
-	if got := l.calls.Load(); got != 1 {
-		t.Fatalf("listener still firing after nil clear: got %d", got)
-	}
-}
-
 func TestInProcSessionRegistry_NoTimeDriftInDeregister(_ *testing.T) {
 
 	r := NewInProcSessionRegistry()
@@ -430,5 +412,21 @@ func TestInProcSessionRegistry_NoTimeDriftInDeregister(_ *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		panic("deregister blocked")
+	}
+}
+
+func TestInProcSessionRegistry_RefusesAMissingPresenceListener(t *testing.T) {
+	r := NewInProcSessionRegistry()
+	if err := r.PresenceListenerBound(); !errors.Is(err, ErrPresenceListenerMissing) {
+		t.Fatalf("PresenceListenerBound before binding = %v", err)
+	}
+	if err := r.BindPresenceListener(nil); !errors.Is(err, ErrPresenceListenerMissing) {
+		t.Fatalf("BindPresenceListener(nil) = %v", err)
+	}
+	if err := r.BindPresenceListener(&fakeListener{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.PresenceListenerBound(); err != nil {
+		t.Fatalf("PresenceListenerBound after binding = %v", err)
 	}
 }

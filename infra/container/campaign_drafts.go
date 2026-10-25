@@ -12,7 +12,6 @@ import (
 	campaigndraft_repository "vozko/infra/repositories/campaigndraft"
 	campaignaudience_usecase "vozko/usecases/campaignaudience"
 	campaigndraft_usecase "vozko/usecases/campaigndraft"
-	uwcuc "vozko/usecases/unofficial_whatsapp_campaign"
 	wc_usecase "vozko/usecases/whatsapp_campaign"
 )
 
@@ -31,17 +30,7 @@ func campaignDraftRoutes(c *Container) deliveryHttp.CampaignDraftRoutes {
 	if c.handlers.whatsappCampaign == nil || c.useCases.dealAutomation == nil {
 		log.Fatalf("[campaign-drafts] the official campaign handler and deal automation must be built before campaign drafts")
 	}
-	start, ok := c.useCases.startWCCampaign.(wc_domain.ConfirmedStartUseCase)
-	if !ok {
-		log.Fatalf("[campaign-drafts] the official campaign start cannot carry the confirmed launch check")
-	}
-	official := wc_usecase.NewDraftLaunch(wc_usecase.DraftLaunchDeps{
-		Create:   c.officialCampaignCreate(),
-		Start:    start,
-		Check:    c.launchCheck(),
-		Audience: campaignaudience_usecase.NewOfficialCounter(c.campaignAudience()),
-		Rates:    c.walletRate(),
-	})
+	official := c.officialDraftLaunch()
 	routes := deliveryHttp.CampaignDraftRoutes{
 		WhatsApp: campaigndrafthttp.NewHandler(drafts, campaigndraft.ChannelWhatsApp,
 			handlers.NewWhatsAppDraftFinisher(c.handlers.whatsappCampaign, official, c.useCases.dealAutomation, c.buttonActions())),
@@ -54,15 +43,26 @@ func campaignDraftRoutes(c *Container) deliveryHttp.CampaignDraftRoutes {
 
 func unofficialDraftFinisher(c *Container) *uwhttp.DraftFinisher {
 	bundle := c.unofficialWhatsAppCampaigns
-	if bundle == nil || !bundle.Enabled || bundle.Handler == nil {
+	if bundle == nil || bundle.Handler == nil {
 		return nil
 	}
-	launch := uwcuc.NewDraftLaunch(uwcuc.DraftLaunchDeps{
-		Create:    bundle.CreateFlow,
-		Actions:   bundle.Actions,
-		Estimate:  bundle.Estimate,
-		Audience:  campaignaudience_usecase.NewUnofficialCounter(c.campaignAudience()),
-		Preflight: bundle.Preflight,
+	return uwhttp.NewDraftFinisher(bundle.Handler, bundle.DraftLaunch, c.useCases.dealAutomation)
+}
+
+func (c *Container) officialDraftLaunch() *wc_usecase.DraftLaunch {
+	if c.officialDrafts != nil {
+		return c.officialDrafts
+	}
+	start, ok := c.useCases.startWCCampaign.(wc_domain.ConfirmedStartUseCase)
+	if !ok {
+		log.Fatalf("[campaign-drafts] the official campaign start cannot carry the confirmed launch check")
+	}
+	c.officialDrafts = wc_usecase.NewDraftLaunch(wc_usecase.DraftLaunchDeps{
+		Create:   c.officialCampaignCreate(),
+		Start:    start,
+		Check:    c.launchCheck(),
+		Audience: campaignaudience_usecase.NewOfficialCounter(c.campaignAudience()),
+		Rates:    c.walletRate(),
 	})
-	return uwhttp.NewDraftFinisher(bundle.Handler, launch, c.useCases.dealAutomation)
+	return c.officialDrafts
 }

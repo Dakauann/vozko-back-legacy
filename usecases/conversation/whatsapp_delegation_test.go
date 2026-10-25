@@ -30,13 +30,13 @@ func campaignContext() *agentContext {
 }
 
 func whatsappUseCase(delegations conversation.DelegationRepository) *handleWhatsAppMessageUseCase {
-	return &handleWhatsAppMessageUseCase{
+	return whatsappDefaults(&handleWhatsAppMessageUseCase{
 		delegations: delegations,
 		agentRepo: agentsByID{byID: map[string]*agent.Agent{
 			"camp-agent": {ID: "camp-agent"},
 			"picked":     {ID: "picked", MessagingPrompt: "prompt"},
 		}},
-	}
+	})
 }
 
 func TestCampaignWorkflowRunsWithoutADelegation(t *testing.T) {

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"vozko/domain/campaign"
-	audience "vozko/domain/campaignaudience"
 	"vozko/domain/emailcampaign"
 	"vozko/domain/selection"
 	"vozko/usecases/campaignqueue"
@@ -152,10 +151,7 @@ func (s *Service) ensureListLeads(ctx context.Context, c emailcampaign.Campaign)
 	if c.ListID == "" {
 		return nil
 	}
-	if s.audience == nil {
-		return audience.ErrUnavailable
-	}
-	return s.audience.EnsureLeads(ctx, c.WorkspaceID, c.AudienceOwner(), c.ListID)
+	return s.deps.Audience.EnsureLeads(ctx, c.WorkspaceID, c.AudienceOwner(), c.ListID)
 }
 
 func (s *Service) abort(ctx context.Context, campaignID string, cause error) error {

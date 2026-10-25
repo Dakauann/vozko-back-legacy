@@ -24,10 +24,10 @@ import (
 	template_domain "vozko/domain/whatsapp/template"
 	wce "vozko/domain/whatsapp_campaign_entry"
 	"vozko/domain/workflow"
-	"vozko/domain/workflowsecret"
 	workspace_domain "vozko/domain/workspace"
 	dept_domain "vozko/domain/workspace/workspace_department"
 	workspace_phone_access_domain "vozko/domain/workspace_phone_access"
+	"vozko/domain/workspacesecret"
 	email_usecase "vozko/usecases/email"
 	"vozko/usecases/transactionalemail"
 	"vozko/usecases/workflow/node_executors"
@@ -78,7 +78,7 @@ type ExecutorDeps struct {
 	VoiceAudio            workflow.VoiceAudio
 	HTTPEgress            node_executors.HTTPEgress
 	MediaFetcher          node_executors.MediaFetcher
-	Secrets               workflowsecret.Resolver
+	Secrets               workspacesecret.Resolver
 	Forms                 node_executors.FormSender
 	Carrier               node_executors.CarrierSender
 	PlatformEmail         transactionalemail.Sender
@@ -99,6 +99,8 @@ var ErrChoiceRecorderRequired = errors.New("workflow executors: the choice click
 
 var ErrMediaURLsRequired = errors.New("workflow executors: the media URL resolver is required to check media sent by URL")
 
+var ErrAIAttendanceRequired = errors.New("workflow executors: the AI attendance recorder is required to count agent replies")
+
 type discardedEvents struct{}
 
 func (discardedEvents) Log(*ce.ConversationEvent) {}
@@ -117,6 +119,9 @@ func RegisterProductionExecutors(registry *NodeExecutorRegistry, deps ExecutorDe
 	}
 	if deps.MediaURLs == nil {
 		return ErrMediaURLsRequired
+	}
+	if deps.AIAttendance == nil {
+		return ErrAIAttendanceRequired
 	}
 	RegisterDefaultExecutors(registry, deps)
 	return nil
@@ -162,10 +167,7 @@ func RegisterDefaultExecutors(registry *NodeExecutorRegistry, deps ExecutorDeps)
 	registry.Register(workflow.NodeTypeActionSendInteractive, node_executors.NewInteractivePromptExecutor(waDeps))
 	registry.Register(workflow.NodeTypeActionSendForm, node_executors.NewSendFormExecutor(deps.Forms, waDeps))
 
-	aiAgentExec := node_executors.NewAIAgentExecutor(deps.AIService, deps.AgentRepo, deps.MessageRepo, deps.CachedBalanceChecker, node_executors.NewWhatsAppSenderFromDeps(waDeps), deps.RAGService)
-	if deps.AIAttendance != nil {
-		node_executors.SetAIAttendanceOnExecutor(aiAgentExec, deps.AIAttendance)
-	}
+	aiAgentExec := node_executors.NewAIAgentExecutor(deps.AIService, deps.AgentRepo, deps.MessageRepo, deps.CachedBalanceChecker, node_executors.NewWhatsAppSenderFromDeps(waDeps), deps.RAGService, deps.AIAttendance)
 	registry.Register(workflow.NodeTypeActionAIAgent, aiAgentExec)
 
 	registry.Register(workflow.NodeTypeActionCreateCalendarEvent, node_executors.NewCreateCalendarEventExecutor(deps.CalendarRepo, deps.GoogleCalendar, deps.CalendarAccess))

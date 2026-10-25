@@ -253,7 +253,7 @@ func newMediaToolWith(t *testing.T, client *recordingWhatsAppClient, medias ...m
 	for _, m := range medias {
 		repo.byID[m.ID] = inToolWorkspace(m)
 	}
-	return NewSendWhatsappMediaToolUseCase(context.Background(), &stubFactory{c: client}, repo, loopbackDownloads())
+	return NewSendWhatsappMediaToolUseCase(context.Background(), &stubFactory{c: client}, repo, loopbackDownloads(), conversation.NewAdapterRegistry(), &conversation.MediaURLResolver{})
 }
 
 func servePNG(t *testing.T) *httptest.Server {
@@ -737,8 +737,8 @@ func mediaToolOnTelegram(t *testing.T, uploads toolUploads, medias ...media.Medi
 	t.Helper()
 	adapter := &toolAdapter{entryType: shared.EntryTypeTelegram, windowOpen: true}
 	tool := newMediaToolWith(t, &recordingWhatsAppClient{}, medias...)
-	tool.SetAdapters(conversation.NewAdapterRegistry(adapter))
-	tool.SetMediaURLs(&conversation.MediaURLResolver{Storage: toolCDNHosts{}, Library: tool.mediaRepo.(*fakeMediaRepoForMediaTool), Uploads: uploads})
+	tool.adapters = conversation.NewAdapterRegistry(adapter)
+	tool.mediaURLs = &conversation.MediaURLResolver{Storage: toolCDNHosts{}, Library: tool.mediaRepo.(*fakeMediaRepoForMediaTool), Uploads: uploads}
 	return tool, adapter
 }
 
@@ -801,7 +801,7 @@ func TestSendWhatsappMediaTool_MediaURL_OnlyASendableCDNFileIsAccepted(t *testin
 func TestSendWhatsappMediaTool_MediaURL_WithoutTheResolverNothingIsSent(t *testing.T) {
 	adapter := &toolAdapter{entryType: shared.EntryTypeTelegram, windowOpen: true}
 	tool := newMediaToolWith(t, &recordingWhatsAppClient{}, media.Media{ID: "lib-1", URL: toolCDN + "/a.png", Type: media.MediaTypeProductImage})
-	tool.SetAdapters(conversation.NewAdapterRegistry(adapter))
+	tool.adapters = conversation.NewAdapterRegistry(adapter)
 
 	if _, err := tool.ExecuteWithConfig(context.Background(), telegramSeeds(), map[string]interface{}{"media_url": toolCDN + "/a.png"}); err == nil || adapter.sentMedia != nil {
 		t.Fatalf("err = %v sent = %+v, want a refusal", err, adapter.sentMedia)

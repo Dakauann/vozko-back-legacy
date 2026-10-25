@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"vozko/domain/conversation"
+	"vozko/domain/shared/deps"
 	wce "vozko/domain/whatsapp_campaign_entry"
 )
 
@@ -17,10 +18,12 @@ type autoCloseJob struct {
 	whatsapp wce.Repository
 	status   conversation.ConversationStatusUpdater
 	batch    int
-	disabled bool
 }
 
 func NewAutoCloseJob(whatsapp wce.Repository, status conversation.ConversationStatusUpdater) conversation.AutoCloseJob {
+	if err := deps.Require("conversation auto close", map[string]any{"whatsapp entries": whatsapp, "status": status}); err != nil {
+		panic(err.Error())
+	}
 	batch := DefaultAutoCloseBatch
 	if v := strings.TrimSpace(os.Getenv("CONVERSATION_AUTO_CLOSE_BATCH")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -30,27 +33,14 @@ func NewAutoCloseJob(whatsapp wce.Repository, status conversation.ConversationSt
 			batch = n
 		}
 	}
-	disabled := false
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("CONVERSATION_AUTO_CLOSE_DISABLED"))) {
-	case "1", "true", "yes", "on":
-		disabled = true
-	}
 	return &autoCloseJob{
 		whatsapp: whatsapp,
 		status:   status,
 		batch:    batch,
-		disabled: disabled,
 	}
 }
 
 func (j *autoCloseJob) ProcessIdleCloses() error {
-	if j == nil || j.status == nil {
-		return nil
-	}
-	if j.disabled {
-		return nil
-	}
-
 	started := time.Now()
 	idleClosed, idleFailed := j.finishBatch("customer_idle", conversation.CloseReasonCustomerIdle, j.collectIdle)
 	maxClosed, maxFailed := j.finishBatch("max_age", conversation.CloseReasonMaxAge, j.collectMaxAge)

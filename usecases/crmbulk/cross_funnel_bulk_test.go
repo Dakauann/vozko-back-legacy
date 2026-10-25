@@ -21,14 +21,7 @@ var (
 )
 
 func serviceWith(sa *mockStageAssigner, authz *mockAuthorizer) *Service {
-	return NewService(
-		sa,
-		&mockLabelAssigner{},
-		&mockLabelRemover{},
-		&mockEntryAssigner{},
-		authz,
-		&mockBroadcaster{},
-	)
+	return newTestService(Deps{Stages: sa, LabelAdds: &mockLabelAssigner{}, LabelRemovals: &mockLabelRemover{}, Assigner: &mockEntryAssigner{}, Authz: authz, Broadcaster: &mockBroadcaster{}})
 }
 
 func oneTarget() []EntryRef {

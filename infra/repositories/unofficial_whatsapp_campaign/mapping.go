@@ -6,6 +6,7 @@ import (
 	"github.com/lib/pq"
 
 	"vozko/domain/campaign"
+	"vozko/domain/campaign/scheduledstart"
 	uwc "vozko/domain/unofficial_whatsapp_campaign"
 	"vozko/infra/database/schema"
 )
@@ -77,6 +78,7 @@ func toRow(c *uwc.Campaign) *schema.UnofficialWhatsAppCampaign {
 		ResetCode:            c.ResetCode,
 		ClearCode:            c.ClearCode,
 		ScheduledStart:       c.ScheduledStart,
+		ScheduleFailure:      string(c.ScheduleFailure),
 		Archived:             c.Archived,
 	}
 }
@@ -114,6 +116,7 @@ func toDomain(r *schema.UnofficialWhatsAppCampaign) *uwc.Campaign {
 		ResetCode:            r.ResetCode,
 		ClearCode:            r.ClearCode,
 		ScheduledStart:       r.ScheduledStart,
+		ScheduleFailure:      scheduledstart.Failure(r.ScheduleFailure),
 		Archived:             r.Archived,
 		CreatedAt:            r.CreatedAt,
 		UpdatedAt:            r.UpdatedAt,

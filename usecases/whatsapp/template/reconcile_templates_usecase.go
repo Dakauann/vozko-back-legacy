@@ -23,17 +23,17 @@ func (uc *reconcileTemplatesUseCase) Execute() error {
 		return err
 	}
 
+	syncedAccounts := make(map[string]bool)
 	for _, phone := range phones {
-		if phone == nil {
-			continue
-		}
-		if !shouldReconcilePhone(phone) {
+		if !shouldReconcilePhone(phone) || syncedAccounts[phone.WABAId] {
 			continue
 		}
 
 		if _, err := uc.syncUC.Execute(template.SyncTemplatesInput{BusinessPhoneID: phone.ID}); err != nil {
 			log.Printf("[whatsapp-template-reconcile] failed to sync templates for phone %s (waba=%s): %v", phone.ID, phone.WABAId, err)
+			continue
 		}
+		syncedAccounts[phone.WABAId] = true
 	}
 
 	return nil

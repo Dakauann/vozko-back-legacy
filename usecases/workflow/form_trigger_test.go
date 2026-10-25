@@ -56,7 +56,7 @@ func newTriggerHarness(t *testing.T, workflows ...*workflow.Workflow) triggerHar
 	runs := uniqueRunRepo{NewMockWorkflowRunRepository()}
 	registry := NewNodeExecutorRegistry()
 	RegisterDefaultExecutors(registry, ExecutorDeps{})
-	engine := NewRunEngine(runs, NewMockWorkflowRunLogRepository(), registry)
+	engine := testEngine(runs, NewMockWorkflowRunLogRepository(), registry)
 	return triggerHarness{runs: runs, firer: NewFormTriggerFirer(NewTriggerEvaluator(repo, runs, engine, nil))}
 }
 

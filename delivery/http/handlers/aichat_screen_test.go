@@ -16,7 +16,6 @@ import (
 	"vozko/infra/copilotscreen"
 	"vozko/infra/http/middleware"
 	aichat_usecase "vozko/usecases/aichat"
-	"vozko/usecases/agentloop"
 	copilot_usecase "vozko/usecases/copilot"
 )
 
@@ -50,9 +49,8 @@ func screenHandler(owner string) (*AIChatHandler, *copilotscreen.Broker) {
 	threads := screenThreads{thread: &aichat.Thread{ID: "th1", WorkspaceID: "ws1", UserID: owner}}
 	broker := copilotscreen.NewBroker(&loopback{})
 	broker.Start(context.Background())
-	copilot := copilot_usecase.NewService(agentloop.Engine{}, copilot_usecase.NewRegistry(), nil, nil, threads, nil, nil, nil, nil)
-	copilot.SetScreenMailbox(broker)
-	return NewAIChatHandler(aichat_usecase.NewService(threads, nil, nil, nil), copilot), broker
+	copilot := copilotService(copilot_usecase.Deps{Threads: threads, Screens: broker})
+	return NewAIChatHandler(chatService(aichat_usecase.Deps{Threads: threads}), copilot), broker
 }
 
 func postScreenReply(h *AIChatHandler, userID, commandID, body string) *httptest.ResponseRecorder {

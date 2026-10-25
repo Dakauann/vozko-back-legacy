@@ -33,8 +33,11 @@ func TestProductionExecutorsRefuseToStartWithoutTheRefusalLineLogger(t *testing.
 	if err := RegisterProductionExecutors(NewNodeExecutorRegistry(), ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}}); !errors.Is(err, ErrMediaURLsRequired) {
 		t.Fatalf("got %v, want ErrMediaURLsRequired", err)
 	}
+	if err := RegisterProductionExecutors(NewNodeExecutorRegistry(), ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}, MediaURLs: externalMediaURLs()}); !errors.Is(err, ErrAIAttendanceRequired) {
+		t.Fatalf("got %v, want ErrAIAttendanceRequired", err)
+	}
 	registry := NewNodeExecutorRegistry()
-	if err := RegisterProductionExecutors(registry, ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}, MediaURLs: externalMediaURLs()}); err != nil {
+	if err := RegisterProductionExecutors(registry, ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}, MediaURLs: externalMediaURLs(), AIAttendance: sandboxRuntime{}}); err != nil {
 		t.Fatalf("got %v", err)
 	}
 	for _, nodeType := range []workflow.NodeType{workflow.NodeTypeActionSendText, workflow.NodeTypeActionSendForm} {
@@ -53,7 +56,7 @@ func TestSimulationsRecordRefusedSendsNowhereOnPurpose(t *testing.T) {
 
 func TestCarrierNodeExistsOnlyWhileAChannelIsLaunched(t *testing.T) {
 	registry := NewNodeExecutorRegistry()
-	if err := RegisterProductionExecutors(registry, ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}, MediaURLs: externalMediaURLs()}); err != nil {
+	if err := RegisterProductionExecutors(registry, ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}, MediaURLs: externalMediaURLs(), AIAttendance: sandboxRuntime{}}); err != nil {
 		t.Fatal(err)
 	}
 	_, registered := registry.Get(workflow.NodeTypeActionSendCarrier)

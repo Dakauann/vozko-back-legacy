@@ -92,8 +92,10 @@ func (uc *syncTemplatesUseCase) Execute(input template.SyncTemplatesInput) ([]*t
 				domainTemplate.HeaderMediaID = existing.HeaderMediaID
 				domainTemplate.Quality = existing.Quality
 				domainTemplate.RateQuality(apiTemplate.QualityScore)
-				if err := uc.templateRepo.Update(existing.ID, domainTemplate); err != nil {
-					continue
+				if !domainTemplate.SameContent(existing) {
+					if err := uc.templateRepo.Update(existing.ID, domainTemplate); err != nil {
+						continue
+					}
 				}
 			} else {
 				domainTemplate.ID = uuid.New().String()

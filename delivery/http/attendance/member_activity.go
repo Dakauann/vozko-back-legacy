@@ -17,10 +17,6 @@ type memberActivityReader interface {
 	Execute(ctx context.Context, q attendance_usecase.MemberActivityQuery) (*attendance_usecase.MemberActivityReport, error)
 }
 
-func (h *AttendanceHandler) SetMemberActivity(reader memberActivityReader) {
-	h.memberActivity = reader
-}
-
 // @Summary		Atividade de um membro
 // @Description	Mostra quando um membro esteve conectado ao painel (sessões por dia no fuso local, tempo conectado, em ligação, horário habitual de início, sinais de entrada tarde, dia sem presença e possível aba esquecida aberta), um mapa de calor por dia da semana e hora, as conversas recebidas por gatilho, as recebidas estando offline e os números de atendimento do período. Exige acesso a Atendimento e que o membro seja de um departamento do usuário (donos e administradores veem todos). O fuso é o do horário de atendimento do workspace; sem ele, o enviado em timezone; sem os dois, UTC.
 // @Tags			Atendimento
@@ -35,7 +31,6 @@ func (h *AttendanceHandler) SetMemberActivity(reader memberActivityReader) {
 // @Failure		403	{object}	response.ErrorResponse
 // @Failure		404	{object}	response.ErrorResponse
 // @Failure		500	{object}	response.ErrorResponse
-// @Failure		503	{object}	response.ErrorResponse
 // @Security		BearerAuth
 // @Router			/attendance/members/{id}/activity [get]
 func (h *AttendanceHandler) GetMemberActivity(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +48,6 @@ func (h *AttendanceHandler) GetMemberActivity(w http.ResponseWriter, r *http.Req
 // @Failure		400	{object}	response.ErrorResponse
 // @Failure		401	{object}	response.ErrorResponse
 // @Failure		500	{object}	response.ErrorResponse
-// @Failure		503	{object}	response.ErrorResponse
 // @Security		BearerAuth
 // @Router			/attendance/members/me/activity [get]
 func (h *AttendanceHandler) GetMyActivity(w http.ResponseWriter, r *http.Request) {
@@ -66,10 +60,6 @@ func (h *AttendanceHandler) GetMyActivity(w http.ResponseWriter, r *http.Request
 }
 
 func (h *AttendanceHandler) writeMemberActivity(w http.ResponseWriter, r *http.Request, memberID string, self bool) {
-	if h.memberActivity == nil {
-		response.WriteError(w, http.StatusServiceUnavailable, "Member activity is unavailable", nil)
-		return
-	}
 	query := r.URL.Query()
 	report, err := h.memberActivity.Execute(r.Context(), attendance_usecase.MemberActivityQuery{
 		WorkspaceID: middleware.GetWorkspaceID(r),

@@ -16,7 +16,7 @@ func TestProvisionHappyPath(t *testing.T) {
 	instances := newFakeInstanceRepo()
 	provider := &fakeProvider{}
 
-	uc := NewProvisionInstanceUseCase(servers, instances, provider, testWebhookBase)
+	uc := provisionFor(servers, instances, provider, testWebhookBase)
 	instance, err := uc.Execute(context.Background(), ProvisionInput{WorkspaceID: "ws-1"})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -62,7 +62,7 @@ func TestProvisionDoesNotLeakTenantIdentityToTheHost(t *testing.T) {
 	servers := newFakeServerRepo(healthyServer("srv-a", 10, 0))
 	provider := &fakeProvider{}
 
-	uc := NewProvisionInstanceUseCase(servers, newFakeInstanceRepo(), provider, testWebhookBase)
+	uc := provisionFor(servers, newFakeInstanceRepo(), provider, testWebhookBase)
 	_, err := uc.Execute(context.Background(), ProvisionInput{
 		WorkspaceID: "ws-1",
 		DisplayName: "Loja do João — Cobrança",
@@ -89,7 +89,7 @@ func TestProvisionReleasesCapacityWhenTheHostRefuses(t *testing.T) {
 		},
 	}
 
-	uc := NewProvisionInstanceUseCase(servers, newFakeInstanceRepo(), provider, testWebhookBase)
+	uc := provisionFor(servers, newFakeInstanceRepo(), provider, testWebhookBase)
 	if _, err := uc.Execute(context.Background(), ProvisionInput{WorkspaceID: "ws-1"}); err == nil {
 		t.Fatal("a host failure must surface")
 	}
@@ -108,7 +108,7 @@ func TestProvisionDeletesTheOrphanWhenPersistenceFails(t *testing.T) {
 	instances.CreateFn = func(context.Context, *uw.Instance) error { return errBoom }
 	provider := &fakeProvider{}
 
-	uc := NewProvisionInstanceUseCase(servers, instances, provider, testWebhookBase)
+	uc := provisionFor(servers, instances, provider, testWebhookBase)
 	if _, err := uc.Execute(context.Background(), ProvisionInput{WorkspaceID: "ws-1"}); err == nil {
 		t.Fatal("a persistence failure must surface")
 	}
@@ -130,7 +130,7 @@ func TestProvisionKeepsTheInstanceWhenWebhookRegistrationFails(t *testing.T) {
 		},
 	}
 
-	uc := NewProvisionInstanceUseCase(servers, instances, provider, testWebhookBase)
+	uc := provisionFor(servers, instances, provider, testWebhookBase)
 	instance, err := uc.Execute(context.Background(), ProvisionInput{WorkspaceID: "ws-1"})
 	if err != nil {
 		t.Fatalf("the instance must survive a webhook failure: %v", err)
@@ -156,7 +156,7 @@ func TestProvisionSkipsFullHosts(t *testing.T) {
 		return []*uw.Server{full, free}, nil
 	}
 
-	uc := NewProvisionInstanceUseCase(servers, newFakeInstanceRepo(), &fakeProvider{}, testWebhookBase)
+	uc := provisionFor(servers, newFakeInstanceRepo(), &fakeProvider{}, testWebhookBase)
 	instance, err := uc.Execute(context.Background(), ProvisionInput{WorkspaceID: "ws-1"})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -177,7 +177,7 @@ func TestProvisionRetriesAnotherHostAfterLosingTheCapacityRace(t *testing.T) {
 		return serverID != "srv-contended", nil
 	}
 
-	uc := NewProvisionInstanceUseCase(servers, newFakeInstanceRepo(), &fakeProvider{}, testWebhookBase)
+	uc := provisionFor(servers, newFakeInstanceRepo(), &fakeProvider{}, testWebhookBase)
 	instance, err := uc.Execute(context.Background(), ProvisionInput{WorkspaceID: "ws-1"})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -194,7 +194,7 @@ func TestProvisionWithNoCapacityAnywhere(t *testing.T) {
 	servers := newFakeServerRepo(healthyServer("srv-full", 1, 1))
 	provider := &fakeProvider{}
 
-	uc := NewProvisionInstanceUseCase(servers, newFakeInstanceRepo(), provider, testWebhookBase)
+	uc := provisionFor(servers, newFakeInstanceRepo(), provider, testWebhookBase)
 	_, err := uc.Execute(context.Background(), ProvisionInput{WorkspaceID: "ws-1"})
 	if !errors.Is(err, uw.ErrNoServerCapacity) {
 		t.Fatalf("err = %v, want ErrNoServerCapacity", err)
@@ -212,7 +212,7 @@ func TestProvisionTranslatesAHostCapacityRefusal(t *testing.T) {
 		},
 	}
 
-	uc := NewProvisionInstanceUseCase(servers, newFakeInstanceRepo(), provider, testWebhookBase)
+	uc := provisionFor(servers, newFakeInstanceRepo(), provider, testWebhookBase)
 	_, err := uc.Execute(context.Background(), ProvisionInput{WorkspaceID: "ws-1"})
 	if !errors.Is(err, uw.ErrNoServerCapacity) {
 		t.Fatalf("err = %v, want it to read as a capacity problem", err)
@@ -220,7 +220,7 @@ func TestProvisionTranslatesAHostCapacityRefusal(t *testing.T) {
 }
 
 func TestProvisionRequiresAWorkspace(t *testing.T) {
-	uc := NewProvisionInstanceUseCase(
+	uc := provisionFor(
 		newFakeServerRepo(healthyServer("srv-a", 10, 0)), newFakeInstanceRepo(), &fakeProvider{}, testWebhookBase)
 	if _, err := uc.Execute(context.Background(), ProvisionInput{}); !errors.Is(err, uw.ErrWorkspaceIDRequired) {
 		t.Fatalf("err = %v, want ErrWorkspaceIDRequired", err)
@@ -238,7 +238,7 @@ func TestProvisionImportsHistoryUnlessTheOwnerOptsOut(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			instances := newFakeInstanceRepo()
-			uc := NewProvisionInstanceUseCase(newFakeServerRepo(healthyServer("srv-a", 10, 1)), instances,
+			uc := provisionFor(newFakeServerRepo(healthyServer("srv-a", 10, 1)), instances,
 				&fakeProvider{}, "https://api.test")
 
 			instance, err := uc.Execute(context.Background(), ProvisionInput{WorkspaceID: "ws-1", ImportHistory: tc.choice})

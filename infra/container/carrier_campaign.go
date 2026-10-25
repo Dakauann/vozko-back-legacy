@@ -7,7 +7,6 @@ import (
 
 	carriercampaignhttp "vozko/delivery/http/carriercampaign"
 	cc "vozko/domain/carriercampaign"
-	cronPackage "vozko/infra/cron"
 	carriercampaign_repository "vozko/infra/repositories/carriercampaign"
 	carriermessaging_repository "vozko/infra/repositories/carriermessaging"
 	"vozko/usecases/campaignlive"
@@ -75,6 +74,8 @@ func (c *Container) initCarrierCampaigns() {
 		Overview:      carrier.Overview,
 		WhatsAppSpend: carriercampaign_repository.NewWhatsAppSpendReader(c.db),
 		Timezones:     cmuc.NewWorkspaceTimezones(c.repositories.workspaceConfig),
+		Notifications: c.notifications().Publisher,
+		Audience:      c.campaignAudience(),
 		Logf: func(format string, args ...any) {
 			log.Printf("[carrier-campaigns] "+format, args...)
 		},
@@ -95,7 +96,6 @@ func (c *Container) initCarrierCampaigns() {
 		service.Handle,
 	)
 	service.AttachQueue(runner)
-	service.SetAudience(c.campaignAudience())
 	c.campaignAudience().AddChannel(service.AudienceChannel())
 	if err := runner.Start(); err != nil {
 		log.Fatalf("[carrier-campaigns] failed to start the queue runner: %v", err)
@@ -127,7 +127,11 @@ func (c *Container) carrierJobs() (expire, syncSenders, schedules func(context.C
 	return expire, syncSenders, schedules
 }
 
-func (c *Container) registerCarrierJobs() {
+func (c *Container) carrierCronJobs() cronJobs {
 	expire, syncSenders, schedules := c.carrierJobs()
-	c.jobRunner.SetCarrierJobs(cronPackage.CtxJobFunc(expire), cronPackage.CtxJobFunc(syncSenders), cronPackage.CtxJobFunc(schedules))
+	return cronJobs{
+		"carrier_message_expiry":     expire,
+		"carrier_sender_status_sync": syncSenders,
+		"carrier_campaign_schedules": schedules,
+	}
 }

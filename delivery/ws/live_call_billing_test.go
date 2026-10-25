@@ -73,7 +73,7 @@ func newBillingTestRunner(
 	pub *liveCallBillingFakePub,
 ) *callsession_usecase.OutboundCallLifecycleRunner {
 	t.Helper()
-	runner, err := callsession_usecase.NewOutboundCallLifecycleRunner(adm, nil, nil, pub, log.New(testWriter{t}, "", 0))
+	runner, err := lifecycleFor(adm, pub, log.New(testWriter{t}, "", 0), nil)
 	if err != nil {
 		t.Fatalf("lifecycle runner: %v", err)
 	}

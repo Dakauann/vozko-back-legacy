@@ -3,50 +3,44 @@ package agent
 import "vozko/domain/workspace"
 
 type CreateAgentInput struct {
-	WorkspaceID        string            `json:"-"`
-	Name               string            `json:"name" req:"true"`
-	Description        string            `json:"description"`
-	MessagingPrompt    string            `json:"messagingPrompt" req:"true"`
-	MessagingModel     string            `json:"messagingModel" req:"true"`
-	AvatarURL          string            `json:"avatarUrl"`
-	Provider           AgentProvider     `json:"provider" req:"true"`
-	IsActive           *bool             `json:"isActive"`
-	BusinessPhoneID    string            `json:"businessPhoneId"`
-	Tags               []string          `json:"-"`
-	Metadata           map[string]string `json:"-"`
-	RAGEnabled         *bool             `json:"-"`
-	RAGConfig          *RAGConfig        `json:"-"`
-	InternalTools      []ToolBinding     `json:"-"`
-	WhatsAppTemplateID *string           `json:"-"`
-	MediaIDs           []string          `json:"-"`
-	KnowledgeBaseIDs   []string          `json:"-"`
-	MCPCollectionIDs   []string          `json:"-"`
-	Variables          []AgentVariable   `json:"-"`
+	WorkspaceID      string            `json:"-"`
+	Name             string            `json:"name" req:"true"`
+	Description      string            `json:"description"`
+	MessagingPrompt  string            `json:"messagingPrompt" req:"true"`
+	MessagingModel   string            `json:"messagingModel" req:"true"`
+	AvatarURL        string            `json:"avatarUrl"`
+	Provider         AgentProvider     `json:"provider" req:"true"`
+	IsActive         *bool             `json:"isActive"`
+	Tags             []string          `json:"-"`
+	Metadata         map[string]string `json:"-"`
+	RAGEnabled       *bool             `json:"-"`
+	RAGConfig        *RAGConfig        `json:"-"`
+	InternalTools    []ToolBinding     `json:"-"`
+	MediaIDs         []string          `json:"-"`
+	KnowledgeBaseIDs []string          `json:"-"`
+	Variables        []AgentVariable   `json:"-"`
 
 	RequestedBy workspace.Requester `json:"-"`
 }
 
 func BuildForCreate(in CreateAgentInput) *Agent {
 	return &Agent{
-		WorkspaceID:        in.WorkspaceID,
-		Name:               in.Name,
-		Description:        in.Description,
-		MessagingPrompt:    in.MessagingPrompt,
-		MessagingModel:     in.MessagingModel,
-		AvatarURL:          in.AvatarURL,
-		Tags:               in.Tags,
-		Metadata:           in.Metadata,
-		Provider:           in.Provider,
-		IsActive:           boolOr(in.IsActive, true),
-		RAGEnabled:         boolOr(in.RAGEnabled, false),
-		RAGConfig:          in.RAGConfig,
-		InternalTools:      in.InternalTools,
-		BusinessPhoneID:    in.BusinessPhoneID,
-		WhatsAppTemplateID: in.WhatsAppTemplateID,
-		MediaIDs:           in.MediaIDs,
-		KnowledgeBaseIDs:   in.KnowledgeBaseIDs,
-		MCPCollectionIDs:   in.MCPCollectionIDs,
-		Variables:          in.Variables,
+		WorkspaceID:      in.WorkspaceID,
+		Name:             in.Name,
+		Description:      in.Description,
+		MessagingPrompt:  in.MessagingPrompt,
+		MessagingModel:   in.MessagingModel,
+		AvatarURL:        in.AvatarURL,
+		Tags:             in.Tags,
+		Metadata:         in.Metadata,
+		Provider:         in.Provider,
+		IsActive:         boolOr(in.IsActive, true),
+		RAGEnabled:       boolOr(in.RAGEnabled, false),
+		RAGConfig:        in.RAGConfig,
+		InternalTools:    in.InternalTools,
+		MediaIDs:         in.MediaIDs,
+		KnowledgeBaseIDs: in.KnowledgeBaseIDs,
+		Variables:        in.Variables,
 	}
 }
 
@@ -57,7 +51,6 @@ type UpdateAgentInput struct {
 	MessagingModel   *string           `json:"messagingModel"`
 	AvatarURL        *string           `json:"avatarUrl"`
 	Provider         *AgentProvider    `json:"provider"`
-	BusinessPhoneID  *string           `json:"businessPhoneId"`
 	IsActive         *bool             `json:"isActive"`
 	RAGEnabled       *bool             `json:"-"`
 	Archived         *bool             `json:"-"`
@@ -66,13 +59,11 @@ type UpdateAgentInput struct {
 	InternalTools    []ToolBinding     `json:"-"`
 	MediaIDs         []string          `json:"-"`
 	KnowledgeBaseIDs []string          `json:"-"`
-	MCPCollectionIDs []string          `json:"-"`
 	Variables        []AgentVariable   `json:"-"`
+	ExpectedTools    map[string]int    `json:"-"`
 
-	ReplaceWhatsAppTemplate bool       `json:"-"`
-	WhatsAppTemplateID      *string    `json:"-"`
-	ReplaceRAGConfig        bool       `json:"-"`
-	RAGConfig               *RAGConfig `json:"-"`
+	ReplaceRAGConfig bool       `json:"-"`
+	RAGConfig        *RAGConfig `json:"-"`
 
 	RequestedBy workspace.Requester `json:"-"`
 }
@@ -95,9 +86,6 @@ func (a *Agent) ApplyUpdate(in UpdateAgentInput) {
 	}
 	if in.Provider != nil {
 		a.Provider = *in.Provider
-	}
-	if in.BusinessPhoneID != nil {
-		a.BusinessPhoneID = *in.BusinessPhoneID
 	}
 	if in.IsActive != nil {
 		a.IsActive = *in.IsActive
@@ -123,14 +111,11 @@ func (a *Agent) ApplyUpdate(in UpdateAgentInput) {
 	if in.KnowledgeBaseIDs != nil {
 		a.KnowledgeBaseIDs = in.KnowledgeBaseIDs
 	}
-	if in.MCPCollectionIDs != nil {
-		a.MCPCollectionIDs = in.MCPCollectionIDs
-	}
 	if in.Variables != nil {
 		a.Variables = in.Variables
 	}
-	if in.ReplaceWhatsAppTemplate {
-		a.WhatsAppTemplateID = in.WhatsAppTemplateID
+	if in.ExpectedTools != nil {
+		a.ExpectedTools = in.ExpectedTools
 	}
 	if in.ReplaceRAGConfig {
 		a.RAGConfig = in.RAGConfig

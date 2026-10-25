@@ -121,8 +121,8 @@ func newRescueFixture(t *testing.T, ring []string, seen map[string]time.Time, op
 		svc:         svc,
 		svcLastSeen: lastSeen,
 	}
-	f.job = NewRescueJob(f.cfg, f.history, f.att, f.status, svc)
-	f.job.SetClock(func() time.Time { return testNow })
+	f.job = rescueJob(f.cfg, f.history, f.att, f.status, svc)
+	f.job.now = func() time.Time { return testNow }
 	return f
 }
 
@@ -189,7 +189,7 @@ func TestRescue_GoesThroughTheAssignmentChokePoint(t *testing.T) {
 	f.seedAssignment("entry-1", "bob")
 
 	history := &recordingHistory{}
-	f.svc.SetHistory(history)
+	f.svc.telemetry = historyTelemetry{store: history}
 
 	require.NoError(t, f.job.Execute(context.Background()))
 
@@ -220,6 +220,11 @@ func TestRescue_SkipReasons(t *testing.T) {
 			name:    "the deadline has not passed",
 			arrange: func(f *rescueFixture) { f.history.open[0].StartedAt = minutesAgo(5) },
 			reason:  "15 minutes have not elapsed",
+		},
+		{
+			name:    "the department was unreadable when it was handed out",
+			arrange: func(f *rescueFixture) { f.history.open[0].DepartmentUnresolved = true },
+			reason:  "an unknown department must never widen the rescue to the whole workspace",
 		},
 		{
 			name:    "E54 the owner is an AI",
@@ -300,7 +305,7 @@ func TestRescue_ExhaustionUnassigns(t *testing.T) {
 	f.history.hops = 3
 
 	events := &recordingEvents{}
-	f.svc.SetEventLogger(events)
+	f.svc.events = events
 
 	require.NoError(t, f.job.Execute(context.Background()))
 
@@ -407,22 +412,6 @@ func TestRescue_ContinuesPastASkippedEntry(t *testing.T) {
 
 	assert.Equal(t, "bob", f.ownerOf("entry-fresh"))
 	assert.Equal(t, "cid", f.ownerOf("entry-stale"))
-}
-
-func TestRescue_DisabledByEnv(t *testing.T) {
-	t.Setenv("ASSIGNMENT_RESCUE_DISABLED", "1")
-
-	f := newRescueFixture(t,
-		[]string{"ana", "bob"},
-		map[string]time.Time{"ana": hoursAgo(1), "bob": hoursAgo(2)},
-		openInterval("entry-1", "bob", minutesAgo(20)))
-	f.seedAssignment("entry-1", "bob")
-	f.job = NewRescueJob(f.cfg, f.history, f.att, f.status, f.svc)
-	f.job.SetClock(func() time.Time { return testNow })
-
-	require.NoError(t, f.job.Execute(context.Background()))
-	assert.Equal(t, "bob", f.ownerOf("entry-1"))
-	assert.Equal(t, 0, f.att.calls, "a disabled sweep must not even look")
 }
 
 type recordingHistory struct {

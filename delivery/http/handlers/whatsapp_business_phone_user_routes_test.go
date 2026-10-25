@@ -13,6 +13,13 @@ import (
 	"vozko/domain/workspace_phone_access"
 )
 
+type unusedWorkspacePhones struct {
+	businessphone.WorkspacePhonesUseCase
+}
+type unusedReceptive struct {
+	whatsappbusinessphonehttp.ReceptiveUseCase
+}
+
 type stubPhoneSyncOneUC struct {
 	phone *businessphone.WhatsAppBusinessPhoneNumber
 	err   error
@@ -280,6 +287,7 @@ func newPhoneTestHandler(opts ...func(*phoneTestOpts)) *whatsappbusinessphonehtt
 		&stubWorkspacePhoneAccessRepo{},
 		&stubMetaAPIService{},
 		nil,
+		whatsappbusinessphonehttp.WorkspaceDeps{Phones: unusedWorkspacePhones{}, Receptive: unusedReceptive{}},
 	)
 }
 

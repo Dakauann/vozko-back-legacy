@@ -91,10 +91,13 @@ type GenerateInput struct {
 }
 
 type AgentTurn struct {
-	EntryID    string
-	EntryType  string
-	AgentID    string
-	CampaignID string
+	EntryID      string
+	EntryType    string
+	AgentID      string
+	CampaignID   string
+	Source       string
+	AgentVersion int
+	RunID        string
 }
 
 func (t AgentTurn) Identified() bool {
@@ -107,6 +110,19 @@ type GenerateOutput struct {
 	ToolCalls    []ToolCall
 	Usage        Usage
 	FinishReason string
+	ModelCalls   []ModelCall
+}
+
+type ModelCall struct {
+	Index           int    `json:"index"`
+	Model           string `json:"model"`
+	LatencyMs       int64  `json:"latencyMs"`
+	InputTokens     int    `json:"inputTokens"`
+	OutputTokens    int    `json:"outputTokens"`
+	CachedTokens    int    `json:"cachedTokens"`
+	ReasoningTokens int    `json:"reasoningTokens"`
+	CostMicros      int64  `json:"costMicros"`
+	FinishReason    string `json:"finishReason,omitempty"`
 }
 
 type Usage struct {

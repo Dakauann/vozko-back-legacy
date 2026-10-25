@@ -9,6 +9,7 @@ import (
 	"vozko/domain/campaign"
 	"vozko/domain/campaign/launchcheck"
 	"vozko/domain/messaging"
+	"vozko/domain/shared/deps"
 	wc "vozko/domain/whatsapp_campaign"
 	wce "vozko/domain/whatsapp_campaign_entry"
 	"vozko/usecases/campaignqueue"
@@ -29,14 +30,7 @@ type LaunchGate interface {
 	Run(ctx context.Context, campaignID string) (launchcheck.Report, error)
 }
 
-func (c *dispatchCampaignUseCase) SetLaunchGate(gate LaunchGate) {
-	c.launch = gate
-}
-
 func (c *dispatchCampaignUseCase) admitLaunch(input wc.DispatchCampaignInput) error {
-	if c.launch == nil {
-		return wc.ErrLaunchCheckUnavailable
-	}
 	report, err := c.launch.Run(context.Background(), input.CampaignID)
 	if err != nil {
 		return err
@@ -44,14 +38,7 @@ func (c *dispatchCampaignUseCase) admitLaunch(input wc.DispatchCampaignInput) er
 	return report.Admit(input.ConfirmedFingerprint)
 }
 
-func (c *dispatchCampaignUseCase) SetSmartCampaigns(smart SmartStarter) {
-	c.smart = smart
-}
-
 func (c *dispatchCampaignUseCase) startsInWaves(campaignID string) (bool, error) {
-	if c.smart == nil {
-		return false, nil
-	}
 	return c.smart.Manages(campaignID)
 }
 
@@ -61,15 +48,30 @@ func NewDispatchCampaignUseCase(
 	entryRepo wce.Repository,
 	messageConsumerUC wc.MessageConsumerUseCase,
 	shared cache.SharedState,
-) wc.DispatchCampaignUseCase {
+	launch LaunchGate,
+	smart SmartStarter,
+) (wc.DispatchCampaignUseCase, error) {
+	if err := deps.Require("official campaign dispatch", map[string]any{
+		"queue publisher":  messageQueuePub,
+		"campaigns":        campaignRepo,
+		"entries":          entryRepo,
+		"message consumer": messageConsumerUC,
+		"shared state":     shared,
+		"launch gate":      launch,
+		"smart campaigns":  smart,
+	}); err != nil {
+		return nil, err
+	}
 	return &dispatchCampaignUseCase{
+		launch:            launch,
+		smart:             smart,
 		MessageQueuePub:   messageQueuePub,
 		CampaignRepo:      campaignRepo,
 		EntryRepo:         entryRepo,
 		messageConsumerUC: messageConsumerUC,
 		shared:            shared,
 		dispatcher:        campaignqueue.NewDispatcher(messageQueuePub, shared, wc.QueueNamespace),
-	}
+	}, nil
 }
 
 func (c *dispatchCampaignUseCase) Dispatch(input wc.DispatchCampaignInput) error {

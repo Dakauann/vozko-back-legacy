@@ -8,6 +8,7 @@ import (
 
 	"vozko/domain/channel"
 	"vozko/domain/conversation"
+	"vozko/domain/shared/deps"
 	"vozko/domain/tools"
 )
 
@@ -20,12 +21,13 @@ type sendWhatsappButtonMessageTool struct {
 	history               conversation.MessageHistoryManager
 }
 
-func (uc *sendWhatsappButtonMessageTool) SetAdapters(r conversation.AdapterRegistry) {
-	uc.adapters = r
-}
-
-func NewSendWhatsappButtonMessageToolUseCase(ctx context.Context, whatsappClientFactory conversation.WhatsAppClientFactory) tools.Handler {
+func NewSendWhatsappButtonMessageToolUseCase(ctx context.Context, whatsappClientFactory conversation.WhatsAppClientFactory, adapters conversation.AdapterRegistry, history conversation.MessageHistoryManager) tools.Handler {
+	if err := deps.Require("send options tool", map[string]any{"adapters": adapters, "history": history}); err != nil {
+		panic(err.Error())
+	}
 	return &sendWhatsappButtonMessageTool{
+		adapters:              adapters,
+		history:               history,
 		whatsappClientFactory: whatsappClientFactory,
 		ctx:                   ctx,
 	}

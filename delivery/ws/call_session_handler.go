@@ -19,6 +19,7 @@ import (
 	"vozko/domain/conversation"
 	"vozko/domain/lead"
 	"vozko/domain/metrics"
+	"vozko/domain/shared/deps"
 	"vozko/domain/sip_trunk"
 	"vozko/domain/telephony"
 	"vozko/infra/http/middleware"
@@ -69,6 +70,12 @@ func NewCallSessionWSHandler(
 	logger *log.Logger,
 	wsMetrics metrics.WSMetricsRecorder,
 ) *CallSessionWSHandler {
+	if err := deps.Require("call session socket", map[string]any{
+		"authorizer": authorizer,
+		"ws metrics": wsMetrics,
+	}); err != nil {
+		panic(err.Error())
+	}
 	if logger == nil {
 		logger = log.Default()
 	}
@@ -91,7 +98,9 @@ func (h *CallSessionWSHandler) WithRegistries(
 	}
 	h.sessionRegistry = sessions
 	h.callRegistry = calls
-	sessions.SetPresenceListener(h)
+	if err := sessions.BindPresenceListener(h); err != nil {
+		panic(err.Error())
+	}
 	return h
 }
 
@@ -337,7 +346,7 @@ func (h *CallSessionWSHandler) HandleWebSocket(w http.ResponseWriter, r *http.Re
 	}
 
 	isAdmin := strings.TrimSpace(claims.Role) == "admin"
-	if h.authorizer == nil || !h.authorizer.HasWorkspacePermission(claims.UserID, workspaceID, "call_session", "use", isAdmin) {
+	if !h.authorizer.HasWorkspacePermission(claims.UserID, workspaceID, "call_session", "use", isAdmin) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -371,31 +380,18 @@ func (h *CallSessionWSHandler) HandleWebSocket(w http.ResponseWriter, r *http.Re
 		},
 	})
 
-	session := newCallSession(
-		uuid.New().String(),
-		claims.UserID,
-		workspaceID,
-		send,
-		h.endUseCase,
-		h.logger,
-		0,
-	)
-	if h.presenceTelemetry != nil {
-		session.SetPresenceTelemetry(h.presenceTelemetry)
-	}
+	ports := callSessionPorts{Telemetry: h.presenceTelemetry, Reconnects: h.reconnects}
 	if h.channels != nil {
-		session.SetActivity(h.channels.activity)
+		ports.Activity = h.channels.activity
 	}
-	if h.reconnects != nil {
-		session.SetReconnects(h.reconnects)
+	if h.sessionRegistry != nil {
+		registry := h.sessionRegistry
+		ports.OnPresenceChange = func() { registry.NotifyPresenceChanged(workspaceID) }
 	}
+	session := newCallSession(uuid.New().String(), claims.UserID, workspaceID, send, h.endUseCase, h.logger, 0, ports)
 
 	leave := func() {}
 	if h.sessionRegistry != nil {
-
-		registry := h.sessionRegistry
-		ws := workspaceID
-		session.SetPresenceCallback(func() { registry.NotifyPresenceChanged(ws) })
 		deregister, err := h.sessionRegistry.Register(session)
 		if err != nil {
 			h.logger.Printf("[CallSessionWS] session registry rejected session: %v", err)
@@ -429,7 +425,7 @@ func (h *CallSessionWSHandler) HandleWebSocket(w http.ResponseWriter, r *http.Re
 				continue
 			}
 
-			if h.authorizer != nil && !h.authorizer.HasWorkspacePermission(claims.UserID, workspaceID, "call_session", "use", false) {
+			if !h.authorizer.HasWorkspacePermission(claims.UserID, workspaceID, "call_session", "use", false) {
 				send(&WSOutgoingMessage{Type: WSEventError, Payload: ErrorPayload{Code: "unauthorized", Message: "You don't have permission to place calls"}})
 				continue
 			}
@@ -730,7 +726,7 @@ func (h *CallSessionWSHandler) broadcastPresence(workspaceID string) {
 		if s == nil {
 			continue
 		}
-		canList := h.authorizer == nil || h.authorizer.HasWorkspacePermission(s.UserID(), workspaceID, "call_session", "list_members", false)
+		canList := h.authorizer.HasWorkspacePermission(s.UserID(), workspaceID, "call_session", "list_members", false)
 		msg := fullMsg
 		if !canList {
 			selfOnly := make([]CallSessionPresenceUser, 0, 1)

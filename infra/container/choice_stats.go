@@ -54,7 +54,7 @@ func (c *Container) choiceStatsReader() *choicestats_usecase.Reader {
 		TemplateRepo: c.repositories.whatsappTemplate,
 		LinkBase:     c.cfg.ShortLinkBaseURL,
 	}
-	if c.unofficialWhatsAppCampaigns != nil && c.unofficialWhatsAppCampaigns.Enabled && c.unofficialWhatsAppCampaigns.Access != nil {
+	if c.unofficialWhatsAppCampaigns != nil && c.unofficialWhatsAppCampaigns.Access != nil {
 		deps.Unofficial = c.unofficialWhatsAppCampaigns.Access
 	}
 	reader, err := choicestats_usecase.NewReader(deps)

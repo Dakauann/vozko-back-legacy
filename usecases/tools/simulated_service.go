@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"strings"
 
+	"vozko/domain/calltrace"
+	"vozko/domain/httpcall"
 	"vozko/domain/tools"
 )
 
@@ -16,10 +17,7 @@ func SimulationRunsForReal(name string, config map[string]interface{}) bool {
 		return true
 	case httpRequestToolName:
 		method, _ := config["method"].(string)
-		switch strings.ToUpper(strings.TrimSpace(method)) {
-		case http.MethodGet, http.MethodHead:
-			return true
-		}
+		return httpcall.ReadOnlyMethod(method)
 	}
 	return false
 }
@@ -54,6 +52,9 @@ func (s *SimulatedToolService) Handler(name string) (tools.Handler, bool) {
 }
 
 func (s *SimulatedToolService) Execute(ctx context.Context, name string, params map[string]interface{}) (tools.ExecutionResult, error) {
+	if mock, ok := tools.MockFrom(ctx); ok {
+		return mocked(mock), nil
+	}
 	if s.real == nil || !SimulationRunsForReal(name, nil) {
 		return s.stub(name), nil
 	}
@@ -61,18 +62,33 @@ func (s *SimulatedToolService) Execute(ctx context.Context, name string, params 
 }
 
 func (s *SimulatedToolService) ExecuteWithConfig(ctx context.Context, name string, config, params map[string]interface{}) (tools.ExecutionResult, error) {
+	if mock, ok := tools.MockFrom(ctx); ok {
+		return mocked(mock), nil
+	}
 	if s.real == nil {
 		return s.stub(name), nil
 	}
 	if !SimulationRunsForReal(name, config) {
 		if handler, ok := s.real.Handler(name); ok {
 			if previewer, ok := handler.(tools.Previewer); ok {
-				return previewer.Preview(ctx, config, params)
+				res, err := previewer.Preview(ctx, config, params)
+				res.Simulated = true
+				return res, err
 			}
 		}
 		return s.stub(name), nil
 	}
 	return s.real.ExecuteWithConfig(ctx, name, config, params)
+}
+
+func mocked(mock tools.Mock) tools.ExecutionResult {
+	return tools.ExecutionResult{
+		Result:    mock.Result,
+		IsError:   mock.IsError,
+		Simulated: true,
+		Mocked:    true,
+		Trace:     &calltrace.ToolTrace{MappedOutput: mock.Result},
+	}
 }
 
 func (s *SimulatedToolService) stub(name string) tools.ExecutionResult {
@@ -82,6 +98,7 @@ func (s *SimulatedToolService) stub(name string) tools.ExecutionResult {
 			"(SIMULAÇÃO) A ferramenta %q teria sido executada com os parâmetros informados; nenhuma ação real foi realizada. Considere a ação concluída com sucesso e continue a conversa normalmente.",
 			name,
 		),
+		Simulated: true,
 	}
 }
 

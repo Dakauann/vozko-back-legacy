@@ -9,6 +9,7 @@ import (
 	"path"
 	"strings"
 	"time"
+	"vozko/domain/shared/deps"
 
 	"github.com/google/uuid"
 
@@ -84,7 +85,6 @@ type HandleWebhookUseCase struct {
 	profiles      subjectProfile
 	groups        groupMetadata
 	handover      *LineHandover
-	historyOff    bool
 	historyWindow time.Duration
 	exitStep      leadexit.Step
 	groupWatcher  GroupWatcher
@@ -113,32 +113,65 @@ type HandleWebhookDeps struct {
 	Analysis    AnalysisScheduler
 	Delegations conversation.DelegationRepository
 	Choices     choicestats.Recorder
+
+	LinkGate           LinkGate
+	Listener           ConnectionListener
+	Handover           *LineHandover
+	HistoryWindow      time.Duration
+	GroupWatcher       GroupWatcher
+	CampaignSink       CampaignDeliverySink
+	CampaignAutomation CampaignAutomationSource
+	ExitStep           leadexit.Step
 }
 
-func NewHandleWebhookUseCase(d HandleWebhookDeps) *HandleWebhookUseCase {
-	profiles := newSubjectProfile(d)
-	return &HandleWebhookUseCase{
-		instances:     d.Instances,
-		servers:       d.Servers,
-		contacts:      d.Contacts,
-		conversations: d.Conversations,
-		messaging:     d.Messaging,
-		history:       d.History,
-		messages:      d.Messages,
-		media:         d.Media,
-		broadcaster:   d.Broadcaster,
-		assignments:   d.Assignments,
-		aiReply:       d.AIReply,
-		workflows:     d.Workflows,
-		router:        conversation_usecase.InboundRouterOf(d.Workflows),
-		leads:         d.Leads,
-		analysis:      d.Analysis,
-		delegations:   d.Delegations,
-		choices:       d.Choices,
-		sessionHost:   sessionHost{sync: sessionSync{instances: d.Instances}},
-		profiles:      profiles,
-		groups:        newGroupMetadata(d, profiles),
+var ErrHistoryWindowRequired = errors.New("unofficial whatsapp: the history window must be longer than zero")
+
+func NewHandleWebhookUseCase(d HandleWebhookDeps) (*HandleWebhookUseCase, error) {
+	if err := deps.Require("unofficial whatsapp webhook", map[string]any{
+		"link gate":           d.LinkGate,
+		"connection listener": d.Listener,
+		"line handover":       d.Handover,
+		"group watcher":       d.GroupWatcher,
+		"campaign sink":       d.CampaignSink,
+		"campaign automation": d.CampaignAutomation,
+		"exit step":           d.ExitStep,
+	}); err != nil {
+		return nil, err
 	}
+	if d.HistoryWindow <= 0 {
+		return nil, ErrHistoryWindowRequired
+	}
+	profiles := newSubjectProfile(d)
+	groups := newGroupMetadata(d, profiles)
+	groups.watcher = d.GroupWatcher
+	return &HandleWebhookUseCase{
+		campaignStatus:     d.CampaignSink,
+		campaignAutomation: d.CampaignAutomation,
+		handover:           d.Handover,
+		historyWindow:      d.HistoryWindow,
+		exitStep:           d.ExitStep,
+		groupWatcher:       d.GroupWatcher,
+		instances:          d.Instances,
+		servers:            d.Servers,
+		contacts:           d.Contacts,
+		conversations:      d.Conversations,
+		messaging:          d.Messaging,
+		history:            d.History,
+		messages:           d.Messages,
+		media:              d.Media,
+		broadcaster:        d.Broadcaster,
+		assignments:        d.Assignments,
+		aiReply:            d.AIReply,
+		workflows:          d.Workflows,
+		router:             conversation_usecase.InboundRouterOf(d.Workflows),
+		leads:              d.Leads,
+		analysis:           d.Analysis,
+		delegations:        d.Delegations,
+		choices:            d.Choices,
+		sessionHost:        newSessionHost(d.Instances, d.LinkGate, d.Listener),
+		profiles:           profiles,
+		groups:             groups,
+	}, nil
 }
 
 func (uc *HandleWebhookUseCase) Execute(ctx context.Context, q *QueuedEvent) error {
@@ -625,9 +658,7 @@ func (uc *HandleWebhookUseCase) advanceDeliveryStatus(
 	if status == conversation.DeliveryStatusNone {
 		return
 	}
-	if uc.campaignStatus != nil {
-		uc.campaignStatus.AdvanceFromDelivery(target, ev.DeliveryStatus)
-	}
+	uc.campaignStatus.AdvanceFromDelivery(target, ev.DeliveryStatus)
 
 	if err := uc.messages.UpdateDeliveryStatus(target, status); err != nil {
 		log.Printf("[unofficial-whatsapp] could not advance status for message %s: %v", target, err)
@@ -854,30 +885,7 @@ func (uc *HandleWebhookUseCase) maybeReplyWithAgent(
 	}
 }
 
-func (uc *HandleWebhookUseCase) SetHistoryWindow(window time.Duration) {
-	uc.historyWindow = window
-}
-
-func (uc *HandleWebhookUseCase) DisableHistoryImport() {
-	uc.historyOff = true
-}
-
-func (uc *HandleWebhookUseCase) SetLineHandover(handover *LineHandover) {
-	uc.handover = handover
-}
-
-func (uc *HandleWebhookUseCase) SetCampaignDeliverySink(sink CampaignDeliverySink) {
-	uc.campaignStatus = sink
-}
-
-func (uc *HandleWebhookUseCase) SetCampaignAutomationSource(src CampaignAutomationSource) {
-	uc.campaignAutomation = src
-}
-
 func (uc *HandleWebhookUseCase) automationFor(conversationID string) *CampaignAutomation {
-	if uc.campaignAutomation == nil {
-		return nil
-	}
 	found, ok := uc.campaignAutomation.AutomationForConversation(conversationID)
 	if !ok {
 		return nil

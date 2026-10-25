@@ -3,6 +3,7 @@ package tools_usecase
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -21,7 +22,10 @@ type sheetRowsStub struct {
 }
 
 func (s *sheetRowsStub) Get(_ context.Context, workspaceID, id string) (*googlesheet.Sheet, error) {
-	if s.findErr != nil || s.sheet.WorkspaceID != workspaceID || s.sheet.ID != id {
+	if s.findErr != nil {
+		return nil, s.findErr
+	}
+	if s.sheet.WorkspaceID != workspaceID || s.sheet.ID != id {
 		return nil, googlesheet.ErrSheetNotFound
 	}
 	return s.sheet, nil
@@ -74,10 +78,10 @@ func toolContext(sheetID string) tools.ToolContext {
 
 func TestAddSheetRowIsOneToolPerSheet(t *testing.T) {
 	def := NewAddSheetRowTool(&sheetRowsStub{sheet: sheetForTool(t)}).Definition()
-	if def.BindingKey != addSheetRowConfigKey || def.ConfigSchema[addSheetRowConfigKey].OptionsSource != GoogleSheetsOptionsSource || !def.RequiresConfig {
+	if def.Instances != tools.PerTarget(addSheetRowConfigKey) || def.ConfigSchema[addSheetRowConfigKey].OptionsSource != GoogleSheetsOptionsSource || !def.RequiresConfig {
 		t.Fatalf("definition = %+v", def)
 	}
-	if got := def.ToolNameFor(map[string]interface{}{addSheetRowConfigKey: "sheet-1"}); got != "add_sheet_row_sheet-1" {
+	if got := def.LegacyName(map[string]interface{}{addSheetRowConfigKey: "sheet-1"}); got != "add_sheet_row_sheet-1" {
 		t.Fatalf("bound name = %q", got)
 	}
 }
@@ -177,10 +181,21 @@ func TestAddSheetRowPreviewValidatesWithoutWriting(t *testing.T) {
 func TestSimulationPreviewsToolsThatCanPreview(t *testing.T) {
 	stub := &sheetRowsStub{sheet: sheetForTool(t)}
 	sim := NewSimulatedToolService(NewService(NewAddSheetRowTool(stub)))
-	if _, err := sim.ExecuteWithConfig(context.Background(), "add_sheet_row_sheet-1", agentConfig(), map[string]interface{}{"produto": "Pizza"}); err != nil {
+	if _, err := sim.ExecuteWithConfig(context.Background(), AddSheetRowToolName, agentConfig(), map[string]interface{}{"produto": "Pizza"}); err != nil {
 		t.Fatal(err)
 	}
 	if stub.previews != 1 || len(stub.enqueued) != 0 {
 		t.Fatalf("previews %d, enqueued %d; a simulation must never write", stub.previews, len(stub.enqueued))
+	}
+}
+
+func TestAMissingSheetIsABindingProblemAndAnOutageIsNot(t *testing.T) {
+	missing := NewAddSheetRowTool(&sheetRowsStub{findErr: googlesheet.ErrSheetNotFound}).(tools.BindingValidator)
+	if problem, ok := tools.ProblemOf(missing.ValidateBinding(context.Background(), "ws-1", map[string]interface{}{addSheetRowConfigKey: "x"})); !ok || problem.Code != "tool_sheet_invalid" {
+		t.Fatalf("problem %+v", problem)
+	}
+	down := NewAddSheetRowTool(&sheetRowsStub{findErr: errors.New("google down")}).(tools.BindingValidator)
+	if _, ok := tools.ProblemOf(down.ValidateBinding(context.Background(), "ws-1", map[string]interface{}{addSheetRowConfigKey: "x"})); ok {
+		t.Fatal("an outage must not read as a bad sheet")
 	}
 }

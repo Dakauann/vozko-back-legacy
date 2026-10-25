@@ -344,7 +344,7 @@ func TestAScreenCommandIsSettledWhateverTheEditorDoes(t *testing.T) {
 
 func TestAStudioTurnSettlesItsScreenCommandsInTheRegistry(t *testing.T) {
 	svc := newService(&scriptAI{}, &fakeThreads{}, &fakeMessages{})
-	svc.SetScreenMailbox(newMailbox())
+	svc.screens = newMailbox()
 	turn, _ := svc.BeginTurn(context.Background(), "th1", "u1")
 	holdOpen(turn)
 	cc := ownerCtx

@@ -72,7 +72,9 @@ func (l launchBalances) GetBalance(string) (int64, error) { return l.micros, nil
 
 type launchCaps struct{}
 
-func (launchCaps) MonthlySendCapUsage(string, time.Time) (*balance.SendCapUsage, error) { return nil, nil }
+func (launchCaps) MonthlySendCapUsage(string, time.Time) (*balance.SendCapUsage, error) {
+	return nil, nil
+}
 
 func launchDeps() LaunchCheckDeps {
 	return LaunchCheckDeps{
@@ -250,5 +252,26 @@ func TestADraftWithoutATemplateAsksForOneInsteadOfReadingAnEmptyID(t *testing.T)
 
 	if !found(report, launchcheck.Block, launchcheck.CodeTemplateMissing) || found(report, launchcheck.Block, launchcheck.CodeHealthUnreadable) || found(report, launchcheck.Block, launchcheck.CodeAccessRevoked) {
 		t.Fatalf("findings = %+v", report.Findings)
+	}
+}
+
+func TestAnEditedCampaignIsCheckedAsItWillBeSaved(t *testing.T) {
+	deps := launchDeps()
+	deps.Templates = launchTemplates{
+		"tpl-1": {ID: "tpl-1", ExternalID: "x1", Status: template.TemplateStatusApproved, Category: template.TemplateCategoryUtility},
+		"tpl-2": {ID: "tpl-2", ExternalID: "x2", Status: template.TemplateStatusPaused, Category: template.TemplateCategoryUtility},
+	}
+	edited := *deps.Campaigns.(launchCampaigns)["camp-1"]
+	edited.TemplateID = "tpl-2"
+
+	report, err := NewLaunchCheck(deps).RunOn(context.Background(), &edited)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found(report, launchcheck.Block, launchcheck.CodeTemplateNotReady) {
+		t.Fatalf("the edited template was not checked: %+v", report.Findings)
+	}
+	if saved := runCheck(t, deps); len(saved.Findings) != 0 {
+		t.Fatalf("the saved campaign is still healthy: %+v", saved.Findings)
 	}
 }

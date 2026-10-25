@@ -7,6 +7,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"vozko/domain/shared/deps"
 
 	"github.com/google/uuid"
 
@@ -21,17 +22,18 @@ type ProvisionInstanceUseCase struct {
 	webhookBaseURL string
 }
 
-func (uc *ProvisionInstanceUseCase) SetEntitlements(r uw.InstanceEntitlementReader) {
-	uc.entitlements = r
-}
-
 func NewProvisionInstanceUseCase(
 	servers uw.ServerRepository,
 	instances uw.InstanceRepository,
 	provider uw.ProviderAPI,
 	webhookBaseURL string,
+	entitlements uw.InstanceEntitlementReader,
 ) *ProvisionInstanceUseCase {
+	if err := deps.Require("unofficial whatsapp provisioning", map[string]any{"entitlements": entitlements}); err != nil {
+		panic(err.Error())
+	}
 	return &ProvisionInstanceUseCase{
+		entitlements:   entitlements,
 		servers:        servers,
 		instances:      instances,
 		provider:       provider,
@@ -71,12 +73,6 @@ func (uc *ProvisionInstanceUseCase) Execute(ctx context.Context, in ProvisionInp
 }
 
 func (uc *ProvisionInstanceUseCase) checkAllowance(ctx context.Context, workspaceID string) error {
-	if uc.entitlements == nil {
-		log.Printf("[unofficial-whatsapp] WARNING: provisioning for workspace %s ran with no "+
-			"entitlement reader wired; the number allowance was NOT enforced", workspaceID)
-		return nil
-	}
-
 	allowance, err := uc.entitlements.AllowanceFor(ctx, workspaceID)
 	if err != nil {
 		log.Printf("[unofficial-whatsapp] entitlement lookup failed for workspace %s: %v", workspaceID, err)

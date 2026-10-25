@@ -62,7 +62,7 @@ func postEstimate(h *CampaignHandler, body string) *httptest.ResponseRecorder {
 
 func TestTheGroupEstimateNeedsPermissionToSeeTheGroups(t *testing.T) {
 	estimate := &stubEstimate{}
-	h := NewCampaignHandler(CampaignHandlerDeps{Estimate: estimate, Departments: openScope{}, Permissions: groupsAccess{}})
+	h := campaignHandler(CampaignHandlerDeps{Estimate: estimate, Departments: openScope{}, Permissions: groupsAccess{}})
 
 	w := postEstimate(h, `{"audience":"groups","groupJids":["120363000000000001@g.us"]}`)
 
@@ -73,7 +73,7 @@ func TestTheGroupEstimateNeedsPermissionToSeeTheGroups(t *testing.T) {
 
 func TestTheGroupEstimateShowsWhoPostsInEachGroup(t *testing.T) {
 	estimate := &stubEstimate{}
-	h := NewCampaignHandler(CampaignHandlerDeps{Estimate: estimate, Departments: openScope{}, Permissions: groupsAccess{allowed: true}})
+	h := campaignHandler(CampaignHandlerDeps{Estimate: estimate, Departments: openScope{}, Permissions: groupsAccess{allowed: true}})
 
 	w := postEstimate(h, `{"audience":"groups","groupJids":["120363000000000001@g.us","120363000000000003@g.us"],"sendDelayMinMs":4000,"sendDelayMaxMs":6000}`)
 	if w.Code != http.StatusOK {
@@ -96,7 +96,7 @@ func TestTheGroupEstimateShowsWhoPostsInEachGroup(t *testing.T) {
 
 func TestTheCampaignDetailCarriesWhatIsLeftToSend(t *testing.T) {
 	estimate := &stubEstimate{}
-	h := NewCampaignHandler(CampaignHandlerDeps{
+	h := campaignHandler(CampaignHandlerDeps{
 		Estimate: estimate, Departments: openScope{},
 		Access: uwcuc.NewCampaignAccessUseCase(runningCampaign{}),
 	})

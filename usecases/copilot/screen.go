@@ -83,14 +83,7 @@ func answerOrClaim(ctx context.Context, wait screenWait, claimable bool) (copilo
 	}
 }
 
-func (s *Service) SetScreenMailbox(mailbox copilot.ScreenMailbox) {
-	s.screens = mailbox
-}
-
 func (s *Service) DeliverScreenReply(threadID, commandID string, reply copilot.ScreenReply) error {
-	if s.screens == nil {
-		return copilot.ErrNoScreen
-	}
 	return s.screens.Deliver(copilot.ScreenKey(threadID, commandID), reply)
 }
 
@@ -99,17 +92,11 @@ func (s *Service) ClaimScreenCommand(threadID, commandID, claimant string) error
 	if err != nil {
 		return err
 	}
-	if s.screens == nil {
-		return copilot.ErrNoScreen
-	}
 	return s.screens.Deliver(copilot.ScreenKey(threadID, commandID), claim)
 }
 
 func (s *Service) attachScreen(cc copilot.Context, threadID string, emit agentloop.Emit) copilot.Context {
 	cc.Screen = nil
-	if s.screens == nil || s.newID == nil {
-		return cc
-	}
 	projectID := ""
 	if cc.View.OnEditor() {
 		projectID = cc.View.ProjectID

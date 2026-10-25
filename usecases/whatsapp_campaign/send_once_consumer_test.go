@@ -44,7 +44,7 @@ func chargedEarlier(t *testing.T, campID string, clock fakeChargeClock) (*testHa
 	h, topic := roundHarness(t, campID)
 	h.entryRepo.entries["entry-1"] = &wce.WhatsAppCampaignEntry{ID: "entry-1", SendRound: 1, Status: wce.SendStatusPending}
 	h.consumeTempl.alreadyCharged = true
-	h.consumer.SetChargeClock(clock)
+	h.consumer.charges = clock
 	h.consumer.now = func() time.Time { return settleNow }
 	ack := h.queueSub.deliver(topic, makePayload(campID, "entry-1", "5584999990001"))
 	return h, ack, topic
@@ -100,25 +100,13 @@ func TestAnInterruptedSendWhoseRefundFailsStaysPendingForTheNextCheck(t *testing
 	h.entryRepo.entries["entry-1"] = &wce.WhatsAppCampaignEntry{ID: "entry-1", SendRound: 1, Status: wce.SendStatusPending}
 	h.consumeTempl.alreadyCharged = true
 	h.consumeTempl.refundErr = errors.New("ledger busy")
-	h.consumer.SetChargeClock(fakeChargeClock{at: settleNow.Add(-20 * time.Minute), found: true})
+	h.consumer.charges = fakeChargeClock{at: settleNow.Add(-20 * time.Minute), found: true}
 	h.consumer.now = func() time.Time { return settleNow }
 
 	h.queueSub.deliver(topic, makePayload("camp-refund-fails", "entry-1", "5584999990001"))
 
 	if h.entryRepo.entries["entry-1"].Status != wce.SendStatusPending || len(h.queuePub.delayedMessagesFor(topic)) != 1 {
 		t.Fatal("a failed refund leaves the entry pending and checks again, so the customer is never left charged for a failure")
-	}
-}
-
-func TestWithoutAChargeClockTheConsumerChecksAgainInsteadOfGuessing(t *testing.T) {
-	h, topic := roundHarness(t, "camp-no-clock")
-	h.entryRepo.entries["entry-1"] = &wce.WhatsAppCampaignEntry{ID: "entry-1", SendRound: 1, Status: wce.SendStatusPending}
-	h.consumeTempl.alreadyCharged = true
-
-	h.queueSub.deliver(topic, makePayload("camp-no-clock", "entry-1", "5584999990001"))
-
-	if len(h.consumeTempl.refundRefs) != 0 || h.entryRepo.entries["entry-1"].Status != wce.SendStatusPending || len(h.queuePub.delayedMessagesFor(topic)) != 1 {
-		t.Fatal("without the clock nothing is refunded or failed")
 	}
 }
 

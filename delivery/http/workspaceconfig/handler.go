@@ -11,6 +11,7 @@ import (
 	"vozko/delivery/http/response"
 	"vozko/domain/conversation"
 	"vozko/domain/inbox_assignment"
+	"vozko/domain/shared/deps"
 	"vozko/domain/working_hours"
 	workspaceconfigdomain "vozko/domain/workspace_config"
 	"vozko/infra/http/middleware"
@@ -25,8 +26,12 @@ type WorkspaceConfigHandler struct {
 	geocodingPlatform GeocodingPlatformService
 }
 
-func NewWorkspaceConfigHandler(getConfig workspaceconfigdomain.GetWorkspaceConfigUseCase, updateConfig workspaceconfigdomain.UpdateWorkspaceConfigUseCase, updateOwnerConfig workspaceconfigdomain.UpdateWorkspaceConfigOwnerUseCase) *WorkspaceConfigHandler {
+func NewWorkspaceConfigHandler(getConfig workspaceconfigdomain.GetWorkspaceConfigUseCase, updateConfig workspaceconfigdomain.UpdateWorkspaceConfigUseCase, updateOwnerConfig workspaceconfigdomain.UpdateWorkspaceConfigOwnerUseCase, geocodingPlatform GeocodingPlatformService) *WorkspaceConfigHandler {
+	if err := deps.Require("workspace config handler", map[string]any{"geocoding platform coverage": geocodingPlatform}); err != nil {
+		panic(err.Error())
+	}
 	return &WorkspaceConfigHandler{
+		geocodingPlatform: geocodingPlatform,
 		getConfig:         getConfig,
 		updateConfig:      updateConfig,
 		updateOwnerConfig: updateOwnerConfig,

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"vozko/domain/agent"
+	"vozko/domain/agenttool"
 	"vozko/domain/copilot"
 	"vozko/domain/tools"
 	"vozko/usecases/copilot/copilottools"
@@ -59,13 +60,24 @@ func sensitiveEntries(def tools.Definition, config map[string]interface{}) []sen
 		case nil:
 		case map[string]interface{}:
 			for _, entry := range sortedKeys(value) {
+				if isSecretReference(value[entry]) {
+					continue
+				}
 				out = append(out, sensitiveEntry{param: param, entry: entry})
 			}
 		default:
+			if isSecretReference(value) {
+				continue
+			}
 			out = append(out, sensitiveEntry{param: param})
 		}
 	}
 	return out
+}
+
+func isSecretReference(value interface{}) bool {
+	s, ok := value.(string)
+	return ok && strings.Contains(s, "{{") && agenttool.IsSealed(s)
 }
 
 func (s toolSecrets) fields(bindings []toolBindingArg) []copilot.SecretField {
@@ -156,12 +168,18 @@ func blankSensitive(def tools.Definition, config map[string]interface{}, marker 
 		case nil:
 		case map[string]interface{}:
 			hidden := make(map[string]interface{}, len(value))
-			for entry := range value {
+			for entry, v := range value {
+				if isSecretReference(v) {
+					hidden[entry] = v
+					continue
+				}
 				hidden[entry] = marker
 			}
 			out[param] = hidden
 		default:
-			out[param] = marker
+			if !isSecretReference(value) {
+				out[param] = marker
+			}
 		}
 	}
 	return out

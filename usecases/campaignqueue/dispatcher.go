@@ -24,15 +24,16 @@ func (d *Dispatcher) Enqueue(campaignID string, messages []Message) error {
 		return nil
 	}
 
-	topic := d.ns.DispatchTopic(campaignID)
+	payloads := make([][]byte, 0, len(messages))
 	for _, m := range messages {
 		payload, err := json.Marshal(m)
 		if err != nil {
 			return fmt.Errorf("failed to marshal campaign dispatch payload: %w", err)
 		}
-		if err := d.pub.Publish(topic, payload); err != nil {
-			return err
-		}
+		payloads = append(payloads, payload)
+	}
+	if err := messaging.PublishAll(d.pub, d.ns.DispatchTopic(campaignID), payloads); err != nil {
+		return err
 	}
 
 	if d.shared != nil {

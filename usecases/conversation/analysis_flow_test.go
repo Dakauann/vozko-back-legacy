@@ -44,14 +44,14 @@ func TestAnalysisDebounceAcknowledgesOnlyCompletedVersion(t *testing.T) {
 			old := encodeAnalysisDebounceValue(shared.EntryTypeUnofficialWhatsApp, time.Now().Add(-6*time.Minute))
 			state := &analysisState{fields: map[string]string{"entry": old}}
 			calls := 0
-			job := &analysisDebounceJob{sharedState: state}
+			job := debounceWith(&analysisDebounceJob{sharedState: state})
 			job.SetAnalysisSubjectResolver(shared.EntryTypeUnofficialWhatsApp, func(context.Context, string) (*AnalysisSubject, error) {
 				if mode == "resolver failure" {
 					return nil, errors.New("database unavailable")
 				}
 				return &AnalysisSubject{EntryID: "entry", EntryType: shared.EntryTypeUnofficialWhatsApp, EnableAnalysis: true}, nil
 			})
-			job.SetAnalysisQueue(subjectQueue(func(_ context.Context, subject *AnalysisSubject) error {
+			job.analysisQueue = subjectQueue(func(_ context.Context, subject *AnalysisSubject) error {
 				calls++
 				if subject.EntryID != "entry" {
 					t.Fatal("lost resolved entry")
@@ -63,7 +63,7 @@ func TestAnalysisDebounceAcknowledgesOnlyCompletedVersion(t *testing.T) {
 					state.fields["entry"] = encodeAnalysisDebounceValue(subject.EntryType, time.Now())
 				}
 				return nil
-			}))
+			})
 			if err := job.ProcessPendingAnalyses(); err != nil {
 				t.Fatal(err)
 			}
@@ -88,8 +88,8 @@ func TestAdapterSendsScheduleAnalysisAfterPersistence(t *testing.T) {
 				state := &analysisState{fields: map[string]string{}}
 				repo := &stubAudioMessageRepo{}
 				live := &liveQueue{}
-				sender := &MessageSenderService{messageRepo: repo, analysis: NewAnalysisScheduler(state, live)}
-				sender.SetChannelAdapters(conversation.NewAdapterRegistry(&fakeWindowAdapter{entryType: kind, open: open}))
+				sender := senderWith(&MessageSenderService{messageRepo: repo, analysis: NewAnalysisScheduler(state, live)})
+				sender.channelAdapters = conversation.NewAdapterRegistry(&fakeWindowAdapter{entryType: kind, open: open})
 				_, err := sender.SendTextMessage("entry", string(kind), "hello", conversation.SendOrigin{SenderUserID: "operator"})
 				if !open {
 					if !errors.Is(err, conversation.ErrOutboundWindowClosed) || len(state.fields) != 0 || len(repo.created) != 0 || len(live.refs) != 0 {
@@ -143,11 +143,11 @@ func TestInboxUpdatePreservesChannelWindowsWithoutOfficialLookup(t *testing.T) {
 		for _, open := range []bool{true, false} {
 			t.Run(string(kind)+map[bool]string{true: "/open", false: "/closed"}[open], func(t *testing.T) {
 				windows := &officialWindows{lastAt: time.Now()}
-				svc := &HistoryProviderService{messageWindowRepo: windows, messageRepo: inboxWindowMessages{entry: conversation.EntryWithLastMessage{
+				svc := historyWith(HistoryProviderService{messageWindowRepo: windows, messageRepo: inboxWindowMessages{entry: conversation.EntryWithLastMessage{
 					EntryID: "entry", EntryType: kind, LeadID: "lead", BusinessPhoneID: "instance", LastMessageType: conversation.MessageTypeSystem,
-				}}}
+				}}})
 				expires := time.Now().Add(time.Hour)
-				svc.SetChannelAdapters(conversation.NewAdapterRegistry(&fakeWindowAdapter{entryType: kind, open: open, expiresAt: &expires}))
+				svc.channelAdapters = conversation.NewAdapterRegistry(&fakeWindowAdapter{entryType: kind, open: open, expiresAt: &expires})
 				entry, err := svc.GetInboxEntry("entry", string(kind))
 				if err != nil {
 					t.Fatal(err)
@@ -172,7 +172,7 @@ func TestInboxUpdatePreservesChannelWindowsWithoutOfficialLookup(t *testing.T) {
 func TestOfficialWindowStillUsesIts24HourClock(t *testing.T) {
 	for _, age := range []time.Duration{time.Hour, 25 * time.Hour} {
 		windows := &officialWindows{lastAt: time.Now().Add(-age)}
-		svc := &HistoryProviderService{messageWindowRepo: windows, whatsappRepo: stubAudioEntryRepo{}}
+		svc := historyWith(HistoryProviderService{messageWindowRepo: windows, whatsappRepo: stubAudioEntryRepo{}})
 		got := svc.GetWindowStatusForEntry("entry", "whatsapp")
 		if got.Open != (age < 24*time.Hour) || windows.reads != 1 {
 			t.Fatalf("age=%v state=%+v reads=%d", age, got, windows.reads)
@@ -182,7 +182,7 @@ func TestOfficialWindowStillUsesIts24HourClock(t *testing.T) {
 
 func TestWindowBatchQueriesOnlyOfficialNumbers(t *testing.T) {
 	windows := &officialWindows{lastAt: time.Now()}
-	svc := &HistoryProviderService{messageWindowRepo: windows}
+	svc := historyWith(HistoryProviderService{messageWindowRepo: windows})
 	entries := []conversation.EntryWithLastMessage{}
 	for _, kind := range []shared.EntryType{shared.EntryTypeWhatsApp, shared.EntryTypeInstagram, shared.EntryTypeTelegram, shared.EntryTypeUnofficialWhatsApp} {
 		entries = append(entries, conversation.EntryWithLastMessage{EntryID: string(kind), EntryType: kind, LeadID: "lead-" + string(kind), BusinessPhoneID: "phone-1"})

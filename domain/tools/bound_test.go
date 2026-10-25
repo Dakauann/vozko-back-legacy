@@ -35,18 +35,6 @@ func TestASchemaWithoutNamedFieldsGivesNoParameter(t *testing.T) {
 	}
 }
 
-func TestHTTPConfigExpansionKeepsItsBodyParameter(t *testing.T) {
-	def := Definition{Name: "http_request", Description: "base"}.WithConfigExpansion(map[string]interface{}{
-		"body_schema": []interface{}{map[string]interface{}{"name": "cpf", "type": "string", "required": true}},
-	})
-	if def.Parameters["body_values"].Description != "JSON body fields to send. Fields: cpf: string (required)" {
-		t.Fatalf("body_values = %+v", def.Parameters["body_values"])
-	}
-	if !strings.Contains(def.Description, "Body Parameters:\n  - cpf (string) [REQUIRED]: ") {
-		t.Fatalf("description = %q", def.Description)
-	}
-}
-
 func TestBoundToolNamesAreStableAndSafeForEveryProvider(t *testing.T) {
 	cases := []struct {
 		key  string
@@ -69,34 +57,6 @@ func TestBoundToolNamesAreStableAndSafeForEveryProvider(t *testing.T) {
 	long := BoundToolName("run_workflow", strings.Repeat("a", 100))
 	if len(long) != MaxToolNameLength || !ValidToolName(long) {
 		t.Fatalf("long name = %q (%d)", long, len(long))
-	}
-}
-
-func TestABindingKeyMakesEachBindingItsOwnTool(t *testing.T) {
-	bound := Definition{Name: "run_workflow", BindingKey: "workflow_id"}
-	a := map[string]interface{}{"workflow_id": "wf-a"}
-	b := map[string]interface{}{"workflow_id": "wf-b"}
-	if bound.ToolNameFor(a) != "run_workflow_wf-a" || bound.BindingIdentity(a) == bound.BindingIdentity(b) {
-		t.Fatalf("names = %q / %q", bound.ToolNameFor(a), bound.ToolNameFor(b))
-	}
-	if bound.ToolNameFor(map[string]interface{}{}) != "" {
-		t.Fatal("a binding without its key has no tool name")
-	}
-
-	single := Definition{Name: "http_request"}
-	if single.ToolNameFor(a) != "http_request" || single.BindingIdentity(a) != single.BindingIdentity(b) {
-		t.Fatal("a tool without a binding key stays one tool whatever its config")
-	}
-}
-
-func TestABoundToolNameBelongsToItsBase(t *testing.T) {
-	if !IsBoundToolName("run_workflow_abc", "run_workflow") || !IsBoundToolName("RUN_WORKFLOW_abc", "run_workflow") {
-		t.Fatal("a bound name must route to its base")
-	}
-	for _, name := range []string{"run_workflow", "run_workflow_", "run_workflows", "http_request_abc"} {
-		if IsBoundToolName(name, "run_workflow") {
-			t.Fatalf("%q must not route to run_workflow", name)
-		}
 	}
 }
 

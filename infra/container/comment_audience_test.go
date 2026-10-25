@@ -21,7 +21,7 @@ func (facebookOnlyAdapter) Enqueue(context.Context, *fbdomain.Comment) {}
 func (facebookOnlyAdapter) Forget(context.Context, string)             {}
 
 func TestEachCommentSourceGetsItsOwnAudienceEnqueuer(t *testing.T) {
-	bundle := &audienceBundle{Enabled: true, CommentAdapters: map[ca.Source]ca.SourceAdapter{
+	bundle := &audienceBundle{CommentAdapters: map[ca.Source]ca.SourceAdapter{
 		ca.SourceInstagram: instagramOnlyAdapter{},
 		ca.SourceFacebook:  facebookOnlyAdapter{},
 	}}
@@ -37,7 +37,7 @@ func TestEachCommentSourceGetsItsOwnAudienceEnqueuer(t *testing.T) {
 }
 
 func TestASourceWithoutAnAdapterGetsNoEnqueuer(t *testing.T) {
-	instagramOnly := &audienceBundle{Enabled: true, CommentAdapters: map[ca.Source]ca.SourceAdapter{
+	instagramOnly := &audienceBundle{CommentAdapters: map[ca.Source]ca.SourceAdapter{
 		ca.SourceInstagram: instagramOnlyAdapter{},
 	}}
 	if got, ok := commentAudience[facebookAudience](instagramOnly, ca.SourceFacebook); ok || got != nil {
@@ -46,14 +46,10 @@ func TestASourceWithoutAnAdapterGetsNoEnqueuer(t *testing.T) {
 	if got, ok := commentAudience[iguc.AudienceEnqueuer](nil, ca.SourceInstagram); ok || got != nil {
 		t.Fatalf("no bundle, no enqueuer: %T", got)
 	}
-	disabled := &audienceBundle{CommentAdapters: instagramOnly.CommentAdapters}
-	if got, ok := commentAudience[iguc.AudienceEnqueuer](disabled, ca.SourceInstagram); ok || got != nil {
-		t.Fatalf("a disabled bundle hands out nothing: %T", got)
-	}
 }
 
 func TestAnAdapterThatCannotEnqueueForItsSourceFailsWiring(t *testing.T) {
-	crossed := &audienceBundle{Enabled: true, CommentAdapters: map[ca.Source]ca.SourceAdapter{
+	crossed := &audienceBundle{CommentAdapters: map[ca.Source]ca.SourceAdapter{
 		ca.SourceFacebook: instagramOnlyAdapter{},
 	}}
 	defer func() {

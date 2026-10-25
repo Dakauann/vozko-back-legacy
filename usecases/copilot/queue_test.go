@@ -128,8 +128,8 @@ type queueRig struct {
 func newQueueRig(prov ai.Service, script *scriptAI, funds FundsChecker, ts ...copilot.Tool) *queueRig {
 	th, ms := &fakeThreads{thread: testThread()}, &fakeMessages{}
 	queue := &fakeQueue{messages: ms}
-	svc := NewService(agentloop.Engine{AI: prov}, NewRegistry(ts...), &fakeAccess{}, funds, th, ms, nil, nil, func() string { return "act-1" })
-	svc.SetQueue(queue)
+	svc := testService(Deps{Engine: agentloop.Engine{AI: prov}, Registry: NewRegistry(ts...), Access: &fakeAccess{}, Funds: funds, Threads: th, Messages: ms, NewID: func() string { return "act-1" }})
+	svc.queue = queue
 	return &queueRig{svc: svc, th: th, ms: ms, queue: queue, prov: script}
 }
 
@@ -352,14 +352,6 @@ func TestQueueingValidatesLikeANormalMessage(t *testing.T) {
 	}
 	if len(rig.queue.rows) != 0 {
 		t.Fatalf("rows = %d", len(rig.queue.rows))
-	}
-}
-
-func TestQueueingFailsClosedWithoutAQueue(t *testing.T) {
-	th, ms := &fakeThreads{thread: testThread()}, &fakeMessages{}
-	svc := NewService(agentloop.Engine{AI: &scriptAI{}}, NewRegistry(), &fakeAccess{}, openFunds{}, th, ms, nil, nil, func() string { return "a" })
-	if _, err := svc.Enqueue(th.thread, "u1", copilot.UserMessage{ClientID: "c1", Content: "oi"}); !errors.Is(err, ErrQueueUnavailable) {
-		t.Fatalf("err = %v", err)
 	}
 }
 

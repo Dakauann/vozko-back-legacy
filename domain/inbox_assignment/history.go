@@ -30,20 +30,21 @@ func IsRouletteHandout(trigger string) bool {
 }
 
 type AssignmentHistory struct {
-	ID                string     `json:"id"`
-	WorkspaceID       string     `json:"workspaceId"`
-	EntryID           string     `json:"entryId"`
-	EntryType         string     `json:"entryType"`
-	ActorKind         string     `json:"actorKind"`
-	AssignedActorID   string     `json:"assignedActorId"`
-	PreviousActorID   string     `json:"previousActorId,omitempty"`
-	Trigger           string     `json:"trigger"`
-	AssignedByActorID string     `json:"assignedByActorId,omitempty"`
-	BusinessPhoneID   string     `json:"businessPhoneId,omitempty"`
-	DepartmentID      string     `json:"departmentId,omitempty"`
-	StartedAt         time.Time  `json:"startedAt"`
-	EndedAt           *time.Time `json:"endedAt,omitempty"`
-	CreatedAt         time.Time  `json:"createdAt"`
+	ID                   string     `json:"id"`
+	WorkspaceID          string     `json:"workspaceId"`
+	EntryID              string     `json:"entryId"`
+	EntryType            string     `json:"entryType"`
+	ActorKind            string     `json:"actorKind"`
+	AssignedActorID      string     `json:"assignedActorId"`
+	PreviousActorID      string     `json:"previousActorId,omitempty"`
+	Trigger              string     `json:"trigger"`
+	AssignedByActorID    string     `json:"assignedByActorId,omitempty"`
+	BusinessPhoneID      string     `json:"businessPhoneId,omitempty"`
+	DepartmentID         string     `json:"departmentId,omitempty"`
+	DepartmentUnresolved bool       `json:"departmentUnresolved,omitempty"`
+	StartedAt            time.Time  `json:"startedAt"`
+	EndedAt              *time.Time `json:"endedAt,omitempty"`
+	CreatedAt            time.Time  `json:"createdAt"`
 }
 
 type HistoryRepository interface {
@@ -54,4 +55,19 @@ type HistoryRepository interface {
 	ListOpenOlderThan(workspaceIDs []string, triggers []string, olderThan time.Time, limit int) ([]*AssignmentHistory, error)
 	CountRescuesSinceHandout(workspaceID, entryID, entryType string) (int, error)
 	ListByActor(workspaceID, actorID string, from, to time.Time) ([]*AssignmentHistory, error)
+}
+
+type IntervalWriter interface {
+	CloseOpen(workspaceID, entryID, entryType string, endedAt time.Time) error
+	Append(h *AssignmentHistory) error
+}
+
+func RecordInterval(w IntervalWriter, h AssignmentHistory) error {
+	if err := w.CloseOpen(h.WorkspaceID, h.EntryID, h.EntryType, h.StartedAt); err != nil {
+		return err
+	}
+	if h.AssignedActorID == "" {
+		return nil
+	}
+	return w.Append(&h)
 }

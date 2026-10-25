@@ -10,6 +10,7 @@ import (
 	"vozko/domain/aichat"
 	"vozko/domain/aiusage"
 	"vozko/domain/balance"
+	"vozko/domain/shared/deps"
 	"vozko/domain/workspace/workspace_plan"
 )
 
@@ -26,8 +27,7 @@ var (
 	ErrInsufficientBalance = errors.New("aichat: insufficient balance")
 	ErrEmptyMessage        = errors.New("aichat: empty message")
 
-	ErrOtherProject              = errors.New("aichat: thread belongs to another studio project")
-	ErrProjectBindingUnavailable = errors.New("aichat: studio project binding unavailable")
+	ErrOtherProject = errors.New("aichat: thread belongs to another studio project")
 )
 
 type subscriptionReader interface {
@@ -44,13 +44,37 @@ type Service struct {
 	projects aichat.ThreadProjects
 }
 
-func NewService(
-	threads aichat.ThreadRepository,
-	messages aichat.MessageRepository,
-	aiSvc ai.Service,
-	funds *FundsGate,
-) *Service {
-	return &Service{threads: threads, messages: messages, ai: aiSvc, funds: funds}
+type Deps struct {
+	Threads  aichat.ThreadRepository
+	Messages aichat.MessageRepository
+	AI       ai.Service
+	Funds    *FundsGate
+	Charges  balance.ReferenceTotaler
+	Usage    aiusage.Totaler
+	Projects aichat.ThreadProjects
+}
+
+func NewService(d Deps) (*Service, error) {
+	if err := deps.Require("ai chat", map[string]any{
+		"threads":         d.Threads,
+		"messages":        d.Messages,
+		"ai service":      d.AI,
+		"funds gate":      d.Funds,
+		"charge ledger":   d.Charges,
+		"usage ledger":    d.Usage,
+		"thread projects": d.Projects,
+	}); err != nil {
+		return nil, err
+	}
+	return &Service{
+		threads:  d.Threads,
+		messages: d.Messages,
+		ai:       d.AI,
+		funds:    d.Funds,
+		charges:  d.Charges,
+		usage:    d.Usage,
+		projects: d.Projects,
+	}, nil
 }
 
 func (s *Service) CreateThread(workspaceID, userID, model, title string) (*aichat.Thread, error) {
@@ -89,19 +113,12 @@ func (s *Service) ListMessages(workspaceID, userID, threadID string, limit, offs
 	return thread, msgs, total, nil
 }
 
-func (s *Service) SetThreadProjects(projects aichat.ThreadProjects) {
-	s.projects = projects
-}
-
 func (s *Service) ClaimProject(thread *aichat.Thread, projectID string) error {
 	if projectID == "" || thread.ProjectID == projectID {
 		return nil
 	}
 	if thread.ProjectID != "" {
 		return ErrOtherProject
-	}
-	if s.projects == nil {
-		return ErrProjectBindingUnavailable
 	}
 	bound, err := s.projects.BindProject(thread.ID, projectID)
 	if err != nil {
@@ -266,20 +283,12 @@ func (s *Service) Authorize(workspaceID, userID, threadID string) (*aichat.Threa
 	return s.authorizeThread(workspaceID, userID, threadID)
 }
 
-func (s *Service) SetChargeLedger(charges balance.ReferenceTotaler) {
-	s.charges = charges
-}
-
-func (s *Service) SetUsageLedger(usage aiusage.Totaler) {
-	s.usage = usage
-}
-
 func (s *Service) ThreadCost(workspaceID, userID, threadID string) (aichat.ThreadCost, error) {
 	thread, err := s.authorizeThread(workspaceID, userID, threadID)
 	if err != nil {
 		return aichat.ThreadCost{}, err
 	}
-	if s.charges == nil || !thread.CostTracked {
+	if !thread.CostTracked {
 		return aichat.CostOf(nil, balance.ReferenceTotals{}, nil), nil
 	}
 	prefix := ai.ReferencePrefix(aichat.ChargeReference(thread.ID))
@@ -295,9 +304,6 @@ func (s *Service) ThreadCost(workspaceID, userID, threadID string) (aichat.Threa
 }
 
 func (s *Service) usageUnder(workspaceID, prefix string) (*aiusage.Totals, error) {
-	if s.usage == nil {
-		return nil, nil
-	}
 	totals, err := s.usage.TotalsUnder(workspaceID, prefix)
 	if err != nil {
 		return nil, err

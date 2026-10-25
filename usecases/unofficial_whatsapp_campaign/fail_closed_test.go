@@ -117,7 +117,7 @@ func (r *recordingDispatch) Dispatch(_ context.Context, input uwc.DispatchCampai
 func TestAScheduleFiresOnlyOnceForTheCampaignsItClaims(t *testing.T) {
 	ledger := &scheduleLedger{claimable: map[string]bool{"a": true, "b": false}}
 	dispatch := &recordingDispatch{}
-	job := NewScheduleStartJob(dueRepo{fakeCampaignRepo: newFakeCampaignRepo(), due: []*uwc.Campaign{{ID: "a"}, {ID: "b"}}}, dispatch, ledger)
+	job := NewScheduleStartJob(dueRepo{fakeCampaignRepo: newFakeCampaignRepo(), due: []*uwc.Campaign{{ID: "a"}, {ID: "b"}}}, dispatch, ledger, unofficialReporter(t, &unofficialSchedules{}, &unofficialNotices{}))
 
 	_ = job.StartScheduledCampaigns()
 	_ = job.StartScheduledCampaigns()

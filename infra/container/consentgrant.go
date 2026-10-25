@@ -2,7 +2,6 @@ package container
 
 import (
 	"log"
-	"strings"
 
 	workflow_domain "vozko/domain/workflow"
 	agent_usecase "vozko/usecases/agent"
@@ -49,15 +48,9 @@ func (c *Container) mustConsentGrantChecker() {
 }
 
 func (c *Container) workflowLinter() workflow_domain.WorkflowLinter {
-	linter, ok := c.useCases.activateWorkflow.(interface {
-		workflow_domain.WorkflowLinter
-		MissingDependencies() []string
-	})
+	linter, ok := c.useCases.activateWorkflow.(workflow_domain.WorkflowLinter)
 	if !ok {
 		log.Fatalf("[workflows] the activation use case cannot lint drafts")
-	}
-	if missing := linter.MissingDependencies(); len(missing) > 0 {
-		log.Fatalf("[workflows] the shared workflow linter is missing %s", strings.Join(missing, ", "))
 	}
 	return linter
 }

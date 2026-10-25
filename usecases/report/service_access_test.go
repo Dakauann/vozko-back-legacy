@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"vozko/domain/report"
+	"vozko/domain/shared/deps"
 	"vozko/domain/workspace"
 )
 
@@ -48,7 +49,7 @@ func createLeads(t *testing.T, service *Service, requester string) (*report.Job,
 
 func TestTheLeadsKindIsNotOfferedThroughTheGenericRoute(t *testing.T) {
 	service, _, _, _ := buildService(t, leadsRenderer())
-	service.SetAccess(leadAccess())
+	service.access = leadAccess()
 
 	_, err := service.Create(CreateInput{WorkspaceID: "ws-1", RequestedBy: "manager", Kind: report.KindLeads, Format: report.FormatCSV, FromClient: true})
 	if !errors.Is(err, report.ErrKindNotOffered) {
@@ -61,7 +62,7 @@ func TestTheLeadsKindIsNotOfferedThroughTheGenericRoute(t *testing.T) {
 
 func TestCreatingAReportNeedsThePermissionsOfItsKind(t *testing.T) {
 	service, _, _, _ := buildService(t, leadsRenderer())
-	service.SetAccess(leadAccess())
+	service.access = leadAccess()
 
 	if _, err := createLeads(t, service, "analyst"); !errors.Is(err, report.ErrNotAllowed) {
 		t.Fatalf("reports:create alone exported leads: %v", err)
@@ -73,7 +74,7 @@ func TestCreatingAReportNeedsThePermissionsOfItsKind(t *testing.T) {
 
 func TestAFinanceMemberIsDeniedAManagersLeadFile(t *testing.T) {
 	service, repo, _, storage := buildService(t, leadsRenderer())
-	service.SetAccess(leadAccess())
+	service.access = leadAccess()
 	job, err := createLeads(t, service, "manager")
 	if err != nil {
 		t.Fatal(err)
@@ -106,7 +107,7 @@ func TestAFinanceMemberIsDeniedAManagersLeadFile(t *testing.T) {
 
 func TestTwoRequestersGetTwoJobs(t *testing.T) {
 	service, repo, _, _ := buildService(t, leadsRenderer())
-	service.SetAccess(leadAccess())
+	service.access = leadAccess()
 
 	first, err := createLeads(t, service, "manager")
 	if err != nil {
@@ -129,7 +130,7 @@ func TestTheWorkerChecksThePermissionsAgainAtRender(t *testing.T) {
 	renderer := leadsRenderer()
 	service, repo, publisher, _ := buildService(t, renderer)
 	access := leadAccess()
-	service.SetAccess(access)
+	service.access = access
 	job, err := createLeads(t, service, "manager")
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +138,7 @@ func TestTheWorkerChecksThePermissionsAgainAtRender(t *testing.T) {
 	access["manager"]["leads:export"] = false
 
 	ack := &fakeAck{deliveries: 1}
-	NewWorker(service, nil).handle(publisher.published[0], ack)
+	reportWorker(service).handle(publisher.published[0], ack)
 
 	if renderer.calls != 0 {
 		t.Fatal("a report was rendered for a requester who lost the permission")
@@ -158,9 +159,14 @@ func TestAKindWithoutAPolicyIsRefused(t *testing.T) {
 
 func TestReportsRefuseWithoutAnAccessPort(t *testing.T) {
 	service, _, _, _ := buildService(t, okRenderer())
-	service.SetAccess(nil)
-	if _, err := service.Create(CreateInput{WorkspaceID: "ws-1", RequestedBy: "user-1", Kind: report.KindAttendanceOverview, Format: report.FormatCSV}); !errors.Is(err, ErrNotConfigured) {
-		t.Fatalf("a report was created without the access port: %v", err)
+	d := Deps{Repo: service.repo, Registry: service.registry, Publisher: service.publisher, Storage: service.storage, PrintSecret: "s"}
+	if built, err := NewService(d); built != nil || !errors.Is(err, deps.ErrMissing) {
+		t.Fatalf("a report service was built without the access port: %v", err)
+	}
+	d.Access = allowAll{}
+	d.PrintSecret = " "
+	if built, err := NewService(d); built != nil || !errors.Is(err, report.ErrPrintSecretUnset) {
+		t.Fatalf("a report service was built without a print secret: %v", err)
 	}
 }
 
@@ -187,7 +193,7 @@ func TestAScopedMemberCannotReadAReportRenderedWithSomeoneElsesScope(t *testing.
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			service, repo, _, storage := buildService(t, scopedRenderer(tc.kind, tc.required))
-			service.SetAccess(grants{tc.owner: {tc.required.Key(): true}, tc.member: {tc.required.Key(): true}})
+			service.access = grants{tc.owner: {tc.required.Key(): true}, tc.member: {tc.required.Key(): true}}
 			job, err := service.Create(CreateInput{WorkspaceID: "ws-1", RequestedBy: tc.owner, Kind: tc.kind, Format: report.FormatCSV, Params: json.RawMessage(`{}`)})
 			if err != nil {
 				t.Fatal(err)
@@ -216,7 +222,7 @@ func TestAScopedMemberCannotReadAReportRenderedWithSomeoneElsesScope(t *testing.
 func TestListPagesAndCountsOnlyWhatTheViewerReads(t *testing.T) {
 	service, _, _, _ := buildService(t, leadsRenderer())
 	access := leadAccess()
-	service.SetAccess(access)
+	service.access = access
 	for i := 0; i < 5; i++ {
 		access[requesterN(i)] = map[string]bool{"leads:read": true, "leads:export": true}
 		if _, err := createLeads(t, service, requesterN(i)); err != nil {

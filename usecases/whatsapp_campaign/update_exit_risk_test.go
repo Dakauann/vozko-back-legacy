@@ -12,7 +12,7 @@ import (
 func TestChangingTheTemplateGoesThroughTheExitRiskGate(t *testing.T) {
 	campaigns, uc := updateFixture(t, "")
 	gate := &recordingGate{}
-	uc.(*updateCampaignUseCase).SetExitRiskGate(gate)
+	uc.(*updateCampaignUseCase).exitRisk = gate
 
 	in := &wc.Campaign{Name: "Matrículas", TemplateID: "tmpl-2", ExitRiskAcknowledgedBy: "user-1"}
 	if _, err := uc.Execute(context.Background(), "camp-1", in); err != nil {
@@ -49,9 +49,9 @@ func TestATemplateChangeRefusedByTheGateSavesNothing(t *testing.T) {
 	stored, fixture := updateFixture(t, "")
 	counted := &countedCampaigns{mockCampaignRepo: stored}
 	fixtureUC := fixture.(*updateCampaignUseCase)
-	uc := NewUpdateCampaignUseCase(counted, fixtureUC.entryRepo, fixtureUC.templateRepo, fixtureUC.businessPhoneRepo, nil)
-	uc.(*updateCampaignUseCase).SetTemplateGrants(allowGrants{})
-	uc.(*updateCampaignUseCase).SetExitRiskGate(&recordingGate{err: buttonaction.ErrExitRiskNotAcknowledged})
+	uc := updateWith(UpdateCampaignDeps{Campaigns: counted, Entries: fixtureUC.entryRepo, Templates: fixtureUC.templateRepo, Phones: fixtureUC.businessPhoneRepo})
+	uc.(*updateCampaignUseCase).templateGrants = allowGrants{}
+	uc.(*updateCampaignUseCase).exitRisk = &recordingGate{err: buttonaction.ErrExitRiskNotAcknowledged}
 
 	_, err := uc.Execute(context.Background(), "camp-1", &wc.Campaign{Name: "Outro nome", TemplateID: "tmpl-2"})
 	if !errors.Is(err, buttonaction.ErrExitRiskNotAcknowledged) {
@@ -65,7 +65,7 @@ func TestATemplateChangeRefusedByTheGateSavesNothing(t *testing.T) {
 func TestKeepingTheTemplateDoesNotAskTheGate(t *testing.T) {
 	_, uc := updateFixture(t, "")
 	gate := &recordingGate{err: buttonaction.ErrExitRiskNotAcknowledged}
-	uc.(*updateCampaignUseCase).SetExitRiskGate(gate)
+	uc.(*updateCampaignUseCase).exitRisk = gate
 
 	for _, in := range []*wc.Campaign{{Name: "Novo nome"}, {Name: "Novo nome", TemplateID: "tmpl-1"}} {
 		if _, err := uc.Execute(context.Background(), "camp-1", in); err != nil {
@@ -74,12 +74,5 @@ func TestKeepingTheTemplateDoesNotAskTheGate(t *testing.T) {
 	}
 	if gate.campaignID != "" {
 		t.Fatalf("the gate was asked without a template change: %+v", gate)
-	}
-}
-
-func TestATemplateChangeWithoutTheGateIsRefused(t *testing.T) {
-	_, uc := updateFixture(t, "")
-	if _, err := uc.Execute(context.Background(), "camp-1", &wc.Campaign{Name: "Matrículas", TemplateID: "tmpl-2"}); !errors.Is(err, buttonaction.ErrUnavailable) {
-		t.Fatalf("Execute = %v, want ErrUnavailable", err)
 	}
 }

@@ -26,6 +26,7 @@ import (
 	lmw "vozko/domain/lead_message_window"
 	"vozko/domain/media"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/domain/stage"
 	toolsdomain "vozko/domain/tools"
 	"vozko/domain/user"
@@ -38,11 +39,11 @@ import (
 	media_infra "vozko/infra/media"
 )
 
-type workflowRunLookup interface {
+type WorkflowRunLookup interface {
 	FindActiveByEntries(entryIDs []string) (map[string]*workflow.WorkflowRun, error)
 }
 
-type workflowLookup interface {
+type WorkflowLookup interface {
 	FindByIDs(ids []string) ([]*workflow.Workflow, error)
 	workflow.VersionReader
 }
@@ -59,8 +60,8 @@ type HistoryProviderService struct {
 	messageWindowRepo lmw.Repository
 	assignmentRepo    ia.Repository
 	entryWorkspaces   EntryWorkspaces
-	workflowRunRepo   workflowRunLookup
-	workflowRepo      workflowLookup
+	workflowRunRepo   WorkflowRunLookup
+	workflowRepo      WorkflowLookup
 	contactIdentities map[shared.EntryType]ContactIdentityLookup
 	channelAdapters   conversation.AdapterRegistry
 	mediaRepo         conversation.ConversationMediaRepository
@@ -95,10 +96,6 @@ func (s *HistoryProviderService) SetContactIdentityLookup(entryType shared.Entry
 		s.contactIdentities = make(map[shared.EntryType]ContactIdentityLookup, 2)
 	}
 	s.contactIdentities[entryType] = lookup
-}
-
-func (s *HistoryProviderService) SetInstagramContacts(lookup ContactIdentityLookup) {
-	s.SetContactIdentityLookup(shared.EntryTypeInstagram, lookup)
 }
 
 func (s *HistoryProviderService) contactLookupFor(entryType shared.EntryType) (ContactIdentityLookup, bool) {
@@ -185,37 +182,59 @@ func contactDisplayNames(entryType shared.EntryType, c ContactDisplay) (name, ha
 	return name, handle
 }
 
-func (s *HistoryProviderService) SetWorkflowLookups(runs workflowRunLookup, workflows workflowLookup) {
-	s.workflowRunRepo = runs
-	s.workflowRepo = workflows
+type HistoryDeps struct {
+	Messages     conversation.MessageRepository
+	WhatsApp     wce.Repository
+	Leads        lead.Repository
+	Users        user.UserRepository
+	Agents       agent.Repository
+	Windows      lmw.Repository
+	Media        conversation.ConversationMediaRepository
+	Assignments  ia.Repository
+	Delegations  conversation.DelegationRepository
+	Adapters     conversation.AdapterRegistry
+	Workspaces   EntryWorkspaces
+	WorkflowRuns WorkflowRunLookup
+	Workflows    WorkflowLookup
 }
 
-func NewHistoryProviderService(
-	messageRepo conversation.MessageRepository,
-	whatsappRepo wce.Repository,
-	leadRepo lead.Repository,
-	userRepo user.UserRepository,
-	agentRepo agent.Repository,
-	messageWindowRepo lmw.Repository,
-) *HistoryProviderService {
-	return &HistoryProviderService{
-		messageRepo:       messageRepo,
-		whatsappRepo:      whatsappRepo,
-		leadRepo:          leadRepo,
-		userRepo:          userRepo,
-		agentRepo:         agentRepo,
-		messageWindowRepo: messageWindowRepo,
+func NewHistoryProviderService(d HistoryDeps) (*HistoryProviderService, error) {
+	if err := deps.Require("conversation history", map[string]any{
+		"messages":      d.Messages,
+		"whatsapp":      d.WhatsApp,
+		"leads":         d.Leads,
+		"users":         d.Users,
+		"agents":        d.Agents,
+		"windows":       d.Windows,
+		"media":         d.Media,
+		"assignments":   d.Assignments,
+		"delegations":   d.Delegations,
+		"adapters":      d.Adapters,
+		"workspaces":    d.Workspaces,
+		"workflow runs": d.WorkflowRuns,
+		"workflows":     d.Workflows,
+	}); err != nil {
+		return nil, err
 	}
+	return &HistoryProviderService{
+		messageRepo:       d.Messages,
+		whatsappRepo:      d.WhatsApp,
+		leadRepo:          d.Leads,
+		userRepo:          d.Users,
+		agentRepo:         d.Agents,
+		messageWindowRepo: d.Windows,
+		mediaRepo:         d.Media,
+		assignmentRepo:    d.Assignments,
+		delegations:       d.Delegations,
+		channelAdapters:   d.Adapters,
+		entryWorkspaces:   d.Workspaces,
+		workflowRunRepo:   d.WorkflowRuns,
+		workflowRepo:      d.Workflows,
+	}, nil
 }
 
 type EntryWorkspaces interface {
 	GetEntryWorkspaceID(entryID, entryType string) (string, error)
-}
-
-func (s *HistoryProviderService) SetEntryWorkspaces(r EntryWorkspaces) { s.entryWorkspaces = r }
-
-func (s *HistoryProviderService) SetMediaRepo(repo conversation.ConversationMediaRepository) {
-	s.mediaRepo = repo
 }
 
 func (s *HistoryProviderService) present(entryID string, entryType shared.EntryType, messages []*conversation.Message) {
@@ -224,9 +243,6 @@ func (s *HistoryProviderService) present(entryID string, entryType shared.EntryT
 }
 
 func (s *HistoryProviderService) attachMedia(entryID string, entryType shared.EntryType, messages []*conversation.Message) {
-	if s.mediaRepo == nil {
-		return
-	}
 	ids := mediaIDsOf(messages)
 	if len(ids) == 0 {
 		return
@@ -268,12 +284,8 @@ func mediaIDsOf(messages []*conversation.Message) []string {
 	return ids
 }
 
-func (s *HistoryProviderService) SetAssignmentRepo(repo ia.Repository) {
-	s.assignmentRepo = repo
-}
-
 func (s *HistoryProviderService) enrichAssignments(entries []conversation.InboxEntry, workspaceID string) {
-	if s.assignmentRepo == nil || len(entries) == 0 || workspaceID == "" {
+	if len(entries) == 0 || workspaceID == "" {
 		return
 	}
 
@@ -336,7 +348,7 @@ func (s *HistoryProviderService) actorIdentities(userIDs, agentActorIDs, workflo
 			found[actor.FormatAI(a.ID)] = senderIdentity{Name: a.Name, Avatar: a.AvatarURL}
 		}
 	}
-	if len(workflowActorIDs) > 0 && s.workflowRepo != nil {
+	if len(workflowActorIDs) > 0 {
 		workflows, err := s.workflowRepo.FindByIDs(bareActorIDs(workflowActorIDs, actor.ParseWorkflow))
 		if err != nil {
 			log.Printf("[HistoryProvider] Error batch-fetching workflows: %v", err)
@@ -608,18 +620,11 @@ func (s *HistoryProviderService) GetWindowStatusForEntry(entryID, entryType stri
 }
 
 func (s *HistoryProviderService) adapterFor(entryType string) conversation.ChannelAdapter {
-	if s.channelAdapters == nil {
-		return nil
-	}
 	adapter, err := s.channelAdapters.For(shared.EntryType(entryType))
 	if err != nil {
 		return nil
 	}
 	return adapter
-}
-
-func (s *HistoryProviderService) SetChannelAdapters(registry conversation.AdapterRegistry) {
-	s.channelAdapters = registry
 }
 
 func (s *HistoryProviderService) GetUnreadCount(entryID string, entryType shared.EntryType) (int64, error) {
@@ -844,10 +849,41 @@ func (s *HistoryProviderService) GetInboxEntries(userID, workspaceID, campaignID
 }
 
 func (s *HistoryProviderService) SearchInboxEntries(input conversation.SearchInboxInput) ([]conversation.InboxEntry, int64, error) {
+	searchInput, err := entrySearchOf(input)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	log.Printf("[HistoryProvider] Search: campaign=%s (%s), workspace=%s, query=%q, messageSearch=%q, channel=%q, sort=%s, page=%d",
+		input.CampaignID, input.CampaignType, input.WorkspaceID, input.Query, input.MessageSearch, input.Channel, input.SortOrder, input.Page)
+
+	results, totalCount, err := s.messageRepo.SearchEntriesWithMessages(searchInput)
+	if err != nil {
+		return nil, 0, fmt.Errorf("error searching entries: %w", err)
+	}
+
+	entries := s.buildInboxEntries(results, input.WorkspaceID)
+	s.enrichAIHandlers(entries, results)
+	return entries, totalCount, nil
+}
+
+func (s *HistoryProviderService) CountInboxEntriesByStages(input conversation.SearchInboxInput, stageIDs []string) (map[string]int64, error) {
+	searchInput, err := entrySearchOf(input)
+	if err != nil {
+		return nil, err
+	}
+	counts, err := s.messageRepo.CountEntriesByStages(searchInput, stageIDs)
+	if err != nil {
+		return nil, fmt.Errorf("error counting entries by stage: %w", err)
+	}
+	return counts, nil
+}
+
+func entrySearchOf(input conversation.SearchInboxInput) (conversation.SearchEntriesInput, error) {
 	isGlobal := input.CampaignID == "" && input.WorkspaceID != ""
 
 	if !isGlobal && (input.CampaignID == "" || input.CampaignType == "") {
-		return nil, 0, fmt.Errorf("campaignID and campaignType are required")
+		return conversation.SearchEntriesInput{}, fmt.Errorf("campaignID and campaignType are required")
 	}
 
 	candidate := shared.EntryType(input.CampaignType)
@@ -859,12 +895,12 @@ func (s *HistoryProviderService) SearchInboxEntries(input conversation.SearchInb
 		}
 	} else {
 		if !candidate.SupportsContainerScopedInbox() {
-			return nil, 0, fmt.Errorf("invalid campaign type: %s", input.CampaignType)
+			return conversation.SearchEntriesInput{}, fmt.Errorf("invalid campaign type: %s", input.CampaignType)
 		}
 		entryType = candidate
 	}
 
-	searchInput := conversation.SearchEntriesInput{
+	return conversation.SearchEntriesInput{
 		CampaignID:             input.CampaignID,
 		ContainerKind:          input.ContainerKind,
 		WorkspaceID:            input.WorkspaceID,
@@ -896,19 +932,7 @@ func (s *HistoryProviderService) SearchInboxEntries(input conversation.SearchInb
 		AssigneeOverrideUserID: input.AssigneeOverrideUserID,
 		Page:                   input.Page,
 		PageSize:               input.PageSize,
-	}
-
-	log.Printf("[HistoryProvider] Search: campaign=%s (%s), workspace=%s, query=%q, messageSearch=%q, channel=%q, sort=%s, page=%d",
-		input.CampaignID, input.CampaignType, input.WorkspaceID, input.Query, input.MessageSearch, input.Channel, input.SortOrder, input.Page)
-
-	results, totalCount, err := s.messageRepo.SearchEntriesWithMessages(searchInput)
-	if err != nil {
-		return nil, 0, fmt.Errorf("error searching entries: %w", err)
-	}
-
-	entries := s.buildInboxEntries(results, input.WorkspaceID)
-	s.enrichAIHandlers(entries, results)
-	return entries, totalCount, nil
+	}, nil
 }
 
 func (s *HistoryProviderService) enrichAIHandlers(entries []conversation.InboxEntry, results []conversation.EntryWithLastMessage) {
@@ -932,13 +956,11 @@ func (s *HistoryProviderService) enrichAIHandlers(entries []conversation.InboxEn
 	}
 
 	var runByEntry map[string]*workflow.WorkflowRun
-	if s.workflowRunRepo != nil {
-		if runs, err := s.workflowRunRepo.FindActiveByEntries(entryIDs); err == nil {
-			runByEntry = runs
-			for _, run := range runs {
-				if run != nil && run.WorkflowID != "" {
-					workflowIDs[run.WorkflowID] = struct{}{}
-				}
+	if runs, err := s.workflowRunRepo.FindActiveByEntries(entryIDs); err == nil {
+		runByEntry = runs
+		for _, run := range runs {
+			if run != nil && run.WorkflowID != "" {
+				workflowIDs[run.WorkflowID] = struct{}{}
 			}
 		}
 	}
@@ -953,7 +975,7 @@ func (s *HistoryProviderService) enrichAIHandlers(entries []conversation.InboxEn
 	}
 
 	workflowMap := map[string]*workflow.Workflow{}
-	if s.workflowRepo != nil && len(workflowIDs) > 0 {
+	if len(workflowIDs) > 0 {
 		if wfs, err := s.workflowRepo.FindByIDs(mapKeys(workflowIDs)); err == nil {
 			for _, w := range wfs {
 				workflowMap[w.ID] = w
@@ -961,11 +983,7 @@ func (s *HistoryProviderService) enrichAIHandlers(entries []conversation.InboxEn
 		}
 	}
 
-	var versions workflow.VersionReader
-	if s.workflowRepo != nil {
-		versions = s.workflowRepo
-	}
-	runWorkflows := pinnedRunWorkflows(runByEntry, workflowMap, versions)
+	runWorkflows := pinnedRunWorkflows(runByEntry, workflowMap, s.workflowRepo)
 	for i := range entries {
 		var run *workflow.WorkflowRun
 		if runByEntry != nil {
@@ -1057,19 +1075,11 @@ func (s *HistoryProviderService) GetInboxEntry(entryID, entryType string) (*conv
 }
 
 func (s *HistoryProviderService) entryWorkspaceID(entryID, entryType string) string {
-	if s.entryWorkspaces != nil {
-		workspaceID, err := s.entryWorkspaces.GetEntryWorkspaceID(entryID, entryType)
-		if err != nil {
-			log.Printf("[HistoryProvider] cannot resolve workspace for entry %s (%s): %v", entryID, entryType, err)
-		}
-		return workspaceID
+	workspaceID, err := s.entryWorkspaces.GetEntryWorkspaceID(entryID, entryType)
+	if err != nil {
+		log.Printf("[HistoryProvider] cannot resolve workspace for entry %s (%s): %v", entryID, entryType, err)
 	}
-	if shared.EntryType(entryType) == shared.EntryTypeWhatsApp && s.whatsappRepo != nil {
-		if info, err := s.whatsappRepo.GetCampaignForEntry(entryID); err == nil && info != nil {
-			return info.WorkspaceID
-		}
-	}
-	return ""
+	return workspaceID
 }
 
 func (s *HistoryProviderService) getWindowStatus(leadID, businessPhoneID string) conversation.WindowState {
@@ -1207,18 +1217,19 @@ type MessageMarkerService struct {
 	lastTypingIndicator   map[string]time.Time
 }
 
-func (s *MessageMarkerService) SetChannelAdapters(registry conversation.AdapterRegistry) {
-	s.channelAdapters = registry
-}
-
 const whatsappTypingIndicatorThrottle = 8 * time.Second
 
 func NewMessageMarkerService(
 	messageRepo conversation.MessageRepository,
 	whatsappClientFactory conversation.WhatsAppClientFactory,
 	whatsappRepo wce.Repository,
+	adapters conversation.AdapterRegistry,
 ) *MessageMarkerService {
+	if err := deps.Require("message marker", map[string]any{"adapters": adapters}); err != nil {
+		panic(err.Error())
+	}
 	return &MessageMarkerService{
+		channelAdapters:       adapters,
 		messageRepo:           messageRepo,
 		whatsappClientFactory: whatsappClientFactory,
 		whatsappRepo:          whatsappRepo,
@@ -1255,9 +1266,6 @@ func (s *MessageMarkerService) sendReadReceipts(
 }
 
 func (s *MessageMarkerService) sendAdapterTyping(entryID string, entryType shared.EntryType) error {
-	if s.channelAdapters == nil {
-		return nil
-	}
 	adapter, err := s.channelAdapters.For(entryType)
 	if err != nil || adapter == nil {
 		return nil
@@ -1284,7 +1292,7 @@ func (s *MessageMarkerService) sendAdapterReadReceipts(
 	entryType shared.EntryType,
 	messageIDs []string,
 ) {
-	if s.channelAdapters == nil || len(messageIDs) == 0 {
+	if len(messageIDs) == 0 {
 		return
 	}
 	adapter, err := s.channelAdapters.For(entryType)
@@ -1510,14 +1518,7 @@ func (s *MessageSenderService) SetMediaDownloads(downloads media.RemoteFiles) {
 	s.mediaDownloads = downloads
 }
 
-func (s *MessageSenderService) SetChannelAdapters(registry conversation.AdapterRegistry) {
-	s.channelAdapters = registry
-}
-
 func (s *MessageSenderService) adapterFor(entryType string) conversation.ChannelAdapter {
-	if s.channelAdapters == nil {
-		return nil
-	}
 	adapter, err := s.channelAdapters.For(shared.EntryType(entryType))
 	if err != nil {
 		return nil
@@ -1626,8 +1627,13 @@ func NewMessageSenderService(
 	toolRegistry toolsdomain.Service,
 	stageRepo stage.Repository,
 	analysis *AnalysisScheduler,
+	adapters conversation.AdapterRegistry,
 ) *MessageSenderService {
+	if err := deps.Require("message sender", map[string]any{"adapters": adapters}); err != nil {
+		panic(err.Error())
+	}
 	return &MessageSenderService{
+		channelAdapters:       adapters,
 		messageRepo:           messageRepo,
 		leadRepo:              leadRepo,
 		whatsappRepo:          whatsappRepo,
@@ -2432,17 +2438,15 @@ func (s *TemplateSenderService) SendTemplate(entryID, entryType, templateID stri
 }
 
 func (s *HistoryProviderService) automationFor(entryID string, entryType shared.EntryType) bool {
-	if s.automationReaders == nil {
-		return true
-	}
 	read, ok := s.automationReaders[entryType]
 	if !ok {
-		return true
+		log.Printf("[inbox] no automation reader for %s, %s reads as off", entryType, entryID)
+		return false
 	}
 	enabled, err := read(context.Background(), entryID)
 	if err != nil {
-		log.Printf("[inbox] could not read automation for %s:%s: %v", entryType, entryID, err)
-		return true
+		log.Printf("[inbox] could not read automation for %s:%s, it reads as off: %v", entryType, entryID, err)
+		return false
 	}
 	return enabled == nil || *enabled
 }
@@ -2474,10 +2478,6 @@ func storageExtensionFor(mimeType, filename string) string {
 	return ""
 }
 
-func (s *HistoryProviderService) SetDelegations(d conversation.DelegationRepository) {
-	s.delegations = d
-}
-
 func (s *HistoryProviderService) automationProfiles(results []conversation.EntryWithLastMessage) map[string]conversation.AutomationProfile {
 	profiles := make(map[string]conversation.AutomationProfile, len(results))
 	refs := make([]shared.EntryRef, 0, len(results))
@@ -2485,7 +2485,7 @@ func (s *HistoryProviderService) automationProfiles(results []conversation.Entry
 		profiles[r.EntryID] = r.AutomationProfile()
 		refs = append(refs, shared.EntryRef{EntryID: r.EntryID, EntryType: shared.EntryType(r.EntryType)})
 	}
-	if s.delegations == nil || len(refs) == 0 {
+	if len(refs) == 0 {
 		return profiles
 	}
 	delegates, err := s.delegations.FindMany(context.Background(), refs)

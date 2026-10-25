@@ -34,6 +34,8 @@ Comece com um escopo pequeno (por exemplo, dúvidas frequentes e agendamento) e 
 - list_models para escolher o modelo; list_agent_tools para as ferramentas que fazem sentido (agenda, memória do contato, base de conhecimento).
 - Ligue o agente a uma base de conhecimento com o conteúdo do negócio (veja a habilidade base-de-conhecimento).
 - create_agent ou update_agent mostram tudo antes, com a aprovação do usuário.
+- Editar muda só o rascunho: as conversas continuam com a versão publicada. Use publish: true quando o usuário quiser colocar a mudança no ar; se a publicação for recusada, explique os problemas apontados e corrija antes de tentar de novo.
+- Credenciais de API nunca passam por você: use {{secret.<nome>}} quando o segredo já existe, ou deixe o valor do cabeçalho vazio para o usuário digitar no cartão de aprovação.
 - Para o agente atender um canal, configure o atendimento do canal (no WhatsApp oficial, configure_number_automation).
 
 ## Testar antes de ligar

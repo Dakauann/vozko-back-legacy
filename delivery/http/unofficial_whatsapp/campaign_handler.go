@@ -1,23 +1,28 @@
 package unofficial_whatsapp
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 
 	"vozko/delivery/http/audiencex"
+	"vozko/delivery/http/campaigndrafthttp"
 	"vozko/delivery/http/httpx"
 	"vozko/delivery/http/response"
 	"vozko/domain/campaign"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	uw "vozko/domain/unofficial_whatsapp"
 	uwc "vozko/domain/unofficial_whatsapp_campaign"
 	"vozko/domain/user"
 	workspace_domain "vozko/domain/workspace"
 	"vozko/infra/http/middleware"
+	"vozko/usecases/campaignlaunch"
 	uwcuc "vozko/usecases/unofficial_whatsapp_campaign"
 )
 
@@ -45,6 +50,16 @@ type CampaignHandler struct {
 	permissions workspace_domain.CheckAccessUseCase
 	progress    campaign.ProgressUseCase
 	timeline    campaign.TimelineUseCase
+	scheduled   ScheduledLauncher
+	startGuard  httpx.Guard
+}
+
+type ScheduledLauncher interface {
+	Launch(ctx context.Context, in uwcuc.DraftLaunchInput) (campaignlaunch.Outcome[*uwc.Campaign], error)
+}
+
+func (h *CampaignHandler) SetStartGuard(guard httpx.Guard) {
+	h.startGuard = guard
 }
 
 type CampaignHandlerDeps struct {
@@ -68,9 +83,22 @@ type CampaignHandlerDeps struct {
 	Estimate    uwc.EstimateCampaignUseCase
 	Departments DepartmentScopeResolver
 	Permissions workspace_domain.CheckAccessUseCase
+	Progress    campaign.ProgressUseCase
+	Timeline    campaign.TimelineUseCase
+	Scheduled   ScheduledLauncher
 }
 
-func NewCampaignHandler(d CampaignHandlerDeps) *CampaignHandler {
+func NewCampaignHandler(d CampaignHandlerDeps) (*CampaignHandler, error) {
+	if err := deps.Require("unofficial campaign handler", map[string]any{
+		"create": d.Create, "update": d.Update, "get": d.Get, "access": d.Access, "actions": d.Actions,
+		"list": d.List, "delete": d.Delete, "assign department": d.AssignDep, "summary": d.Summary,
+		"entries": d.Entries, "reset": d.Reset, "clear": d.Clear, "add entry": d.AddEntry,
+		"update entry": d.UpdateEntry, "delete entry": d.DeleteEntry, "quick send": d.QuickSend,
+		"validate": d.Validate, "estimate": d.Estimate, "departments": d.Departments,
+		"permissions": d.Permissions, "progress": d.Progress, "timeline": d.Timeline, "scheduled launcher": d.Scheduled,
+	}); err != nil {
+		return nil, err
+	}
 	return &CampaignHandler{
 		create: d.Create, update: d.Update, get: d.Get, list: d.List,
 		remove: d.Delete, assignDep: d.AssignDep, summary: d.Summary,
@@ -78,17 +106,16 @@ func NewCampaignHandler(d CampaignHandlerDeps) *CampaignHandler {
 		addEntry: d.AddEntry, updEntry: d.UpdateEntry, delEntry: d.DeleteEntry,
 		quickSend: d.QuickSend, validate: d.Validate, estimate: d.Estimate, departments: d.Departments, access: d.Access, actions: d.Actions,
 		permissions: d.Permissions,
-	}
+		progress:    d.Progress,
+		timeline:    d.Timeline,
+		scheduled:   d.Scheduled,
+	}, nil
 }
 
 func (h *CampaignHandler) campaignScope(w http.ResponseWriter, r *http.Request) (string, uw.DepartmentScope, bool) {
 	workspaceID := middleware.GetWorkspaceID(r)
 	if workspaceID == "" {
 		response.WriteError(w, http.StatusForbidden, "workspace is required", nil)
-		return "", uw.DepartmentScope{}, false
-	}
-	if h.departments == nil {
-		response.WriteError(w, http.StatusForbidden, "you do not have access to this workspace's campaigns", nil)
 		return "", uw.DepartmentScope{}, false
 	}
 	claims := middleware.GetClaims(r)
@@ -110,10 +137,6 @@ func (h *CampaignHandler) ownedCampaign(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return "", uw.DepartmentScope{}, nil, false
 	}
-	if h.access == nil {
-		response.WriteError(w, http.StatusNotFound, uwc.ErrCampaignNotFound.Error(), nil)
-		return "", uw.DepartmentScope{}, nil, false
-	}
 	c, err := h.access.Owned(r.Context(), workspaceID, scope, mux.Vars(r)["id"])
 	if err != nil {
 		writeCampaignError(w, err)
@@ -124,7 +147,7 @@ func (h *CampaignHandler) ownedCampaign(w http.ResponseWriter, r *http.Request) 
 
 func (h *CampaignHandler) seesGroups(r *http.Request, workspaceID string) bool {
 	claims := middleware.GetClaims(r)
-	if claims == nil || h.permissions == nil {
+	if claims == nil {
 		return false
 	}
 	if claims.Role == string(user.RoleAdmin) {
@@ -264,10 +287,6 @@ func (h *CampaignHandler) Estimate(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, http.StatusForbidden, "you do not have access to this workspace's groups", nil)
 		return
 	}
-	if h.estimate == nil {
-		response.WriteError(w, http.StatusServiceUnavailable, uwcuc.ErrGroupTargetsUnavailable.Error(), nil)
-		return
-	}
 	draft, err := h.estimate.Draft(r.Context(), in, scope)
 	if err != nil {
 		writeCampaignError(w, err)
@@ -354,17 +373,17 @@ func (h *CampaignHandler) ListEntries(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Criar uma campanha não oficial
-// @Description	Cria uma campanha parada do WhatsApp não oficial com os números enviados. O contato só usa a saída que vê: cada variação da mensagem precisa mostrar um comando com barra, como `Responda /sair para não receber mais mensagens.`, e sem ele a criação responde 422 `unofficial_campaign_needs_exit`, sem exceção. Um áudio não mostra legenda ao contato: nele o comando vai em `message.exitText`, um texto curto enviado logo depois do áudio na mesma conversa, e um áudio sem esse texto é recusado do mesmo jeito. Se o texto de saída falhar depois do áudio, o contato fica SENT com o código 910005 e o motivo, sem reenviar o áudio. Um link (`https://loja.com/sair`) ou uma data (`12/10`) não contam. Depois do envio, quem responde o comando mostrado na última mensagem de campanha que recebeu nesta conversa deixa de receber mensagens, sem mensagem de confirmação. O fluxo e o agente são conferidos pelo passo compartilhado. Em vez de `targets`, o passo de público manda `recipients`: `source: list` com o `listId` de `POST /campaign-audience/unofficial/lists` (as mesmas entradas que os números davam) ou `source: leads` com a seleção (com `expectedCount` e `fingerprint` da contagem) e cada variável ligada a um campo do lead; o lead sem o valor precisa de `missing: text` ou `missing: exclude` (entra pulado com `missing_variable`), senão 422 `audience_variable_choice_required`. Com `workflowId` ou `agentId`, cada linha da lista precisa ter nos metadados as chaves que o fluxo ou o agente pede (422 `audience_list_metadata_missing`), e a seleção de leads, que não têm metadados, é recusada com 422 `audience_leads_metadata_unavailable`. `recipients` com `targets` responde 400 `audience_source_ambiguous` e, numa campanha para grupos, 422 `audience_source_unsupported`.
+// @Description	Cria uma campanha parada do WhatsApp não oficial com os números enviados. O contato só usa a saída que vê: cada variação da mensagem precisa mostrar um comando com barra, como `Responda /sair para não receber mais mensagens.`, e sem ele a criação responde 422 `unofficial_campaign_needs_exit`, sem exceção. Um áudio não mostra legenda ao contato: nele o comando vai em `message.exitText`, um texto curto enviado logo depois do áudio na mesma conversa, e um áudio sem esse texto é recusado do mesmo jeito. Se o texto de saída falhar depois do áudio, o contato fica SENT com o código 910005 e o motivo, sem reenviar o áudio. Um link (`https://loja.com/sair`) ou uma data (`12/10`) não contam. Depois do envio, quem responde o comando mostrado na última mensagem de campanha que recebeu nesta conversa deixa de receber mensagens, sem mensagem de confirmação. O fluxo e o agente são conferidos pelo passo compartilhado. Em vez de `targets`, o passo de público manda `recipients`: `source: list` com o `listId` de `POST /campaign-audience/unofficial/lists` (as mesmas entradas que os números davam) ou `source: leads` com a seleção (com `expectedCount` e `fingerprint` da contagem) e cada variável ligada a um campo do lead; o lead sem o valor precisa de `missing: text` ou `missing: exclude` (entra pulado com `missing_variable`), senão 422 `audience_variable_choice_required`. Com `workflowId` ou `agentId`, cada linha da lista precisa ter nos metadados as chaves que o fluxo ou o agente pede (422 `audience_list_metadata_missing`), e a seleção de leads, que não têm metadados, é recusada com 422 `audience_leads_metadata_unavailable`. `recipients` com `targets` responde 400 `audience_source_ambiguous` e, numa campanha para grupos, 422 `audience_source_unsupported`. Com `scheduledStart`, a criação passa antes pela mesma verificação do Iniciar: um bloqueio responde 409 `campaign_launch_blocked` com os motivos e nada é criado; Se no horário o início falhar, a campanha fica parada com `scheduleFailure` e quem a criou recebe uma notificação. Agendar exige a permissão de iniciar campanhas (403 `start_permission_required`).
 // @Tags			Unofficial WhatsApp Campaigns
 // @Accept			json
 // @Produce		json
 // @Param			body	body		object	true	"Campos da campanha e números"
 // @Success		201		{object}	map[string]interface{}
 // @Failure		400		{object}	response.ErrorResponse
-// @Failure		403		{object}	response.ErrorResponse
+// @Failure		403		{object}	response.ErrorResponse	"start_permission_required"
 // @Failure		404		{object}	response.ErrorResponse
+// @Failure		409		{object}	response.ErrorResponse	"campaign_launch_blocked"
 // @Failure		422		{object}	response.ErrorResponse
-// @Failure		503		{object}	response.ErrorResponse
 // @Security		BearerAuth
 // @Router			/unofficial-whatsapp/campaigns [post]
 func (h *CampaignHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -382,6 +401,12 @@ func (h *CampaignHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !draft.ScheduledStart.IsZero() {
+		httpx.WithStart(h.startGuard, w, r, func(w http.ResponseWriter, r *http.Request) {
+			h.createScheduled(w, r, draft, scope)
+		})
+		return
+	}
 
 	created, err := h.create.Execute(r.Context(), draft, scope)
 	if err != nil {
@@ -391,6 +416,17 @@ func (h *CampaignHandler) Create(w http.ResponseWriter, r *http.Request) {
 	response.WriteSuccess(w, http.StatusCreated, campaignToDTO(created))
 }
 
+func (h *CampaignHandler) createScheduled(w http.ResponseWriter, r *http.Request, draft *uwc.Campaign, scope uw.DepartmentScope) {
+	at := draft.ScheduledStart
+	draft.ScheduledStart = time.Time{}
+	out, err := h.scheduled.Launch(r.Context(), uwcuc.DraftLaunchInput{Campaign: draft, Launch: campaign.Launch{Mode: campaign.LaunchSchedule, At: at}, Scope: scope})
+	if err != nil {
+		writeCampaignError(w, err)
+		return
+	}
+	response.WriteSuccess(w, http.StatusCreated, campaignToDTO(out.Campaign))
+}
+
 func (h *CampaignHandler) campaignOf(w http.ResponseWriter, r *http.Request, workspaceID string, payload campaignPayload) (*uwc.Campaign, bool) {
 	draft := payload.toDomain(workspaceID)
 	claims := middleware.GetClaims(r)
@@ -398,6 +434,7 @@ func (h *CampaignHandler) campaignOf(w http.ResponseWriter, r *http.Request, wor
 		draft.SeedOutcome = nil
 	}
 	if claims != nil {
+		draft.CreatedByID = claims.UserID
 		draft.Recipients = payload.Recipients.Request(claims.UserID, claims.Role == string(user.RoleAdmin))
 	} else if payload.Recipients != nil {
 		response.WriteError(w, http.StatusUnauthorized, "Unauthorized", nil)
@@ -517,10 +554,6 @@ func (h *CampaignHandler) Stop(w http.ResponseWriter, r *http.Request) {
 func (h *CampaignHandler) act(w http.ResponseWriter, r *http.Request, action campaign.Action) {
 	workspaceID, scope, ok := h.campaignScope(w, r)
 	if !ok {
-		return
-	}
-	if h.actions == nil {
-		response.WriteError(w, http.StatusNotFound, uwc.ErrCampaignNotFound.Error(), nil)
 		return
 	}
 	if _, err := h.actions.Act(r.Context(), workspaceID, scope, mux.Vars(r)["id"], action); err != nil {
@@ -776,7 +809,7 @@ func (h *CampaignHandler) DeleteEntry(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeCampaignError(w http.ResponseWriter, err error) {
-	if httpx.WriteSelectionSendRefusal(w, err) || audiencex.WriteRefusal(w, err) {
+	if campaigndrafthttp.WriteLaunchRefusal(w, err) || httpx.WriteSelectionSendRefusal(w, err) || audiencex.WriteRefusal(w, err) {
 		return
 	}
 	var unusable *uwc.InstanceUnusableError

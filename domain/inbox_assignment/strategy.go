@@ -48,6 +48,8 @@ func (s Strategy) ChoosesFromRecipients() bool {
 
 func (s Strategy) RanksByWorkload() bool { return s == StrategyLeastBusy }
 
+func (s Strategy) DealsAutomatically() bool { return s != StrategyClaim }
+
 func (s Strategy) RanksByHandouts() bool {
 	return s == StrategyLeastBusy || s == StrategyLongestIdle
 }

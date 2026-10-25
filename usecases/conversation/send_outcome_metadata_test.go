@@ -28,7 +28,7 @@ func TestTheProviderOutcomeTravelsIntoTheStoredMessage(t *testing.T) {
 		},
 	}
 	msgs := &campaignMessageRepo{}
-	svc := &MessageSenderService{messageRepo: msgs, channelAdapters: conversation.NewAdapterRegistry(adapter)}
+	svc := senderWith(&MessageSenderService{messageRepo: msgs, channelAdapters: conversation.NewAdapterRegistry(adapter)})
 
 	if _, err := svc.SendTextMessage("conv-1", string(shared.EntryTypeMercadoLivre), "oi", conversation.SendOrigin{SenderUserID: "u-1"}); err != nil {
 		t.Fatalf("SendTextMessage: %v", err)
@@ -52,7 +52,7 @@ func TestAnOutcomeWithoutAVerdictKeepsTheSentStatus(t *testing.T) {
 		outcome:             &conversation.SendOutcome{ProviderMessageID: "prov-1"},
 	}
 	msgs := &campaignMessageRepo{}
-	svc := &MessageSenderService{messageRepo: msgs, channelAdapters: conversation.NewAdapterRegistry(adapter)}
+	svc := senderWith(&MessageSenderService{messageRepo: msgs, channelAdapters: conversation.NewAdapterRegistry(adapter)})
 	if _, err := svc.SendTextMessage("conv-1", string(shared.EntryTypeMercadoLivre), "oi", conversation.SendOrigin{SenderUserID: "u-1"}); err != nil {
 		t.Fatalf("SendTextMessage: %v", err)
 	}

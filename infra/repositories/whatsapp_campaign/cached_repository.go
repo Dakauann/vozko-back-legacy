@@ -1,12 +1,14 @@
 package whatsapp_campaign_repository
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
 	"time"
 
 	"vozko/domain/cache"
+	"vozko/domain/campaign/scheduledstart"
 	"vozko/domain/shared"
 	wc "vozko/domain/whatsapp_campaign"
 )
@@ -148,4 +150,19 @@ func (r *CachedRepository) ClaimScheduledStart(campaignID string, dueBy time.Tim
 	return claimed, err
 }
 
-var _ wc.ScheduleClaimer = (*CachedRepository)(nil)
+func (r *CachedRepository) RecordScheduleFailure(ctx context.Context, campaignID string, failure scheduledstart.Failure) error {
+	recorder, ok := r.inner.(scheduledstart.Recorder)
+	if !ok {
+		return errors.New("whatsapp campaign repository cannot record failed schedules")
+	}
+	err := recorder.RecordScheduleFailure(ctx, campaignID, failure)
+	if err == nil {
+		r.invalidate(strings.TrimSpace(campaignID))
+	}
+	return err
+}
+
+var (
+	_ wc.ScheduleClaimer      = (*CachedRepository)(nil)
+	_ scheduledstart.Recorder = (*CachedRepository)(nil)
+)

@@ -55,7 +55,7 @@ func (ownerWorkflowsStub) FindVersion(string, int) (*workflow.WorkflowVersion, e
 }
 
 func ownerFixture(agents *ownerAgentsStub, users *ownerUsersStub) *HistoryProviderService {
-	return &HistoryProviderService{
+	return historyWith(HistoryProviderService{
 		assignmentRepo: &ownerAssignmentsStub{rows: []*ia.InboxAssignment{
 			{EntryID: "e-human", AssignedUserID: "user-1"},
 			{EntryID: "e-agent", AssignedUserID: "ai:agent-1"},
@@ -64,7 +64,7 @@ func ownerFixture(agents *ownerAgentsStub, users *ownerUsersStub) *HistoryProvid
 		userRepo:     users,
 		agentRepo:    agents,
 		workflowRepo: ownerWorkflowsStub{},
-	}
+	})
 }
 
 func TestInboxNamesTheAutomationThatHoldsAConversation(t *testing.T) {

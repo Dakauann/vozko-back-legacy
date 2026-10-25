@@ -15,10 +15,6 @@ type GoogleSheetLookup interface {
 	Get(ctx context.Context, workspaceID, id string) (*googlesheet.Sheet, error)
 }
 
-func (uc *activateWorkflowUseCase) SetGoogleSheets(sheets GoogleSheetLookup) {
-	uc.googleSheets = sheets
-}
-
 type googleSheetValidator struct {
 	sheets      GoogleSheetLookup
 	workspaceID string
@@ -31,9 +27,6 @@ func (v *googleSheetValidator) Validate(n *workflow.Node) error {
 	sheetID, _ := n.Config[node_executors.AddSheetRowSheetKey].(string)
 	if strings.TrimSpace(sheetID) == "" {
 		return nil
-	}
-	if v.sheets == nil {
-		return lookupNotWired("google sheets")
 	}
 	sheet, err := v.sheets.Get(context.Background(), v.workspaceID, strings.TrimSpace(sheetID))
 	if errors.Is(err, googlesheet.ErrSheetNotFound) {
@@ -59,8 +52,4 @@ func sheetMapping(raw interface{}) map[string]string {
 		mapping[key] = text
 	}
 	return mapping
-}
-
-func lookupNotWired(name string) error {
-	return fmt.Errorf("the %s lookup is not wired, this step cannot be checked", name)
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"vozko/domain/shared/deps"
 	"vozko/domain/stage"
 	workspace_department "vozko/domain/workspace/workspace_department"
 )
@@ -17,16 +18,15 @@ type CreateStageGroupUseCase struct {
 	departmentResolver workspace_department.CreationDepartmentResolver
 }
 
-func NewCreateStageGroupUseCase(repo stage.StageGroupRepository, departmentResolver ...workspace_department.CreationDepartmentResolver) *CreateStageGroupUseCase {
-	var resolver workspace_department.CreationDepartmentResolver
-	if len(departmentResolver) > 0 {
-		resolver = departmentResolver[0]
+func NewCreateStageGroupUseCase(repo stage.StageGroupRepository, stageRepo stage.Repository, departmentResolver workspace_department.CreationDepartmentResolver) (*CreateStageGroupUseCase, error) {
+	if err := deps.Require("create stage group", map[string]any{
+		"stage group repository": repo,
+		"stage repository":       stageRepo,
+		"department resolver":    departmentResolver,
+	}); err != nil {
+		return nil, err
 	}
-	return &CreateStageGroupUseCase{repo: repo, departmentResolver: resolver}
-}
-
-func (uc *CreateStageGroupUseCase) SetStageRepository(stageRepo stage.Repository) {
-	uc.stageRepo = stageRepo
+	return &CreateStageGroupUseCase{repo: repo, stageRepo: stageRepo, departmentResolver: departmentResolver}, nil
 }
 
 func (uc *CreateStageGroupUseCase) Execute(ctx context.Context, workspaceID string, input stage.CreateStageGroupInput) (*stage.StageGroup, error) {
@@ -42,13 +42,11 @@ func (uc *CreateStageGroupUseCase) Execute(ctx context.Context, workspaceID stri
 		Items:       make([]stage.StageGroupItem, len(input.Items)),
 	}
 
-	if uc.departmentResolver != nil {
-		departmentID, err := uc.departmentResolver.Resolve(ctx, workspaceID)
-		if err != nil {
-			return nil, err
-		}
-		group.DepartmentID = departmentID
+	departmentID, err := uc.departmentResolver.Resolve(ctx, workspaceID)
+	if err != nil {
+		return nil, err
 	}
+	group.DepartmentID = departmentID
 
 	for i, item := range input.Items {
 		group.Items[i] = stage.StageGroupItem{
@@ -68,10 +66,8 @@ func (uc *CreateStageGroupUseCase) Execute(ctx context.Context, workspaceID stri
 		return nil, err
 	}
 
-	if uc.stageRepo != nil {
-		if _, err := ensurePipelineForGroup(uc.repo, uc.stageRepo, workspaceID, group.ID); err != nil {
-			log.Printf("[StageGroup] group %s created but its pipeline was not materialized: %v", group.ID, err)
-		}
+	if _, err := ensurePipelineForGroup(uc.repo, uc.stageRepo, workspaceID, group.ID); err != nil {
+		log.Printf("[StageGroup] group %s created but its pipeline was not materialized: %v", group.ID, err)
 	}
 
 	return uc.repo.FindByID(group.ID)

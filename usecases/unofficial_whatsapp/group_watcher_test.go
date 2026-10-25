@@ -44,7 +44,7 @@ func (w *recordingWatcher) SeatSynced(_ context.Context, _ *uw.Instance, seat *u
 func TestAGroupMessageIsReportedToTheGroupWatcherWithItsSeat(t *testing.T) {
 	h := newGroupHarness(t, false)
 	watcher := &recordingWatcher{}
-	h.uc.SetGroupWatcher(watcher)
+	h.uc.groupWatcher, h.uc.groups.watcher = watcher, watcher
 
 	h.deliver(t, groupMessage("5511111111111", "Bom dia"))
 
@@ -59,7 +59,7 @@ func TestAGroupMessageIsReportedToTheGroupWatcherWithItsSeat(t *testing.T) {
 func TestAPrivateMessageIsNotReportedToTheGroupWatcher(t *testing.T) {
 	h := newGroupHarness(t, false)
 	watcher := &recordingWatcher{}
-	h.uc.SetGroupWatcher(watcher)
+	h.uc.groupWatcher, h.uc.groups.watcher = watcher, watcher
 
 	h.deliver(t, map[string]any{
 		"messageid": "private-1", "chatid": "5511111111111@s.whatsapp.net",
@@ -75,7 +75,7 @@ func TestAPrivateMessageIsNotReportedToTheGroupWatcher(t *testing.T) {
 func TestAGroupChangeIsReportedToTheGroupWatcher(t *testing.T) {
 	h := newGroupHarness(t, false)
 	watcher := &recordingWatcher{}
-	h.uc.SetGroupWatcher(watcher)
+	h.uc.groupWatcher, h.uc.groups.watcher = watcher, watcher
 
 	body, _ := json.Marshal(map[string]any{"event": "groups", "instance": "prov-1", "data": map[string]any{"groupjid": "120363012345678901@g.us"}})
 	if err := h.uc.Execute(context.Background(), &QueuedEvent{InstanceID: "inst-1", Body: body}); err != nil {
@@ -98,7 +98,7 @@ func TestWithoutAWatcherGroupMessagesBehaveAsBefore(t *testing.T) {
 func TestAGroupChangeHandsTheDeparturesAndTheActorToTheWatcher(t *testing.T) {
 	h := newGroupHarness(t, false)
 	watcher := &recordingWatcher{}
-	h.uc.SetGroupWatcher(watcher)
+	h.uc.groupWatcher, h.uc.groups.watcher = watcher, watcher
 
 	body := []byte(`{"EventType": "groups", "instance": "prov-1", "type": "Group",
 		"event": {"JID": "120363012345678901@g.us", "Sender": "5511222222222@s.whatsapp.net", "Leave": ["5511111111111@s.whatsapp.net"]}}`)

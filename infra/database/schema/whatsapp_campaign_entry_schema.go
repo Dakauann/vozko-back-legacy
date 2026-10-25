@@ -10,8 +10,8 @@ import (
 
 type WhatsAppCampaignEntry struct {
 	ID                      string         `gorm:"primaryKey;type:uuid"`
-	CampaignID              string         `gorm:"type:uuid;not null;index;index:idx_wce_campaign_del,priority:1;uniqueIndex:idx_wce_campaign_lead,priority:1;index:idx_wce_campaign_status_created,priority:1"`
-	LeadID                  string         `gorm:"type:uuid;not null;index;uniqueIndex:idx_wce_campaign_lead,priority:2;index:idx_wce_lead_created,priority:1"`
+	CampaignID              string         `gorm:"type:uuid;not null;index:idx_wce_campaign_del,priority:1;uniqueIndex:idx_wce_campaign_lead,priority:1;index:idx_wce_campaign_status_created,priority:1"`
+	LeadID                  string         `gorm:"type:uuid;not null;uniqueIndex:idx_wce_campaign_lead,priority:2;index:idx_wce_lead_created,priority:1"`
 	Status                  string         `gorm:"size:40;not null;default:'PENDING';index:idx_wce_campaign_status_created,priority:2"`
 	MessageID               string         `gorm:"size:100;index:idx_wce_message_id"`
 	SendRound               int            `gorm:"not null;default:0"`

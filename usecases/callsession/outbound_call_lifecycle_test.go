@@ -184,7 +184,7 @@ func newRunner(
 	checker *fakeBalanceChecker,
 	pub *fakeBillingPub,
 ) *OutboundCallLifecycleRunner {
-	runner, err := NewOutboundCallLifecycleRunner(admission, checker, reserver, pub, quietLogger())
+	runner, err := NewOutboundCallLifecycleRunner(lifecycleDeps(OutboundCallLifecycleDeps{Admission: admission, Balance: checker, Inflight: reserver, BillingPub: pub, Logger: quietLogger()}))
 	if err != nil {
 		panic(err)
 	}
@@ -557,12 +557,12 @@ func TestLifecycleRun_PanicInOnStatusStillReleasesAndPublishes(t *testing.T) {
 }
 
 func TestNewOutboundCallLifecycleRunnerRequiresABillingPublisher(t *testing.T) {
-	_, err := NewOutboundCallLifecycleRunner(nil, nil, nil, nil, quietLogger())
+	_, err := NewOutboundCallLifecycleRunner(lifecycleDeps(OutboundCallLifecycleDeps{Logger: quietLogger()}))
 	if !errors.Is(err, callsession.ErrBillingNotConfigured) {
 		t.Fatalf("NewOutboundCallLifecycleRunner() = %v, want ErrBillingNotConfigured", err)
 	}
 
-	if _, err := NewOutboundCallLifecycleRunner(nil, nil, nil, &fakeBillingPub{}, quietLogger()); err != nil {
+	if _, err := NewOutboundCallLifecycleRunner(lifecycleDeps(OutboundCallLifecycleDeps{BillingPub: &fakeBillingPub{}, Logger: quietLogger()})); err != nil {
 		t.Fatalf("a runner with a publisher failed to build: %v", err)
 	}
 }

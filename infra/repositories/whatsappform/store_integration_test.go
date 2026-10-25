@@ -40,7 +40,7 @@ func newWorld(t *testing.T) *world {
 		&schema.WhatsAppForm{}, &schema.WhatsAppFormVersion{}, &schema.WhatsAppFormPublication{},
 		&schema.WhatsAppFormSend{}, &schema.WhatsAppFormResponse{},
 		&schema.Lead{}, &schema.WhatsAppCampaign{}, &schema.WhatsAppCampaignEntry{},
-		&schema.InboxAssignment{}, &schema.WhatsAppMessageStatusEvent{},
+		&schema.InboxAssignment{}, &schema.WhatsAppMessageStatusEvent{}, &schema.ConversationDepartmentRoute{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}

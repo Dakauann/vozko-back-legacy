@@ -53,7 +53,7 @@ func (s sessionSync) apply(ctx context.Context, instance *uw.Instance, session *
 			instance.ID, session.State, instance.Status)
 	}
 
-	if !wasLive && update.Status != nil && *update.Status == uw.StatusConnected && update.JID != "" && s.gate != nil {
+	if !wasLive && update.Status != nil && *update.Status == uw.StatusConnected && update.JID != "" {
 		if err := s.gate.Admit(ctx, instance, update.JID); err != nil {
 			return nil, err
 		}
@@ -64,7 +64,7 @@ func (s sessionSync) apply(ctx context.Context, instance *uw.Instance, session *
 	}
 
 	applyToDomain(instance, update, session)
-	if !wasLive && instance.SessionLive() && s.listener != nil {
+	if !wasLive && instance.SessionLive() {
 		s.listener.InstanceConnected(ctx, instance)
 	}
 	return instance, nil
@@ -104,12 +104,8 @@ type sessionHost struct {
 	sync sessionSync
 }
 
-func (h *sessionHost) SetConnectionListener(listener ConnectionListener) {
-	h.sync.listener = listener
-}
-
-func (h *sessionHost) SetLinkGate(gate LinkGate) {
-	h.sync.gate = gate
+func newSessionHost(instances uw.InstanceRepository, gate LinkGate, listener ConnectionListener) sessionHost {
+	return sessionHost{sync: sessionSync{instances: instances, gate: gate, listener: listener}}
 }
 
 func markInstanceDisconnected(ctx context.Context, instances uw.InstanceRepository, instance *uw.Instance, reason string) error {

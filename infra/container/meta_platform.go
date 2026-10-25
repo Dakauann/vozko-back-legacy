@@ -14,10 +14,10 @@ func (c *Container) metaPlatformService() *mpuc.Service {
 		return c.metaPlatform
 	}
 	svc := mpuc.NewService(metaplatform_repository.NewDeletionRequestRepository(c.db), c.cfg.FrontendBaseURL)
-	if c.instagram != nil && c.instagram.Enabled {
+	if c.instagram != nil {
 		svc.Register(mp.AppInstagram, iguc.NewAppUserHandler(c.instagram.Accounts))
 	}
-	if c.facebook != nil && c.facebook.Enabled {
+	if c.facebook != nil {
 		svc.Register(mp.AppMeta, c.facebook.AppUsers)
 	}
 	svc.Register(mp.AppMeta, c.ads.GrantHealth)
@@ -32,7 +32,7 @@ func (c *Container) metaChannelRoutes() httpdelivery.MetaChannelRoutes {
 			mp.AppInstagram: {c.cfg.InstagramAppSecret},
 		}),
 	}
-	if c.facebook != nil && c.facebook.Enabled {
+	if c.facebook != nil {
 		routes.Facebook = c.facebook.Handler
 		routes.FacebookWebhook = c.facebook.WebhookHandler
 	}

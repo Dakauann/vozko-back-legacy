@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"errors"
+
+	"vozko/domain/tools"
 )
 
 const MaxSimulationHistory = 60
@@ -32,11 +34,14 @@ type SessionMemory struct {
 }
 
 type SimulatedToolCall struct {
+	ToolID    string
 	Name      string
 	Arguments map[string]interface{}
 	Result    string
+	Output    interface{}
 	IsError   bool
 	Stubbed   bool
+	Mocked    bool
 }
 
 type SimulationDebug struct {
@@ -60,9 +65,14 @@ type SimulateTurnInput struct {
 	LeadID string
 
 	SessionMemories []SessionMemory
+
+	Scenario bool
+	RunID    string
+	Mocks    map[string]tools.Mock
 }
 
 type SimulateTurnOutput struct {
+	RunID     string
 	Replies   []string
 	ToolCalls []SimulatedToolCall
 	Debug     SimulationDebug

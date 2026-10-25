@@ -12,7 +12,7 @@ import (
 
 func workflowCatalog() toolDefinitions {
 	return toolDefinitions{
-		{Name: "run_workflow", DisplayName: "Executar fluxo", BindingKey: "workflow_id"},
+		{Name: "run_workflow", DisplayName: "Executar fluxo", Instances: tools.PerTarget("workflow_id")},
 		{Name: "manage_lead_memory", DisplayName: "Memórias"},
 	}
 }

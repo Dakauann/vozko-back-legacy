@@ -1142,20 +1142,6 @@ func newWorld(t *testing.T) *world {
 		accounts:  &stubAccounts{status: emailsending.AccountActive},
 		rates:     &stubRates{rate: 5_500_000},
 	}
-	svc, err := New(Deps{
-		Campaigns: w.campaigns, Recipients: w.recips, Batches: w.batches, Locks: &memLocks{}, Metrics: w.metrics, Designs: &memDesigns{rows: map[string]emailcampaign.Design{}},
-		Selection: selectionProxy{w}, LeadFacts: w.facts, Leads: stubLeads{}, Subscriptions: w.subs, Hygiene: w.hygiene, Outcomes: w.outcomes,
-		Gateway: w.gateway, Senders: sendersProxy{w}, Domains: stubDomains{status: emailsending.DomainVerified},
-		Accounts: accountsProxy{w}, Reactivation: w.revival, Billing: w.billing, Wallet: stubWallet{amount: w.wallet}, Rates: w.rates,
-		QueuePub: w.pub, QueueSub: w.sub, Shared: &fakeShared{vals: map[string]string{}}, Memo: passMemo{}, Notifications: w.notes,
-		PublicBaseURL: "https://api.example.com/",
-		Now:           func() time.Time { return now },
-		Logf:          func(string, ...any) {},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	w.svc = svc
 	w.lists, w.created = audiencetest.NewLists(), &createdEmailLeads{w: w}
 	aud, err := campaignaudience_usecase.New(campaignaudience_usecase.Deps{
 		Selections: selectionCounts{w}, Lists: w.lists, Sheets: sheetText{}, Phones: noPhones{}, Emails: knownEmails{w},
@@ -1164,8 +1150,21 @@ func newWorld(t *testing.T) *world {
 	if err != nil {
 		t.Fatal(err)
 	}
+	svc, err := New(Deps{
+		Campaigns: w.campaigns, Recipients: w.recips, Batches: w.batches, Locks: &memLocks{}, Metrics: w.metrics, Designs: &memDesigns{rows: map[string]emailcampaign.Design{}},
+		Selection: selectionProxy{w}, LeadFacts: w.facts, Leads: stubLeads{}, Subscriptions: w.subs, Hygiene: w.hygiene, Outcomes: w.outcomes,
+		Gateway: w.gateway, Senders: sendersProxy{w}, Domains: stubDomains{status: emailsending.DomainVerified},
+		Accounts: accountsProxy{w}, Reactivation: w.revival, Billing: w.billing, Wallet: stubWallet{amount: w.wallet}, Rates: w.rates,
+		QueuePub: w.pub, QueueSub: w.sub, Shared: &fakeShared{vals: map[string]string{}}, Memo: passMemo{}, Notifications: w.notes, Audience: aud,
+		PublicBaseURL: "https://api.example.com/",
+		Now:           func() time.Time { return now },
+		Logf:          func(string, ...any) {},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.svc = svc
 	aud.AddChannel(svc.AudienceChannel())
-	svc.SetAudience(aud)
 	w.aud = aud
 	return w
 }

@@ -241,6 +241,7 @@ func newFixtureWith(permission callrouting.AnswerPermission, operators ...*opera
 		Activity:   activity,
 		Members:    StaticMembers{},
 		Music:      music{},
+		Handoff:    refusingHandoff{},
 	})
 	d.retry = 20 * time.Millisecond
 	return fixture{dispatcher: d, activity: activity, broker: broker}
@@ -396,4 +397,14 @@ func TestWithoutAPermissionCheckNobodyIsRung(t *testing.T) {
 	if result.Outcome != callrouting.OutcomeTimedOut || len(ana.receivedOffers()) != 0 {
 		t.Fatalf("result = %+v", result)
 	}
+}
+
+type refusingHandoff struct{}
+
+func (refusingHandoff) MayHandOver(context.Context, callrouting.Handover) error {
+	return errors.New("no conversation hand-off in this test")
+}
+
+func (refusingHandoff) HandOver(context.Context, callrouting.Handover) error {
+	return errors.New("no conversation hand-off in this test")
 }

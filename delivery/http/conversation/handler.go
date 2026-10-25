@@ -14,6 +14,7 @@ import (
 	conversationdomain "vozko/domain/conversation"
 	ce "vozko/domain/conversation_event"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/domain/user"
 	"vozko/infra/http/middleware"
 	ia_usecase "vozko/usecases/inbox_assignment"
@@ -38,28 +39,40 @@ type ConversationDelegationService interface {
 	Delegate(ctx context.Context, in ia_usecase.DelegateInput) (ia_usecase.OperatorAutomationResult, error)
 }
 
-func (h *ConversationHandler) SetAutomationService(s ConversationAutomationService) {
-	h.automationService = s
+type ConversationHandlerDeps struct {
+	UploadMedia           conversationdomain.UploadConversationMediaUseCase
+	GetMedia              conversationdomain.GetConversationMediaUseCase
+	ListEvents            ce.ListEventsUseCase
+	RequestCallPermission conversationdomain.RequestCallPermissionUseCase
+	Automation            ConversationAutomationService
+	Delegation            ConversationDelegationService
+	ToolCalls             ToolCallLister
+	EmailHTML             EmailHTMLViewer
 }
 
-func (h *ConversationHandler) SetDelegationService(s ConversationDelegationService) {
-	h.delegationService = s
-}
-
-func (h *ConversationHandler) SetRequestCallPermission(uc conversationdomain.RequestCallPermissionUseCase) {
-	h.requestCallPermission = uc
-}
-
-func NewConversationHandler(
-	uploadMediaUC conversationdomain.UploadConversationMediaUseCase,
-	getMediaUC conversationdomain.GetConversationMediaUseCase,
-	listEventsUC ce.ListEventsUseCase,
-) *ConversationHandler {
-	return &ConversationHandler{
-		uploadMediaUC: uploadMediaUC,
-		getMediaUC:    getMediaUC,
-		listEventsUC:  listEventsUC,
+func NewConversationHandler(d ConversationHandlerDeps) (*ConversationHandler, error) {
+	if err := deps.Require("conversation handler", map[string]any{
+		"upload media":            d.UploadMedia,
+		"get media":               d.GetMedia,
+		"list events":             d.ListEvents,
+		"request call permission": d.RequestCallPermission,
+		"automation":              d.Automation,
+		"delegation":              d.Delegation,
+		"tool calls":              d.ToolCalls,
+		"email html":              d.EmailHTML,
+	}); err != nil {
+		return nil, err
 	}
+	return &ConversationHandler{
+		uploadMediaUC:         d.UploadMedia,
+		getMediaUC:            d.GetMedia,
+		listEventsUC:          d.ListEvents,
+		requestCallPermission: d.RequestCallPermission,
+		automationService:     d.Automation,
+		delegationService:     d.Delegation,
+		toolCalls:             d.ToolCalls,
+		emailHTML:             d.EmailHTML,
+	}, nil
 }
 
 // @Summary		Solicitar permissão para ligar
@@ -74,7 +87,6 @@ func NewConversationHandler(
 // @Failure		400	{object}	response.ErrorResponse
 // @Failure		401	{object}	response.ErrorResponse
 // @Failure		409	{object}	response.ErrorResponse
-// @Failure		501	{object}	response.ErrorResponse
 // @Security		BearerAuth
 // @Router			/conversations/{entryType}/{entryId}/call-permission-request [post]
 func (h *ConversationHandler) RequestCallPermission(w http.ResponseWriter, r *http.Request) {
@@ -83,11 +95,6 @@ func (h *ConversationHandler) RequestCallPermission(w http.ResponseWriter, r *ht
 		response.WriteError(w, http.StatusUnauthorized, "Unauthorized", nil)
 		return
 	}
-	if h.requestCallPermission == nil {
-		response.WriteError(w, http.StatusNotImplemented, "Call permission requests are not enabled", nil)
-		return
-	}
-
 	vars := mux.Vars(r)
 	entryType := vars["entryType"]
 	entryID := vars["entryId"]
@@ -132,7 +139,6 @@ func (h *ConversationHandler) RequestCallPermission(w http.ResponseWriter, r *ht
 // @Failure		400	{object}	response.ErrorResponse
 // @Failure		401	{object}	response.ErrorResponse
 // @Failure		500	{object}	response.ErrorResponse
-// @Failure		501	{object}	response.ErrorResponse
 // @Security		BearerAuth
 // @Router			/conversations/{entryType}/{entryId}/call-permission [get]
 func (h *ConversationHandler) GetCallPermission(w http.ResponseWriter, r *http.Request) {
@@ -141,11 +147,6 @@ func (h *ConversationHandler) GetCallPermission(w http.ResponseWriter, r *http.R
 		response.WriteError(w, http.StatusUnauthorized, "Unauthorized", nil)
 		return
 	}
-	if h.requestCallPermission == nil {
-		response.WriteError(w, http.StatusNotImplemented, "Call permission requests are not enabled", nil)
-		return
-	}
-
 	vars := mux.Vars(r)
 	entryType := vars["entryType"]
 	entryID := vars["entryId"]
@@ -411,11 +412,6 @@ func (h *ConversationHandler) SetAutomation(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if h.automationService == nil {
-		response.WriteError(w, http.StatusInternalServerError, "Automation service not configured", nil)
-		return
-	}
-
 	result, err := h.automationService.SetAutomation(r.Context(), ia_usecase.OperatorAutomationInput{
 		ActorUserID: claims.UserID,
 		WorkspaceID: middleware.GetWorkspaceID(r),
@@ -477,10 +473,6 @@ func (h *ConversationHandler) Delegate(w http.ResponseWriter, r *http.Request) {
 	claims := middleware.GetClaims(r)
 	if claims == nil {
 		response.WriteError(w, http.StatusUnauthorized, "Unauthorized", nil)
-		return
-	}
-	if h.delegationService == nil {
-		response.WriteError(w, http.StatusInternalServerError, "Delegation service not configured", nil)
 		return
 	}
 	var req DelegateRequest

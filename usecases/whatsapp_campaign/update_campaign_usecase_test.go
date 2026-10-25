@@ -32,6 +32,7 @@ type editFixture struct {
 	campaigns *countedCampaigns
 	entries   *mockEntryRepo
 	templates *mockTemplateRepo
+	checks    *scheduleChecks
 	uc        *updateCampaignUseCase
 }
 
@@ -42,11 +43,13 @@ func newEditFixture(t *testing.T) editFixture {
 	counted := &countedCampaigns{mockCampaignRepo: stored}
 	entries := newMockEntryRepo()
 	templates := fixtureUC.templateRepo.(*mockTemplateRepo)
-	uc := NewUpdateCampaignUseCase(counted, entries, templates, fixtureUC.businessPhoneRepo, nil).(*updateCampaignUseCase)
-	uc.SetTemplateGrants(allowGrants{})
-	uc.SetExitRiskGate(admittingGate{})
-	uc.SetAutomation(schoolWorkflowStep(t))
-	return editFixture{stored: stored, campaigns: counted, entries: entries, templates: templates, uc: uc}
+	uc := updateWith(UpdateCampaignDeps{Campaigns: counted, Entries: entries, Templates: templates, Phones: fixtureUC.businessPhoneRepo}).(*updateCampaignUseCase)
+	uc.templateGrants = allowGrants{}
+	uc.exitRisk = admittingGate{}
+	uc.automation = schoolWorkflowStep(t)
+	checks := &scheduleChecks{}
+	uc.scheduleCheck = checks
+	return editFixture{stored: stored, campaigns: counted, entries: entries, templates: templates, checks: checks, uc: uc}
 }
 
 func (f editFixture) savedEntry(id string, status wce.SendStatus, metadata map[string]interface{}, variables ...string) {

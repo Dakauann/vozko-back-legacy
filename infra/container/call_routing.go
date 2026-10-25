@@ -1,11 +1,14 @@
 package container
 
 import (
+	"context"
 	"log"
 
 	callroutinghttp "vozko/delivery/http/callrouting"
 	wsdelivery "vozko/delivery/ws"
+	callrouting_domain "vozko/domain/callrouting"
 	callsession_domain "vozko/domain/callsession"
+	"vozko/domain/shared/deps"
 	workspace_domain "vozko/domain/workspace"
 	callrouting_infra "vozko/infra/callrouting"
 	"vozko/infra/holdmusic"
@@ -75,6 +78,7 @@ func (c *Container) initCallRouting() {
 		Members:    callrouting_usecase.NewQueueMembers(c.repositories.workspaceDepartment),
 		Music:      library,
 		Logger:     log.Default(),
+		Handoff:    lateCallHandoff{handle: c.callHandoffHandle()},
 	})
 	catalog := callrouting_usecase.NewQueueCatalog(callrouting_usecase.QueueCatalogDeps{
 		Queues:      queues,
@@ -128,9 +132,38 @@ func callRoutingHandler(c *Container) *callroutinghttp.Handler {
 }
 
 func (c *Container) handCallConversationsOver() {
-	c.callRouting.Dispatcher.SetConversationHandoff(conversation_usecase.NewCallConversationHandoff(conversation_usecase.CallConversationHandoffDeps{
+	if err := c.callHandoffHandle().Bind(conversation_usecase.NewCallConversationHandoff(conversation_usecase.CallConversationHandoffDeps{
 		Phones:  c.repositories.businessPhone,
 		Entries: c.repositories.wcEntry,
 		Assign:  c.services.personAssign,
-	}))
+	})); err != nil {
+		log.Fatalf("[call-routing] %v", err)
+	}
+}
+
+func (c *Container) callHandoffHandle() *deps.Handle[callrouting_domain.ConversationHandoff] {
+	if c.callHandoffs == nil {
+		c.callHandoffs = deps.Tracked[callrouting_domain.ConversationHandoff](&c.handles, "call conversation hand-off")
+	}
+	return c.callHandoffs
+}
+
+type lateCallHandoff struct {
+	handle *deps.Handle[callrouting_domain.ConversationHandoff]
+}
+
+func (l lateCallHandoff) MayHandOver(ctx context.Context, handover callrouting_domain.Handover) error {
+	handoff, err := l.handle.Get()
+	if err != nil {
+		return err
+	}
+	return handoff.MayHandOver(ctx, handover)
+}
+
+func (l lateCallHandoff) HandOver(ctx context.Context, handover callrouting_domain.Handover) error {
+	handoff, err := l.handle.Get()
+	if err != nil {
+		return err
+	}
+	return handoff.HandOver(ctx, handover)
 }

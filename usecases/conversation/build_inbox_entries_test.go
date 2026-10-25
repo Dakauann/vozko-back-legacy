@@ -39,10 +39,10 @@ func (r *builderWARepo) FindByIDs(ids []string) ([]*wce.WhatsAppCampaignEntry, e
 
 func TestBuildInboxEntries_WhatsAppLookupIsPerRowNotPerRequest(t *testing.T) {
 	wa := &builderWARepo{}
-	svc := &HistoryProviderService{
+	svc := historyWith(HistoryProviderService{
 		leadRepo:     &builderLeadRepo{byID: map[string]*lead.Lead{}},
 		whatsappRepo: wa,
-	}
+	})
 
 	svc.buildInboxEntries([]conversation.EntryWithLastMessage{
 		{EntryID: "wa-1", EntryType: shared.EntryTypeWhatsApp},
@@ -66,7 +66,7 @@ func TestBuildInboxEntries_LeadsAreBatchedAndDeduplicated(t *testing.T) {
 	leads := &builderLeadRepo{byID: map[string]*lead.Lead{
 		"lead-1": {ID: "lead-1", Name: "Ana", Number: "5511999999999"},
 	}}
-	svc := &HistoryProviderService{leadRepo: leads, whatsappRepo: &builderWARepo{}}
+	svc := historyWith(HistoryProviderService{leadRepo: leads, whatsappRepo: &builderWARepo{}})
 
 	entries := svc.buildInboxEntries([]conversation.EntryWithLastMessage{
 		{EntryID: "a", EntryType: shared.EntryTypeWhatsApp, LeadID: "lead-1"},
@@ -91,7 +91,7 @@ func TestBuildInboxEntries_LeadsAreBatchedAndDeduplicated(t *testing.T) {
 func TestBuildInboxEntries_EmptyPageAsksNothing(t *testing.T) {
 	leads := &builderLeadRepo{byID: map[string]*lead.Lead{}}
 	wa := &builderWARepo{}
-	svc := &HistoryProviderService{leadRepo: leads, whatsappRepo: wa}
+	svc := historyWith(HistoryProviderService{leadRepo: leads, whatsappRepo: wa})
 
 	got := svc.buildInboxEntries(nil, "ws-1")
 	if len(got) != 0 {
@@ -103,10 +103,10 @@ func TestBuildInboxEntries_EmptyPageAsksNothing(t *testing.T) {
 }
 
 func TestBuildInboxEntries_LeadFailureStillRendersTheRows(t *testing.T) {
-	svc := &HistoryProviderService{
+	svc := historyWith(HistoryProviderService{
 		leadRepo:     &builderLeadRepo{byID: nil},
 		whatsappRepo: &builderWARepo{},
-	}
+	})
 	got := svc.buildInboxEntries([]conversation.EntryWithLastMessage{
 		{EntryID: "a", EntryType: shared.EntryTypeWhatsApp, LeadID: "missing"},
 	}, "ws-1")
@@ -121,7 +121,7 @@ func TestBuildInboxEntries_ANameThatIsTheLeadsOwnNumberIsNoName(t *testing.T) {
 		"lead-1": {ID: "lead-1", Name: "5511999999999", Number: "5511999999999"},
 		"lead-2": {ID: "lead-2", Name: "Ana", Number: "5511988888888"},
 	}}
-	svc := &HistoryProviderService{leadRepo: leads, whatsappRepo: &builderWARepo{}}
+	svc := historyWith(HistoryProviderService{leadRepo: leads, whatsappRepo: &builderWARepo{}})
 
 	entries := svc.buildInboxEntries([]conversation.EntryWithLastMessage{
 		{EntryID: "a", EntryType: shared.EntryTypeWhatsApp, LeadID: "lead-1"},
@@ -137,7 +137,7 @@ func TestBuildInboxEntries_ANameThatIsTheLeadsOwnNumberIsNoName(t *testing.T) {
 }
 
 func TestBuildInboxEntries_TheLastSenderKindLetsClientsNameTheSender(t *testing.T) {
-	svc := &HistoryProviderService{leadRepo: &builderLeadRepo{byID: map[string]*lead.Lead{}}, whatsappRepo: &builderWARepo{}}
+	svc := historyWith(HistoryProviderService{leadRepo: &builderLeadRepo{byID: map[string]*lead.Lead{}}, whatsappRepo: &builderWARepo{}})
 
 	entries := svc.buildInboxEntries([]conversation.EntryWithLastMessage{
 		{EntryID: "ml-1", EntryType: shared.EntryTypeMercadoLivre, LastMessageType: conversation.MessageTypeOperator, LastMessageSenderKind: "external"},

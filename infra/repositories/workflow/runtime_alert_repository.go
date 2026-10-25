@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"vozko/domain/agentrun"
 	"vozko/domain/conversation"
 	"vozko/domain/shared"
 	"vozko/domain/workflow"
@@ -80,13 +81,15 @@ WHERE received_at >= ? AND outcome = 'rejected'
 GROUP BY workspace_id, workflow_id, reason
 ORDER BY last_seen DESC LIMIT ?`
 
-const failedToolCallsSQL = `SELECT workspace_id::text AS workspace_id, agent_id, tool_name, COALESCE(error_code, '') AS error_code,
-	COUNT(*) AS count, MIN(created_at) AS first_seen, MAX(created_at) AS last_seen,
-	(ARRAY_AGG(id::text ORDER BY created_at DESC))[1] AS sample
-FROM ai_tool_calls
-WHERE created_at >= ? AND outcome = 'error'
-  AND (tool_name = 'http_request' OR tool_name LIKE 'run\_workflow\_%')
-GROUP BY workspace_id, agent_id, tool_name, COALESCE(error_code, '')
+const failedToolCallsSQL = `SELECT c.workspace_id::text AS workspace_id, c.agent_id, c.tool_instance_id, c.tool_type,
+	COALESCE(t.target_key, '') AS target_key, COALESCE(c.error_code, '') AS error_code,
+	COUNT(*) AS count, MIN(c.created_at) AS first_seen, MAX(c.created_at) AS last_seen,
+	(ARRAY_AGG(c.id::text ORDER BY c.created_at DESC))[1] AS sample
+FROM ai_tool_calls c
+LEFT JOIN agent_tools t ON t.id::text = c.tool_instance_id
+WHERE c.created_at >= ? AND c.outcome = 'error' AND c.tool_instance_id <> ''
+  AND c.source NOT IN ?
+GROUP BY c.workspace_id, c.agent_id, c.tool_instance_id, c.tool_type, COALESCE(t.target_key, ''), COALESCE(c.error_code, '')
 ORDER BY last_seen DESC LIMIT ?`
 
 const failingNodesSQL = `WITH failing AS (
@@ -296,17 +299,19 @@ func (r *RuntimeAlertRepository) DeleteResolvedBefore(cutoff time.Time, limit in
 }
 
 type alertGroupRow struct {
-	WorkspaceID string
-	WorkflowID  string
-	NodeID      string
-	AgentID     string
-	ToolName    string
-	ErrorCode   string
-	Reason      string
-	Count       int
-	FirstSeen   time.Time
-	LastSeen    time.Time
-	Sample      *string
+	WorkspaceID    string
+	WorkflowID     string
+	NodeID         string
+	AgentID        string
+	ToolInstanceID string
+	ToolType       string
+	TargetKey      string
+	ErrorCode      string
+	Reason         string
+	Count          int
+	FirstSeen      time.Time
+	LastSeen       time.Time
+	Sample         *string
 }
 
 func (row alertGroupRow) sample() string {
@@ -333,13 +338,13 @@ func (r *RuntimeAlertRepository) RejectedDeliveries(since time.Time) ([]workflow
 
 func (r *RuntimeAlertRepository) FailedToolCalls(since time.Time) ([]workflow.FailedToolCallGroup, error) {
 	var rows []alertGroupRow
-	if err := r.db.Raw(failedToolCallsSQL, since, maxAlertSignalGroups).Scan(&rows).Error; err != nil {
+	if err := r.db.Raw(failedToolCallsSQL, since, agentrun.SandboxedSources(), maxAlertSignalGroups).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]workflow.FailedToolCallGroup, len(rows))
 	for i, row := range rows {
 		out[i] = workflow.FailedToolCallGroup{
-			WorkspaceID: row.WorkspaceID, AgentID: row.AgentID, ToolName: row.ToolName, ErrorCode: row.ErrorCode,
+			WorkspaceID: row.WorkspaceID, AgentID: row.AgentID, ToolInstanceID: row.ToolInstanceID, ToolType: row.ToolType, TargetKey: row.TargetKey, ErrorCode: row.ErrorCode,
 			Count: row.Count, FirstSeen: row.FirstSeen, LastSeen: row.LastSeen, Sample: row.sample(),
 		}
 	}

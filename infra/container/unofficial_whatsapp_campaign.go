@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"log"
 
 	uwhttp "vozko/delivery/http/unofficial_whatsapp"
 	wsdelivery "vozko/delivery/ws"
@@ -18,8 +19,6 @@ import (
 )
 
 type unofficialWhatsAppCampaignBundle struct {
-	Enabled bool
-
 	Campaigns uwc.Repository
 	Entries   uwc.EntryRepository
 
@@ -36,6 +35,7 @@ type unofficialWhatsAppCampaignBundle struct {
 	Estimate     uwc.EstimateCampaignUseCase
 	Preflight    *uwcuc.StartPreflight
 	CreateFlow   uwc.CreateCampaignUseCase
+	DraftLaunch  *uwcuc.DraftLaunch
 
 	Handler *uwhttp.CampaignHandler
 }
@@ -47,10 +47,9 @@ func (c *Container) initUnofficialWhatsAppCampaigns(
 	bundle := &unofficialWhatsAppCampaignBundle{}
 	c.unofficialWhatsAppCampaigns = bundle
 
-	if c.unofficialWhatsApp == nil || !c.unofficialWhatsApp.Enabled {
+	if c.unofficialWhatsApp == nil {
 		return
 	}
-	bundle.Enabled = true
 
 	bundle.Campaigns = uwc_repo.NewRepository(c.db)
 	bundle.Entries = uwc_repo.NewEntryRepository(c.db)
@@ -74,7 +73,7 @@ func (c *Container) initUnofficialWhatsAppCampaigns(
 
 	budget := uwcuc.NewSendBudget(c.redisProvider.SharedState())
 
-	consumer := uwcuc.NewMessageConsumerUseCase(uwcuc.ConsumerDeps{
+	consumer, err := uwcuc.NewMessageConsumerUseCase(uwcuc.ConsumerDeps{
 		QueueSub:    c.services.wcQueueSub,
 		QueuePub:    c.services.wcQueuePub,
 		Shared:      c.redisProvider.SharedState(),
@@ -90,25 +89,51 @@ func (c *Container) initUnofficialWhatsAppCampaigns(
 		Groups:      gateway,
 		Choices:     c.choiceStatsRecorder(),
 	})
+	if err != nil {
+		log.Fatalf("[unofficial-whatsapp-campaigns] %v", err)
+	}
 	bundle.Consumer = consumer
 	bundle.PauseForInst = uwcuc.NewPauseCampaignsForInstanceUseCase(bundle.Campaigns, consumer)
-
-	if attachable, ok := consumer.(interface {
-		SetPauseAll(uwc.PauseCampaignsForInstanceUseCase)
-	}); ok {
-		attachable.SetPauseAll(bundle.PauseForInst)
-	}
 
 	bundle.Dispatch = uwcuc.NewDispatchCampaignUseCase(
 		bundle.Campaigns, bundle.Entries, gateway, consumer,
 		c.services.wcQueuePub, c.redisProvider.SharedState(),
 	)
-	bundle.ScheduleJob = uwcuc.NewScheduleStartJob(bundle.Campaigns, bundle.Dispatch, unofficialSchedules(bundle.Campaigns))
-	bundle.Create = uwcuc.NewCreateCampaignUseCase(
-		bundle.Campaigns, bundle.Entries, c.repositories.lead, gateway, eligibility, departments)
-	c.wireUnofficialCampaignCreate(bundle)
+	bundle.ScheduleJob = uwcuc.NewScheduleStartJob(bundle.Campaigns, bundle.Dispatch, unofficialSchedules(bundle.Campaigns), c.unofficialScheduleReporter(bundle.Campaigns))
+	keyed, ok := bundle.Campaigns.(uwcuc.IdempotentCampaigns)
+	if !ok {
+		log.Fatalf("[unofficial-whatsapp-campaigns] the campaign repository cannot read idempotency keys")
+	}
+	create, err := uwcuc.NewCreateCampaignUseCase(uwcuc.CreateCampaignDeps{
+		Campaigns:    bundle.Campaigns,
+		Entries:      bundle.Entries,
+		Leads:        c.repositories.lead,
+		Instances:    gateway,
+		Eligibility:  eligibility,
+		Departments:  departments,
+		LeadsByID:    c.repositories.lead,
+		Automation:   c.campaignAutomation(),
+		Keyed:        keyed,
+		GroupSenders: gateway,
+	})
+	if err != nil {
+		log.Fatalf("[unofficial-whatsapp-campaigns] %v", err)
+	}
+	bundle.Create = create
+	update, err := uwcuc.NewUpdateCampaignUseCase(bundle.Campaigns, bundle.Entries, gateway, c.campaignAutomation())
+	if err != nil {
+		log.Fatalf("[unofficial-whatsapp-campaigns] %v", err)
+	}
+	addEntries, err := uwcuc.NewAddEntriesUseCase(bundle.Campaigns, bundle.Entries, c.repositories.lead, c.campaignAutomation())
+	if err != nil {
+		log.Fatalf("[unofficial-whatsapp-campaigns] %v", err)
+	}
+	quickSend, err := uwcuc.NewQuickSendUseCase(bundle.Campaigns, bundle.Entries, c.repositories.lead, bundle.Dispatch, c.redisProvider.SharedState(), c.campaignAutomation())
+	if err != nil {
+		log.Fatalf("[unofficial-whatsapp-campaigns] %v", err)
+	}
 	bundle.Access = uwcuc.NewCampaignAccessUseCase(uwcuc.NewGetCampaignUseCase(bundle.Campaigns, bundle.Entries, gateway))
-	bundle.Actions = uwcuc.NewCampaignActionUseCase(bundle.Access, bundle.Dispatch)
+	bundle.Actions = uwcuc.NewCampaignActionUseCase(bundle.Access, bundle.Dispatch, c.unofficialScheduleReporter(bundle.Campaigns))
 	bundle.Preview = uwcuc.NewImportPreviewUseCase(c.useCases.readMedia)
 	bundle.Instances = uwcuc.NewCampaignInstanceUseCase(gateway)
 	c.addUnofficialAudience(bundle.Instances)
@@ -126,9 +151,17 @@ func (c *Container) initUnofficialWhatsAppCampaigns(
 		"department-acl": c.services.conversationAuthImpl != nil,
 	})
 
-	bundle.Handler = uwhttp.NewCampaignHandler(uwhttp.CampaignHandlerDeps{
+	bundle.DraftLaunch = uwcuc.NewDraftLaunch(uwcuc.DraftLaunchDeps{
+		Create:    bundle.CreateFlow,
+		Actions:   bundle.Actions,
+		Estimate:  bundle.Estimate,
+		Audience:  campaignaudience_usecase.NewUnofficialCounter(c.campaignAudience()),
+		Preflight: bundle.Preflight,
+	})
+	live := c.campaignLive("unofficial_whatsapp_campaign", bundle.Entries, campaignstamp.UnofficialEntries)
+	handler, err := uwhttp.NewCampaignHandler(uwhttp.CampaignHandlerDeps{
 		Create:      bundle.CreateFlow,
-		Update:      c.automateCampaignEdits("unofficial update", uwcuc.NewUpdateCampaignUseCase(bundle.Campaigns, bundle.Entries, gateway)).(uwc.UpdateCampaignUseCase),
+		Update:      update,
 		Get:         uwcuc.NewGetCampaignUseCase(bundle.Campaigns, bundle.Entries, gateway),
 		Access:      bundle.Access,
 		Actions:     bundle.Actions,
@@ -139,19 +172,28 @@ func (c *Container) initUnofficialWhatsAppCampaigns(
 		Entries:     uwcuc.NewListEntriesUseCase(bundle.Entries, gateway),
 		Reset:       uwcuc.NewResetCampaignUseCase(bundle.Campaigns, bundle.Entries),
 		Clear:       uwcuc.NewClearHistoryUseCase(bundle.Campaigns, bundle.Entries, c.repositories.conversation),
-		AddEntry:    c.automateCampaignChanges("unofficial add entries", uwcuc.NewAddEntriesUseCase(bundle.Campaigns, bundle.Entries, c.repositories.lead)).(uwc.AddEntriesUseCase),
+		AddEntry:    addEntries,
 		UpdateEntry: uwcuc.NewUpdateEntryUseCase(bundle.Campaigns, bundle.Entries, c.repositories.lead),
 		DeleteEntry: uwcuc.NewDeleteEntryUseCase(bundle.Campaigns, bundle.Entries),
-		QuickSend: c.automateCampaignChanges("unofficial quick send", uwcuc.NewQuickSendUseCase(
-			bundle.Campaigns, bundle.Entries, c.repositories.lead,
-			bundle.Dispatch, c.redisProvider.SharedState())).(uwc.QuickSendUseCase),
+		QuickSend:   quickSend,
 		Validate:    uwcuc.NewValidateTargetsUseCase(bundle.Campaigns, bundle.Entries, gateway),
 		Estimate:    bundle.Estimate,
 		Departments: c.services.conversationAuthImpl,
 		Permissions: c.useCases.checkWsAccess,
+		Progress:    live.progress,
+		Timeline:    live.timeline,
+		Scheduled:   bundle.DraftLaunch,
 	})
-	live := c.campaignLive("unofficial_whatsapp_campaign", bundle.Entries, campaignstamp.UnofficialEntries)
-	bundle.Handler.SetLive(live.progress, live.timeline)
+	if err != nil {
+		log.Fatalf("[unofficial-whatsapp-campaigns] %v", err)
+	}
+	bundle.Handler = handler
+}
+
+func (c *Container) startUnofficialWhatsAppCampaigns() {
+	if err := c.unofficialWhatsAppCampaigns.Consumer.Start(); err != nil {
+		log.Fatalf("[unofficial-whatsapp-campaign] consumer failed to start: %v", err)
+	}
 }
 
 type unofficialCampaignGateway struct {
@@ -221,7 +263,7 @@ func (b *campaignEntryBroadcaster) BroadcastEntryUpdate(entryID, entryType strin
 }
 
 func unofficialWhatsAppCampaignHandler(c *Container) *uwhttp.CampaignHandler {
-	if c.unofficialWhatsAppCampaigns == nil || !c.unofficialWhatsAppCampaigns.Enabled {
+	if c.unofficialWhatsAppCampaigns == nil {
 		return nil
 	}
 	return c.unofficialWhatsAppCampaigns.Handler

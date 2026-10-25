@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"vozko/domain/campaign/scheduledstart"
 	wc "vozko/domain/whatsapp_campaign"
 	wd "vozko/domain/workspace/workspace_department"
 	"vozko/domain/workspace/workspace_plan"
@@ -34,7 +35,7 @@ func (d *startDispatch) Dispatch(in wc.DispatchCampaignInput) error {
 
 func startFixture(subErr error) (wc.StartCampaignUseCase, *startDispatch) {
 	dispatch := &startDispatch{}
-	return NewStartCampaignUseCase(StartCampaignDeps{
+	return startWith(StartCampaignDeps{
 		Access: startAccess{
 			"ready": {ID: "ready", WorkspaceID: "ws1", Metrics: &wc.CampaignMetrics{TotalNumbers: 3, Pending: 3}},
 			"empty": {ID: "empty", WorkspaceID: "ws1", Metrics: &wc.CampaignMetrics{}},
@@ -82,7 +83,7 @@ func (d *reviewedDispatch) Dispatch(in wc.DispatchCampaignInput) error {
 
 func TestOnlyTheReviewedStartTellsTheDispatchTheSendWasReviewed(t *testing.T) {
 	dispatch := &reviewedDispatch{}
-	uc := NewStartCampaignUseCase(StartCampaignDeps{
+	uc := startWith(StartCampaignDeps{
 		Access:       startAccess{"ready": {ID: "ready", WorkspaceID: "ws1", Metrics: &wc.CampaignMetrics{TotalNumbers: 3, Pending: 3}}},
 		Subscription: startSubscription{},
 		Dispatch:     dispatch,
@@ -107,7 +108,7 @@ func TestOnlyTheReviewedStartTellsTheDispatchTheSendWasReviewed(t *testing.T) {
 
 func TestAManualStartConsumesAPendingSchedule(t *testing.T) {
 	ledger := &scheduleLedger{claimable: map[string]bool{"ready": true}}
-	uc := NewStartCampaignUseCase(StartCampaignDeps{
+	uc := startWith(StartCampaignDeps{
 		Access:       startAccess{"ready": {ID: "ready", WorkspaceID: "ws1", Metrics: &wc.CampaignMetrics{TotalNumbers: 3, Pending: 3}}},
 		Subscription: startSubscription{},
 		Dispatch:     &startDispatch{},
@@ -125,7 +126,7 @@ func TestAManualStartConsumesAPendingSchedule(t *testing.T) {
 
 func TestAConfirmedStartCarriesThePersonsConfirmationToTheDispatch(t *testing.T) {
 	dispatch := &reviewedDispatch{}
-	uc := NewStartCampaignUseCase(StartCampaignDeps{
+	uc := startWith(StartCampaignDeps{
 		Access:       startAccess{"ready": {ID: "ready", WorkspaceID: "ws1", Metrics: &wc.CampaignMetrics{TotalNumbers: 3, Pending: 3}}},
 		Subscription: startSubscription{},
 		Dispatch:     dispatch,
@@ -143,5 +144,41 @@ func TestAConfirmedStartCarriesThePersonsConfirmationToTheDispatch(t *testing.T)
 	}
 	if len(dispatch.inputs) != 2 || dispatch.inputs[0].ConfirmedFingerprint != "fp-1" || dispatch.inputs[1].ConfirmedFingerprint != "" {
 		t.Fatalf("dispatched %+v", dispatch.inputs)
+	}
+}
+
+type failingDispatch struct{ err error }
+
+func (d failingDispatch) Dispatch(wc.DispatchCampaignInput) error { return d.err }
+
+func TestAManualStartClearsTheFailedSchedule(t *testing.T) {
+	ledger := &scheduleLedger{}
+	failed := &wc.Campaign{ID: "c1", WorkspaceID: "ws1", Metrics: &wc.CampaignMetrics{TotalNumbers: 3, Pending: 3}, ScheduleFailure: scheduledstart.FailureBlocked}
+	uc := startWith(StartCampaignDeps{
+		Access: startAccess{"c1": failed}, Subscription: startSubscription{}, Dispatch: &startDispatch{},
+	})
+	uc.(*startCampaign).deps.Reporter = scheduleReporter(t, ledger, &noticeBox{})
+
+	if _, err := uc.Start("ws1", nil, "c1"); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := ledger.failures["c1"]; !ok || got != "" {
+		t.Fatalf("failures %v", ledger.failures)
+	}
+}
+
+func TestARefusedStartKeepsTheFailedSchedule(t *testing.T) {
+	ledger := &scheduleLedger{}
+	failed := &wc.Campaign{ID: "c1", WorkspaceID: "ws1", Metrics: &wc.CampaignMetrics{TotalNumbers: 3, Pending: 3}, ScheduleFailure: scheduledstart.FailureBlocked}
+	uc := startWith(StartCampaignDeps{
+		Access: startAccess{"c1": failed}, Subscription: startSubscription{}, Dispatch: failingDispatch{err: errors.New("blocked")},
+	})
+	uc.(*startCampaign).deps.Reporter = scheduleReporter(t, ledger, &noticeBox{})
+
+	if _, err := uc.Start("ws1", nil, "c1"); err == nil {
+		t.Fatal("the start should fail")
+	}
+	if len(ledger.failures) != 0 {
+		t.Fatalf("failures %v", ledger.failures)
 	}
 }

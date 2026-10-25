@@ -64,7 +64,7 @@ func reportAgentTurnRelease(key string, release func() (bool, error)) {
 }
 
 func (l *AgentTurnLock) HoldForInbound(ctx context.Context, entryID string, entryType shared.EntryType) (func(), bool) {
-	if l == nil || entryID == "" {
+	if entryID == "" {
 		return func() {}, true
 	}
 	release, err := l.Acquire(ctx, entryID, entryType)

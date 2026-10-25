@@ -13,12 +13,12 @@ import (
 
 func formSender() (*MessageSenderService, *stubAudioMessageRepo) {
 	messages := &stubAudioMessageRepo{}
-	return &MessageSenderService{
+	return senderWith(&MessageSenderService{
 		whatsappRepo:      stubAudioEntryRepo{},
 		leadRepo:          stubAudioLeadRepo{},
 		messageWindowRepo: stubAudioWindowRepo{},
 		messageRepo:       messages,
-	}, messages
+	}), messages
 }
 
 func TestOfficialTargetResolvesTheEntryNumberAndWindow(t *testing.T) {

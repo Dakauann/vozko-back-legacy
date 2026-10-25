@@ -72,7 +72,8 @@ func (v inboxView) searchInput(page, pageSize int) conversation.SearchInboxInput
 }
 
 func (h *ConversationHub) loadInboxPage(v inboxView, page, pageSize int) (InboxPayload, error) {
-	entries, totalItems, err := h.inboxService.SearchInbox(v.userID, v.searchInput(page, pageSize))
+	inbox := h.cmds().Inbox
+	entries, totalItems, err := inbox.SearchInbox(v.userID, v.searchInput(page, pageSize))
 	if err != nil {
 		return InboxPayload{}, err
 	}
@@ -86,13 +87,13 @@ func (h *ConversationHub) loadInboxPage(v inboxView, page, pageSize int) (InboxP
 		PersonalMarks: h.pageMarks(v.userID, entries),
 	}
 	if v.global() {
-		payload.StageCounts, _ = h.inboxService.GetInboxStageCounts(v.workspaceID, "", v.campaignType)
-		payload.ConversationStatusCounts, _ = h.inboxService.GetConversationStatusCounts(v.workspaceID, "", v.campaignType)
+		payload.StageCounts, _ = inbox.GetInboxStageCounts(v.workspaceID, "", v.campaignType)
+		payload.ConversationStatusCounts, _ = inbox.GetConversationStatusCounts(v.workspaceID, "", v.campaignType)
 	} else {
-		payload.StageCounts, _ = h.inboxService.GetInboxStageCounts(v.campaignWorkspaceID, v.campaignID, v.campaignType)
-		payload.ConversationStatusCounts, _ = h.inboxService.GetConversationStatusCounts("", v.campaignID, v.campaignType)
+		payload.StageCounts, _ = inbox.GetInboxStageCounts(v.campaignWorkspaceID, v.campaignID, v.campaignType)
+		payload.ConversationStatusCounts, _ = inbox.GetConversationStatusCounts("", v.campaignID, v.campaignType)
 	}
-	payload.AvailableLabels, _ = h.inboxService.GetAvailableLabels(v.workspaceID)
+	payload.AvailableLabels, _ = inbox.GetAvailableLabels(v.workspaceID)
 	return payload, nil
 }
 

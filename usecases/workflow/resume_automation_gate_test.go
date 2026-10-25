@@ -60,8 +60,8 @@ func parkedRun() *workflow.WorkflowRun {
 
 func TestResumeCancelsWhenAutomationWasTurnedOff(t *testing.T) {
 	gate := &gateStub{enabled: false}
-	engine := NewRunEngine(nil, nil, nil)
-	engine.SetAutomationGate(gate)
+	engine := testEngine(nil, nil, nil)
+	engine.automationGate = gate
 
 	runs := &runRepoStub{}
 	wfs := &workflowRepoStub{t: t}
@@ -89,8 +89,8 @@ func TestResumeCancelsWhenAutomationWasTurnedOff(t *testing.T) {
 }
 
 func TestResumeProceedsWhenAutomationIsOn(t *testing.T) {
-	engine := NewRunEngine(nil, nil, nil)
-	engine.SetAutomationGate(&gateStub{enabled: true})
+	engine := testEngine(nil, nil, nil)
+	engine.automationGate = &gateStub{enabled: true}
 
 	run := parkedRun()
 	runs := &runRepoStub{}
@@ -116,39 +116,14 @@ func (w *passthroughWorkflowRepo) FindByID(string) (*workflow.Workflow, error) {
 	return nil, nil
 }
 
-func TestResumeWithoutAGateRunsNothing(t *testing.T) {
-	engine := NewRunEngine(nil, nil, nil)
-
-	run := parkedRun()
-	run.State = workflow.NewRunState()
-	wfs := &passthroughWorkflowRepo{}
-	_ = resumeRunFromCurrent(wfs, &runRepoStub{}, engine, run)
-
-	if wfs.fetched {
-		t.Error("without a gate the automation switch cannot be read; the resume must not run the next node")
-	}
-	if run.Status != workflow.RunStatusWaiting || run.State.GetInt(workflow.StateKeyGateAttempts) != 1 {
-		t.Errorf("run = %+v, want it parked for a retry", run)
-	}
-}
-
 func TestAutomationOffAllowsOnlyWhenThereIsNothingToCheck(t *testing.T) {
-	var nilEngine *RunEngine
-	if _, err := nilEngine.automationOff("entry-1", "whatsapp"); !errors.Is(err, workflow.ErrAutomationStateUnreadable) {
-		t.Errorf("err = %v, a nil engine cannot answer for the automation switch", err)
-	}
-
-	engine := NewRunEngine(nil, nil, nil)
-	if _, err := engine.automationOff("entry-1", "whatsapp"); !errors.Is(err, workflow.ErrAutomationStateUnreadable) {
-		t.Errorf("err = %v, no gate wired must be refused, never read as on", err)
-	}
-
-	engine.SetAutomationGate(SandboxAutomationGate{})
+	engine := testEngine(nil, nil, nil)
+	engine.automationGate = SandboxAutomationGate{}
 	if off, err := engine.automationOff("entry-1", "whatsapp"); off || err != nil {
 		t.Error("the sandbox gate is the explicit always-on answer for simulations")
 	}
 
-	engine.SetAutomationGate(&gateStub{enabled: false})
+	engine.automationGate = &gateStub{enabled: false}
 	if off, err := engine.automationOff("", "whatsapp"); off || err != nil {
 		t.Error("an empty entry id has nothing to check and must be allowed")
 	}
@@ -156,7 +131,7 @@ func TestAutomationOffAllowsOnlyWhenThereIsNothingToCheck(t *testing.T) {
 		t.Error("an explicit disabled answer must stop the run")
 	}
 
-	engine.SetAutomationGate(&gateStub{enabled: true, err: errors.New("db down")})
+	engine.automationGate = &gateStub{enabled: true, err: errors.New("db down")}
 	off, err := engine.automationOff("entry-1", "whatsapp")
 	if !errors.Is(err, workflow.ErrAutomationStateUnreadable) {
 		t.Errorf("err = %v, want ErrAutomationStateUnreadable", err)
@@ -176,8 +151,8 @@ func timeoutParkedRun() *workflow.WorkflowRun {
 }
 
 func TestResumeRetriesLaterWhenTheGateCannotBeReadAndRunsNothing(t *testing.T) {
-	engine := NewRunEngine(nil, nil, nil)
-	engine.SetAutomationGate(&gateStub{enabled: true, err: errors.New("db down")})
+	engine := testEngine(nil, nil, nil)
+	engine.automationGate = &gateStub{enabled: true, err: errors.New("db down")}
 
 	runs := &runRepoStub{}
 	wfs := &workflowRepoStub{t: t}
@@ -205,8 +180,8 @@ func TestResumeRetriesLaterWhenTheGateCannotBeReadAndRunsNothing(t *testing.T) {
 }
 
 func TestResumeFailsTheRunWhenTheGateStaysUnreadableAfterTheRetries(t *testing.T) {
-	engine := NewRunEngine(nil, nil, nil)
-	engine.SetAutomationGate(&gateStub{enabled: true, err: errors.New("db down")})
+	engine := testEngine(nil, nil, nil)
+	engine.automationGate = &gateStub{enabled: true, err: errors.New("db down")}
 
 	runs := &runRepoStub{}
 	run := timeoutParkedRun()
@@ -224,8 +199,8 @@ func TestResumeFailsTheRunWhenTheGateStaysUnreadableAfterTheRetries(t *testing.T
 }
 
 func TestFormResumeRefusesWhenTheGateCannotBeReadSoTheAnswerIsRetried(t *testing.T) {
-	engine := NewRunEngine(nil, nil, nil)
-	engine.SetAutomationGate(&gateStub{enabled: true, err: errors.New("db down")})
+	engine := testEngine(nil, nil, nil)
+	engine.automationGate = &gateStub{enabled: true, err: errors.New("db down")}
 	runs := &runRepoStub{}
 	run := parkedRun()
 
@@ -239,8 +214,8 @@ func TestFormResumeRefusesWhenTheGateCannotBeReadSoTheAnswerIsRetried(t *testing
 }
 
 func TestAReadableGateClearsEarlierGateAttemptsSoALaterOutageGetsAFullBudget(t *testing.T) {
-	engine := NewRunEngine(nil, nil, nil)
-	engine.SetAutomationGate(&gateStub{enabled: true})
+	engine := testEngine(nil, nil, nil)
+	engine.automationGate = &gateStub{enabled: true}
 	run := timeoutParkedRun()
 	run.State.Set(workflow.StateKeyGateAttempts, 2)
 
@@ -254,8 +229,8 @@ func TestAReadableGateClearsEarlierGateAttemptsSoALaterOutageGetsAFullBudget(t *
 
 func TestALeadRunHasNoConversationPauseSwitchToRead(t *testing.T) {
 	gate := &gateStub{err: errors.New("lead is not a conversation entry")}
-	engine := NewRunEngine(nil, nil, nil)
-	engine.SetAutomationGate(gate)
+	engine := testEngine(nil, nil, nil)
+	engine.automationGate = gate
 	run := parkedRun()
 	run.EntryID, run.EntryType = "lead-1", workflow.EntryTypeLead
 

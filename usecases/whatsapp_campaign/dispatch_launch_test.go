@@ -31,7 +31,7 @@ func blockedGate() *fixedGate {
 
 func TestABlockedCampaignDoesNotStartAndNothingChanges(t *testing.T) {
 	r := newDispatchRig(wc.CampaignStatusStopped)
-	r.dispatch.SetLaunchGate(blockedGate())
+	r.dispatch.launch = blockedGate()
 
 	err := r.dispatch.Dispatch(wc.DispatchCampaignInput{CampaignID: "c1", Action: wc.CampaignActionStart})
 
@@ -43,7 +43,7 @@ func TestABlockedCampaignDoesNotStartAndNothingChanges(t *testing.T) {
 func TestARiskStartsOnlyWithTheCurrentConfirmation(t *testing.T) {
 	r := newDispatchRig(wc.CampaignStatusStopped)
 	gate := riskyGate()
-	r.dispatch.SetLaunchGate(gate)
+	r.dispatch.launch = gate
 
 	if err := r.dispatch.Dispatch(wc.DispatchCampaignInput{CampaignID: "c1", Action: wc.CampaignActionStart}); !errors.Is(err, launchcheck.ErrUnconfirmed) {
 		t.Fatalf("unconfirmed start = %v", err)
@@ -57,19 +57,10 @@ func TestARiskStartsOnlyWithTheCurrentConfirmation(t *testing.T) {
 	}
 }
 
-func TestAStartWithoutALaunchCheckIsRefused(t *testing.T) {
-	r := newDispatchRig(wc.CampaignStatusStopped)
-	r.dispatch.SetLaunchGate(nil)
-
-	if err := r.dispatch.Dispatch(wc.DispatchCampaignInput{CampaignID: "c1", Action: wc.CampaignActionStart}); !errors.Is(err, wc.ErrLaunchCheckUnavailable) {
-		t.Fatalf("err = %v, want the start refused", err)
-	}
-}
-
 func TestPausingAndStoppingNeverAskTheLaunchCheck(t *testing.T) {
 	r := newDispatchRig(wc.CampaignStatusRunning)
 	gate := blockedGate()
-	r.dispatch.SetLaunchGate(gate)
+	r.dispatch.launch = gate
 
 	if err := r.dispatch.Dispatch(wc.DispatchCampaignInput{CampaignID: "c1", Action: wc.CampaignActionPause}); err != nil {
 		t.Fatalf("pause = %v", err)
@@ -82,7 +73,7 @@ func TestPausingAndStoppingNeverAskTheLaunchCheck(t *testing.T) {
 func TestASmartCampaignIsCheckedBeforeTheWaveEngineTakesIt(t *testing.T) {
 	r := newDispatchRig(wc.CampaignStatusStopped)
 	r.smart.managed["c1"] = true
-	r.dispatch.SetLaunchGate(blockedGate())
+	r.dispatch.launch = blockedGate()
 
 	if err := r.dispatch.Dispatch(wc.DispatchCampaignInput{CampaignID: "c1", Action: wc.CampaignActionStart}); !errors.Is(err, launchcheck.ErrBlocked) || len(r.smart.started) != 0 {
 		t.Fatalf("err %v, started %v", err, r.smart.started)
@@ -90,7 +81,5 @@ func TestASmartCampaignIsCheckedBeforeTheWaveEngineTakesIt(t *testing.T) {
 }
 
 func passingDispatch(campaigns wc.Repository) *dispatchCampaignUseCase {
-	uc := NewDispatchCampaignUseCase(nil, campaigns, newMockEntryRepo(), nil, nil).(*dispatchCampaignUseCase)
-	uc.SetLaunchGate(passingGate())
-	return uc
+	return dispatchWith(campaigns, newMockEntryRepo())
 }

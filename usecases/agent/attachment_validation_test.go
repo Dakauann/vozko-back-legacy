@@ -36,10 +36,10 @@ func (f fakeKBRepo) FindByWorkspace(context.Context, string, shared.Pagination) 
 func (f fakeKBRepo) FindByWorkspaceAndDepartment(context.Context, string, *string, shared.Pagination) (*shared.PaginatedResult[*rag.KnowledgeBase], error) {
 	return nil, nil
 }
-func (f fakeKBRepo) CountByWorkspace(context.Context, string) (int, error)        { return 0, nil }
-func (f fakeKBRepo) IncrementDocumentCount(context.Context, string, int) error    { return nil }
-func (f fakeKBRepo) IncrementChunkCount(context.Context, string, int) error       { return nil }
-func (f fakeKBRepo) AddTotalSize(context.Context, string, int64) error { return nil }
+func (f fakeKBRepo) CountByWorkspace(context.Context, string) (int, error)     { return 0, nil }
+func (f fakeKBRepo) IncrementDocumentCount(context.Context, string, int) error { return nil }
+func (f fakeKBRepo) IncrementChunkCount(context.Context, string, int) error    { return nil }
+func (f fakeKBRepo) AddTotalSize(context.Context, string, int64) error         { return nil }
 
 type fakeMCPRepo struct{ byWorkspace map[string]map[string]bool }
 
@@ -93,23 +93,5 @@ func TestKnowledgeBaseOwnership(t *testing.T) {
 
 	if err := validateKnowledgeBaseOwnership(ctx, nil, "ws-1", []string{"kb-foreign"}); err != nil {
 		t.Fatalf("nil repo = %v", err)
-	}
-}
-
-func TestMCPCollectionOwnership(t *testing.T) {
-	ctx := context.Background()
-	repo := fakeMCPRepo{byWorkspace: map[string]map[string]bool{
-		"ws-1": {"mcp-mine": true},
-		"ws-2": {"mcp-foreign": true},
-	}}
-
-	if err := validateMCPCollectionOwnership(ctx, repo, "ws-1", []string{"mcp-mine"}); err != nil {
-		t.Fatalf("own collection = %v", err)
-	}
-	if err := validateMCPCollectionOwnership(ctx, repo, "ws-1", []string{"mcp-foreign"}); !errors.Is(err, agent.ErrAgentMCPCollectionNoAccess) {
-		t.Fatalf("foreign collection = %v", err)
-	}
-	if err := validateMCPCollectionOwnership(ctx, repo, "ws-1", nil); err != nil {
-		t.Fatalf("no ids = %v", err)
 	}
 }

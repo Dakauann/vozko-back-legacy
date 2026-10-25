@@ -23,10 +23,10 @@ func (a *providerBlockedAdapter) WindowStates(_ context.Context, entryIDs []stri
 }
 
 func TestInboxEntryCarriesTheProviderDetail(t *testing.T) {
-	svc := &HistoryProviderService{messageRepo: inboxWindowMessages{entry: conversation.EntryWithLastMessage{
+	svc := historyWith(HistoryProviderService{messageRepo: inboxWindowMessages{entry: conversation.EntryWithLastMessage{
 		EntryID: "entry", EntryType: shared.EntryTypeInstagram, LastMessageType: conversation.MessageTypeSystem,
-	}}}
-	svc.SetChannelAdapters(conversation.NewAdapterRegistry(&providerBlockedAdapter{fakeWindowAdapter{entryType: shared.EntryTypeInstagram}}))
+	}}})
+	svc.channelAdapters = conversation.NewAdapterRegistry(&providerBlockedAdapter{fakeWindowAdapter{entryType: shared.EntryTypeInstagram}})
 
 	entry, err := svc.GetInboxEntry("entry", string(shared.EntryTypeInstagram))
 	if err != nil {

@@ -37,7 +37,7 @@ func runToTheEnd(t *testing.T, ctx context.Context, call *fakeCRMCall, events ..
 	t.Helper()
 	completed := &completedCalls{}
 	runner := newRunner(&fakeAdmission{}, newFakeReserver(), &fakeBalanceChecker{balance: 1_000_000}, &fakeBillingPub{})
-	runner.SetCDRComplete(completed)
+	runner.cdrComplete = completed
 	for _, event := range events {
 		call.events <- event
 	}

@@ -137,6 +137,55 @@ func TestDraftScheduleCreatesWithTheTime(t *testing.T) {
 	if out.Started || len(f.start.calls) != 0 || !f.create.created[0].ScheduledStart.Equal(at) {
 		t.Fatalf("out %+v", out)
 	}
+	if len(f.audience.seen) != 1 {
+		t.Fatal("scheduling skipped the launch check")
+	}
+}
+
+func TestDraftScheduleStoresWhoConfirmedTheRisks(t *testing.T) {
+	deps := launchDeps()
+	deps.Exits = launchExits{configured: false}
+	f := newDraftFixture(deps)
+	review, _ := f.launch.Review(context.Background(), draftCampaign())
+	at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+
+	_, err := f.launch.Launch(context.Background(), DraftLaunchInput{
+		Campaign: draftCampaign(), Launch: campaign.Launch{Mode: campaign.LaunchSchedule, At: at},
+		ConfirmedFingerprint: review.Report.Fingerprint(), ScheduledBy: "u1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := f.create.created[0]
+	if created.ScheduleConfirmedFingerprint != review.Report.Fingerprint() || created.ScheduleConfirmedFingerprint == "" || created.ScheduledBy != "u1" {
+		t.Fatalf("created %+v", created)
+	}
+}
+
+func TestDraftScheduleWithUnconfirmedRisksCreatesNothing(t *testing.T) {
+	deps := launchDeps()
+	deps.Exits = launchExits{configured: false}
+	f := newDraftFixture(deps)
+	at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+
+	_, err := f.launch.Launch(context.Background(), DraftLaunchInput{Campaign: draftCampaign(), Launch: campaign.Launch{Mode: campaign.LaunchSchedule, At: at}, ScheduledBy: "u1"})
+
+	if !errors.Is(err, launchcheck.ErrUnconfirmed) || len(f.create.created) != 0 {
+		t.Fatalf("err %v created %d", err, len(f.create.created))
+	}
+}
+
+func TestDraftScheduleOfABlockedCampaignCreatesNothing(t *testing.T) {
+	deps := launchDeps()
+	deps.Phones = launchPhones{"phone-1": {ID: "phone-1", OwnerWorkspaceID: "ws-1", Status: businessphone.StatusRestricted}}
+	f := newDraftFixture(deps)
+	at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+
+	_, err := f.launch.Launch(context.Background(), DraftLaunchInput{Campaign: draftCampaign(), Launch: campaign.Launch{Mode: campaign.LaunchSchedule, At: at}})
+
+	if !errors.Is(err, launchcheck.ErrBlocked) || len(f.create.created) != 0 {
+		t.Fatalf("err %v created %d", err, len(f.create.created))
+	}
 }
 
 func TestDraftNowCreatesAndStartsWithTheConfirmation(t *testing.T) {

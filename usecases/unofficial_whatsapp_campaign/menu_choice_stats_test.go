@@ -70,11 +70,3 @@ func TestATextCampaignSendIsNotAChoice(t *testing.T) {
 		t.Fatalf("sends = %+v", spy.sends)
 	}
 }
-
-func TestTheConsumerRefusesToStartWithoutTheChoiceRecorder(t *testing.T) {
-	h := newHarness(t)
-	h.consumer.deps.Choices = nil
-	if err := h.consumer.Start(); err == nil {
-		t.Fatal("the consumer started without the recorder")
-	}
-}

@@ -13,8 +13,6 @@ import (
 )
 
 type facebookBundle struct {
-	Enabled bool
-
 	Grants        fbdomain.GrantRepository
 	Pages         fbdomain.PageRepository
 	Contacts      fbdomain.ContactRepository
@@ -142,7 +140,6 @@ func (c *Container) initFacebook() {
 
 	c.commentAutomation().Manager.Register(shared.EntryTypeFacebook, fbuc.NewPageOwnership(bundle.Pages))
 
-	bundle.Enabled = true
 	log.Printf("[facebook] channel enabled (redirect_uri=%q must match the Facebook Login for Business settings exactly)",
 		c.cfg.FacebookRedirectURI)
 }

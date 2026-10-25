@@ -102,7 +102,7 @@ func agentRouted(output *ai.GenerateOutput, config map[string]interface{}) func(
 		state := workflow.NewRunState()
 		ctx := agentNodeContext(&state, config)
 		ctx.Graph.Edges = withSource(edges, ctx.Node.ID)
-		return executed(t, NewAIAgentExecutor(&toolCallingAI{output: output}, nil, &entryTranscript{}, nil, nil, nil), ctx)
+		return executed(t, NewAIAgentExecutor(&toolCallingAI{output: output}, nil, &entryTranscript{}, nil, nil, nil, quietAttendance{}), ctx)
 	}
 }
 

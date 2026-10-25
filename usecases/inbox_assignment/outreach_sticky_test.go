@@ -25,7 +25,7 @@ var _ ia.EntryOutreachReader = (*stubOutreach)(nil)
 func outreachService(repo *mockRepo, outreach ia.EntryOutreachReader, users ...string) *AssignmentService {
 	svc := newService(repo, defaultEligible(users...), defaultResolver("ws-1", ""), defaultConfig())
 	if outreach != nil {
-		svc.SetOutreach(outreach)
+		svc.outreach = outreach
 	}
 	return svc
 }
@@ -95,7 +95,7 @@ func TestEnsureAssignment_OutreachRecordsItsOwnTrigger(t *testing.T) {
 	repo := &mockRepo{}
 	history := &recordingHistory{}
 	svc := outreachService(repo, &stubOutreach{userID: "u2"}, "u1", "u2", "u3")
-	svc.SetHistory(history)
+	svc.telemetry = historyTelemetry{store: history}
 
 	require.Equal(t, "u2", svc.EnsureAssignment("entry-1", "whatsapp", "phone-1"))
 	require.Len(t, history.appended, 1)
@@ -106,7 +106,7 @@ func TestEnsureAssignment_RouletteKeepsItsTrigger(t *testing.T) {
 	repo := &mockRepo{}
 	history := &recordingHistory{}
 	svc := outreachService(repo, &stubOutreach{userID: ""}, "u1", "u2", "u3")
-	svc.SetHistory(history)
+	svc.telemetry = historyTelemetry{store: history}
 
 	require.Equal(t, "u1", svc.EnsureAssignment("entry-1", "whatsapp", "phone-1"))
 	require.Len(t, history.appended, 1)

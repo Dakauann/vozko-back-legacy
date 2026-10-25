@@ -51,9 +51,11 @@ func newDispatchRig(status wc.Status) *dispatchRig {
 		{ID: "e1", CampaignID: "c1", Lead: &lead.Lead{Number: "5584999990001"}},
 		{ID: "e2", CampaignID: "c1", Lead: &lead.Lead{Number: "5584999990002"}},
 	}
-	r.dispatch = NewDispatchCampaignUseCase(r.pub, r.repo, r.entries, r.consumer, newQSShared()).(*dispatchCampaignUseCase)
-	r.dispatch.SetSmartCampaigns(r.smart)
-	r.dispatch.SetLaunchGate(passingGate())
+	dispatch, err := NewDispatchCampaignUseCase(r.pub, r.repo, r.entries, r.consumer, newQSShared(), passingGate(), r.smart)
+	if err != nil {
+		panic(err)
+	}
+	r.dispatch = dispatch.(*dispatchCampaignUseCase)
 	return r
 }
 

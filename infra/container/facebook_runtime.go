@@ -16,7 +16,7 @@ import (
 
 func (c *Container) initFacebookRuntime(history conversation_domain.MessageHistoryManager) {
 	bundle := c.facebook
-	if bundle == nil || !bundle.Enabled {
+	if bundle == nil {
 		return
 	}
 	if c.useCases == nil {
@@ -104,55 +104,31 @@ func (c *Container) initFacebookRuntime(history conversation_domain.MessageHisto
 
 func (c *Container) wireFacebookConversationStack() {
 	bundle := c.facebook
-	if bundle == nil || !bundle.Enabled {
+	if bundle == nil {
 		return
 	}
 	conversations := bundle.Conversations
 
-	c.registerChannelAdapter(fbuc.NewChannelAdapter(fbuc.ChannelAdapterDeps{
-		Pages:              bundle.Pages,
-		Contacts:           bundle.Contacts,
-		Conversations:      conversations,
-		Messaging:          bundle.Messaging,
-		Routing:            bundle.Routing,
-		HumanAgentApproved: c.cfg.FacebookHumanAgentApproved,
-	}))
-
-	if setter, ok := c.services.conversationHistory.(interface {
-		SetAutomationReader(shared.EntryType, func(context.Context, string) (*bool, error))
-	}); ok {
-		setter.SetAutomationReader(shared.EntryTypeFacebook, func(ctx context.Context, entryID string) (*bool, error) {
+	c.registerConversationChannel(conversationChannel{
+		EntryType: shared.EntryTypeFacebook,
+		Adapter: fbuc.NewChannelAdapter(fbuc.ChannelAdapterDeps{
+			Pages:              bundle.Pages,
+			Contacts:           bundle.Contacts,
+			Conversations:      conversations,
+			Messaging:          bundle.Messaging,
+			Routing:            bundle.Routing,
+			HumanAgentApproved: c.cfg.FacebookHumanAgentApproved,
+		}),
+		Conversations: conversations,
+		Automation: func(ctx context.Context, entryID string) (*bool, error) {
 			conv, err := conversations.FindByID(ctx, entryID)
 			if err != nil {
 				return nil, err
 			}
 			return conv.AutomationEnabled, nil
-		})
-	} else {
-		log.Fatalf("[facebook] history provider exposes no SetAutomationReader")
-	}
-	if c.services.conversationAutomation == nil || c.services.conversationAuthImpl == nil || c.services.conversationStatusService == nil {
-		log.Fatalf("[facebook] conversation services must be built before the facebook conversation stack")
-	}
-	c.services.conversationAutomation.Register(shared.EntryTypeFacebook, conversations.SetAutomationEnabled)
-	c.services.conversationAuthImpl.SetEntryAccessRepo(shared.EntryTypeFacebook, conversations)
-	c.services.conversationStatusService.SetConversationStatusStore(shared.EntryTypeFacebook,
-		conversationStatusFuncs{status: conversations.StatusForEntry, set: conversations.SetStatus})
-	c.services.conversationStatusService.SetConversationCounter(shared.EntryTypeFacebook, conversations.CountByStatus)
-	if setter, ok := c.services.campaignWorkspaceResolver.(interface {
-		SetEntryOwnerResolver(shared.EntryType, conversation_usecase.EntryOwnerResolver)
-	}); ok {
-		setter.SetEntryOwnerResolver(shared.EntryTypeFacebook, conversations)
-	} else {
-		log.Fatalf("[facebook] workspace resolver exposes no SetEntryOwnerResolver")
-	}
-	if setter, ok := c.services.conversationHistory.(interface {
-		SetContactIdentityLookup(shared.EntryType, conversation_usecase.ContactIdentityLookup)
-	}); ok {
-		setter.SetContactIdentityLookup(shared.EntryTypeFacebook, facebookContactIdentity(bundle))
-	} else {
-		log.Fatalf("[facebook] history provider exposes no SetContactIdentityLookup")
-	}
+		},
+		Contacts: facebookContactIdentity(bundle),
+	})
 }
 
 func facebookContactIdentity(bundle *facebookBundle) conversation_usecase.ContactIdentityLookup {

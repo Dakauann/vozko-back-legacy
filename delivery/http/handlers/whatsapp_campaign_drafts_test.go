@@ -244,3 +244,27 @@ func TestDraftWithAnInvalidRequestIsCoded(t *testing.T) {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestDraftScheduleRecordsWhoScheduledIt(t *testing.T) {
+	f := newFinisherFixture(businessphone.StatusConnected)
+	at := time.Now().Add(3 * time.Hour).UTC().Truncate(time.Second)
+	rec := httptest.NewRecorder()
+	if !f.finisher.Launch(rec, draftHTTPRequest(), json.RawMessage(draftBody), campaign.Launch{Mode: campaign.LaunchSchedule, At: at}, "") {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	got := f.create.got[0]
+	if !got.ScheduledStart.Equal(at) || got.ScheduledBy != "u1" || len(f.start.started) != 0 {
+		t.Fatalf("created %+v started %v", got, f.start.started)
+	}
+}
+
+func TestDraftScheduleOfABlockedCampaignAnswersTheIssues(t *testing.T) {
+	f := newFinisherFixture(businessphone.StatusRestricted)
+	rec := httptest.NewRecorder()
+	if f.finisher.Launch(rec, draftHTTPRequest(), json.RawMessage(draftBody), campaign.Launch{Mode: campaign.LaunchSchedule, At: time.Now().Add(3 * time.Hour)}, "") {
+		t.Fatal("a blocked schedule reported a campaign")
+	}
+	if rec.Code != http.StatusConflict || !bytes.Contains(rec.Body.Bytes(), []byte("campaign_launch_blocked")) || len(f.create.got) != 0 {
+		t.Fatalf("%d %s created %d", rec.Code, rec.Body.String(), len(f.create.got))
+	}
+}

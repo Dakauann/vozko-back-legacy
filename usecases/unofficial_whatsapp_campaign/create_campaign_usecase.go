@@ -10,6 +10,7 @@ import (
 
 	"vozko/domain/campaign"
 	"vozko/domain/lead"
+	"vozko/domain/shared/deps"
 	uw "vozko/domain/unofficial_whatsapp"
 	uwc "vozko/domain/unofficial_whatsapp_campaign"
 	workspace_department "vozko/domain/workspace/workspace_department"
@@ -41,33 +42,45 @@ type IdempotentCampaigns interface {
 	CreateWithEntries(c *uwc.Campaign, entries []uwc.Entry) error
 }
 
-func (uc *createCampaignUseCase) SetLeadsByID(leads LeadsByID) {
-	uc.leadsByID = leads
+type CreateCampaignDeps struct {
+	Campaigns    uwc.Repository
+	Entries      uwc.EntryRepository
+	Leads        LeadResolver
+	Instances    InstanceGateway
+	Eligibility  campaignguard.Screener
+	Departments  workspace_department.CreationDepartmentResolver
+	LeadsByID    LeadsByID
+	Automation   AutomationCheck
+	Keyed        IdempotentCampaigns
+	GroupSenders GroupSenderDirectory
 }
 
-func (uc *createCampaignUseCase) SetAutomation(automation AutomationCheck) {
-	uc.automation = automation
-}
-
-func (uc *createCampaignUseCase) SetIdempotentCampaigns(keyed IdempotentCampaigns) {
-	uc.keyed = keyed
-}
-
-func NewCreateCampaignUseCase(
-	campaigns uwc.Repository,
-	entries uwc.EntryRepository,
-	leads LeadResolver,
-	instances InstanceGateway,
-	eligibility campaignguard.Screener,
-	departmentResolver workspace_department.CreationDepartmentResolver,
-) uwc.CreateCampaignUseCase {
-	return &createCampaignUseCase{
-		repos:              campaignRepos{campaigns: campaigns, entries: entries},
-		leads:              leads,
-		instances:          instances,
-		eligibility:        eligibility,
-		departmentResolver: departmentResolver,
+func NewCreateCampaignUseCase(d CreateCampaignDeps) (uwc.CreateCampaignUseCase, error) {
+	if err := deps.Require("unofficial campaign creation", map[string]any{
+		"campaigns":           d.Campaigns,
+		"entries":             d.Entries,
+		"leads":               d.Leads,
+		"instances":           d.Instances,
+		"eligibility":         d.Eligibility,
+		"department resolver": d.Departments,
+		"leads by id":         d.LeadsByID,
+		"automation":          d.Automation,
+		"idempotency keys":    d.Keyed,
+		"group senders":       d.GroupSenders,
+	}); err != nil {
+		return nil, err
 	}
+	return &createCampaignUseCase{
+		repos:              campaignRepos{campaigns: d.Campaigns, entries: d.Entries},
+		leads:              d.Leads,
+		instances:          d.Instances,
+		eligibility:        d.Eligibility,
+		departmentResolver: d.Departments,
+		leadsByID:          d.LeadsByID,
+		automation:         d.Automation,
+		keyed:              d.Keyed,
+		groupSenders:       d.GroupSenders,
+	}, nil
 }
 
 func (uc *createCampaignUseCase) Execute(
@@ -117,15 +130,8 @@ func (uc *createCampaignUseCase) Execute(
 		return nil, err
 	}
 
-	if uc.automation == nil {
-		return nil, campaign.ErrAutomationUnavailable
-	}
 	if err := uc.automation.Check(in.WorkspaceID, in.Automation(), in.EntryMetadata()); err != nil {
 		return nil, err
-	}
-
-	if uc.eligibility == nil {
-		return nil, campaignguard.ErrUnavailable
 	}
 
 	if in.ID == "" {
@@ -147,9 +153,6 @@ func (uc *createCampaignUseCase) Execute(
 
 func (uc *createCampaignUseCase) save(in *uwc.Campaign, entries []uwc.Entry) error {
 	if in.IdempotencyKey != "" {
-		if uc.keyed == nil {
-			return campaign.ErrIdempotencyUnavailable
-		}
 		return uc.keyed.CreateWithEntries(in, entries)
 	}
 	if err := uc.repos.campaigns.Create(in); err != nil {

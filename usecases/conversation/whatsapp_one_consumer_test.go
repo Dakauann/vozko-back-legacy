@@ -36,7 +36,7 @@ func agentHeldWhatsApp(evaluator *waitingRunEvaluator) oneConsumerWhatsApp {
 		history:   &capturedHistory{},
 		evaluator: evaluator,
 	}
-	h.uc = &handleWhatsAppMessageUseCase{
+	h.uc = whatsappDefaults(&handleWhatsAppMessageUseCase{
 		aiService:             h.ai,
 		businessPhoneRepo:     routingPhones{phone: &businessphone.WhatsAppBusinessPhoneNumber{ID: "phone-1", OwnerWorkspaceID: "ws-1", DisplayPhoneNumber: "551140001234"}},
 		wcEntryRepo:           entries,
@@ -48,8 +48,9 @@ func agentHeldWhatsApp(evaluator *waitingRunEvaluator) oneConsumerWhatsApp {
 		historyManager:        h.history,
 		exitStep:              &capturingExitStep{},
 		statusEvents:          &fakeStatusRecorder{},
-	}
-	h.uc.SetTriggerEvaluator(evaluator)
+	})
+	h.uc.triggerEvaluator = evaluator
+	h.uc.inboundRouter = InboundRouterOf(h.uc.triggerEvaluator)
 	return h
 }
 

@@ -16,6 +16,7 @@ import (
 
 func TestCampaignEditRefusalCodesAreStable(t *testing.T) {
 	want := []string{
+		"campaign_launch_check_unavailable",
 		"campaign_phone_unavailable",
 		"campaign_receptive_managed_by_number",
 		"campaign_running",

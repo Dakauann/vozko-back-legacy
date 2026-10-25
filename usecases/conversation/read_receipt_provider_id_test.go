@@ -33,7 +33,7 @@ func markerWith(msgs ...*conversation.Message) (*MessageMarkerService, []string)
 		repo.byID[m.ID] = m
 		ids = append(ids, m.ID)
 	}
-	return &MessageMarkerService{messageRepo: repo}, ids
+	return markerDefaults(&MessageMarkerService{messageRepo: repo}), ids
 }
 
 func TestReadReceiptResolvesAdapterChannelProviderID(t *testing.T) {

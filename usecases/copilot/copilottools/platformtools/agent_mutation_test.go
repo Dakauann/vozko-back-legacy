@@ -106,7 +106,7 @@ func TestUpdateAgentLeavesMembershipUntouchedWhenNotMentioned(t *testing.T) {
 		"id":              "ag-1",
 		"messagingPrompt": "novo prompt",
 	})
-	if upd.got.InternalTools != nil || upd.got.KnowledgeBaseIDs != nil || upd.got.MCPCollectionIDs != nil {
+	if upd.got.InternalTools != nil || upd.got.KnowledgeBaseIDs != nil {
 		t.Fatalf("membership must stay nil when unmentioned: %+v", upd.got)
 	}
 	if upd.got.MessagingPrompt == nil || *upd.got.MessagingPrompt != "novo prompt" {
@@ -186,7 +186,6 @@ func TestCreateAgentCarriesToolsAndAttachments(t *testing.T) {
 		"provider":         "platform",
 		"internalTools":    []interface{}{map[string]interface{}{"name": "search_knowledge_base"}},
 		"knowledgeBaseIds": []interface{}{"kb-1", "kb-2"},
-		"mcpCollectionIds": []interface{}{"mcp-1"},
 		"workspaceId":      "ws-EVIL",
 	})
 	if res.Status != copilot.StatusOK {
@@ -198,8 +197,8 @@ func TestCreateAgentCarriesToolsAndAttachments(t *testing.T) {
 	if len(crt.got.InternalTools) != 1 || crt.got.InternalTools[0].Name != "search_knowledge_base" {
 		t.Fatalf("tools = %+v", crt.got.InternalTools)
 	}
-	if len(crt.got.KnowledgeBaseIDs) != 2 || len(crt.got.MCPCollectionIDs) != 1 {
-		t.Fatalf("attachments = %+v / %+v", crt.got.KnowledgeBaseIDs, crt.got.MCPCollectionIDs)
+	if len(crt.got.KnowledgeBaseIDs) != 2 {
+		t.Fatalf("attachments = %+v", crt.got.KnowledgeBaseIDs)
 	}
 	if crt.got.Name != "Bia" || crt.got.Provider != agent.AgentProvider("platform") {
 		t.Fatalf("scalars = %+v", crt.got)

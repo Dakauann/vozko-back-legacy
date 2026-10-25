@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"vozko/domain/agenttool"
 	"vozko/domain/googleaccount"
 	"vozko/domain/googlesheet"
 	"vozko/domain/tools"
@@ -85,7 +86,7 @@ func (t *addSheetRowTool) Definition() tools.Definition {
 		},
 		RequiredConfig: []string{addSheetRowConfigKey},
 		RequiresConfig: true,
-		BindingKey:     addSheetRowConfigKey,
+		Instances:      tools.PerTarget(addSheetRowConfigKey),
 		Visibility:     []tools.ToolVisibility{tools.VisibilityMessaging},
 		Category:       tools.CategoryAgentAction,
 	}
@@ -228,6 +229,9 @@ var (
 
 func (t *addSheetRowTool) ValidateBinding(ctx context.Context, workspaceID string, config map[string]interface{}) error {
 	_, err := t.sheets.Get(ctx, workspaceID, configString(config, addSheetRowConfigKey))
+	if errors.Is(err, googlesheet.ErrSheetNotFound) {
+		return tools.Invalid(agenttool.CodeSheetInvalid, "a planilha não existe neste workspace")
+	}
 	return err
 }
 

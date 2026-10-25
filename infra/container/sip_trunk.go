@@ -77,6 +77,9 @@ func (c *Container) initSIPTrunks() {
 }
 
 func (c *Container) startSIPTrunks() {
+	if err := c.sipTrunks.Engine.InboundBound(); err != nil {
+		log.Fatalf("[sip-trunks] %v", err)
+	}
 	if err := c.sipTrunks.Engine.Start(context.Background()); err != nil {
 		log.Fatalf("Failed to start the SIP trunk engine: %v", err)
 	}
@@ -107,4 +110,14 @@ func (p trunkCallPermissions) MayCallThroughTrunks(userID, workspaceID string, i
 		return true
 	}
 	return p.access.Execute(userID, workspaceID, workspace_domain.ResourceSIPTrunks, workspace_domain.ActionCall) == nil
+}
+
+func (c *Container) verifyCallPresenceListener() {
+	bound, ok := c.services.callSessions.(interface{ PresenceListenerBound() error })
+	if !ok {
+		log.Fatalf("[call-sessions] the session registry cannot report its presence listener")
+	}
+	if err := bound.PresenceListenerBound(); err != nil {
+		log.Fatalf("[call-sessions] %v", err)
+	}
 }

@@ -11,7 +11,7 @@ import (
 
 func TestNumbersCannotBeAddedToAGroupCampaign(t *testing.T) {
 	campaigns, entries, _ := stoppedGroupCampaign()
-	uc := NewAddEntriesUseCase(campaigns, entries, newFakeLeadRepo())
+	uc := addEntriesWith(campaigns, entries, newFakeLeadRepo())
 
 	_, err := uc.Execute(context.Background(), uwc.AddEntriesInput{
 		CampaignID: "camp-1", Numbers: []uwc.EntryInput{{Number: "5511981124410"}},

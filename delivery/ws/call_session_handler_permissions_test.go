@@ -76,8 +76,9 @@ func (r *stubSessionRegistry) ListAvailable(string) []callsession_domain.CallSes
 func (r *stubSessionRegistry) ListAll(string) []callsession_domain.CallSession {
 	return r.listAll
 }
-func (r *stubSessionRegistry) SetPresenceListener(l callsession_domain.PresenceListener) {
+func (r *stubSessionRegistry) BindPresenceListener(l callsession_domain.PresenceListener) error {
 	r.listener = l
+	return nil
 }
 func (r *stubSessionRegistry) NotifyPresenceChanged(string) {}
 

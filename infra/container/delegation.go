@@ -3,29 +3,10 @@ package container
 import (
 	"log"
 
-	conversation_domain "vozko/domain/conversation"
 	workflow_repository "vozko/infra/repositories/workflow"
 	ia_usecase "vozko/usecases/inbox_assignment"
 	workflow_usecase "vozko/usecases/workflow"
 )
-
-type delegationSetter interface {
-	SetDelegations(conversation_domain.DelegationRepository)
-}
-
-func (c *Container) wireDelegations() {
-	for name, target := range map[string]any{
-		"official whatsapp":   c.useCases.handleWhatsAppMessage,
-		"conversation status": c.services.conversationStatusService,
-		"inbox history":       c.services.conversationHistory,
-	} {
-		setter, ok := target.(delegationSetter)
-		if !ok {
-			log.Fatalf("[delegation] %s cannot read conversation delegations", name)
-		}
-		setter.SetDelegations(c.services.delegations)
-	}
-}
 
 func (c *Container) automationDirectory() ia_usecase.AutomationDirectory {
 	return ia_usecase.AutomationDirectory{Agents: c.repositories.agent, Workflows: c.repositories.workflow}

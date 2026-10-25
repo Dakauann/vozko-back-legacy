@@ -1,10 +1,13 @@
 package whatsapp_campaign_usecase
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
 
+	"vozko/domain/campaign/scheduledstart"
+	"vozko/domain/shared/deps"
 	wc "vozko/domain/whatsapp_campaign"
 	wd "vozko/domain/workspace/workspace_department"
 	"vozko/domain/workspace/workspace_plan"
@@ -15,12 +18,28 @@ type StartCampaignDeps struct {
 	Subscription workspace_plan.EnsureActiveWorkspaceSubscriptionUseCase
 	Dispatch     wc.DispatchCampaignUseCase
 	Schedules    wc.ScheduleClaimer
+	Reporter     ScheduleReporter
 }
 
-type startCampaign struct{ deps StartCampaignDeps }
+type ScheduleReporter interface {
+	Cleared(ctx context.Context, campaignID string, current scheduledstart.Failure)
+}
 
-func NewStartCampaignUseCase(deps StartCampaignDeps) wc.StartCampaignUseCase {
-	return &startCampaign{deps: deps}
+type startCampaign struct {
+	deps StartCampaignDeps
+}
+
+func NewStartCampaignUseCase(d StartCampaignDeps) (wc.StartCampaignUseCase, error) {
+	if err := deps.Require("official campaign start", map[string]any{
+		"campaign access":   d.Access,
+		"subscription":      d.Subscription,
+		"dispatch":          d.Dispatch,
+		"schedules":         d.Schedules,
+		"schedule reporter": d.Reporter,
+	}); err != nil {
+		return nil, err
+	}
+	return &startCampaign{deps: d}, nil
 }
 
 func (uc *startCampaign) Start(workspaceID string, departments *wd.DepartmentFilter, campaignID string) (*wc.Campaign, error) {
@@ -49,10 +68,9 @@ func (uc *startCampaign) start(workspaceID string, departments *wd.DepartmentFil
 	if err := uc.deps.Dispatch.Dispatch(wc.DispatchCampaignInput{CampaignID: campaign.ID, Action: wc.CampaignActionStart, Reviewed: reviewed, ConfirmedFingerprint: confirmedFingerprint}); err != nil {
 		return nil, err
 	}
-	if uc.deps.Schedules != nil {
-		if _, err := uc.deps.Schedules.ClaimScheduledStart(campaign.ID, time.Now().AddDate(10, 0, 0)); err != nil {
-			log.Printf("[whatsapp-campaign] started %s but could not consume its schedule: %v", campaign.ID, err)
-		}
+	if _, err := uc.deps.Schedules.ClaimScheduledStart(campaign.ID, time.Now().AddDate(10, 0, 0)); err != nil {
+		log.Printf("[whatsapp-campaign] started %s but could not consume its schedule: %v", campaign.ID, err)
 	}
+	uc.deps.Reporter.Cleared(context.Background(), campaign.ID, campaign.ScheduleFailure)
 	return campaign, nil
 }

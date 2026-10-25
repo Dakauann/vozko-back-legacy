@@ -31,8 +31,40 @@ type stubOverviewRepo struct {
 	revErr         error
 	onRead         func(section string)
 
-	mu    sync.Mutex
-	reads map[string]int
+	mu       sync.Mutex
+	reads    map[string]int
+	shares   int
+	sharedIn map[string][]int
+}
+
+type stubShareKey struct{}
+
+func (r *stubOverviewRepo) ShareScope(ctx context.Context, fn func(context.Context) error) error {
+	if _, ok := ctx.Value(stubShareKey{}).(int); ok {
+		return fn(ctx)
+	}
+	r.mu.Lock()
+	r.shares++
+	id := r.shares
+	r.mu.Unlock()
+	return fn(context.WithValue(ctx, stubShareKey{}, id))
+}
+
+func (r *stubOverviewRepo) readIn(ctx context.Context, section string) {
+	id, _ := ctx.Value(stubShareKey{}).(int)
+	r.mu.Lock()
+	if r.sharedIn == nil {
+		r.sharedIn = map[string][]int{}
+	}
+	r.sharedIn[section] = append(r.sharedIn[section], id)
+	r.mu.Unlock()
+	r.read(section)
+}
+
+func (r *stubOverviewRepo) sharesOf(section string) []int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]int(nil), r.sharedIn[section]...)
 }
 
 func (r *stubOverviewRepo) read(section string) {
@@ -53,8 +85,8 @@ func (r *stubOverviewRepo) calls(section string) int {
 	return r.reads[section]
 }
 
-func (r *stubOverviewRepo) ReadSummary(context.Context, string, attendance.OverviewFilter) (*attendance.SummarySection, error) {
-	r.read("summary")
+func (r *stubOverviewRepo) ReadSummary(ctx context.Context, _ string, _ attendance.OverviewFilter) (*attendance.SummarySection, error) {
+	r.readIn(ctx, "summary")
 	if r.summary == nil {
 		return &attendance.SummarySection{Hourly: make([]attendance.HourlyPoint, 24), Definitions: attendance.DefaultDefinitions()}, nil
 	}
@@ -62,8 +94,8 @@ func (r *stubOverviewRepo) ReadSummary(context.Context, string, attendance.Overv
 	return &copied, nil
 }
 
-func (r *stubOverviewRepo) ReadTeam(context.Context, string, attendance.OverviewFilter) (*attendance.TeamSection, error) {
-	r.read("team")
+func (r *stubOverviewRepo) ReadTeam(ctx context.Context, _ string, _ attendance.OverviewFilter) (*attendance.TeamSection, error) {
+	r.readIn(ctx, "team")
 	if r.team == nil {
 		return &attendance.TeamSection{}, nil
 	}
@@ -71,23 +103,23 @@ func (r *stubOverviewRepo) ReadTeam(context.Context, string, attendance.Overview
 	return &copied, nil
 }
 
-func (r *stubOverviewRepo) ReadStages(context.Context, string, attendance.OverviewFilter) (attendance.OverviewStages, error) {
-	r.read("stages")
+func (r *stubOverviewRepo) ReadStages(ctx context.Context, _ string, _ attendance.OverviewFilter) (attendance.OverviewStages, error) {
+	r.readIn(ctx, "stages")
 	return r.stages, nil
 }
 
-func (r *stubOverviewRepo) ReadBacklog(context.Context, string, attendance.OverviewFilter, time.Time) (attendance.BacklogXray, error) {
-	r.read("backlog")
+func (r *stubOverviewRepo) ReadBacklog(ctx context.Context, _ string, _ attendance.OverviewFilter, _ time.Time) (attendance.BacklogXray, error) {
+	r.readIn(ctx, "backlog")
 	return r.backlog, nil
 }
 
-func (r *stubOverviewRepo) ReadRework(context.Context, string, attendance.OverviewFilter) (attendance.OverviewRework, error) {
-	r.read("rework")
+func (r *stubOverviewRepo) ReadRework(ctx context.Context, _ string, _ attendance.OverviewFilter) (attendance.OverviewRework, error) {
+	r.readIn(ctx, "rework")
 	return r.rework, nil
 }
 
-func (r *stubOverviewRepo) GetTrend(context.Context, string, attendance.OverviewFilter, int, *time.Location) (attendance.TrendResult, error) {
-	r.read("trend")
+func (r *stubOverviewRepo) GetTrend(ctx context.Context, _ string, _ attendance.OverviewFilter, _ int, _ *time.Location) (attendance.TrendResult, error) {
+	r.readIn(ctx, "trend")
 	return r.trend, r.trendErr
 }
 
@@ -176,16 +208,33 @@ func newTestUseCase(
 	configErr error,
 	targets *stubTargetRepo,
 ) *getOverviewUseCase {
-	uc := &getOverviewUseCase{repo: repo, now: func() time.Time {
-		return time.Date(2026, 9, 28, 15, 36, 0, 0, time.UTC)
-	}}
+	return overviewWith(repo, config, configErr, targets, passthroughCaching())
+}
+
+func overviewWith(
+	repo attendance.Repository,
+	config *wsc.WorkspaceConfig,
+	configErr error,
+	targets *stubTargetRepo,
+	caching SectionCaching,
+) *getOverviewUseCase {
 	resolver := NewScheduleResolver(stubConfigReader{config: config, err: configErr}, stubDepartmentSchedules{})
-	var service *TargetsService
-	if targets != nil {
-		service = NewTargetsService(targets, resolver)
+	uc, err := NewGetOverviewUseCase(OverviewDeps{
+		Repo:      repo,
+		Queue:     quietQueue{},
+		Presence:  quietOccupancy{},
+		Live:      quietPresence{},
+		Schedules: resolver,
+		Targets:   mustTargets(targets, resolver, caching.Versions),
+		Caching:   caching,
+		Clock: func() time.Time {
+			return time.Date(2026, 9, 28, 15, 36, 0, 0, time.UTC)
+		},
+	})
+	if err != nil {
+		panic(err)
 	}
-	uc.SetExecutiveDeps(resolver, service)
-	return uc
+	return uc.(*getOverviewUseCase)
 }
 
 func TestExecuteBuildsPeriodAndProjections(t *testing.T) {

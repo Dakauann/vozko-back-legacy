@@ -11,43 +11,22 @@ import (
 )
 
 func (r *repository) SearchEntriesWithMessages(input conversation.SearchEntriesInput) ([]conversation.EntryWithLastMessage, int64, error) {
-	if input.WorkspaceID != "" && input.CampaignID == "" {
+	target, ok, err := inboxTargetOf(input)
+	if err != nil {
+		return nil, 0, err
+	}
+	if !ok {
+		return nil, 0, nil
+	}
+	if target.workspace {
 		return r.searchEntriesByWorkspace(input)
 	}
 
-	var filteredIDs []string
-	if input.CampaignID == "" {
-		for _, id := range input.EntryIDs {
-			if id != "" {
-				filteredIDs = append(filteredIDs, id)
-			}
-		}
-		if len(filteredIDs) == 0 {
-			return nil, 0, nil
-		}
-	}
-
-	ch, ok := channelQueryFor(input.EntryType)
-	if !ok {
-		return nil, 0, fmt.Errorf("invalid entry type: %s", input.EntryType)
-	}
-
 	pageSize, offset := inboxPage(input.Page, input.PageSize)
-	queries := containerInboxQueries(input, ch, filteredIDs, pageSize, offset)
+	queries := containerInboxQueries(input, target.channel, target.filteredIDs, pageSize, offset)
 
-	var totalCount int64
-	if err := r.db.Raw(queries.countSQL, queries.countArgs...).Scan(&totalCount).Error; err != nil {
-		return nil, 0, fmt.Errorf("error counting search results: %w", err)
-	}
-	if totalCount == 0 {
-		return nil, 0, nil
-	}
-
-	type idResult struct {
-		EntryID string `gorm:"column:entry_id"`
-	}
-	var matchedIDs []idResult
-	if err := r.db.Raw(queries.pageSQL, queries.pageArgs...).Scan(&matchedIDs).Error; err != nil {
+	matchedIDs, totalCount, err := readCountedPage[containerInboxRow](r.db, queries)
+	if err != nil {
 		return nil, 0, fmt.Errorf("error getting search results: %w", err)
 	}
 	if len(matchedIDs) == 0 {
@@ -77,7 +56,33 @@ func (r *repository) SearchEntriesWithMessages(input conversation.SearchEntriesI
 	return entries, totalCount, nil
 }
 
-func containerInboxQueries(input conversation.SearchEntriesInput, ch channelQuery, filteredIDs []string, pageSize, offset int) inboxQueries {
+type containerInboxRow struct {
+	EntryID string `gorm:"column:entry_id"`
+	PageTotal
+}
+
+func containerInboxQueries(input conversation.SearchEntriesInput, ch channelQuery, filteredIDs []string, pageSize, offset int) countedPage {
+	set := containerInboxSet(input, ch, filteredIDs)
+	return countedPage{
+		countSQL:  "SELECT COUNT(*) FROM (" + set.rows + ") AS matching_entries",
+		countArgs: set.rowsArgs,
+		offset:    offset,
+		pageSQL: fmt.Sprintf(`
+			SELECT matching.entry_id, %s FROM (%s) AS matching
+			JOIN LATERAL (
+				SELECT cm_l.created_at
+				FROM conversation_messages cm_l
+				WHERE cm_l.entry_id = matching.entry_id AND cm_l.entry_type = ? AND cm_l.deleted_at IS NULL
+				ORDER BY cm_l.created_at DESC LIMIT 1
+			) AS lm ON true
+			%s
+			LIMIT ? OFFSET ?
+		`, pageTotalColumn, set.rows, inboxOrderBySQL(input.SortOrder, set.order)),
+		pageArgs: append(append([]interface{}{}, set.rowsArgs...), string(input.EntryType), pageSize, offset),
+	}
+}
+
+func containerInboxSet(input conversation.SearchEntriesInput, ch channelQuery, filteredIDs []string) inboxSet {
 	et := string(input.EntryType)
 	useCampaignFilter := input.CampaignID != ""
 	entryTypeLiteral := "'" + string(ch.EntryType) + "'::text"
@@ -99,7 +104,7 @@ func containerInboxQueries(input conversation.SearchEntriesInput, ch channelQuer
 	}
 
 	if len(input.StageIDs) > 0 && input.StageWorkspaceID != "" && !useCampaignFilter {
-		if len(input.StageIDs) == 1 && input.StageIDs[0] == "__unstaged__" {
+		if len(input.StageIDs) == 1 && input.StageIDs[0] == unstagedStageID {
 			cteConditions = append(cteConditions, "cm.entry_id NOT IN (SELECT entry_id FROM entry_stages WHERE workspace_id = ? AND deleted_at IS NULL)")
 			cteArgs = append(cteArgs, input.StageWorkspaceID)
 		} else {
@@ -122,7 +127,7 @@ func containerInboxQueries(input conversation.SearchEntriesInput, ch channelQuer
 	}
 
 	if input.AssignedUserID != "" {
-		cteConditions = append(cteConditions, "(NOT EXISTS (SELECT 1 FROM inbox_assignments ia WHERE ia.entry_id = cm.entry_id) OR EXISTS (SELECT 1 FROM inbox_assignments ia2 WHERE ia2.entry_id = cm.entry_id AND ia2.assigned_user_id = ?))")
+		cteConditions = append(cteConditions, unassignedOrAssignedTo("cm.entry_id"))
 		cteArgs = append(cteArgs, input.AssignedUserID)
 	}
 
@@ -169,23 +174,7 @@ func containerInboxQueries(input conversation.SearchEntriesInput, ch channelQuer
 	}
 
 	args := append(append(append([]interface{}{}, cteArgs...), marksArgs...), whereArgs...)
-	matching := baseQuery + " " + whereClause
-	return inboxQueries{
-		countSQL:  "SELECT COUNT(*) FROM (" + matching + ") AS matching_entries",
-		countArgs: args,
-		pageSQL: fmt.Sprintf(`
-			SELECT matching.entry_id FROM (%s) AS matching
-			JOIN LATERAL (
-				SELECT cm_l.created_at
-				FROM conversation_messages cm_l
-				WHERE cm_l.entry_id = matching.entry_id AND cm_l.entry_type = ? AND cm_l.deleted_at IS NULL
-				ORDER BY cm_l.created_at DESC LIMIT 1
-			) AS lm ON true
-			%s
-			LIMIT ? OFFSET ?
-		`, matching, inboxOrderBySQL(input.SortOrder, order)),
-		pageArgs: append(append([]interface{}{}, args...), et, pageSize, offset),
-	}
+	return inboxSet{rows: baseQuery + " " + whereClause, rowsArgs: args, order: order}
 }
 
 func containerInboxConditions(input conversation.SearchEntriesInput, ch channelQuery, filteredIDs []string, useCampaignFilter bool) ([]string, []interface{}) {
@@ -203,7 +192,7 @@ func containerInboxConditions(input conversation.SearchEntriesInput, ch channelQ
 	}
 
 	if useCampaignFilter && len(input.StageIDs) > 0 && input.StageWorkspaceID != "" {
-		if len(input.StageIDs) == 1 && input.StageIDs[0] == "__unstaged__" {
+		if len(input.StageIDs) == 1 && input.StageIDs[0] == unstagedStageID {
 			whereConditions = append(whereConditions, "NOT EXISTS (SELECT 1 FROM entry_stages et WHERE et.entry_id = entries.entry_id AND et.workspace_id = ? AND et.deleted_at IS NULL)")
 			whereArgs = append(whereArgs, input.StageWorkspaceID)
 		} else {

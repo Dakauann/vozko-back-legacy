@@ -18,6 +18,16 @@ func TestCreateInputRejectsScopeFromArgs(t *testing.T) {
 	}
 }
 
+func TestAgentSchemasOfferNoBusinessPhone(t *testing.T) {
+	create := NewCreateAgentTool(nil, AgentDeps{}).Definition().Parameters
+	update := NewUpdateAgentTool(nil, nil, AgentDeps{}).Definition().Parameters
+	for _, params := range []map[string]tools.Parameter{create, update} {
+		if _, ok := params["businessPhoneId"]; ok {
+			t.Fatal("agents reach numbers through the number's receptive settings, so the tools must not offer businessPhoneId")
+		}
+	}
+}
+
 func TestAgentSchemasExcludeScope(t *testing.T) {
 	create := NewCreateAgentTool(nil, AgentDeps{}).Definition().Parameters
 	update := NewUpdateAgentTool(nil, nil, AgentDeps{}).Definition().Parameters

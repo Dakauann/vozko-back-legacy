@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"vozko/domain/agent"
+	"vozko/domain/agentrun"
 	"vozko/domain/ai"
 	aa "vozko/domain/ai_attendance"
 	"vozko/domain/balance"
@@ -55,8 +56,9 @@ type aiAgentExecutor struct {
 	aiAttendance         WorkflowAIAttendance
 }
 
-func NewAIAgentExecutor(aiSvc ai.Service, agentRepo agent.Repository, msgRepo conversation.MessageRepository, cachedBalanceChecker balance.CachedBalanceChecker, waSender *whatsappSender, ragSvc rag.RAGService) workflow.NodeExecutor {
+func NewAIAgentExecutor(aiSvc ai.Service, agentRepo agent.Repository, msgRepo conversation.MessageRepository, cachedBalanceChecker balance.CachedBalanceChecker, waSender *whatsappSender, ragSvc rag.RAGService, attendance WorkflowAIAttendance) workflow.NodeExecutor {
 	return &aiAgentExecutor{
+		aiAttendance:         attendance,
 		aiService:            aiSvc,
 		agentRepo:            agentRepo,
 		messageRepo:          msgRepo,
@@ -81,18 +83,6 @@ func (e *aiAgentExecutor) generate(ctx context.Context, node *workflow.Node, inp
 	return e.aiService.Generate(ctx, input)
 }
 
-func (e *aiAgentExecutor) SetAIAttendance(svc WorkflowAIAttendance) {
-	if e != nil {
-		e.aiAttendance = svc
-	}
-}
-
-func SetAIAttendanceOnExecutor(exec workflow.NodeExecutor, svc WorkflowAIAttendance) {
-	if setter, ok := exec.(interface{ SetAIAttendance(WorkflowAIAttendance) }); ok {
-		setter.SetAIAttendance(svc)
-	}
-}
-
 func workflowAgentTurn(run *workflow.WorkflowRun, agentID string) ai.AgentTurn {
 	if run == nil {
 		return ai.AgentTurn{}
@@ -108,8 +98,17 @@ func workflowAgentTurn(run *workflow.WorkflowRun, agentID string) ai.AgentTurn {
 	}
 }
 
+func savedAgentTurn(turn ai.AgentTurn, saved *agent.Agent) ai.AgentTurn {
+	if saved == nil || turn.AgentID == "" {
+		return turn
+	}
+	turn.Source = string(agentrun.SourceWorkflow)
+	turn.AgentVersion = saved.RunningVersion
+	return turn
+}
+
 func (e *aiAgentExecutor) recordWorkflowAIAttendance(ctx *workflow.NodeContext, agentID, model, messageID string) {
-	if e == nil || e.aiAttendance == nil || ctx == nil || ctx.Run == nil {
+	if e == nil || ctx == nil || ctx.Run == nil {
 		return
 	}
 	wsID := strings.TrimSpace(ctx.Run.WorkspaceID)
@@ -519,7 +518,7 @@ func (e *aiAgentExecutor) Execute(ctx *workflow.NodeContext) (*workflow.NodeResu
 		VolatileTail:      contextNoteTail,
 		SessionID:         workflowAgentScope(entryID),
 		BillingReference:  workflowAgentScope(entryID),
-		AgentTurn:         workflowAgentTurn(ctx.Run, agentID),
+		AgentTurn:         savedAgentTurn(workflowAgentTurn(ctx.Run, agentID), resolvedAgent),
 	})
 
 	elapsed := time.Since(callStart)
@@ -692,7 +691,7 @@ func (e *aiAgentExecutor) Execute(ctx *workflow.NodeContext) (*workflow.NodeResu
 		if err != nil {
 			return &workflow.NodeResult{Error: err.Error(), ErrorKind: workflow.ErrorKindGuard}, nil
 		}
-		log.Printf("%s AI chose tool %q with args %v → routing via edge label", logPrefix, tc.Name, tc.Arguments)
+		log.Printf("%s AI chose tool %q with %d argument(s), routing via edge label", logPrefix, tc.Name, len(tc.Arguments))
 
 		result["tool_name"] = tc.Name
 		result["tool_args"] = tc.Arguments

@@ -496,26 +496,26 @@ definitions:
     type: object
   advertising.Destination:
     enum:
+    - WHATSAPP
+    - MESSENGER
+    - INSTAGRAM_DIRECT
     - WEBSITE
     - ON_AD
     - APP
     - ON_POST
     - NONE
     - CATALOG
-    - WHATSAPP
-    - MESSENGER
-    - INSTAGRAM_DIRECT
     type: string
     x-enum-varnames:
+    - DestinationWhatsApp
+    - DestinationMessenger
+    - DestinationInstagramDirect
     - DestinationWebsite
     - DestinationInstantForm
     - DestinationApp
     - DestinationOnPost
     - DestinationNone
     - DestinationCatalog
-    - DestinationWhatsApp
-    - DestinationMessenger
-    - DestinationInstagramDirect
   advertising.ExportLabels:
     properties:
       breakdowns:
@@ -806,6 +806,7 @@ definitions:
     - ObjectiveAppPromotion
   advertising.OptimizationGoal:
     enum:
+    - CONVERSATIONS
     - REACH
     - IMPRESSIONS
     - AD_RECALL_LIFT
@@ -819,9 +820,9 @@ definitions:
     - OFFSITE_CONVERSIONS
     - VALUE
     - APP_INSTALLS
-    - CONVERSATIONS
     type: string
     x-enum-varnames:
+    - GoalConversations
     - GoalReach
     - GoalImpressions
     - GoalAdRecallLift
@@ -835,7 +836,6 @@ definitions:
     - GoalOffsiteConversion
     - GoalValue
     - GoalAppInstalls
-    - GoalConversations
   advertising.Pixel:
     properties:
       creationTime:
@@ -2619,6 +2619,129 @@ definitions:
         example: Minha Marca
         type: string
     type: object
+  agent.Agent:
+    properties:
+      archived:
+        type: boolean
+      avatarUrl:
+        type: string
+      createdAt:
+        type: string
+      departmentId:
+        type: string
+      description:
+        type: string
+      externalId:
+        type: string
+      id:
+        type: string
+      internalTools:
+        items:
+          $ref: '#/definitions/agent.ToolBinding'
+        type: array
+      isActive:
+        type: boolean
+      knowledgeBaseIds:
+        items:
+          type: string
+        type: array
+      mcpCollectionIds:
+        items:
+          type: string
+        type: array
+      mediaIds:
+        items:
+          type: string
+        type: array
+      messagingModel:
+        type: string
+      messagingPrompt:
+        type: string
+      metadata:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        type: string
+      provider:
+        $ref: '#/definitions/agent.AgentProvider'
+      ragConfig:
+        $ref: '#/definitions/agent.RAGConfig'
+      ragEnabled:
+        type: boolean
+      tags:
+        items:
+          type: string
+        type: array
+      updatedAt:
+        type: string
+      variables:
+        items:
+          $ref: '#/definitions/agent.AgentVariable'
+        type: array
+      workspaceId:
+        type: string
+    type: object
+  agent.AgentProvider:
+    enum:
+    - platform
+    type: string
+    x-enum-varnames:
+    - AgentProviderAI
+  agent.AgentVariable:
+    properties:
+      defaultValue:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  agent.RAGConfig:
+    properties:
+      contextWindow:
+        type: integer
+      maxCharacters:
+        type: integer
+      maxChunks:
+        type: integer
+      maxChunksPerDoc:
+        type: integer
+      minScore:
+        type: number
+      numCandidates:
+        type: integer
+    type: object
+  agent.ToolBinding:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      description:
+        type: string
+      function:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      revision:
+        type: integer
+      testInputs:
+        items:
+          $ref: '#/definitions/testinput.TestInput'
+        type: array
+      visibility:
+        items:
+          $ref: '#/definitions/agent.ToolVisibility'
+        type: array
+    type: object
+  agent.ToolVisibility:
+    enum:
+    - messaging
+    type: string
+    x-enum-varnames:
+    - ToolVisibilityMessaging
   agent_presence.OccupancyRow:
     properties:
       occupancy:
@@ -2629,6 +2752,651 @@ definitions:
         type: integer
       user_id:
         type: string
+    type: object
+  agentpublishhttp.PublicationResponse:
+    properties:
+      hasUnpublishedChanges:
+        type: boolean
+      publishedAt:
+        type: string
+      publishedBy:
+        type: string
+      publishedVersion:
+        type: integer
+    type: object
+  agentpublishhttp.ToolPinResponse:
+    properties:
+      id:
+        type: string
+      revision:
+        type: integer
+    type: object
+  agentpublishhttp.VersionListResponse:
+    properties:
+      versions:
+        items:
+          $ref: '#/definitions/agentpublishhttp.VersionResponse'
+        type: array
+    type: object
+  agentpublishhttp.VersionResponse:
+    properties:
+      messagingModel:
+        type: string
+      messagingPrompt:
+        type: string
+      name:
+        type: string
+      publishedAt:
+        type: string
+      publishedBy:
+        type: string
+      tools:
+        items:
+          $ref: '#/definitions/agentpublishhttp.ToolPinResponse'
+        type: array
+      version:
+        example: 3
+        type: integer
+    type: object
+  agentrun.Detail:
+    properties:
+      run:
+        $ref: '#/definitions/agentrun.Run'
+      spans:
+        items:
+          $ref: '#/definitions/ai_attendance.ToolCall'
+        type: array
+    type: object
+  agentrun.Run:
+    properties:
+      agentId:
+        type: string
+      agentVersion:
+        type: integer
+      cachedTokens:
+        type: integer
+      costMicros:
+        type: integer
+      durationMs:
+        type: integer
+      entryId:
+        type: string
+      entryType:
+        type: string
+      error:
+        type: string
+      errorKind:
+        type: string
+      failedToolCalls:
+        type: integer
+      handledFailures:
+        type: integer
+      id:
+        type: string
+      inputTokens:
+        type: integer
+      model:
+        type: string
+      modelCalls:
+        items:
+          $ref: '#/definitions/ai.ModelCall'
+        type: array
+      outputTokens:
+        type: integer
+      reasoningTokens:
+        type: integer
+      reply:
+        type: string
+      source:
+        $ref: '#/definitions/agentrun.Source'
+      startedAt:
+        type: string
+      status:
+        $ref: '#/definitions/agentrun.Status'
+      toolCalls:
+        type: integer
+      tools:
+        items:
+          $ref: '#/definitions/agentrun.ToolPin'
+        type: array
+      userMessage:
+        type: string
+      workspaceId:
+        type: string
+    type: object
+  agentrun.Source:
+    enum:
+    - conversation
+    - simulator
+    - scenario
+    - workflow
+    type: string
+    x-enum-varnames:
+    - SourceConversation
+    - SourceSimulator
+    - SourceScenario
+    - SourceWorkflow
+  agentrun.Status:
+    enum:
+    - ok
+    - tool_failed
+    - failed
+    type: string
+    x-enum-varnames:
+    - StatusOK
+    - StatusToolFailed
+    - StatusFailed
+  agentrun.ToolPin:
+    properties:
+      id:
+        type: string
+      revision:
+        type: integer
+    type: object
+  agentscenario.Assertion:
+    properties:
+      arguments:
+        additionalProperties: true
+        type: object
+      kind:
+        $ref: '#/definitions/agentscenario.Kind'
+      match:
+        $ref: '#/definitions/agentscenario.Match'
+      path:
+        type: string
+      rubric:
+        type: string
+      toolId:
+        type: string
+      value:
+        type: string
+    type: object
+  agentscenario.AssertionResult:
+    properties:
+      index:
+        type: integer
+      kind:
+        $ref: '#/definitions/agentscenario.Kind'
+      passed:
+        type: boolean
+      reason:
+        type: string
+    type: object
+  agentscenario.Kind:
+    enum:
+    - tool_called
+    - tool_not_called
+    - tool_output_matches
+    - reply_matches
+    - reply_judged
+    type: string
+    x-enum-varnames:
+    - KindToolCalled
+    - KindToolNotCalled
+    - KindToolOutputMatches
+    - KindReplyMatches
+    - KindReplyJudged
+  agentscenario.Match:
+    enum:
+    - exact
+    - subset
+    - regex
+    - contains
+    type: string
+    x-enum-varnames:
+    - MatchExact
+    - MatchSubset
+    - MatchRegex
+    - MatchContains
+  agentscenario.Message:
+    properties:
+      content:
+        type: string
+    type: object
+  agentscenario.Mock:
+    properties:
+      isError:
+        type: boolean
+      result: {}
+    type: object
+  agentscenario.ObservedCall:
+    properties:
+      arguments:
+        additionalProperties: true
+        type: object
+      isError:
+        type: boolean
+      mocked:
+        type: boolean
+      name:
+        type: string
+      output: {}
+      toolId:
+        type: string
+    type: object
+  agentscenario.Run:
+    properties:
+      agentId:
+        type: string
+      error:
+        type: string
+      finishedAt:
+        type: string
+      id:
+        type: string
+      passed:
+        type: boolean
+      results:
+        items:
+          $ref: '#/definitions/agentscenario.AssertionResult'
+        type: array
+      runIds:
+        items:
+          type: string
+        type: array
+      scenarioId:
+        type: string
+      startedAt:
+        type: string
+      turns:
+        items:
+          $ref: '#/definitions/agentscenario.Turn'
+        type: array
+      workspaceId:
+        type: string
+    type: object
+  agentscenario.RunSummary:
+    properties:
+      finishedAt:
+        type: string
+      id:
+        type: string
+      passed:
+        type: boolean
+    type: object
+  agentscenario.Scenario:
+    properties:
+      agentId:
+        type: string
+      assertions:
+        items:
+          $ref: '#/definitions/agentscenario.Assertion'
+        type: array
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      id:
+        type: string
+      last:
+        $ref: '#/definitions/agentscenario.RunSummary'
+      messages:
+        items:
+          $ref: '#/definitions/agentscenario.Message'
+        type: array
+      mocks:
+        additionalProperties:
+          $ref: '#/definitions/agentscenario.Mock'
+        type: object
+      name:
+        type: string
+      previous:
+        $ref: '#/definitions/agentscenario.RunSummary'
+      sourceRunId:
+        type: string
+      updatedAt:
+        type: string
+      workspaceId:
+        type: string
+    type: object
+  agentscenario.Turn:
+    properties:
+      calls:
+        items:
+          $ref: '#/definitions/agentscenario.ObservedCall'
+        type: array
+      message:
+        type: string
+      replies:
+        items:
+          type: string
+        type: array
+      runId:
+        type: string
+    type: object
+  agentscenariohttp.RunListResponse:
+    properties:
+      runs:
+        items:
+          $ref: '#/definitions/agentscenario.Run'
+        type: array
+    type: object
+  agentscenariohttp.ScenarioListResponse:
+    properties:
+      scenarios:
+        items:
+          $ref: '#/definitions/agentscenario.Scenario'
+        type: array
+    type: object
+  agentscenariohttp.ScenarioRequest:
+    properties:
+      assertions:
+        items:
+          $ref: '#/definitions/agentscenario.Assertion'
+        type: array
+      messages:
+        items:
+          $ref: '#/definitions/agentscenario.Message'
+        type: array
+      mocks:
+        additionalProperties:
+          $ref: '#/definitions/agentscenario.Mock'
+        type: object
+      name:
+        example: Pedido atrasado
+        type: string
+      sourceRunId:
+        type: string
+    type: object
+  agenttool.Issue:
+    properties:
+      code:
+        type: string
+      field:
+        type: string
+      hint:
+        type: string
+      message:
+        type: string
+      severity:
+        $ref: '#/definitions/lint.Severity'
+      toolId:
+        type: string
+    type: object
+  agenttool.TestMode:
+    enum:
+    - run
+    - preview
+    - scenario
+    type: string
+    x-enum-varnames:
+    - TestModeRun
+    - TestModePreview
+    - TestModeScenario
+  agenttoolhttp.CreateToolRequest:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      description:
+        example: Consulta o status de um pedido pelo número que o cliente informou.
+        type: string
+      name:
+        example: consultar_status_do_pedido
+        type: string
+      type:
+        example: http_request
+        type: string
+      visibility:
+        items:
+          type: string
+        type: array
+    type: object
+  agenttoolhttp.DraftTestRequest:
+    properties:
+      arguments:
+        additionalProperties: true
+        type: object
+      confirmRealCall:
+        type: boolean
+      context:
+        $ref: '#/definitions/agenttoolhttp.TestContext'
+      tool:
+        $ref: '#/definitions/agenttoolhttp.DraftTool'
+    type: object
+  agenttoolhttp.DraftTool:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        example: http_request
+        type: string
+      visibility:
+        items:
+          type: string
+        type: array
+    type: object
+  agenttoolhttp.MCPSourcesResponse:
+    properties:
+      sources:
+        items:
+          $ref: '#/definitions/tools_usecase.MCPSourceView'
+        type: array
+    type: object
+  agenttoolhttp.OrderRequest:
+    properties:
+      ids:
+        items:
+          type: string
+        type: array
+    type: object
+  agenttoolhttp.RevisionListResponse:
+    properties:
+      revisions:
+        items:
+          $ref: '#/definitions/agenttoolhttp.RevisionResponse'
+        type: array
+    type: object
+  agenttoolhttp.RevisionResponse:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      description:
+        type: string
+      name:
+        example: consultar_status_do_pedido
+        type: string
+      revision:
+        example: 2
+        type: integer
+      savedAt:
+        type: string
+      savedBy:
+        type: string
+      toolId:
+        type: string
+      type:
+        example: http_request
+        type: string
+      visibility:
+        items:
+          type: string
+        type: array
+    type: object
+  agenttoolhttp.TestContext:
+    properties:
+      entryId:
+        type: string
+      entryType:
+        type: string
+      leadId:
+        type: string
+      vars:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  agenttoolhttp.TestInputsRequest:
+    properties:
+      testInputs:
+        items:
+          $ref: '#/definitions/testinput.TestInput'
+        type: array
+    type: object
+  agenttoolhttp.TestInputsResponse:
+    properties:
+      testInputs:
+        items:
+          $ref: '#/definitions/testinput.TestInput'
+        type: array
+    type: object
+  agenttoolhttp.TestRequest:
+    properties:
+      arguments:
+        additionalProperties: true
+        type: object
+      confirmRealCall:
+        type: boolean
+      context:
+        $ref: '#/definitions/agenttoolhttp.TestContext'
+      testInputId:
+        type: string
+    type: object
+  agenttoolhttp.TestResponse:
+    properties:
+      durationMs:
+        type: integer
+      errorChain:
+        items:
+          type: string
+        type: array
+      errorKind:
+        type: string
+      exchanges:
+        items:
+          $ref: '#/definitions/calltrace.HTTPExchange'
+        type: array
+      isError:
+        type: boolean
+      issues:
+        items:
+          $ref: '#/definitions/agenttool.Issue'
+        type: array
+      mappedOutput: {}
+      modelResult:
+        type: string
+      preview:
+        type: boolean
+    type: object
+  agenttoolhttp.ToolListResponse:
+    properties:
+      green:
+        type: boolean
+      issues:
+        items:
+          $ref: '#/definitions/agenttool.Issue'
+        type: array
+      tools:
+        items:
+          $ref: '#/definitions/agenttoolhttp.ToolResponse'
+        type: array
+    type: object
+  agenttoolhttp.ToolResponse:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      description:
+        example: Consulta o status de um pedido pelo número que o cliente informou.
+        type: string
+      id:
+        example: 5b0c1d4e-9a7f-4f4a-8a52-3b7e1e2f9c10
+        type: string
+      inputSchema:
+        additionalProperties: true
+        type: object
+      name:
+        example: consultar_status_do_pedido
+        type: string
+      position:
+        example: 0
+        type: integer
+      revision:
+        example: 3
+        type: integer
+      testInputs:
+        items:
+          $ref: '#/definitions/testinput.TestInput'
+        type: array
+      testMode:
+        allOf:
+        - $ref: '#/definitions/agenttool.TestMode'
+        enum:
+        - run
+        - preview
+        - scenario
+        example: run
+      type:
+        example: http_request
+        type: string
+      visibility:
+        items:
+          type: string
+        type: array
+    type: object
+  agenttoolhttp.UpdateToolRequest:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      description:
+        example: Consulta o status de um pedido pelo número que o cliente informou.
+        type: string
+      name:
+        example: consultar_status_do_pedido
+        type: string
+      revision:
+        example: 3
+        type: integer
+      visibility:
+        items:
+          type: string
+        type: array
+    type: object
+  agenttoolhttp.ValidateRequest:
+    properties:
+      tools:
+        items:
+          $ref: '#/definitions/agenttoolhttp.DraftTool'
+        type: array
+    type: object
+  agenttoolhttp.ValidationResponse:
+    properties:
+      green:
+        type: boolean
+      issues:
+        items:
+          $ref: '#/definitions/agenttool.Issue'
+        type: array
+    type: object
+  ai.ModelCall:
+    properties:
+      cachedTokens:
+        type: integer
+      costMicros:
+        type: integer
+      finishReason:
+        type: string
+      index:
+        type: integer
+      inputTokens:
+        type: integer
+      latencyMs:
+        type: integer
+      model:
+        type: string
+      outputTokens:
+        type: integer
+      reasoningTokens:
+        type: integer
     type: object
   ai.ModelCapability:
     enum:
@@ -2702,6 +3470,8 @@ definitions:
     properties:
       agentId:
         type: string
+      agentRunId:
+        type: string
       args:
         additionalProperties: true
         type: object
@@ -2715,19 +3485,48 @@ definitions:
         type: string
       error:
         type: string
+      errorChain:
+        items:
+          type: string
+        type: array
       errorCode:
         type: string
+      errorKind:
+        type: string
+      followedBy:
+        type: string
+      http:
+        items:
+          $ref: '#/definitions/calltrace.HTTPExchange'
+        type: array
       id:
+        type: string
+      mappedOutput: {}
+      modelCallIndex:
+        type: integer
+      modelResult:
         type: string
       outcome:
         $ref: '#/definitions/ai_attendance.ToolCallOutcome'
       runId:
         type: string
+      sequence:
+        type: integer
       sessionId:
+        type: string
+      simulated:
+        type: boolean
+      source:
         type: string
       toolCallId:
         type: string
+      toolInstanceId:
+        type: string
       toolName:
+        type: string
+      toolRevision:
+        type: integer
+      toolType:
         type: string
       workflowId:
         type: string
@@ -6362,6 +7161,41 @@ definitions:
         example: 42
         type: integer
     type: object
+  calltrace.HTTPExchange:
+    properties:
+      attempt:
+        type: integer
+      egressRefusal:
+        type: string
+      error:
+        type: string
+      latencyMs:
+        type: integer
+      method:
+        type: string
+      redirects:
+        type: integer
+      requestBody:
+        type: string
+      requestHeaders:
+        additionalProperties:
+          type: string
+        type: object
+      responseBody:
+        type: string
+      responseHeaders:
+        additionalProperties:
+          type: string
+        type: object
+      status:
+        type: integer
+      tlsFallback:
+        type: boolean
+      truncated:
+        type: boolean
+      url:
+        type: string
+    type: object
   campaign.BindingSource:
     enum:
     - literal
@@ -7431,6 +8265,15 @@ definitions:
         type: string
       recurrence:
         $ref: '#/definitions/carriercampaign.RecurrenceDTO'
+      schedule_failure:
+        allOf:
+        - $ref: '#/definitions/scheduledstart.Failure'
+        enum:
+        - schedule_blocked
+        - schedule_unconfirmed
+        - schedule_needs_review
+        - schedule_nothing_to_send
+        - schedule_start_failed
       scheduled_at:
         type: string
       sender_id:
@@ -7509,6 +8352,15 @@ definitions:
         type: string
       recurrence:
         $ref: '#/definitions/carriercampaign.RecurrenceDTO'
+      schedule_failure:
+        allOf:
+        - $ref: '#/definitions/scheduledstart.Failure'
+        enum:
+        - schedule_blocked
+        - schedule_unconfirmed
+        - schedule_needs_review
+        - schedule_nothing_to_send
+        - schedule_start_failed
       scheduled_at:
         type: string
       sender_id:
@@ -9375,6 +10227,31 @@ definitions:
     - Or
   crmfilter.Field:
     enum:
+    - id
+    - phone_any
+    - email
+    - nickname
+    - birthday
+    - birth_date
+    - zip
+    - state
+    - city
+    - district
+    - geo_precision
+    - geo_status
+    - has_address
+    - has_identity
+    - opted_out
+    - whatsapp_opt_in
+    - relation_kind
+    - relatives_count
+    - referred_count
+    - referred_by
+    - geo_placement
+    - opt_out_source
+    - opted_out_at
+    - company
+    - area_approximate
     - owner
     - carteira
     - pipeline
@@ -9406,33 +10283,33 @@ definitions:
     - memory_updated_at
     - custom
     - area
-    - id
-    - phone_any
-    - email
-    - nickname
-    - birthday
-    - birth_date
-    - zip
-    - state
-    - city
-    - district
-    - geo_precision
-    - geo_status
-    - has_address
-    - has_identity
-    - opted_out
-    - whatsapp_opt_in
-    - relation_kind
-    - relatives_count
-    - referred_count
-    - referred_by
-    - geo_placement
-    - opt_out_source
-    - opted_out_at
-    - company
-    - area_approximate
     type: string
     x-enum-varnames:
+    - FieldID
+    - FieldPhoneAny
+    - FieldEmail
+    - FieldNickname
+    - FieldBirthday
+    - FieldBirthDate
+    - FieldZip
+    - FieldState
+    - FieldCity
+    - FieldDistrict
+    - FieldGeoPrecision
+    - FieldGeoStatus
+    - FieldHasAddress
+    - FieldHasIdentity
+    - FieldOptedOut
+    - FieldWhatsAppOptIn
+    - FieldRelationKind
+    - FieldRelativesCount
+    - FieldReferredCount
+    - FieldReferredBy
+    - FieldGeoPlacement
+    - FieldOptOutSource
+    - FieldOptedOutAt
+    - FieldCompany
+    - FieldAreaApproximate
     - FieldOwner
     - FieldCarteira
     - FieldPipeline
@@ -9464,31 +10341,6 @@ definitions:
     - FieldMemoryUpdatedAt
     - FieldCustom
     - FieldArea
-    - FieldID
-    - FieldPhoneAny
-    - FieldEmail
-    - FieldNickname
-    - FieldBirthday
-    - FieldBirthDate
-    - FieldZip
-    - FieldState
-    - FieldCity
-    - FieldDistrict
-    - FieldGeoPrecision
-    - FieldGeoStatus
-    - FieldHasAddress
-    - FieldHasIdentity
-    - FieldOptedOut
-    - FieldWhatsAppOptIn
-    - FieldRelationKind
-    - FieldRelativesCount
-    - FieldReferredCount
-    - FieldReferredBy
-    - FieldGeoPlacement
-    - FieldOptOutSource
-    - FieldOptedOutAt
-    - FieldCompany
-    - FieldAreaApproximate
   crmfilter.Filter:
     properties:
       groups:
@@ -12653,6 +13505,15 @@ definitions:
       name:
         type: string
     type: object
+  handlers.agentVariableRequest:
+    properties:
+      defaultValue:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    type: object
   handlers.draftConflictDetails:
     properties:
       revision:
@@ -12694,6 +13555,21 @@ definitions:
         type: string
       content:
         type: string
+    type: object
+  handlers.ragConfigRequest:
+    properties:
+      contextWindow:
+        type: integer
+      maxCharacters:
+        type: integer
+      maxChunks:
+        type: integer
+      maxChunksPerDoc:
+        type: integer
+      minScore:
+        type: number
+      numCandidates:
+        type: integer
     type: object
   handlers.resolveHandlesRequest:
     properties:
@@ -12752,6 +13628,47 @@ definitions:
       issues:
         items:
           $ref: '#/definitions/workflow.TriggerInputIssue'
+        type: array
+    type: object
+  handlers.updateAgentRequest:
+    properties:
+      avatarUrl:
+        type: string
+      description:
+        type: string
+      isActive:
+        type: boolean
+      knowledgeBaseIds:
+        items:
+          type: string
+        type: array
+      mediaIds:
+        items:
+          type: string
+        type: array
+      messagingModel:
+        type: string
+      messagingPrompt:
+        type: string
+      metadata:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        type: string
+      provider:
+        type: string
+      ragConfig:
+        $ref: '#/definitions/handlers.ragConfigRequest'
+      ragEnabled:
+        type: boolean
+      tags:
+        items:
+          type: string
+        type: array
+      variables:
+        items:
+          $ref: '#/definitions/handlers.agentVariableRequest'
         type: array
     type: object
   handlers.updateWorkflowRequest:
@@ -15893,6 +16810,16 @@ definitions:
         example: Prefere PIX desde ago/2026
         type: string
     type: object
+  lint.Severity:
+    enum:
+    - blocking
+    - advisory
+    - info
+    type: string
+    x-enum-varnames:
+    - SeverityBlocking
+    - SeverityAdvisory
+    - SeverityInfo
   mediagen.Clip:
     properties:
       durationMs:
@@ -17278,7 +18205,6 @@ definitions:
     type: object
   report.FailureCode:
     enum:
-    - forbidden
     - unknown_kind
     - unsupported_format
     - too_many_rows
@@ -17289,9 +18215,9 @@ definitions:
     - cancelled
     - workspace_required
     - empty_result
+    - forbidden
     type: string
     x-enum-varnames:
-    - FailureForbidden
     - FailureUnknownKind
     - FailureUnsupported
     - FailureTooManyRows
@@ -17302,6 +18228,7 @@ definitions:
     - FailureCancelled
     - FailureWorkspaceEmpty
     - FailureEmptyResult
+    - FailureForbidden
   report.Format:
     enum:
     - csv
@@ -17353,22 +18280,22 @@ definitions:
     type: object
   report.Kind:
     enum:
-    - leads
-    - whatsapp_dispatch
-    - whatsapp_form_responses
     - attendance_overview
     - conversation_entries
     - balance_transactions
     - opportunities
+    - leads
+    - whatsapp_dispatch
+    - whatsapp_form_responses
     type: string
     x-enum-varnames:
-    - KindLeads
-    - KindWhatsAppDispatch
-    - KindWhatsAppFormResponses
     - KindAttendanceOverview
     - KindConversationEntries
     - KindBalanceTransactions
     - KindOpportunities
+    - KindLeads
+    - KindWhatsAppDispatch
+    - KindWhatsAppFormResponses
   report.KindDescriptor:
     properties:
       formats:
@@ -17729,6 +18656,20 @@ definitions:
       total_pages:
         type: integer
     type: object
+  scheduledstart.Failure:
+    enum:
+    - schedule_blocked
+    - schedule_unconfirmed
+    - schedule_needs_review
+    - schedule_nothing_to_send
+    - schedule_start_failed
+    type: string
+    x-enum-varnames:
+    - FailureBlocked
+    - FailureUnconfirmed
+    - FailureNeedsReview
+    - FailureNothingToSend
+    - FailureStartFailed
   shared.EntryType:
     enum:
     - whatsapp
@@ -19455,6 +20396,18 @@ definitions:
       templateId:
         type: string
     type: object
+  testinput.TestInput:
+    properties:
+      id:
+        type: string
+      input:
+        additionalProperties: true
+        type: object
+      name:
+        type: string
+      savedAt:
+        type: string
+    type: object
   tiktok.AccountResponse:
     properties:
       agentId:
@@ -19661,6 +20614,30 @@ definitions:
       views:
         type: integer
     type: object
+  tools_usecase.MCPSourceView:
+    properties:
+      id:
+        type: string
+      kind:
+        type: string
+      name:
+        type: string
+      tools:
+        items:
+          $ref: '#/definitions/tools_usecase.MCPToolView'
+        type: array
+      unavailable:
+        type: boolean
+    type: object
+  tools_usecase.MCPToolView:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      title:
+        type: string
+    type: object
   unofficial_whatsapp.GroupRole:
     enum:
     - member
@@ -19802,6 +20779,15 @@ definitions:
         type: string
       readyToStart:
         type: boolean
+      scheduleFailure:
+        allOf:
+        - $ref: '#/definitions/scheduledstart.Failure'
+        enum:
+        - schedule_blocked
+        - schedule_unconfirmed
+        - schedule_needs_review
+        - schedule_nothing_to_send
+        - schedule_start_failed
       scheduledStart:
         type: string
       sendDelayMaxMs:
@@ -23423,16 +24409,20 @@ definitions:
   workflow.ErrorKind:
     enum:
     - config
+    - arguments
+    - render
+    - secret
+    - transport
     - timeout
     - http_status
-    - transport
+    - mapping
+    - internal
+    - cancelled
     - script
     - panic
     - guard
     - gate
     - validation
-    - cancelled
-    - internal
     - handled
     - real_call_not_confirmed
     - wrong_workflow_type
@@ -23441,17 +24431,11 @@ definitions:
     - window_closed
     type: string
     x-enum-varnames:
-    - ErrorKindConfig
-    - ErrorKindTimeout
-    - ErrorKindHTTPStatus
-    - ErrorKindTransport
     - ErrorKindScript
     - ErrorKindPanic
     - ErrorKindGuard
     - ErrorKindGate
     - ErrorKindValidation
-    - ErrorKindCancelled
-    - ErrorKindInternal
     - ErrorKindHandled
     - ErrorKindRealCallNotConfirmed
     - ErrorKindWrongWorkflowType
@@ -23471,6 +24455,8 @@ definitions:
     type: object
   workflow.HTTPExchange:
     properties:
+      attempt:
+        type: integer
       egressRefusal:
         type: string
       error:
@@ -23553,6 +24539,7 @@ definitions:
     type: object
   workflow.LintIssueCode:
     enum:
+    - NODE_HTTP_URL_NOT_HTTPS
     - GRAPH_EMPTY
     - GRAPH_TOO_MANY_NODES
     - GRAPH_TOO_MANY_EDGES
@@ -23601,15 +24588,16 @@ definitions:
     - NODE_CODE_READS_TEMPLATE
     - NODE_SECRET_IN_PLAIN_TEXT
     - NODE_PINNED_OUTPUT
+    - NODE_INVALID_PLATFORM_EMAIL
     - NODE_CONSENT_GRANT_NEEDS_REPLY
     - SEND_OUTSIDE_WINDOW_RISK
-    - NODE_AGENT_CALL_INPUTS_INVALID
-    - NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER
-    - NODE_INVALID_PLATFORM_EMAIL
     - DATA_REF_NEVER_SET
     - DATA_REF_SOME_PATHS
+    - NODE_AGENT_CALL_INPUTS_INVALID
+    - NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER
     type: string
     x-enum-varnames:
+    - LintHTTPURLNotHTTPS
     - LintGraphEmpty
     - LintGraphTooManyNodes
     - LintGraphTooManyEdges
@@ -23658,13 +24646,13 @@ definitions:
     - LintCodeReadsTemplate
     - LintSecretInPlainText
     - LintPinnedOutput
+    - LintInvalidPlatformEmail
     - LintConsentGrantNeedsReply
     - LintSendOutsideWindowRisk
-    - LintAgentCallInputsInvalid
-    - LintReplyToAgentWithoutTrigger
-    - LintInvalidPlatformEmail
     - LintDataRefNeverSet
     - LintDataRefSomePaths
+    - LintAgentCallInputsInvalid
+    - LintReplyToAgentWithoutTrigger
   workflow.LintSeverity:
     enum:
     - blocking
@@ -24725,30 +25713,6 @@ definitions:
         example: 5000
         type: integer
     type: object
-  workflowsecrethttp.PutSecretRequest:
-    properties:
-      value:
-        example: s3nh4-do-portal
-        type: string
-    type: object
-  workflowsecrethttp.SecretListResponse:
-    properties:
-      secrets:
-        items:
-          $ref: '#/definitions/workflowsecrethttp.SecretResponse'
-        type: array
-    type: object
-  workflowsecrethttp.SecretResponse:
-    properties:
-      name:
-        example: unifecaf_senha
-        type: string
-      updated_at:
-        type: string
-      updated_by:
-        example: 5b0c1d4e-9a7f-4f4a-8a52-3b7e1e2f9c10
-        type: string
-    type: object
   workflowwebhook.webhookConfigRequest:
     properties:
       active:
@@ -25507,6 +26471,30 @@ definitions:
       priceMicros:
         example: 6000000
         type: integer
+    type: object
+  workspacesecrethttp.PutSecretRequest:
+    properties:
+      value:
+        example: s3nh4-do-portal
+        type: string
+    type: object
+  workspacesecrethttp.SecretListResponse:
+    properties:
+      secrets:
+        items:
+          $ref: '#/definitions/workspacesecrethttp.SecretResponse'
+        type: array
+    type: object
+  workspacesecrethttp.SecretResponse:
+    properties:
+      name:
+        example: unifecaf_senha
+        type: string
+      updated_at:
+        type: string
+      updated_by:
+        example: 5b0c1d4e-9a7f-4f4a-8a52-3b7e1e2f9c10
+        type: string
     type: object
 info:
   contact: {}
@@ -28451,6 +29439,509 @@ paths:
       summary: Validar um código de indicação
       tags:
       - Afiliados
+  /agents/{id}:
+    put:
+      consumes:
+      - application/json
+      description: |-
+        Salva os campos do rascunho do agente: nome, descrição, prompt, modelo, avatar, etiquetas, metadados, mídias, bases de conhecimento, RAG, variáveis e o estado ativo. Conversas seguem usando a versão publicada até a próxima publicação.
+
+        As ferramentas não vão neste corpo: cada uma é salva em /agents/{id}/tools. Um corpo com `internalTools` responde 400 `agent_tools_moved` sem salvar nada. Servidores MCP também são ferramentas (tipo `mcp_source`, com as ferramentas permitidas): um corpo com `mcpCollectionIds` responde 400 `agent_mcp_collections_moved`.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campos do agente
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.updateAgentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agent.Agent'
+        "400":
+          description: agent_tools_moved, agent_mcp_collections_moved, agent_invalid_body,
+            agent_name_required
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: agent_forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: agent_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: agent_not_activatable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Atualizar um agente
+      tags:
+      - Agentes
+  /agents/{id}/publication:
+    get:
+      description: Diz qual versão está publicada, quando e por quem, e se o rascunho
+        tem mudanças ainda não publicadas. Sem versão publicada, `publishedVersion`
+        vem nulo e o agente não atende.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agentpublishhttp.PublicationResponse'
+      security:
+      - BearerAuth: []
+      summary: Estado de publicação do agente
+      tags:
+      - Agentes
+  /agents/{id}/publish:
+    post:
+      description: |-
+        Publica o rascunho atual do agente como uma nova versão imutável. Editar o agente ou as ferramentas muda só o rascunho; as conversas e os fluxos usam a versão publicada até a próxima publicação. Cada versão fixa a revisão de cada ferramenta.
+
+        Antes de publicar, o rascunho passa pelo mesmo validador do editor. Com algum problema bloqueante a resposta é 422 `agent_not_publishable` com a lista em `details.issues`. Um rascunho igual à versão publicada não cria versão nova.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agentpublishhttp.VersionResponse'
+        "403":
+          description: agent_forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: agent_not_publishable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Publicar o rascunho do agente
+      tags:
+      - Agentes
+  /agents/{id}/runs:
+    get:
+      description: |-
+        Lista as execuções do agente, da mais recente para a mais antiga. Cada execução é um turno da IA: modelo, situação, duração, tokens, custo informado pelo provedor, quantas ferramentas foram chamadas, quantas falharam e quantas falhas a IA contornou, e a revisão de cada ferramenta oferecida.
+
+        | Filtro | Valores |
+        |---|---|
+        | from, to | datas RFC 3339 |
+        | source | conversation, simulator, scenario, workflow |
+        | status | ok, tool_failed, failed |
+        | toolId | id da ferramenta do agente |
+        | errorKind | tipo do erro de uma chamada (timeout, http_status, arguments, ...) |
+        | entryId | id da conversa |
+        | handledFailure | true para só execuções com falha contornada |
+
+        Execuções de conversas aparecem só para quem pode ver a conversa (departamento e atribuição). Execuções guardadas por 180 dias; o conteúdo das chamadas, por 30.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Início (RFC 3339)
+        in: query
+        name: from
+        type: string
+      - description: Fim (RFC 3339)
+        in: query
+        name: to
+        type: string
+      - description: Origem
+        in: query
+        name: source
+        type: string
+      - description: Situação
+        in: query
+        name: status
+        type: string
+      - description: Ferramenta
+        in: query
+        name: toolId
+        type: string
+      - description: Tipo de erro
+        in: query
+        name: errorKind
+        type: string
+      - description: Conversa
+        in: query
+        name: entryId
+        type: string
+      - description: Só falhas contornadas
+        in: query
+        name: handledFailure
+        type: boolean
+      - description: Página, a partir de 1
+        in: query
+        name: page
+        type: integer
+      - description: Itens por página
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.PaginatedPayload'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/agentrun.Run'
+                  type: array
+              type: object
+        "400":
+          description: agent_run_filter_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: agent_forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: agent_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar as execuções de um agente
+      tags:
+      - Agentes
+  /agents/{id}/runs/{runId}:
+    get:
+      description: 'Devolve a execução com as chamadas do modelo (latência, tokens,
+        motivo de parada) e as chamadas de ferramenta na ordem em que aconteceram:
+        argumentos, requisição e resposta HTTP com segredos mascarados, saída mapeada,
+        exatamente o que a IA leu, tipo e cadeia do erro, o que a IA fez depois de
+        uma falha (`followedBy`) e a revisão da ferramenta que rodou.'
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID da execução
+        in: path
+        name: runId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agentrun.Detail'
+        "403":
+          description: agent_forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: agent_run_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Ler uma execução de um agente
+      tags:
+      - Agentes
+  /agents/{id}/runs/{runId}/scenario:
+    post:
+      description: Monta um rascunho de cenário (não salvo) com a mensagem do cliente
+        da execução (documentos e credenciais mascarados), a resposta registrada de
+        cada ferramenta como resposta simulada e uma verificação de que as mesmas
+        ferramentas são chamadas. Revise e salve com POST /agents/{id}/scenarios.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID da execução
+        in: path
+        name: runId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agentscenario.Scenario'
+        "404":
+          description: agent_run_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Montar um cenário a partir de uma execução
+      tags:
+      - Agentes
+  /agents/{id}/scenarios:
+    get:
+      description: Lista os cenários salvos do agente com o resultado da última execução
+        e da anterior, para mostrar o que passou a falhar e o que voltou a passar.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agentscenariohttp.ScenarioListResponse'
+        "403":
+          description: agent_forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: agent_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar os cenários de teste de um agente
+      tags:
+      - Agentes
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Um cenário é uma conversa roteirizada: mensagens do cliente (até 60), respostas simuladas por ferramenta (`mocks`, pelo id da ferramenta, até 64 KB cada) e verificações.
+
+        | Verificação | Campos |
+        |---|---|
+        | tool_called | toolId, e opcionalmente arguments com match exact, subset ou regex |
+        | tool_not_called | toolId |
+        | tool_output_matches | toolId, path (ex.: data.itens[0].id), match exact ou regex, value |
+        | reply_matches | match contains ou regex, value (confere a última resposta) |
+        | reply_judged | rubric: um avaliador de IA lê a conversa e decide; o uso é cobrado como no simulador |
+
+        Ferramentas com resposta simulada não chamam nada de verdade. Sem resposta simulada, só consultas (GET e HEAD, base de conhecimento, agenda, CEP) rodam de verdade; o resto devolve um resultado de simulação.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Cenário
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/agentscenariohttp.ScenarioRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/agentscenario.Scenario'
+        "400":
+          description: agent_scenario_invalid, agent_scenario_too_long
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "413":
+          description: agent_scenario_mock_too_large
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Criar um cenário de teste
+      tags:
+      - Agentes
+  /agents/{id}/scenarios/{scenarioId}:
+    delete:
+      description: Remove o cenário e o histórico das suas execuções.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID do cenário
+        in: path
+        name: scenarioId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: agent_scenario_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Remover um cenário de teste
+      tags:
+      - Agentes
+    put:
+      consumes:
+      - application/json
+      description: Substitui nome, mensagens, respostas simuladas e verificações do
+        cenário. As execuções anteriores continuam no histórico.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID do cenário
+        in: path
+        name: scenarioId
+        required: true
+        type: string
+      - description: Cenário
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/agentscenariohttp.ScenarioRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agentscenario.Scenario'
+        "400":
+          description: agent_scenario_invalid, agent_scenario_too_long
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: agent_scenario_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "413":
+          description: agent_scenario_mock_too_large
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Alterar um cenário de teste
+      tags:
+      - Agentes
+  /agents/{id}/scenarios/{scenarioId}/run:
+    post:
+      description: Roda o cenário no rascunho do agente, mensagem por mensagem, pelo
+        mesmo caminho do simulador, e confere cada verificação. Cada mensagem vira
+        uma execução do agente com origem `scenario`.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID do cenário
+        in: path
+        name: scenarioId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agentscenario.Run'
+        "404":
+          description: agent_scenario_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Executar um cenário de teste
+      tags:
+      - Agentes
+  /agents/{id}/scenarios/{scenarioId}/runs:
+    get:
+      description: As 20 execuções mais recentes do cenário, com o resultado de cada
+        verificação, as respostas do agente por mensagem e os ids das execuções do
+        agente (abra-os em /agents/{id}/runs/{runId}). Guardadas por 180 dias.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID do cenário
+        in: path
+        name: scenarioId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agentscenariohttp.RunListResponse'
+        "404":
+          description: agent_scenario_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Histórico de execuções de um cenário
+      tags:
+      - Agentes
+  /agents/{id}/scenarios/run:
+    post:
+      description: Roda todos os cenários do agente, até três ao mesmo tempo, e devolve
+        uma execução por cenário.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agentscenariohttp.RunListResponse'
+      security:
+      - BearerAuth: []
+      summary: Executar todos os cenários de um agente
+      tags:
+      - Agentes
   /agents/{id}/simulate:
     post:
       consumes:
@@ -28507,6 +29998,542 @@ paths:
       summary: Simular uma conversa com o agente
       tags:
       - Agentes
+  /agents/{id}/tools:
+    get:
+      description: |-
+        Lista as ferramentas do agente na ordem em que a IA as recebe. Cada ferramenta é uma instância com id, tipo, nome da função que a IA chama, descrição para a IA, configuração, ordem e revisão.
+
+        `testMode` diz como a ferramenta é testada sozinha em /agents/{id}/tools/{toolId}/test, pela mesma regra que o teste aplica:
+
+        | testMode | O teste |
+        |---|---|
+        | run | Chama a API de verdade; métodos que alteram dados pedem `confirmRealCall` |
+        | preview | Mostra o que a ferramenta faria, sem executar nada |
+        | scenario | Não roda sozinha: o teste responde 422 `agent_tool_test_unsupported`; teste num cenário do simulador |
+
+        Credenciais nunca voltam: cabeçalhos de autenticação e valores de consulta sensíveis aparecem só como referência a um segredo do workspace ({{secret.<nome>}}), e um valor antigo ainda em texto aparece como ••••.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agenttoolhttp.ToolListResponse'
+        "403":
+          description: agent_forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: agent_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar as ferramentas de um agente
+      tags:
+      - Agentes
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Cria uma instância de ferramenta. Tipos que aceitam várias instâncias (como Requisição HTTP) podem aparecer quantas vezes forem precisas, cada uma com seu nome, descrição e configuração. O nome da função é opcional: sem ele o backend propõe um a partir da descrição.
+
+        | Regra | Código |
+        |---|---|
+        | Nome com letras minúsculas, dígitos e _, começando por letra, até 64 caracteres | agent_tool_name_invalid |
+        | Nome já usado por outra função do agente | agent_tool_name_taken |
+        | Tipo de uma instância só que já está no agente | agent_tool_single_type_taken |
+        | Mesmo destino (por exemplo o mesmo fluxo) já usado | agent_tool_target_taken |
+        | Requisição HTTP sem descrição | agent_tool_description_required |
+
+        Credenciais digitadas em cabeçalhos de autenticação ou na consulta da URL vão para os segredos do workspace, e a configuração guarda só a referência.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Ferramenta
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/agenttoolhttp.CreateToolRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/agenttoolhttp.ToolResponse'
+        "400":
+          description: agent_invalid_body, agent_tool_type_unknown, agent_tool_name_invalid,
+            agent_tool_description_required, agent_tool_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: agent_tool_name_taken, agent_tool_target_taken, agent_tool_single_type_taken
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Adicionar uma ferramenta ao agente
+      tags:
+      - Agentes
+  /agents/{id}/tools/{toolId}:
+    delete:
+      description: Remove a ferramenta do agente. As revisões continuam guardadas
+        para os rastros das execuções.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID da ferramenta
+        in: path
+        name: toolId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: agent_tool_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Remover uma ferramenta do agente
+      tags:
+      - Agentes
+    put:
+      consumes:
+      - application/json
+      description: 'Troca nome, descrição, configuração e visibilidade de uma ferramenta.
+        Envie a revisão que você leu: se outra pessoa salvou antes, a resposta é 409
+        agent_tool_revision_conflict. Cada mudança grava uma revisão imutável.'
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID da ferramenta
+        in: path
+        name: toolId
+        required: true
+        type: string
+      - description: Ferramenta
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/agenttoolhttp.UpdateToolRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agenttoolhttp.ToolResponse'
+        "404":
+          description: agent_tool_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: agent_tool_revision_conflict, agent_tool_name_taken, agent_tool_target_taken
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Substituir uma ferramenta do agente
+      tags:
+      - Agentes
+  /agents/{id}/tools/{toolId}/duplicate:
+    post:
+      description: Copia uma ferramenta de um tipo que aceita várias instâncias, com
+        um nome livre (<nome>_2). Tipos de uma instância só ou presos a um destino
+        respondem 409.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID da ferramenta
+        in: path
+        name: toolId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/agenttoolhttp.ToolResponse'
+        "409":
+          description: agent_tool_single_type_taken, agent_tool_target_taken
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Duplicar uma ferramenta do agente
+      tags:
+      - Agentes
+  /agents/{id}/tools/{toolId}/revisions:
+    get:
+      description: Lista as revisões imutáveis da ferramenta, da mais nova para a
+        mais antiga. Cada revisão guarda nome, descrição e configuração (só referências
+        a segredos).
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID da ferramenta
+        in: path
+        name: toolId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agenttoolhttp.RevisionListResponse'
+        "404":
+          description: agent_tool_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar as revisões de uma ferramenta
+      tags:
+      - Agentes
+  /agents/{id}/tools/{toolId}/revisions/{revision}:
+    get:
+      description: Devolve a configuração exata que a ferramenta tinha na revisão
+        pedida.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID da ferramenta
+        in: path
+        name: toolId
+        required: true
+        type: string
+      - description: Número da revisão
+        in: path
+        name: revision
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agenttoolhttp.RevisionResponse'
+        "404":
+          description: agent_tool_revision_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Ler uma revisão de uma ferramenta
+      tags:
+      - Agentes
+  /agents/{id}/tools/{toolId}/test:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Roda a ferramenta sozinha pelo mesmo caminho de uma conversa: confere os argumentos contra o esquema, monta a requisição com os segredos do workspace, chama a API pelo mesmo cliente com proteção de rede e aplica o mapeamento da resposta. Use `arguments` ou um exemplo salvo (`testInputId`).
+
+        POST, PUT, PATCH e DELETE alteram dados no sistema externo: sem `confirmRealCall: true` a resposta é 422 `agent_tool_test_real_call_not_confirmed`. Uma configuração com problema bloqueante não é chamada e volta com a lista em `issues`.
+
+        A resposta traz a requisição e a resposta (com segredos mascarados), a saída mapeada, exatamente o que a IA leria (`modelResult`), o tipo e a cadeia do erro e a duração.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID da ferramenta
+        in: path
+        name: toolId
+        required: true
+        type: string
+      - description: Argumentos ou exemplo salvo
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/agenttoolhttp.TestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agenttoolhttp.TestResponse'
+        "404":
+          description: agent_tool_not_found, agent_tool_test_input_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "413":
+          description: agent_tool_test_input_too_large
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: agent_tool_test_real_call_not_confirmed, agent_tool_test_unsupported
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Testar uma ferramenta salva
+      tags:
+      - Agentes
+  /agents/{id}/tools/{toolId}/test-inputs:
+    put:
+      consumes:
+      - application/json
+      description: Substitui os exemplos de argumentos salvos da ferramenta (nome
+        único, JSON até 64 KB cada). Os exemplos não entram nas revisões nem chegam
+        à IA.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID da ferramenta
+        in: path
+        name: toolId
+        required: true
+        type: string
+      - description: Exemplos
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/agenttoolhttp.TestInputsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agenttoolhttp.TestInputsResponse'
+        "400":
+          description: agent_tool_test_input_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Salvar os exemplos de teste de uma ferramenta
+      tags:
+      - Agentes
+  /agents/{id}/tools/order:
+    put:
+      consumes:
+      - application/json
+      description: Define a ordem em que a IA recebe as ferramentas. Envie todos os
+        ids do agente, cada um uma vez.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Ids na nova ordem
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/agenttoolhttp.OrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agenttoolhttp.ToolListResponse'
+        "400":
+          description: agent_tool_order_mismatch
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reordenar as ferramentas do agente
+      tags:
+      - Agentes
+  /agents/{id}/tools/test:
+    post:
+      consumes:
+      - application/json
+      description: Mesmo teste de uma ferramenta salva, para a configuração que está
+        no formulário e ainda não foi salva. O resultado é idêntico ao do teste da
+        ferramenta salva com a mesma configuração.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Ferramenta e argumentos
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/agenttoolhttp.DraftTestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agenttoolhttp.TestResponse'
+        "422":
+          description: agent_tool_test_real_call_not_confirmed, agent_tool_test_unsupported
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Testar uma ferramenta antes de salvar
+      tags:
+      - Agentes
+  /agents/{id}/tools/validate:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Roda o mesmo validador do salvamento, da ativação e da Elo. Sem corpo, confere as ferramentas salvas; com `tools`, confere esse conjunto como rascunho, sem salvar. Cada problema traz código, gravidade (`blocking`, `advisory`), a ferramenta (`toolId`) e uma dica.
+
+        Se uma conferência externa (segredos, endereço do servidor, destino da ferramenta, catálogo de modelos) não responde, o resultado traz `agent_tool_validation_unavailable` como bloqueante: nada passa sem conferir.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Conjunto rascunho (opcional)
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/agenttoolhttp.ValidateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agenttoolhttp.ValidationResponse'
+        "400":
+          description: agent_invalid_body, agent_tool_type_unknown
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Conferir as ferramentas de um agente
+      tags:
+      - Agentes
+  /agents/{id}/versions:
+    get:
+      description: Lista as versões publicadas, da mais nova para a mais antiga, com
+        as revisões de ferramenta que cada uma fixou.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agentpublishhttp.VersionListResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar as versões publicadas do agente
+      tags:
+      - Agentes
+  /agents/{id}/versions/{version}:
+    get:
+      description: Devolve o prompt, o modelo e as revisões de ferramenta da versão
+        pedida.
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Número da versão
+        in: path
+        name: version
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agentpublishhttp.VersionResponse'
+        "404":
+          description: agent_version_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Ler uma versão publicada do agente
+      tags:
+      - Agentes
+  /agents/{id}/versions/{version}/restore:
+    post:
+      description: 'Copia a versão pedida para o rascunho: campos do agente e ferramentas
+        com a configuração daquela revisão. Nada muda nas conversas até a próxima
+        publicação.'
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Número da versão
+        in: path
+        name: version
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: agent_version_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Restaurar uma versão como rascunho
+      tags:
+      - Agentes
   /agents/options:
     get:
       description: |-
@@ -28544,6 +30571,24 @@ paths:
       security:
       - BearerAuth: []
       summary: Opções de modelos de IA
+      tags:
+      - Agentes
+  /agents/tools/mcp-sources:
+    get:
+      description: 'Lista os servidores MCP conectados ao workspace com as ferramentas
+        de cada um, para configurar uma ferramenta do tipo Servidor MCP (`mcp_source`):
+        o servidor (`source_id`) e as ferramentas permitidas (`tools`) ou todas (`all_tools`).
+        Um servidor que não respondeu aparece com `unavailable: true` e sem ferramentas.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/agenttoolhttp.MCPSourcesResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar os servidores MCP disponíveis para as ferramentas
       tags:
       - Agentes
   /api-keys:
@@ -28867,10 +30912,6 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Atividade de um membro
@@ -28910,10 +30951,6 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "503":
-          description: Service Unavailable
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
@@ -29206,10 +31243,6 @@ paths:
             type: object
         "400":
           description: Bad Request
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "503":
-          description: Service Unavailable
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
@@ -31848,14 +33881,21 @@ paths:
       - application/json
       description: 'Um único pedido cria a campanha do rascunho e decide o início.
         `mode: ready` cria a campanha parada, pronta para iniciar quando quiser. `mode:
-        schedule` cria com `scheduledStart` (o agendamento de sempre; no horário o
-        servidor confere tudo de novo). `mode: now` exige a permissão de iniciar,
-        roda antes a mesma verificação do Iniciar sobre o rascunho e, se ela bloqueia
-        (409 `campaign_launch_blocked`) ou pede confirmação (409 `campaign_launch_unconfirmed`,
-        envie `confirmedFingerprint`), nada é criado e o rascunho continua; senão
-        cria, aplica as configurações do rascunho e inicia. Criada a campanha, o rascunho
-        é apagado. Se o início ainda recusar depois de criar, a resposta traz a campanha
-        pronta com `started: false` e `startRefusal`.'
+        schedule` roda antes a mesma verificação do `mode: now` sobre o rascunho (409
+        `campaign_launch_blocked`, ou 409 `campaign_launch_unconfirmed` e envie `confirmedFingerprint`;
+        nada é criado nesses casos) e cria a campanha com `scheduledStart`, guardando
+        a confirmação com o agendamento. No horário a campanha só inicia se os riscos
+        ainda forem os mesmos; senão ela fica parada com `scheduleFailure` e quem
+        agendou recebe uma notificação. Uma campanha não oficial nunca pede confirmação,
+        só bloqueia. Agendar, como iniciar agora, exige a permissão de iniciar campanhas
+        (403 `start_permission_required`); `mode: ready` exige só a de criar. `mode:
+        now` exige a permissão de iniciar, roda antes a mesma verificação do Iniciar
+        sobre o rascunho e, se ela bloqueia (409 `campaign_launch_blocked`) ou pede
+        confirmação (409 `campaign_launch_unconfirmed`, envie `confirmedFingerprint`),
+        nada é criado e o rascunho continua; senão cria, aplica as configurações do
+        rascunho e inicia. Criada a campanha, o rascunho é apagado. Se o início ainda
+        recusar depois de criar, a resposta traz a campanha pronta com `started: false`
+        e `startRefusal`.'
       parameters:
       - description: whatsapp ou unofficial_whatsapp
         in: path
@@ -31887,7 +33927,7 @@ paths:
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "403":
-          description: Forbidden
+          description: start_permission_required
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "404":
@@ -33893,10 +35933,6 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Listar as chamadas de ferramenta da IA em uma conversa
@@ -33980,10 +36016,6 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-        "501":
-          description: Not Implemented
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Consultar permissão para ligar
@@ -34030,10 +36062,6 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
         "409":
           description: Conflict
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "501":
-          description: Not Implemented
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
@@ -34300,10 +36328,6 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "503":
-          description: Service Unavailable
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
@@ -34789,9 +36813,8 @@ paths:
         confirmação de leitura ao canal). Cada conversa roda a ação sozinha, como
         a ação de uma conversa: as que falham aparecem em `failed` com o motivo (por
         exemplo, desfecho obrigatório ou conversa fora do seu alcance) e as demais
-        seguem. Uma ação que o servidor não oferece responde 503 action_unavailable.
-        A seleção tem exatamente um modo: ids (targets escolhidos), all_matching (um
-        filtro não vazio) ou everyone (todo o escopo do usuário, só com expectedCount).
+        seguem. A seleção tem exatamente um modo: ids (targets escolhidos), all_matching
+        (um filtro não vazio) ou everyone (todo o escopo do usuário, só com expectedCount).
         Para all_matching e everyone, fingerprint vem de POST /crm/bulk/count e é
         obrigatório; expectedCount é o matched dessa contagem, tomada antes das exclusões:
         excludeIds tira conversas da seleção sem mudar a contagem confirmada. Se a
@@ -48282,10 +50305,6 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-        "501":
-          description: Not Implemented
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Listar etapas agrupadas por funil
@@ -50393,7 +52412,11 @@ paths:
         (422 `audience_list_metadata_missing`), e a seleção de leads, que não têm
         metadados, é recusada com 422 `audience_leads_metadata_unavailable`. `recipients`
         com `targets` responde 400 `audience_source_ambiguous` e, numa campanha para
-        grupos, 422 `audience_source_unsupported`.'
+        grupos, 422 `audience_source_unsupported`. Com `scheduledStart`, a criação
+        passa antes pela mesma verificação do Iniciar: um bloqueio responde 409 `campaign_launch_blocked`
+        com os motivos e nada é criado; Se no horário o início falhar, a campanha
+        fica parada com `scheduleFailure` e quem a criou recebe uma notificação. Agendar
+        exige a permissão de iniciar campanhas (403 `start_permission_required`).'
       parameters:
       - description: Campos da campanha e números
         in: body
@@ -50414,19 +52437,19 @@ paths:
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "403":
-          description: Forbidden
+          description: start_permission_required
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Not Found
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-        "422":
-          description: Unprocessable Entity
+        "409":
+          description: campaign_launch_blocked
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-        "503":
-          description: Service Unavailable
+        "422":
+          description: Unprocessable Entity
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
@@ -53549,10 +55572,6 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Consultar a automação do número
@@ -53602,10 +55621,6 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "503":
-          description: Service Unavailable
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
@@ -54107,7 +56122,15 @@ paths:
         a ordem do envio, nas duas formas: a variável do texto do cabeçalho primeiro,
         depois as do corpo (nomeadas ou numeradas); no envio a do cabeçalho vai no
         cabeçalho e as do corpo no corpo, com o nome quando o modelo usa variáveis
-        nomeadas. As ondas de `smartPolicy` valem para as duas formas.'
+        nomeadas. As ondas de `smartPolicy` valem para as duas formas. Com `scheduledStart`,
+        a criação passa antes pela mesma verificação do Iniciar: um bloqueio responde
+        409 `campaign_launch_blocked` e riscos pedem confirmação com 409 `campaign_launch_unconfirmed`
+        (reenvie com o `confirmedFingerprint` dos detalhes); em ambos nada é criado.
+        A confirmação fica guardada com o agendamento e, no horário, a campanha só
+        inicia se os riscos ainda forem os mesmos; senão ela fica parada com `scheduleFailure`
+        e quem agendou recebe uma notificação. Agendar exige a permissão de iniciar
+        campanhas (403 `start_permission_required`); criar sem agendamento exige só
+        a de criar.'
       parameters:
       - description: Campanha, com phoneNumbers ou recipients
         in: body
@@ -54127,12 +56150,16 @@ paths:
           description: audience_source_ambiguous, audience_variable_unknown, selection_*
           schema:
             $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: start_permission_required
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: audience_list_not_found
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "409":
-          description: selection_changed
+          description: selection_changed, campaign_launch_blocked, campaign_launch_unconfirmed
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "410":
@@ -54173,7 +56200,18 @@ paths:
         `campaign_workflow_not_found` ou `campaign_agent_not_found`. `scheduledStart`
         vazio desliga o agendamento; um novo horário precisa ficar entre 5 minutos
         e 1 ano (400 `campaign_schedule_in_past` ou `campaign_schedule_out_of_window`)
-        e não vale para campanha em execução (409 `campaign_running`).'
+        e não vale para campanha em execução (409 `campaign_running`). Um agendamento
+        novo ou mantido passa pela mesma verificação do Iniciar sobre a campanha já
+        editada: um bloqueio responde 409 `campaign_launch_blocked` e riscos novos
+        pedem confirmação com 409 `campaign_launch_unconfirmed` (reenvie com o `confirmedFingerprint`
+        dos detalhes); riscos já confirmados no agendamento não pedem de novo. Nada
+        é salvo nesses casos, e sem a verificação disponível responde 503 `campaign_launch_check_unavailable`.
+        Uma campanha preparada a partir de leads não pode ser agendada (409 `send_schedule_from_leads`).
+        Quem salva o agendamento é quem recebe a notificação se ele não iniciar no
+        horário; o motivo fica em `scheduleFailure` até a campanha iniciar ou ser
+        agendada de novo. Definir ou manter um agendamento exige a permissão de iniciar
+        campanhas (403 `start_permission_required`); editar sem agendamento exige
+        só a de editar.'
       parameters:
       - description: Campanha
         in: path
@@ -54199,7 +56237,7 @@ paths:
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "403":
-          description: Forbidden
+          description: start_permission_required
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "404":
@@ -56336,10 +58374,6 @@ paths:
           description: Too Many Requests
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Editar o conteúdo de um modelo de mensagem
@@ -56934,106 +58968,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Baixar uma execução de workflow em JSON
-      tags:
-      - workflows
-  /workflow-secrets:
-    get:
-      description: Lista os segredos que os fluxos do workspace podem usar, só com
-        nome, data da última alteração e quem alterou. O valor nunca é retornado por
-        nenhuma rota. Nos fluxos, use {{secret.<nome>}} na URL, nos cabeçalhos ou
-        no corpo de um nó de requisição HTTP, e secrets.get('<nome>') no nó de código.
-        Exige `workflows:read`.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/workflowsecrethttp.SecretListResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Listar os segredos do workspace
-      tags:
-      - workflows
-  /workflow-secrets/{name}:
-    delete:
-      description: Apaga o segredo de vez. Fluxos que ainda usam {{secret.<nome>}}
-        passam a falhar nesse nó com um erro que cita o nome, sem enviar a requisição.
-        Exige `workflows:update`.
-      parameters:
-      - description: Nome do segredo
-        in: path
-        name: name
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: invalid_name
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "404":
-          description: not_found
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Remover um segredo do workspace
-      tags:
-      - workflows
-    put:
-      consumes:
-      - application/json
-      description: 'Grava o valor do segredo com o nome informado, criptografado.
-        Se o nome já existe, o valor é substituído e quem criou é mantido. O nome
-        usa só letras minúsculas, dígitos e _, com 1 a 64 caracteres; o valor tem
-        até 8 KB. O valor é só de escrita: a resposta traz o nome, a data e quem alterou,
-        nunca o valor. Nos fluxos o valor só é lido quando um nó de requisição HTTP
-        monta a chamada ou um nó de código chama secrets.get, e nunca é gravado no
-        estado, nas etapas da execução nem nos logs. Exige `workflows:update`.'
-      parameters:
-      - description: 'Nome do segredo (ex.: unifecaf_senha)'
-        in: path
-        name: name
-        required: true
-        type: string
-      - description: Valor do segredo
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/workflowsecrethttp.PutSecretRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/workflowsecrethttp.SecretResponse'
-        "400":
-          description: invalid_body, invalid_name, value_required ou value_too_long
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/response.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Criar ou substituir um segredo do workspace
       tags:
       - workflows
   /workflows:
@@ -58269,6 +60203,112 @@ paths:
       summary: Resolver as saídas dos nós
       tags:
       - workflows
+  /workspace-secrets:
+    get:
+      description: Lista os segredos que os fluxos e os agentes do workspace podem
+        usar, só com nome, data da última alteração e quem alterou. O valor nunca
+        é retornado por nenhuma rota. Nos fluxos, use {{secret.<nome>}} na URL, nos
+        cabeçalhos ou no corpo de um nó de requisição HTTP, e secrets.get('<nome>')
+        no nó de código. Nos agentes, use {{secret.<nome>}} na URL, nos cabeçalhos,
+        na consulta, no corpo ou na autenticação de uma ferramenta de requisição HTTP.
+        Exige `agents:update` ou `workflows:update`.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workspacesecrethttp.SecretListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar os segredos do workspace
+      tags:
+      - workflows
+      - Agentes
+  /workspace-secrets/{name}:
+    delete:
+      description: Apaga o segredo de vez. Fluxos e ferramentas de agente que ainda
+        usam {{secret.<nome>}} passam a falhar com um erro que cita o nome, sem enviar
+        a requisição. Exige `agents:update` ou `workflows:update`.
+      parameters:
+      - description: Nome do segredo
+        in: path
+        name: name
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: invalid_name
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Remover um segredo do workspace
+      tags:
+      - workflows
+      - Agentes
+    put:
+      consumes:
+      - application/json
+      description: 'Grava o valor do segredo com o nome informado, criptografado.
+        Se o nome já existe, o valor é substituído e quem criou é mantido. O nome
+        usa só letras minúsculas, dígitos e _, com 1 a 64 caracteres; o valor tem
+        até 8 KB. O valor é só de escrita: a resposta traz o nome, a data e quem alterou,
+        nunca o valor. O valor só é lido no servidor, quando um nó de requisição HTTP
+        ou uma ferramenta de agente monta a chamada ou um nó de código chama secrets.get.
+        Ele nunca vai para o modelo de IA e nunca é gravado no estado, nas etapas
+        da execução, nos rastros nem nos logs. Exige `agents:update` ou `workflows:update`.'
+      parameters:
+      - description: 'Nome do segredo (ex.: unifecaf_senha)'
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Valor do segredo
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workspacesecrethttp.PutSecretRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workspacesecrethttp.SecretResponse'
+        "400":
+          description: invalid_body, invalid_name, value_required ou value_too_long
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Criar ou substituir um segredo do workspace
+      tags:
+      - workflows
+      - Agentes
   /workspaces:
     get:
       description: Retorna, de forma paginada, os workspaces aos quais o usuário autenticado
@@ -59979,7 +62019,8 @@ paths:
 
         | type | payload | Quando |
         |---|---|---|
-        | `conversation:entry_update` | `{"entry": InboxEntry, "silent"?: boolean}` | Nova mensagem, envio, troca de responsável, status ou etapa. `silent: true` indica atualização sem novidade para o atendente. |
+        | `conversation:entry_update` | `{"entry": InboxEntry, "silent"?: boolean, "alert"?: boolean}` | Nova mensagem, envio, troca de responsável, status ou etapa. `silent: true` indica atualização sem novidade para o atendente. `alert: true` só vem numa mensagem nova do cliente e só para quem deve ser avisado: o responsável humano; ninguém quando um agente ou fluxo é o responsável ou quando a distribuição automática vai entregar a conversa; na fila manual, quem pode pegá-la. Toque o som e mostre o aviso só quando `alert` vier. |
+        | `conversation:assigned_to_you` | `{"entry": InboxEntry, "assigned_at": string}` | Uma conversa passou a ser sua pela distribuição automática, por um colega, por uma transferência ou por um agente ou fluxo. Não chega quando você mesmo a pega. Chega uma vez por atribuição, em todas as suas conexões deste workspace. |
         | `conversation:conversation_status_counts_update` | `{"counts": {"new": number, "ongoing": number, "finished": number}}` | Os totais por status mudaram. |
         | `conversation:stage_update` | `{"entry_id", "entry_type", "stage": Stage \| null}` | A etapa da conversa mudou. |
         | `conversation:label_update` | `{"entry_id", "entry_type", "labels": Label[]}` | As etiquetas mudaram. |

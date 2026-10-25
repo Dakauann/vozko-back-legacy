@@ -34,7 +34,7 @@ func (w *ReplyWaiters) WaitingForReply(event workflow.TriggerEvent) (*workflow.W
 		return run, nil
 	}
 	slog.Error("workflow.reply.waiting_lookup_failed", append(eventLogAttrs(event), slog.String("error", err.Error()))...)
-	if w.engine != nil && w.engine.metrics != nil {
+	if w.engine != nil {
 		w.engine.metrics.IncWorkflowReplyLookupFailed()
 	}
 	w.engine.raiseAlert(workflow.InboundLookupFailedSignal(event, time.Now().UTC()))
@@ -106,7 +106,7 @@ func (w *ReplyWaiters) wake(run *workflow.WorkflowRun, wf *workflow.Workflow, ev
 }
 
 func (e *RunEngine) recordChoiceClick(run *workflow.WorkflowRun, parked *workflow.Node, promptKey string, data map[string]interface{}) {
-	if e.choices == nil || parked == nil || !parked.Type.IsInteractivePrompt() || promptKey == "" {
+	if parked == nil || !parked.Type.IsInteractivePrompt() || promptKey == "" {
 		return
 	}
 	selected, _ := data[workflow.DataKeySelectedOptionID].(string)

@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"vozko/domain/agent"
+	"vozko/domain/agentrun"
 	"vozko/domain/ai"
 	leadmemory "vozko/domain/lead_memory"
+	"vozko/domain/tools"
 	"vozko/usecases/agentctx"
 	"vozko/usecases/agentturn"
 	lead_memory_usecase "vozko/usecases/lead_memory"
@@ -84,6 +86,11 @@ func (uc *simulateTurnUseCase) Execute(ctx context.Context, in agent.SimulateTur
 
 	ctx = agentctx.WithAgent(ctx, agentRecord)
 	ctx = agentctx.WithToolExecutionTracker(ctx, agentctx.NewToolExecutionTracker())
+	ctx = tools.WithMocks(ctx, in.Mocks)
+	source := agentrun.SourceSimulator
+	if in.Scenario {
+		source = agentrun.SourceScenario
+	}
 
 	leadID := strings.TrimSpace(in.LeadID)
 	seed := map[string]interface{}{
@@ -98,6 +105,7 @@ func (uc *simulateTurnUseCase) Execute(ctx context.Context, in agent.SimulateTur
 	assembled := uc.assembler.Assemble(ctx, agentturn.Request{
 		Agent:    agentRecord,
 		Identity: &identity,
+		Source:   source,
 
 		ResolveInternalTools: true,
 		Visibility:           agent.ToolVisibilityMessaging,
@@ -120,6 +128,7 @@ func (uc *simulateTurnUseCase) Execute(ctx context.Context, in agent.SimulateTur
 	input := assembled.Input
 	input.ToolExecutionMode = ai.ToolExecutionModeAuto
 	input.WorkspaceID = agentRecord.WorkspaceID
+	input.AgentTurn.RunID = in.RunID
 
 	out, err := uc.ai.Generate(ctx, input)
 	if err != nil {
@@ -134,18 +143,26 @@ func (uc *simulateTurnUseCase) Execute(ctx context.Context, in agent.SimulateTur
 	toolCalls := make([]agent.SimulatedToolCall, 0, len(out.ToolCalls))
 	for _, call := range out.ToolCalls {
 		sim := agent.SimulatedToolCall{
+			ToolID:    instanceOf(input.Tools, call.Name),
 			Name:      call.Name,
 			Arguments: call.Arguments,
-			Stubbed:   !tools_usecase.SimulationRunsForReal(call.Name, input.ToolConfigs[strings.ToLower(call.Name)]),
+			Stubbed:   !tools_usecase.SimulationRunsForReal(handlerOf(input.Tools, call.Name), input.ToolConfigs[strings.ToLower(call.Name)]),
 		}
 		if call.Result != nil {
 			sim.Result = stringifyResult(call.Result.Result)
 			sim.IsError = call.Result.IsError
+			sim.Mocked = call.Result.Mocked
+			sim.Stubbed = sim.Stubbed && !sim.Mocked
+			sim.Output = call.Result.Result
+			if call.Result.Trace != nil && call.Result.Trace.MappedOutput != nil {
+				sim.Output = call.Result.Trace.MappedOutput
+			}
 		}
 		toolCalls = append(toolCalls, sim)
 	}
 
 	return &agent.SimulateTurnOutput{
+		RunID:     in.RunID,
 		Replies:   replies,
 		ToolCalls: toolCalls,
 		Debug: agent.SimulationDebug{
@@ -219,3 +236,17 @@ func stringifyResult(result interface{}) string {
 }
 
 var _ agent.SimulateTurnUseCase = (*simulateTurnUseCase)(nil)
+
+func instanceOf(offered []tools.Definition, name string) string {
+	if def, ok := tools.Offered(offered, name); ok && def.Instance != nil {
+		return def.Instance.ID
+	}
+	return ""
+}
+
+func handlerOf(offered []tools.Definition, name string) string {
+	if def, ok := tools.Offered(offered, name); ok {
+		return def.Handler()
+	}
+	return name
+}

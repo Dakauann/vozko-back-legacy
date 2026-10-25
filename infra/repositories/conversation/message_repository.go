@@ -27,16 +27,15 @@ func departmentScopeClause(deptColumn, entryIDColumn string, departmentIDs []str
 	return departmentscope.Clause(deptColumn, entryIDColumn, departmentIDs, restrict, assigneeUserID)
 }
 
+func unassignedOrAssignedTo(entryIDColumn string) string {
+	return "COALESCE((SELECT bool_or(ia_s.assigned_user_id IS NOT DISTINCT FROM ?::uuid) FROM inbox_assignments ia_s WHERE ia_s.entry_id = " + entryIDColumn + "), true)"
+}
+
 func assignedSelfClause(entryIDColumn, assignedUserID string) (string, []interface{}) {
 	if assignedUserID == "" || entryIDColumn == "" {
 		return "", nil
 	}
-	clause := fmt.Sprintf(
-		" AND (NOT EXISTS (SELECT 1 FROM inbox_assignments ia_s WHERE ia_s.entry_id = %s)"+
-			" OR EXISTS (SELECT 1 FROM inbox_assignments ia_s2 WHERE ia_s2.entry_id = %s AND ia_s2.assigned_user_id = ?))",
-		entryIDColumn, entryIDColumn,
-	)
-	return clause, []interface{}{assignedUserID}
+	return " AND " + unassignedOrAssignedTo(entryIDColumn), []interface{}{assignedUserID}
 }
 
 func NewRepository(db *gorm.DB) conversation.MessageRepository {
@@ -570,15 +569,11 @@ func (r *repository) getEntriesWithMessages(campaignID string, containerKind con
 
 	et := string(entryType)
 
-	assignmentFilterFor := func(col string) string {
-		if assignedUserID == "" {
-			return ""
-		}
-		return fmt.Sprintf(` AND (NOT EXISTS (SELECT 1 FROM inbox_assignments ia WHERE ia.entry_id = %s) OR EXISTS (SELECT 1 FROM inbox_assignments ia2 WHERE ia2.entry_id = %s AND ia2.assigned_user_id = ?))`, col, col)
-	}
 	var assignmentArgs []interface{}
-	if assignedUserID != "" {
-		assignmentArgs = append(assignmentArgs, assignedUserID)
+	assignmentFilterFor := func(col string) string {
+		clause, args := assignedSelfClause(col, assignedUserID)
+		assignmentArgs = args
+		return clause
 	}
 
 	ch, ok := channelQueryFor(entryType)
@@ -763,56 +758,13 @@ func (r *repository) getEntriesWithMessages(campaignID string, containerKind con
 }
 
 func (r *repository) SearchEntriesByFilter(input conversation.SearchByFilterInput) ([]conversation.EntryWithLastMessage, int64, error) {
-	baseCTE, baseArgs, err := filteredEntriesCTE(input)
+	queries, err := filteredPageQueries(input)
 	if err != nil {
 		return nil, 0, fmt.Errorf("SearchEntriesByFilter: %w", err)
 	}
 
-	totalCount, err := r.countFilteredEntries(baseCTE, baseArgs)
+	matchedIDs, totalCount, err := readCountedPage[filteredEntryRow](r.db, queries)
 	if err != nil {
-		return nil, 0, err
-	}
-	if totalCount == 0 {
-		return nil, 0, nil
-	}
-
-	page := input.Page
-	pageSize := input.PageSize
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = 20
-	}
-	if pageSize > 50 {
-		pageSize = 50
-	}
-	offset := (page - 1) * pageSize
-
-	sortDirection := "DESC"
-	if input.SortOrder == "asc" {
-		sortDirection = "ASC"
-	}
-	sortColumn := "lm_created_at"
-	if input.SortField == "created" {
-		sortColumn = "created_at"
-	}
-
-	matchSQL := fmt.Sprintf(`%s
-		SELECT entry_id, entry_type, lead_name, lead_number FROM entries_with_msg
-		ORDER BY %s %s
-		LIMIT ? OFFSET ?
-	`, baseCTE, sortColumn, sortDirection)
-
-	type idResult struct {
-		EntryID    string `gorm:"column:entry_id"`
-		EntryType  string `gorm:"column:entry_type"`
-		LeadName   string `gorm:"column:lead_name"`
-		LeadNumber string `gorm:"column:lead_number"`
-	}
-	matchArgs := append(append([]interface{}{}, baseArgs...), pageSize, offset)
-	var matchedIDs []idResult
-	if err := r.db.Raw(matchSQL, matchArgs...).Scan(&matchedIDs).Error; err != nil {
 		return nil, 0, fmt.Errorf("error searching filtered board entries: %w", err)
 	}
 	if len(matchedIDs) == 0 {

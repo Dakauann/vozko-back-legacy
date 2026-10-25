@@ -37,8 +37,7 @@ func automationRequest(body string) *http.Request {
 
 func TestSetAutomation_PassesTheCallerAndReturnsTheOwner(t *testing.T) {
 	toggle := &stubAutomationToggle{res: ia_usecase.OperatorAutomationResult{Owner: "ai:agent-1"}}
-	h := &ConversationHandler{}
-	h.SetAutomationService(toggle)
+	h := &ConversationHandler{automationService: toggle}
 
 	w := httptest.NewRecorder()
 	h.SetAutomation(w, automationRequest(`{"automationEnabled":true}`))
@@ -60,8 +59,7 @@ func TestSetAutomation_PassesTheCallerAndReturnsTheOwner(t *testing.T) {
 }
 
 func TestSetAutomation_ACallerWithoutAccessIsForbidden(t *testing.T) {
-	h := &ConversationHandler{}
-	h.SetAutomationService(&stubAutomationToggle{err: ia_usecase.ErrAutomationForbidden})
+	h := &ConversationHandler{automationService: &stubAutomationToggle{err: ia_usecase.ErrAutomationForbidden}}
 
 	w := httptest.NewRecorder()
 	h.SetAutomation(w, automationRequest(`{"automationEnabled":false}`))
@@ -72,8 +70,7 @@ func TestSetAutomation_ACallerWithoutAccessIsForbidden(t *testing.T) {
 }
 
 func TestSetAutomation_NothingToAnswerIsAConflictTheOperatorCanRead(t *testing.T) {
-	h := &ConversationHandler{}
-	h.SetAutomationService(&stubAutomationToggle{err: fmt.Errorf("wrapped: %w", ia_usecase.ErrNothingToReturnTo)})
+	h := &ConversationHandler{automationService: &stubAutomationToggle{err: fmt.Errorf("wrapped: %w", ia_usecase.ErrNothingToReturnTo)}}
 
 	w := httptest.NewRecorder()
 	h.SetAutomation(w, automationRequest(`{"automationEnabled":true}`))

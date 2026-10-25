@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"vozko/domain/redact"
 	"vozko/domain/tools"
 	email_usecase "vozko/usecases/email"
 )
@@ -147,23 +146,3 @@ func TestSendEmailTool_ExecuteWithConfigReturnsToolErrors(t *testing.T) {
 	})
 }
 
-func TestRedactToolConfig(t *testing.T) {
-	config := map[string]interface{}{
-		"smtp_password": "secret",
-		"api_key":       "key",
-		"smtp_host":     "smtp.example.com",
-	}
-	redacted := redactToolConfig(config)
-	if redacted["smtp_password"] != redact.Mask || redacted["api_key"] != redact.Mask {
-		t.Fatalf("expected sensitive values to be redacted: %+v", redacted)
-	}
-	if redacted["smtp_host"] != "smtp.example.com" {
-		t.Fatalf("expected non-sensitive value preserved: %+v", redacted)
-	}
-	if config["smtp_password"] != "secret" {
-		t.Fatalf("redaction mutated original config: %+v", config)
-	}
-	if redactToolConfig(nil) != nil {
-		t.Fatal("expected nil config to remain nil")
-	}
-}

@@ -502,6 +502,64 @@ func TestDispatcherPublishesOnePerEntry(t *testing.T) {
 	}
 }
 
+type fakeBatchPub struct {
+	fakePub
+	topics  []string
+	batches [][][]byte
+	failure error
+}
+
+func (f *fakeBatchPub) PublishBatch(topic string, messages [][]byte) error {
+	f.topics = append(f.topics, topic)
+	f.batches = append(f.batches, messages)
+	return f.failure
+}
+
+func TestDispatcherPublishesTheWholeStartAsOneBatch(t *testing.T) {
+	pub := &fakeBatchPub{}
+	sharedState := newMemShared()
+	d := NewDispatcher(pub, sharedState, testNS)
+
+	msgs := []Message{
+		{CampaignID: "camp", EntryID: "e1", PhoneNumber: "5584999990001"},
+		{CampaignID: "camp", EntryID: "e2", PhoneNumber: "5584999990002"},
+		{CampaignID: "camp", EntryID: "e3"},
+	}
+	if err := d.Enqueue("camp", msgs); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(pub.batches) != 1 || pub.topics[0] != testNS.DispatchTopic("camp") {
+		t.Fatalf("batches = %d on %v, want one on %s", len(pub.batches), pub.topics, testNS.DispatchTopic("camp"))
+	}
+	if pub.published != 0 {
+		t.Fatalf("also published %d message(s) one by one", pub.published)
+	}
+	for i, m := range msgs {
+		want, _ := json.Marshal(m)
+		if string(pub.batches[0][i]) != string(want) {
+			t.Fatalf("message %d = %s, want %s", i, pub.batches[0][i], want)
+		}
+	}
+	if got, _ := sharedState.GetString(testNS.RemainingKey("camp")); got != "3" {
+		t.Fatalf("counter = %q, want 3", got)
+	}
+}
+
+func TestDispatcherDoesNotArmTheCounterWhenTheBatchFails(t *testing.T) {
+	pub := &fakeBatchPub{failure: errors.New("nacked")}
+	sharedState := newMemShared()
+
+	err := NewDispatcher(pub, sharedState, testNS).Enqueue("camp", []Message{{CampaignID: "camp", EntryID: "e1"}})
+
+	if err == nil {
+		t.Fatal("the batch failure did not surface")
+	}
+	if exists, _ := sharedState.Exists(testNS.RemainingKey("camp")); exists {
+		t.Fatal("the counter was armed despite a failed batch")
+	}
+}
+
 func TestDispatcherIgnoresAnEmptyBatch(t *testing.T) {
 	pub := &fakePub{}
 	sharedState := newMemShared()

@@ -29,7 +29,7 @@ func (c *reservationTestCall) Hangup() error         { return nil }
 func (c *reservationTestCall) Done() <-chan struct{} { return c.done }
 
 func newReservationTestSession() *callSession {
-	return newCallSession("sess-1", "user-1", "ws-1", func(*WSOutgoingMessage) {}, nil, nil, 0)
+	return newCallSession("sess-1", "user-1", "ws-1", func(*WSOutgoingMessage) {}, nil, nil, 0, callSessionPorts{})
 }
 
 func attachTestCall(t *testing.T, s *callSession, callID string) *liveCall {
@@ -203,7 +203,7 @@ func TestShutdown_ReleasesRingReservation(t *testing.T) {
 func TestDispatchEnded_ClearsCurrentAndBroadcastsPresence(t *testing.T) {
 	s := newReservationTestSession()
 	var presenceCalls int32
-	s.SetPresenceCallback(func() { atomic.AddInt32(&presenceCalls, 1) })
+	s.onPresenceChange = func() { atomic.AddInt32(&presenceCalls, 1) }
 
 	lc := attachTestCall(t, s, "call-1")
 	atomic.StoreInt32(&presenceCalls, 0)

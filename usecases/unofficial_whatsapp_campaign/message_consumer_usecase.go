@@ -13,6 +13,7 @@ import (
 	"vozko/domain/conversation"
 	"vozko/domain/messaging"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	uw "vozko/domain/unofficial_whatsapp"
 	uwc "vozko/domain/unofficial_whatsapp_campaign"
 	"vozko/usecases/campaignguard"
@@ -54,19 +55,38 @@ type ConsumerDeps struct {
 	Assignments Assigner
 	Metrics     MetricRecorder
 	Broadcaster EntryBroadcaster
-	PauseAll    uwc.PauseCampaignsForInstanceUseCase
 	Choices     choicestats.Recorder
 }
 
 type messageConsumerUseCase struct {
-	deps   ConsumerDeps
-	runner *campaignqueue.Runner
+	deps     ConsumerDeps
+	pauseAll uwc.PauseCampaignsForInstanceUseCase
+	runner   *campaignqueue.Runner
 }
 
-func NewMessageConsumerUseCase(deps ConsumerDeps) uwc.MessageConsumerUseCase {
-	uc := &messageConsumerUseCase{deps: deps}
+func NewMessageConsumerUseCase(d ConsumerDeps) (uwc.MessageConsumerUseCase, error) {
+	if err := deps.Require("unofficial campaign consumer", map[string]any{
+		"queue subscriber": d.QueueSub,
+		"queue publisher":  d.QueuePub,
+		"shared state":     d.Shared,
+		"campaigns":        d.Campaigns,
+		"entries":          d.Entries,
+		"instances":        d.Instances,
+		"sender":           d.Sender,
+		"send budget":      d.Budget,
+		"spam guard":       d.Spam,
+		"eligibility":      d.Eligibility,
+		"group sending":    d.Groups,
+		"assignments":      d.Assignments,
+		"broadcaster":      d.Broadcaster,
+		"choice recorder":  d.Choices,
+	}); err != nil {
+		return nil, err
+	}
+	uc := &messageConsumerUseCase{deps: d}
+	uc.pauseAll = NewPauseCampaignsForInstanceUseCase(d.Campaigns, uc)
 	uc.attachRunner()
-	return uc
+	return uc, nil
 }
 
 func (c *messageConsumerUseCase) attachRunner() {
@@ -88,12 +108,6 @@ func (c *messageConsumerUseCase) attachRunner() {
 }
 
 func (c *messageConsumerUseCase) Start() error {
-	if c.deps.QueueSub == nil {
-		return fmt.Errorf("unofficial whatsapp campaign consumer: message queue subscriber is required")
-	}
-	if c.deps.Choices == nil {
-		return fmt.Errorf("unofficial whatsapp campaign consumer: %w", choicestats.ErrRecorderMissing)
-	}
 	return c.runner.Start()
 }
 
@@ -110,10 +124,6 @@ func (c *messageConsumerUseCase) StopCampaignConsumer(id string) error {
 	return c.runner.StopCampaignConsumer(id)
 }
 func (c *messageConsumerUseCase) IsSubscribed(id string) bool { return c.runner.IsSubscribed(id) }
-
-func (c *messageConsumerUseCase) SetPauseAll(p uwc.PauseCampaignsForInstanceUseCase) {
-	c.deps.PauseAll = p
-}
 
 func (c *messageConsumerUseCase) precheck(campaignID string) error {
 	ctx := context.Background()
@@ -350,12 +360,12 @@ func (c *messageConsumerUseCase) recordSuccess(
 
 	person := !entry.TargetsGroup()
 
-	if person && c.deps.Assignments != nil {
+	if person {
 		c.deps.Assignments.EnsureAssignment(
 			resolved.Conversation.ID, string(shared.EntryTypeUnofficialWhatsApp), instance.ID)
 	}
 
-	if person && c.deps.Spam != nil {
+	if person {
 		if err := c.deps.Spam.Record(entry.LeadID, instance.ID, camp.ID); err != nil {
 			log.Printf("[unofficial-whatsapp-campaign] could not record the cooldown for lead %s: %v", entry.LeadID, err)
 		}
@@ -374,15 +384,13 @@ func (c *messageConsumerUseCase) recordSuccess(
 
 	c.recordMenuSend(ctx, camp, entry, providerID)
 
-	if c.deps.Broadcaster != nil {
-		c.deps.Broadcaster.BroadcastEntryUpdate(
-			resolved.Conversation.ID, string(shared.EntryTypeUnofficialWhatsApp), nil)
-	}
+	c.deps.Broadcaster.BroadcastEntryUpdate(
+		resolved.Conversation.ID, string(shared.EntryTypeUnofficialWhatsApp), nil)
 }
 
 func (c *messageConsumerUseCase) recordMenuSend(ctx context.Context, camp *uwc.Campaign, entry *uwc.Entry, providerID string) {
 	shown := camp.Message.ShownOptionIDs()
-	if c.deps.Choices == nil || len(shown) == 0 {
+	if len(shown) == 0 {
 		return
 	}
 	c.deps.Choices.RecordSend(ctx, choicestats.Send{
@@ -418,14 +426,11 @@ func (c *messageConsumerUseCase) resolveJID(
 }
 
 func (c *messageConsumerUseCase) pauseInstanceCampaigns(ctx context.Context, instanceID string, cause error) {
-	if c.deps.PauseAll == nil {
-		return
-	}
 	reason := "paused automatically"
 	if cause != nil {
 		reason = cause.Error()
 	}
-	if _, err := c.deps.PauseAll.Execute(ctx, instanceID, reason); err != nil {
+	if _, err := c.pauseAll.Execute(ctx, instanceID, reason); err != nil {
 		log.Printf("[unofficial-whatsapp-campaign] could not pause campaigns for number %s: %v", instanceID, err)
 	}
 }

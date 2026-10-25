@@ -20,17 +20,12 @@ type ToolCallLister interface {
 }
 
 var (
-	refusalToolCallsUnavailable       = response.Refusal{Status: http.StatusServiceUnavailable, Code: "tool_calls_unavailable", Message: "Registro de ferramentas indisponível"}
 	refusalToolCallsUnauthorized      = response.Refusal{Status: http.StatusUnauthorized, Code: "unauthorized", Message: "Faça login de novo para continuar"}
 	refusalToolCallConversationHidden = response.Refusal{Status: http.StatusNotFound, Code: "conversation_not_found", Message: "Conversa não encontrada"}
 	refusalToolCallsFailed            = response.Refusal{Status: http.StatusInternalServerError, Code: "tool_calls_failed", Message: "Erro ao listar as chamadas de ferramenta"}
 )
 
-var toolCallRefusals = []response.Refusal{refusalToolCallsUnavailable, refusalToolCallsUnauthorized, refusalToolCallConversationHidden, refusalToolCallsFailed}
-
-func (h *ConversationHandler) SetToolCalls(lister ToolCallLister) {
-	h.toolCalls = lister
-}
+var toolCallRefusals = []response.Refusal{refusalToolCallsUnauthorized, refusalToolCallConversationHidden, refusalToolCallsFailed}
 
 // @Summary		Listar as chamadas de ferramenta da IA em uma conversa
 // @Description	Lista, da mais recente para a mais antiga, as ferramentas que o agente de IA chamou nesta conversa: nome da ferramenta, argumentos (com credenciais e documentos mascarados), resultado (ok, error ou requested, quando a ferramenta só foi pedida pelo modelo e quem a executa é um fluxo), mensagem de erro, duração e a execução de fluxo ligada, quando houver. toolCallId é o id da chamada (o do modelo, ou um gerado quando o modelo não manda), o mesmo gravado em metadata.tool_call_id nas linhas de ferramenta do histórico da conversa; registros antigos não o têm. Só aparece para quem pode ver a conversa; as chamadas ficam guardadas por 180 dias.
@@ -44,14 +39,9 @@ func (h *ConversationHandler) SetToolCalls(lister ToolCallLister) {
 // @Failure		401	{object}	response.ErrorResponse
 // @Failure		404	{object}	response.ErrorResponse	"Conversa não encontrada"
 // @Failure		500	{object}	response.ErrorResponse
-// @Failure		503	{object}	response.ErrorResponse
 // @Security		BearerAuth
 // @Router			/conversations/{entryType}/{entryId}/ai-tool-calls [get]
 func (h *ConversationHandler) ListAIToolCalls(w http.ResponseWriter, r *http.Request) {
-	if h.toolCalls == nil {
-		response.WriteRefusal(w, refusalToolCallsUnavailable)
-		return
-	}
 	claims := middleware.GetClaims(r)
 	if claims == nil {
 		response.WriteRefusal(w, refusalToolCallsUnauthorized)

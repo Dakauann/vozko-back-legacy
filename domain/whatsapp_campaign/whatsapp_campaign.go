@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"vozko/domain/campaign"
+	"vozko/domain/campaign/launchcheck"
+	"vozko/domain/campaign/scheduledstart"
 	"vozko/domain/campaignaudience"
 	"vozko/domain/lead"
 	"vozko/domain/whatsapp_campaign/smartcampaign"
@@ -134,7 +136,10 @@ type Campaign struct {
 	CreatedAt            time.Time                   `json:"createdAt"`
 	UpdatedAt            time.Time                   `json:"updatedAt"`
 
-	ScheduledStart time.Time `json:"scheduledStart,omitzero"`
+	ScheduledStart               time.Time              `json:"scheduledStart,omitzero"`
+	ScheduledBy                  string                 `json:"scheduledBy,omitempty"`
+	ScheduleConfirmedFingerprint string                 `json:"scheduleConfirmedFingerprint,omitempty"`
+	ScheduleFailure              scheduledstart.Failure `json:"scheduleFailure,omitempty"`
 
 	WavePolicy *smartcampaign.Policy `json:"-"`
 
@@ -161,6 +166,9 @@ func (c *Campaign) Normalize() {
 		c.Type = CampaignTypeStandard
 	}
 	c.ScheduledStart = c.ScheduledStart.UTC()
+	if c.ScheduledStart.IsZero() {
+		c.clearSchedule()
+	}
 
 	if len(c.PhoneInputs) == 0 {
 		return
@@ -261,6 +269,37 @@ func (c *Campaign) Reschedule(start time.Time) error {
 	}
 	c.ScheduledStart = start
 	return nil
+}
+
+func (c *Campaign) AdmitSchedule(report launchcheck.Report, confirmedFingerprint, by string) error {
+	if c.ScheduledStart.IsZero() {
+		c.clearSchedule()
+		return nil
+	}
+	if err := campaign.RefuseSelectionSchedule(c.Source, true); err != nil {
+		return err
+	}
+	schedule, err := scheduledstart.Admit(c.ScheduledStart, report, confirmedFingerprint)
+	if err != nil {
+		return err
+	}
+	c.ApplySchedule(schedule, by)
+	return nil
+}
+
+func (c *Campaign) ApplySchedule(schedule scheduledstart.Schedule, by string) {
+	c.ScheduledStart = schedule.At.UTC()
+	c.ScheduleConfirmedFingerprint = schedule.ConfirmedFingerprint
+	c.ScheduledBy = strings.TrimSpace(by)
+	c.ScheduleFailure = ""
+	if c.ScheduledStart.IsZero() {
+		c.clearSchedule()
+	}
+}
+
+func (c *Campaign) clearSchedule() {
+	c.ScheduledBy = ""
+	c.ScheduleConfirmedFingerprint = ""
 }
 
 func (c *Campaign) ValidateMetadata() error {

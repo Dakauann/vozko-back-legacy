@@ -131,7 +131,9 @@ func TestTypingFromTheSocketGoesThroughTheTeamChatRules(t *testing.T) {
 	typing := &fakeTeamTyping{done: make(chan struct{}, 1)}
 	conn := connectionFor("u-1", "ws-1")
 	hub := notificationHub(map[string]*WSConnection{"a": conn})
-	hub.SetTeamChat(typing)
+	commands := quietHubCommands()
+	commands.TeamChat = typing
+	hub.commands.Store(&commands)
 	hub.handleIncoming(&incomingMessage{conn: conn, message: &WSIncomingMessage{
 		Type: WSEventTeamChatTyping, Payload: json.RawMessage(`{"thread_id":" t-1 "}`),
 	}})

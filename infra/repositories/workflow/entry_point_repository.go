@@ -71,13 +71,11 @@ func originValues() string {
 const formsSQL = `SELECT id, name, archived_at IS NULL AND published_version_id IS NOT NULL AS active
 FROM whatsapp_forms WHERE workspace_id = ? AND id IN ?`
 
-const agentBoundWorkflowSQL = `b.binding -> 'config' ->> 'workflow_id'`
+const agentBoundWorkflowSQL = `t.config ->> 'workflow_id'`
 
-var agentRunWorkflowBindingsSQL = `FROM agents a
-CROSS JOIN LATERAL jsonb_array_elements(` + jsonArrayOf("a.tool_bindings -> 'bindings'") + `) AS b(binding)
-WHERE a.workspace_id = ? AND a.deleted_at IS NULL AND a.archived IS NOT TRUE
-	AND ` + sqlexpr.AgentBindsTool("a", workflow.AgentRunWorkflowTool) + `
-	AND b.binding ->> 'name' = ?`
+var agentRunWorkflowBindingsSQL = `FROM agent_tools t
+JOIN agents a ON a.id = t.agent_id AND a.deleted_at IS NULL AND a.archived IS NOT TRUE
+WHERE t.workspace_id = ? AND t.deleted_at IS NULL AND t.type = ?`
 
 var boundAgentsSQL = `SELECT ` + agentBoundWorkflowSQL + ` AS workflow_id, a.id, a.name, COALESCE(a.is_active, false) AS active
 ` + agentRunWorkflowBindingsSQL + `

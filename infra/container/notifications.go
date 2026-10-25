@@ -141,12 +141,16 @@ func classifyNotificationError(err error) webhook_usecase.Disposition {
 	return webhook_usecase.DispositionRetry
 }
 
-func (c *Container) notificationJobs() (sweep, purge, digest cronPackage.CtxJobFunc) {
+func (c *Container) notificationJobs() cronJobs {
 	wiring := c.notifications()
 	if wiring.Digests == nil {
 		log.Fatalf("[notifications] the digest job needs initNotifications to run first")
 	}
-	return cronPackage.CtxJobFunc(wiring.Sweeper.Sweep), cronPackage.CtxJobFunc(wiring.Retention.Purge), cronPackage.CtxJobFunc(wiring.Digests.Send)
+	return cronJobs{
+		"notification_sweep":  cronPackage.Method(wiring.Sweeper, wiring.Sweeper.Sweep),
+		"notification_purge":  cronPackage.Method(wiring.Retention, wiring.Retention.Purge),
+		"notification_digest": cronPackage.Method(wiring.Digests, wiring.Digests.Send),
+	}
 }
 
 func (c *Container) notificationHandler() *notificationhttp.Handler {

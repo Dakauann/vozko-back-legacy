@@ -50,7 +50,7 @@ func (c *Container) buildScheduledMessages(templates whatsapp_outreach_domain.Co
 	}
 
 	if built.dispatch, err = scheduled_message_usecase.NewDispatchUseCase(
-		repo, windows, c.services.liveOperatorSend, templates, permissions, c.services.conversationHub, clock,
+		repo, windows, c.services.liveOperatorSend, templates, permissions, c.services.messageArrivals, clock,
 	); err != nil {
 		log.Fatalf("[container] scheduled messages: %v", err)
 	}

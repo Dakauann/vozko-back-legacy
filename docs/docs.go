@@ -4492,6 +4492,748 @@ const docTemplate = `{
                 }
             }
         },
+        "/agents/tools/mcp-sources": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lista os servidores MCP conectados ao workspace com as ferramentas de cada um, para configurar uma ferramenta do tipo Servidor MCP (` + "`" + `mcp_source` + "`" + `): o servidor (` + "`" + `source_id` + "`" + `) e as ferramentas permitidas (` + "`" + `tools` + "`" + `) ou todas (` + "`" + `all_tools` + "`" + `). Um servidor que não respondeu aparece com ` + "`" + `unavailable: true` + "`" + ` e sem ferramentas.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Listar os servidores MCP disponíveis para as ferramentas",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.MCPSourcesResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Salva os campos do rascunho do agente: nome, descrição, prompt, modelo, avatar, etiquetas, metadados, mídias, bases de conhecimento, RAG, variáveis e o estado ativo. Conversas seguem usando a versão publicada até a próxima publicação.\n\nAs ferramentas não vão neste corpo: cada uma é salva em /agents/{id}/tools. Um corpo com ` + "`" + `internalTools` + "`" + ` responde 400 ` + "`" + `agent_tools_moved` + "`" + ` sem salvar nada. Servidores MCP também são ferramentas (tipo ` + "`" + `mcp_source` + "`" + `, com as ferramentas permitidas): um corpo com ` + "`" + `mcpCollectionIds` + "`" + ` responde 400 ` + "`" + `agent_mcp_collections_moved` + "`" + `.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Atualizar um agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Campos do agente",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.updateAgentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agent.Agent"
+                        }
+                    },
+                    "400": {
+                        "description": "agent_tools_moved, agent_mcp_collections_moved, agent_invalid_body, agent_name_required",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "agent_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "agent_not_activatable",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/publication": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Diz qual versão está publicada, quando e por quem, e se o rascunho tem mudanças ainda não publicadas. Sem versão publicada, ` + "`" + `publishedVersion` + "`" + ` vem nulo e o agente não atende.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Estado de publicação do agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentpublishhttp.PublicationResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/publish": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Publica o rascunho atual do agente como uma nova versão imutável. Editar o agente ou as ferramentas muda só o rascunho; as conversas e os fluxos usam a versão publicada até a próxima publicação. Cada versão fixa a revisão de cada ferramenta.\n\nAntes de publicar, o rascunho passa pelo mesmo validador do editor. Com algum problema bloqueante a resposta é 422 ` + "`" + `agent_not_publishable` + "`" + ` com a lista em ` + "`" + `details.issues` + "`" + `. Um rascunho igual à versão publicada não cria versão nova.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Publicar o rascunho do agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentpublishhttp.VersionResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "agent_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "agent_not_publishable",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/runs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lista as execuções do agente, da mais recente para a mais antiga. Cada execução é um turno da IA: modelo, situação, duração, tokens, custo informado pelo provedor, quantas ferramentas foram chamadas, quantas falharam e quantas falhas a IA contornou, e a revisão de cada ferramenta oferecida.\n\n| Filtro | Valores |\n|---|---|\n| from, to | datas RFC 3339 |\n| source | conversation, simulator, scenario, workflow |\n| status | ok, tool_failed, failed |\n| toolId | id da ferramenta do agente |\n| errorKind | tipo do erro de uma chamada (timeout, http_status, arguments, ...) |\n| entryId | id da conversa |\n| handledFailure | true para só execuções com falha contornada |\n\nExecuções de conversas aparecem só para quem pode ver a conversa (departamento e atribuição). Execuções guardadas por 180 dias; o conteúdo das chamadas, por 30.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Listar as execuções de um agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Início (RFC 3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Fim (RFC 3339)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Origem",
+                        "name": "source",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Situação",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ferramenta",
+                        "name": "toolId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Tipo de erro",
+                        "name": "errorKind",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Conversa",
+                        "name": "entryId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Só falhas contornadas",
+                        "name": "handledFailure",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Página, a partir de 1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Itens por página",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.PaginatedPayload"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/agentrun.Run"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "agent_run_filter_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "agent_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/runs/{runId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Devolve a execução com as chamadas do modelo (latência, tokens, motivo de parada) e as chamadas de ferramenta na ordem em que aconteceram: argumentos, requisição e resposta HTTP com segredos mascarados, saída mapeada, exatamente o que a IA leu, tipo e cadeia do erro, o que a IA fez depois de uma falha (` + "`" + `followedBy` + "`" + `) e a revisão da ferramenta que rodou.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Ler uma execução de um agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID da execução",
+                        "name": "runId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentrun.Detail"
+                        }
+                    },
+                    "403": {
+                        "description": "agent_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_run_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/runs/{runId}/scenario": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Monta um rascunho de cenário (não salvo) com a mensagem do cliente da execução (documentos e credenciais mascarados), a resposta registrada de cada ferramenta como resposta simulada e uma verificação de que as mesmas ferramentas são chamadas. Revise e salve com POST /agents/{id}/scenarios.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Montar um cenário a partir de uma execução",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID da execução",
+                        "name": "runId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentscenario.Scenario"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_run_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/scenarios": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lista os cenários salvos do agente com o resultado da última execução e da anterior, para mostrar o que passou a falhar e o que voltou a passar.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Listar os cenários de teste de um agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentscenariohttp.ScenarioListResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "agent_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Um cenário é uma conversa roteirizada: mensagens do cliente (até 60), respostas simuladas por ferramenta (` + "`" + `mocks` + "`" + `, pelo id da ferramenta, até 64 KB cada) e verificações.\n\n| Verificação | Campos |\n|---|---|\n| tool_called | toolId, e opcionalmente arguments com match exact, subset ou regex |\n| tool_not_called | toolId |\n| tool_output_matches | toolId, path (ex.: data.itens[0].id), match exact ou regex, value |\n| reply_matches | match contains ou regex, value (confere a última resposta) |\n| reply_judged | rubric: um avaliador de IA lê a conversa e decide; o uso é cobrado como no simulador |\n\nFerramentas com resposta simulada não chamam nada de verdade. Sem resposta simulada, só consultas (GET e HEAD, base de conhecimento, agenda, CEP) rodam de verdade; o resto devolve um resultado de simulação.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Criar um cenário de teste",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Cenário",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentscenariohttp.ScenarioRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/agentscenario.Scenario"
+                        }
+                    },
+                    "400": {
+                        "description": "agent_scenario_invalid, agent_scenario_too_long",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "agent_scenario_mock_too_large",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/scenarios/run": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Roda todos os cenários do agente, até três ao mesmo tempo, e devolve uma execução por cenário.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Executar todos os cenários de um agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentscenariohttp.RunListResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/scenarios/{scenarioId}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Substitui nome, mensagens, respostas simuladas e verificações do cenário. As execuções anteriores continuam no histórico.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Alterar um cenário de teste",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID do cenário",
+                        "name": "scenarioId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Cenário",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentscenariohttp.ScenarioRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentscenario.Scenario"
+                        }
+                    },
+                    "400": {
+                        "description": "agent_scenario_invalid, agent_scenario_too_long",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_scenario_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "agent_scenario_mock_too_large",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Remove o cenário e o histórico das suas execuções.",
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Remover um cenário de teste",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID do cenário",
+                        "name": "scenarioId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "agent_scenario_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/scenarios/{scenarioId}/run": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Roda o cenário no rascunho do agente, mensagem por mensagem, pelo mesmo caminho do simulador, e confere cada verificação. Cada mensagem vira uma execução do agente com origem ` + "`" + `scenario` + "`" + `.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Executar um cenário de teste",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID do cenário",
+                        "name": "scenarioId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentscenario.Run"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_scenario_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/scenarios/{scenarioId}/runs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "As 20 execuções mais recentes do cenário, com o resultado de cada verificação, as respostas do agente por mensagem e os ids das execuções do agente (abra-os em /agents/{id}/runs/{runId}). Guardadas por 180 dias.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Histórico de execuções de um cenário",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID do cenário",
+                        "name": "scenarioId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentscenariohttp.RunListResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_scenario_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/agents/{id}/simulate": {
             "post": {
                 "security": [
@@ -4561,6 +5303,770 @@ const docTemplate = `{
                     },
                     "502": {
                         "description": "O provedor de IA recusou ou falhou o turno",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/tools": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lista as ferramentas do agente na ordem em que a IA as recebe. Cada ferramenta é uma instância com id, tipo, nome da função que a IA chama, descrição para a IA, configuração, ordem e revisão.\n\n` + "`" + `testMode` + "`" + ` diz como a ferramenta é testada sozinha em /agents/{id}/tools/{toolId}/test, pela mesma regra que o teste aplica:\n\n| testMode | O teste |\n|---|---|\n| run | Chama a API de verdade; métodos que alteram dados pedem ` + "`" + `confirmRealCall` + "`" + ` |\n| preview | Mostra o que a ferramenta faria, sem executar nada |\n| scenario | Não roda sozinha: o teste responde 422 ` + "`" + `agent_tool_test_unsupported` + "`" + `; teste num cenário do simulador |\n\nCredenciais nunca voltam: cabeçalhos de autenticação e valores de consulta sensíveis aparecem só como referência a um segredo do workspace ({{secret.\u003cnome\u003e}}), e um valor antigo ainda em texto aparece como ••••.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Listar as ferramentas de um agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.ToolListResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "agent_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cria uma instância de ferramenta. Tipos que aceitam várias instâncias (como Requisição HTTP) podem aparecer quantas vezes forem precisas, cada uma com seu nome, descrição e configuração. O nome da função é opcional: sem ele o backend propõe um a partir da descrição.\n\n| Regra | Código |\n|---|---|\n| Nome com letras minúsculas, dígitos e _, começando por letra, até 64 caracteres | agent_tool_name_invalid |\n| Nome já usado por outra função do agente | agent_tool_name_taken |\n| Tipo de uma instância só que já está no agente | agent_tool_single_type_taken |\n| Mesmo destino (por exemplo o mesmo fluxo) já usado | agent_tool_target_taken |\n| Requisição HTTP sem descrição | agent_tool_description_required |\n\nCredenciais digitadas em cabeçalhos de autenticação ou na consulta da URL vão para os segredos do workspace, e a configuração guarda só a referência.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Adicionar uma ferramenta ao agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Ferramenta",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.CreateToolRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.ToolResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "agent_invalid_body, agent_tool_type_unknown, agent_tool_name_invalid, agent_tool_description_required, agent_tool_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "agent_tool_name_taken, agent_tool_target_taken, agent_tool_single_type_taken",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/tools/order": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Define a ordem em que a IA recebe as ferramentas. Envie todos os ids do agente, cada um uma vez.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Reordenar as ferramentas do agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Ids na nova ordem",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.OrderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.ToolListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "agent_tool_order_mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/tools/test": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mesmo teste de uma ferramenta salva, para a configuração que está no formulário e ainda não foi salva. O resultado é idêntico ao do teste da ferramenta salva com a mesma configuração.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Testar uma ferramenta antes de salvar",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Ferramenta e argumentos",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.DraftTestRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.TestResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "agent_tool_test_real_call_not_confirmed, agent_tool_test_unsupported",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/tools/validate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Roda o mesmo validador do salvamento, da ativação e da Elo. Sem corpo, confere as ferramentas salvas; com ` + "`" + `tools` + "`" + `, confere esse conjunto como rascunho, sem salvar. Cada problema traz código, gravidade (` + "`" + `blocking` + "`" + `, ` + "`" + `advisory` + "`" + `), a ferramenta (` + "`" + `toolId` + "`" + `) e uma dica.\n\nSe uma conferência externa (segredos, endereço do servidor, destino da ferramenta, catálogo de modelos) não responde, o resultado traz ` + "`" + `agent_tool_validation_unavailable` + "`" + ` como bloqueante: nada passa sem conferir.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Conferir as ferramentas de um agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Conjunto rascunho (opcional)",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.ValidateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.ValidationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "agent_invalid_body, agent_tool_type_unknown",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/tools/{toolId}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Troca nome, descrição, configuração e visibilidade de uma ferramenta. Envie a revisão que você leu: se outra pessoa salvou antes, a resposta é 409 agent_tool_revision_conflict. Cada mudança grava uma revisão imutável.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Substituir uma ferramenta do agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID da ferramenta",
+                        "name": "toolId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Ferramenta",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.UpdateToolRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.ToolResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_tool_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "agent_tool_revision_conflict, agent_tool_name_taken, agent_tool_target_taken",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Remove a ferramenta do agente. As revisões continuam guardadas para os rastros das execuções.",
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Remover uma ferramenta do agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID da ferramenta",
+                        "name": "toolId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "agent_tool_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/tools/{toolId}/duplicate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Copia uma ferramenta de um tipo que aceita várias instâncias, com um nome livre (\u003cnome\u003e_2). Tipos de uma instância só ou presos a um destino respondem 409.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Duplicar uma ferramenta do agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID da ferramenta",
+                        "name": "toolId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.ToolResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "agent_tool_single_type_taken, agent_tool_target_taken",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/tools/{toolId}/revisions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lista as revisões imutáveis da ferramenta, da mais nova para a mais antiga. Cada revisão guarda nome, descrição e configuração (só referências a segredos).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Listar as revisões de uma ferramenta",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID da ferramenta",
+                        "name": "toolId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.RevisionListResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_tool_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/tools/{toolId}/revisions/{revision}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Devolve a configuração exata que a ferramenta tinha na revisão pedida.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Ler uma revisão de uma ferramenta",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID da ferramenta",
+                        "name": "toolId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Número da revisão",
+                        "name": "revision",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.RevisionResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_tool_revision_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/tools/{toolId}/test": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Roda a ferramenta sozinha pelo mesmo caminho de uma conversa: confere os argumentos contra o esquema, monta a requisição com os segredos do workspace, chama a API pelo mesmo cliente com proteção de rede e aplica o mapeamento da resposta. Use ` + "`" + `arguments` + "`" + ` ou um exemplo salvo (` + "`" + `testInputId` + "`" + `).\n\nPOST, PUT, PATCH e DELETE alteram dados no sistema externo: sem ` + "`" + `confirmRealCall: true` + "`" + ` a resposta é 422 ` + "`" + `agent_tool_test_real_call_not_confirmed` + "`" + `. Uma configuração com problema bloqueante não é chamada e volta com a lista em ` + "`" + `issues` + "`" + `.\n\nA resposta traz a requisição e a resposta (com segredos mascarados), a saída mapeada, exatamente o que a IA leria (` + "`" + `modelResult` + "`" + `), o tipo e a cadeia do erro e a duração.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Testar uma ferramenta salva",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID da ferramenta",
+                        "name": "toolId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Argumentos ou exemplo salvo",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.TestRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.TestResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_tool_not_found, agent_tool_test_input_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "agent_tool_test_input_too_large",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "agent_tool_test_real_call_not_confirmed, agent_tool_test_unsupported",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/tools/{toolId}/test-inputs": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Substitui os exemplos de argumentos salvos da ferramenta (nome único, JSON até 64 KB cada). Os exemplos não entram nas revisões nem chegam à IA.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Salvar os exemplos de teste de uma ferramenta",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID da ferramenta",
+                        "name": "toolId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Exemplos",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.TestInputsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agenttoolhttp.TestInputsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "agent_tool_test_input_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/versions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lista as versões publicadas, da mais nova para a mais antiga, com as revisões de ferramenta que cada uma fixou.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Listar as versões publicadas do agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentpublishhttp.VersionListResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/versions/{version}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Devolve o prompt, o modelo e as revisões de ferramenta da versão pedida.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Ler uma versão publicada do agente",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Número da versão",
+                        "name": "version",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentpublishhttp.VersionResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "agent_version_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{id}/versions/{version}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Copia a versão pedida para o rascunho: campos do agente e ferramentas com a configuração daquela revisão. Nada muda nas conversas até a próxima publicação.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agentes"
+                ],
+                "summary": "Restaurar uma versão como rascunho",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do agente",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Número da versão",
+                        "name": "version",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "404": {
+                        "description": "agent_version_not_found",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -5003,12 +6509,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
                     }
                 }
             }
@@ -5088,12 +6588,6 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -5531,12 +7025,6 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -9249,7 +10737,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Um único pedido cria a campanha do rascunho e decide o início. ` + "`" + `mode: ready` + "`" + ` cria a campanha parada, pronta para iniciar quando quiser. ` + "`" + `mode: schedule` + "`" + ` cria com ` + "`" + `scheduledStart` + "`" + ` (o agendamento de sempre; no horário o servidor confere tudo de novo). ` + "`" + `mode: now` + "`" + ` exige a permissão de iniciar, roda antes a mesma verificação do Iniciar sobre o rascunho e, se ela bloqueia (409 ` + "`" + `campaign_launch_blocked` + "`" + `) ou pede confirmação (409 ` + "`" + `campaign_launch_unconfirmed` + "`" + `, envie ` + "`" + `confirmedFingerprint` + "`" + `), nada é criado e o rascunho continua; senão cria, aplica as configurações do rascunho e inicia. Criada a campanha, o rascunho é apagado. Se o início ainda recusar depois de criar, a resposta traz a campanha pronta com ` + "`" + `started: false` + "`" + ` e ` + "`" + `startRefusal` + "`" + `.",
+                "description": "Um único pedido cria a campanha do rascunho e decide o início. ` + "`" + `mode: ready` + "`" + ` cria a campanha parada, pronta para iniciar quando quiser. ` + "`" + `mode: schedule` + "`" + ` roda antes a mesma verificação do ` + "`" + `mode: now` + "`" + ` sobre o rascunho (409 ` + "`" + `campaign_launch_blocked` + "`" + `, ou 409 ` + "`" + `campaign_launch_unconfirmed` + "`" + ` e envie ` + "`" + `confirmedFingerprint` + "`" + `; nada é criado nesses casos) e cria a campanha com ` + "`" + `scheduledStart` + "`" + `, guardando a confirmação com o agendamento. No horário a campanha só inicia se os riscos ainda forem os mesmos; senão ela fica parada com ` + "`" + `scheduleFailure` + "`" + ` e quem agendou recebe uma notificação. Uma campanha não oficial nunca pede confirmação, só bloqueia. Agendar, como iniciar agora, exige a permissão de iniciar campanhas (403 ` + "`" + `start_permission_required` + "`" + `); ` + "`" + `mode: ready` + "`" + ` exige só a de criar. ` + "`" + `mode: now` + "`" + ` exige a permissão de iniciar, roda antes a mesma verificação do Iniciar sobre o rascunho e, se ela bloqueia (409 ` + "`" + `campaign_launch_blocked` + "`" + `) ou pede confirmação (409 ` + "`" + `campaign_launch_unconfirmed` + "`" + `, envie ` + "`" + `confirmedFingerprint` + "`" + `), nada é criado e o rascunho continua; senão cria, aplica as configurações do rascunho e inicia. Criada a campanha, o rascunho é apagado. Se o início ainda recusar depois de criar, a resposta traz a campanha pronta com ` + "`" + `started: false` + "`" + ` e ` + "`" + `startRefusal` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9300,7 +10788,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "start_permission_required",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -12274,12 +13762,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
                     }
                 }
             }
@@ -12394,12 +13876,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
-                    },
-                    "501": {
-                        "description": "Not Implemented",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
                     }
                 }
             }
@@ -12467,12 +13943,6 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "501": {
-                        "description": "Not Implemented",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -12845,12 +14315,6 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -13429,7 +14893,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Aplica uma única ação às conversas selecionadas: ` + "`" + `move_stage` + "`" + ` (mover de etapa, ` + "`" + `value` + "`" + ` é a etapa), ` + "`" + `move_funnel` + "`" + ` (mover de funil), ` + "`" + `assign` + "`" + ` (atribuir, ` + "`" + `value` + "`" + ` é o usuário), ` + "`" + `add_label` + "`" + ` e ` + "`" + `remove_label` + "`" + ` (` + "`" + `value` + "`" + ` é a etiqueta), ` + "`" + `close` + "`" + ` (finalizar; envie ` + "`" + `outcomeCode` + "`" + ` quando o workspace exige desfecho; exige ` + "`" + `conversations:send` + "`" + ` e passa pela mesma regra e pelo mesmo serviço de status de finalizar uma conversa pelo WebSocket) ou ` + "`" + `mark_read` + "`" + ` (marca como lidas as mensagens do contato, como o ` + "`" + `mark_read` + "`" + ` do WebSocket, e tira a sua marca pessoal de não lida; exige ` + "`" + `conversations:read` + "`" + `; não envia confirmação de leitura ao canal). Cada conversa roda a ação sozinha, como a ação de uma conversa: as que falham aparecem em ` + "`" + `failed` + "`" + ` com o motivo (por exemplo, desfecho obrigatório ou conversa fora do seu alcance) e as demais seguem. Uma ação que o servidor não oferece responde 503 action_unavailable. A seleção tem exatamente um modo: ids (targets escolhidos), all_matching (um filtro não vazio) ou everyone (todo o escopo do usuário, só com expectedCount). Para all_matching e everyone, fingerprint vem de POST /crm/bulk/count e é obrigatório; expectedCount é o matched dessa contagem, tomada antes das exclusões: excludeIds tira conversas da seleção sem mudar a contagem confirmada. Se a contagem mudou, responde 409 selection_changed com a nova contagem. targets junto com all_matching ou everyone é recusado (selection_ambiguous). Sem mode, targets valem como ids, um filtro não vazio como all_matching e um filtro vazio como everyone, com as mesmas exigências. Um departamento fora do escopo do usuário responde 403 selection_scope_denied; um filtro que não se aplica a conversas responde 400 invalid_filter. A contagem passa pelo limitador de agregados: ocupado, responde 503 com Retry-After. No máximo 2000 conversas por chamada (truncated indica que restam outras), em ordem estável por id.",
+                "description": "Aplica uma única ação às conversas selecionadas: ` + "`" + `move_stage` + "`" + ` (mover de etapa, ` + "`" + `value` + "`" + ` é a etapa), ` + "`" + `move_funnel` + "`" + ` (mover de funil), ` + "`" + `assign` + "`" + ` (atribuir, ` + "`" + `value` + "`" + ` é o usuário), ` + "`" + `add_label` + "`" + ` e ` + "`" + `remove_label` + "`" + ` (` + "`" + `value` + "`" + ` é a etiqueta), ` + "`" + `close` + "`" + ` (finalizar; envie ` + "`" + `outcomeCode` + "`" + ` quando o workspace exige desfecho; exige ` + "`" + `conversations:send` + "`" + ` e passa pela mesma regra e pelo mesmo serviço de status de finalizar uma conversa pelo WebSocket) ou ` + "`" + `mark_read` + "`" + ` (marca como lidas as mensagens do contato, como o ` + "`" + `mark_read` + "`" + ` do WebSocket, e tira a sua marca pessoal de não lida; exige ` + "`" + `conversations:read` + "`" + `; não envia confirmação de leitura ao canal). Cada conversa roda a ação sozinha, como a ação de uma conversa: as que falham aparecem em ` + "`" + `failed` + "`" + ` com o motivo (por exemplo, desfecho obrigatório ou conversa fora do seu alcance) e as demais seguem. A seleção tem exatamente um modo: ids (targets escolhidos), all_matching (um filtro não vazio) ou everyone (todo o escopo do usuário, só com expectedCount). Para all_matching e everyone, fingerprint vem de POST /crm/bulk/count e é obrigatório; expectedCount é o matched dessa contagem, tomada antes das exclusões: excludeIds tira conversas da seleção sem mudar a contagem confirmada. Se a contagem mudou, responde 409 selection_changed com a nova contagem. targets junto com all_matching ou everyone é recusado (selection_ambiguous). Sem mode, targets valem como ids, um filtro não vazio como all_matching e um filtro vazio como everyone, com as mesmas exigências. Um departamento fora do escopo do usuário responde 403 selection_scope_denied; um filtro que não se aplica a conversas responde 400 invalid_filter. A contagem passa pelo limitador de agregados: ocupado, responde 503 com Retry-After. No máximo 2000 conversas por chamada (truncated indica que restam outras), em ordem estável por id.",
                 "consumes": [
                     "application/json"
                 ],
@@ -32141,12 +33605,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
-                    },
-                    "501": {
-                        "description": "Not Implemented",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
                     }
                 }
             }
@@ -35346,7 +36804,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Cria uma campanha parada do WhatsApp não oficial com os números enviados. O contato só usa a saída que vê: cada variação da mensagem precisa mostrar um comando com barra, como ` + "`" + `Responda /sair para não receber mais mensagens.` + "`" + `, e sem ele a criação responde 422 ` + "`" + `unofficial_campaign_needs_exit` + "`" + `, sem exceção. Um áudio não mostra legenda ao contato: nele o comando vai em ` + "`" + `message.exitText` + "`" + `, um texto curto enviado logo depois do áudio na mesma conversa, e um áudio sem esse texto é recusado do mesmo jeito. Se o texto de saída falhar depois do áudio, o contato fica SENT com o código 910005 e o motivo, sem reenviar o áudio. Um link (` + "`" + `https://loja.com/sair` + "`" + `) ou uma data (` + "`" + `12/10` + "`" + `) não contam. Depois do envio, quem responde o comando mostrado na última mensagem de campanha que recebeu nesta conversa deixa de receber mensagens, sem mensagem de confirmação. O fluxo e o agente são conferidos pelo passo compartilhado. Em vez de ` + "`" + `targets` + "`" + `, o passo de público manda ` + "`" + `recipients` + "`" + `: ` + "`" + `source: list` + "`" + ` com o ` + "`" + `listId` + "`" + ` de ` + "`" + `POST /campaign-audience/unofficial/lists` + "`" + ` (as mesmas entradas que os números davam) ou ` + "`" + `source: leads` + "`" + ` com a seleção (com ` + "`" + `expectedCount` + "`" + ` e ` + "`" + `fingerprint` + "`" + ` da contagem) e cada variável ligada a um campo do lead; o lead sem o valor precisa de ` + "`" + `missing: text` + "`" + ` ou ` + "`" + `missing: exclude` + "`" + ` (entra pulado com ` + "`" + `missing_variable` + "`" + `), senão 422 ` + "`" + `audience_variable_choice_required` + "`" + `. Com ` + "`" + `workflowId` + "`" + ` ou ` + "`" + `agentId` + "`" + `, cada linha da lista precisa ter nos metadados as chaves que o fluxo ou o agente pede (422 ` + "`" + `audience_list_metadata_missing` + "`" + `), e a seleção de leads, que não têm metadados, é recusada com 422 ` + "`" + `audience_leads_metadata_unavailable` + "`" + `. ` + "`" + `recipients` + "`" + ` com ` + "`" + `targets` + "`" + ` responde 400 ` + "`" + `audience_source_ambiguous` + "`" + ` e, numa campanha para grupos, 422 ` + "`" + `audience_source_unsupported` + "`" + `.",
+                "description": "Cria uma campanha parada do WhatsApp não oficial com os números enviados. O contato só usa a saída que vê: cada variação da mensagem precisa mostrar um comando com barra, como ` + "`" + `Responda /sair para não receber mais mensagens.` + "`" + `, e sem ele a criação responde 422 ` + "`" + `unofficial_campaign_needs_exit` + "`" + `, sem exceção. Um áudio não mostra legenda ao contato: nele o comando vai em ` + "`" + `message.exitText` + "`" + `, um texto curto enviado logo depois do áudio na mesma conversa, e um áudio sem esse texto é recusado do mesmo jeito. Se o texto de saída falhar depois do áudio, o contato fica SENT com o código 910005 e o motivo, sem reenviar o áudio. Um link (` + "`" + `https://loja.com/sair` + "`" + `) ou uma data (` + "`" + `12/10` + "`" + `) não contam. Depois do envio, quem responde o comando mostrado na última mensagem de campanha que recebeu nesta conversa deixa de receber mensagens, sem mensagem de confirmação. O fluxo e o agente são conferidos pelo passo compartilhado. Em vez de ` + "`" + `targets` + "`" + `, o passo de público manda ` + "`" + `recipients` + "`" + `: ` + "`" + `source: list` + "`" + ` com o ` + "`" + `listId` + "`" + ` de ` + "`" + `POST /campaign-audience/unofficial/lists` + "`" + ` (as mesmas entradas que os números davam) ou ` + "`" + `source: leads` + "`" + ` com a seleção (com ` + "`" + `expectedCount` + "`" + ` e ` + "`" + `fingerprint` + "`" + ` da contagem) e cada variável ligada a um campo do lead; o lead sem o valor precisa de ` + "`" + `missing: text` + "`" + ` ou ` + "`" + `missing: exclude` + "`" + ` (entra pulado com ` + "`" + `missing_variable` + "`" + `), senão 422 ` + "`" + `audience_variable_choice_required` + "`" + `. Com ` + "`" + `workflowId` + "`" + ` ou ` + "`" + `agentId` + "`" + `, cada linha da lista precisa ter nos metadados as chaves que o fluxo ou o agente pede (422 ` + "`" + `audience_list_metadata_missing` + "`" + `), e a seleção de leads, que não têm metadados, é recusada com 422 ` + "`" + `audience_leads_metadata_unavailable` + "`" + `. ` + "`" + `recipients` + "`" + ` com ` + "`" + `targets` + "`" + ` responde 400 ` + "`" + `audience_source_ambiguous` + "`" + ` e, numa campanha para grupos, 422 ` + "`" + `audience_source_unsupported` + "`" + `. Com ` + "`" + `scheduledStart` + "`" + `, a criação passa antes pela mesma verificação do Iniciar: um bloqueio responde 409 ` + "`" + `campaign_launch_blocked` + "`" + ` com os motivos e nada é criado; Se no horário o início falhar, a campanha fica parada com ` + "`" + `scheduleFailure` + "`" + ` e quem a criou recebe uma notificação. Agendar exige a permissão de iniciar campanhas (403 ` + "`" + `start_permission_required` + "`" + `).",
                 "consumes": [
                     "application/json"
                 ],
@@ -35383,7 +36841,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "start_permission_required",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -35394,14 +36852,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
-                    "422": {
-                        "description": "Unprocessable Entity",
+                    "409": {
+                        "description": "campaign_launch_blocked",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
-                    "503": {
-                        "description": "Service Unavailable",
+                    "422": {
+                        "description": "Unprocessable Entity",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -40017,12 +41475,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
                     }
                 }
             },
@@ -40094,12 +41546,6 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -40795,7 +42241,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Cria uma campanha com um modelo aprovado e os contatos de uma de duas formas. ` + "`" + `phoneNumbers` + "`" + ` (como sempre): cada item vira um lead, casado pelo número em qualquer formato ou criado com origem importação, e uma entrada com ` + "`" + `variables` + "`" + ` e ` + "`" + `metadata` + "`" + `. ` + "`" + `recipients` + "`" + ` (o passo de público, sem ` + "`" + `phoneNumbers` + "`" + `): ` + "`" + `source: list` + "`" + ` com o ` + "`" + `listId` + "`" + ` de ` + "`" + `POST /campaign-audience/whatsapp/lists` + "`" + `, que vira as mesmas entradas, com as colunas ligadas às variáveis e as células vazias de variável com campo sugerido preenchidas pelo lead (linha sem o valor recusa a criação com 422 ` + "`" + `audience_list_variables_missing` + "`" + `); ou ` + "`" + `source: leads` + "`" + ` com a seleção (com ` + "`" + `expectedCount` + "`" + ` e ` + "`" + `fingerprint` + "`" + ` da contagem) e as variáveis ligadas a campos do lead, em que cada lead sem o valor precisa de ` + "`" + `missing: text` + "`" + ` (texto padrão) ou ` + "`" + `missing: exclude` + "`" + ` (entra como pulado com ` + "`" + `missing_variable` + "`" + `), senão 422 ` + "`" + `audience_variable_choice_required` + "`" + `. Com ` + "`" + `workflowId` + "`" + ` ou ` + "`" + `agentId` + "`" + `, cada linha precisa ter nos metadados as chaves que o fluxo ou o agente pede, senão 422 ` + "`" + `audience_list_metadata_missing` + "`" + `; leads não têm metadados, então a seleção de leads com essas chaves é recusada com 422 ` + "`" + `audience_leads_metadata_unavailable` + "`" + `. Leads bloqueados, sem número, com opt-out, no intervalo entre disparos ou em outra campanha em andamento entram pulados com o motivo. As variáveis seguem a ordem do envio, nas duas formas: a variável do texto do cabeçalho primeiro, depois as do corpo (nomeadas ou numeradas); no envio a do cabeçalho vai no cabeçalho e as do corpo no corpo, com o nome quando o modelo usa variáveis nomeadas. As ondas de ` + "`" + `smartPolicy` + "`" + ` valem para as duas formas.",
+                "description": "Cria uma campanha com um modelo aprovado e os contatos de uma de duas formas. ` + "`" + `phoneNumbers` + "`" + ` (como sempre): cada item vira um lead, casado pelo número em qualquer formato ou criado com origem importação, e uma entrada com ` + "`" + `variables` + "`" + ` e ` + "`" + `metadata` + "`" + `. ` + "`" + `recipients` + "`" + ` (o passo de público, sem ` + "`" + `phoneNumbers` + "`" + `): ` + "`" + `source: list` + "`" + ` com o ` + "`" + `listId` + "`" + ` de ` + "`" + `POST /campaign-audience/whatsapp/lists` + "`" + `, que vira as mesmas entradas, com as colunas ligadas às variáveis e as células vazias de variável com campo sugerido preenchidas pelo lead (linha sem o valor recusa a criação com 422 ` + "`" + `audience_list_variables_missing` + "`" + `); ou ` + "`" + `source: leads` + "`" + ` com a seleção (com ` + "`" + `expectedCount` + "`" + ` e ` + "`" + `fingerprint` + "`" + ` da contagem) e as variáveis ligadas a campos do lead, em que cada lead sem o valor precisa de ` + "`" + `missing: text` + "`" + ` (texto padrão) ou ` + "`" + `missing: exclude` + "`" + ` (entra como pulado com ` + "`" + `missing_variable` + "`" + `), senão 422 ` + "`" + `audience_variable_choice_required` + "`" + `. Com ` + "`" + `workflowId` + "`" + ` ou ` + "`" + `agentId` + "`" + `, cada linha precisa ter nos metadados as chaves que o fluxo ou o agente pede, senão 422 ` + "`" + `audience_list_metadata_missing` + "`" + `; leads não têm metadados, então a seleção de leads com essas chaves é recusada com 422 ` + "`" + `audience_leads_metadata_unavailable` + "`" + `. Leads bloqueados, sem número, com opt-out, no intervalo entre disparos ou em outra campanha em andamento entram pulados com o motivo. As variáveis seguem a ordem do envio, nas duas formas: a variável do texto do cabeçalho primeiro, depois as do corpo (nomeadas ou numeradas); no envio a do cabeçalho vai no cabeçalho e as do corpo no corpo, com o nome quando o modelo usa variáveis nomeadas. As ondas de ` + "`" + `smartPolicy` + "`" + ` valem para as duas formas. Com ` + "`" + `scheduledStart` + "`" + `, a criação passa antes pela mesma verificação do Iniciar: um bloqueio responde 409 ` + "`" + `campaign_launch_blocked` + "`" + ` e riscos pedem confirmação com 409 ` + "`" + `campaign_launch_unconfirmed` + "`" + ` (reenvie com o ` + "`" + `confirmedFingerprint` + "`" + ` dos detalhes); em ambos nada é criado. A confirmação fica guardada com o agendamento e, no horário, a campanha só inicia se os riscos ainda forem os mesmos; senão ela fica parada com ` + "`" + `scheduleFailure` + "`" + ` e quem agendou recebe uma notificação. Agendar exige a permissão de iniciar campanhas (403 ` + "`" + `start_permission_required` + "`" + `); criar sem agendamento exige só a de criar.",
                 "consumes": [
                     "application/json"
                 ],
@@ -40831,6 +42277,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
+                    "403": {
+                        "description": "start_permission_required",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
                     "404": {
                         "description": "audience_list_not_found",
                         "schema": {
@@ -40838,7 +42290,7 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "selection_changed",
+                        "description": "selection_changed, campaign_launch_blocked, campaign_launch_unconfirmed",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -41069,7 +42521,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Atualiza só as configurações: nome, modelo, número, funil, fluxo, agente, ferramentas de IA e agendamento. Os contatos não mudam por aqui; ` + "`" + `phoneNumbers` + "`" + ` no corpo é ignorado (use POST /whatsapp/campaigns/{id}/entries). Arquivar não muda por aqui (use /archive e /unarchive). O modelo e o número só são conferidos quando mudam: modelo pronto para envio (422 ` + "`" + `campaign_template_not_ready` + "`" + `), da mesma conta do número (422 ` + "`" + `campaign_template_phone_mismatch` + "`" + `) e preenchível pelos contatos que ainda aguardam envio (400 ` + "`" + `campaign_template_variables_missing` + "`" + `). Trocar o modelo passa pela regra de saída da criação (422 ` + "`" + `exit_risk_not_acknowledged` + "`" + ` sem ` + "`" + `exitRiskAcknowledged: true` + "`" + `). Uma campanha preparada a partir de leads recusa a troca do modelo ou do número com 409 ` + "`" + `send_selection_locked` + "`" + `. Quando o fluxo ou o agente mudam, cada contato salvo precisa ter as variáveis que ele pede (400 ` + "`" + `campaign_workflow_vars_missing` + "`" + ` ou ` + "`" + `AGENT_REQUIRED_VARIABLE_MISSING` + "`" + `); fluxo de outro workspace 403 ` + "`" + `campaign_workflow_forbidden` + "`" + `, inexistente 400 ` + "`" + `campaign_workflow_not_found` + "`" + ` ou ` + "`" + `campaign_agent_not_found` + "`" + `. ` + "`" + `scheduledStart` + "`" + ` vazio desliga o agendamento; um novo horário precisa ficar entre 5 minutos e 1 ano (400 ` + "`" + `campaign_schedule_in_past` + "`" + ` ou ` + "`" + `campaign_schedule_out_of_window` + "`" + `) e não vale para campanha em execução (409 ` + "`" + `campaign_running` + "`" + `).",
+                "description": "Atualiza só as configurações: nome, modelo, número, funil, fluxo, agente, ferramentas de IA e agendamento. Os contatos não mudam por aqui; ` + "`" + `phoneNumbers` + "`" + ` no corpo é ignorado (use POST /whatsapp/campaigns/{id}/entries). Arquivar não muda por aqui (use /archive e /unarchive). O modelo e o número só são conferidos quando mudam: modelo pronto para envio (422 ` + "`" + `campaign_template_not_ready` + "`" + `), da mesma conta do número (422 ` + "`" + `campaign_template_phone_mismatch` + "`" + `) e preenchível pelos contatos que ainda aguardam envio (400 ` + "`" + `campaign_template_variables_missing` + "`" + `). Trocar o modelo passa pela regra de saída da criação (422 ` + "`" + `exit_risk_not_acknowledged` + "`" + ` sem ` + "`" + `exitRiskAcknowledged: true` + "`" + `). Uma campanha preparada a partir de leads recusa a troca do modelo ou do número com 409 ` + "`" + `send_selection_locked` + "`" + `. Quando o fluxo ou o agente mudam, cada contato salvo precisa ter as variáveis que ele pede (400 ` + "`" + `campaign_workflow_vars_missing` + "`" + ` ou ` + "`" + `AGENT_REQUIRED_VARIABLE_MISSING` + "`" + `); fluxo de outro workspace 403 ` + "`" + `campaign_workflow_forbidden` + "`" + `, inexistente 400 ` + "`" + `campaign_workflow_not_found` + "`" + ` ou ` + "`" + `campaign_agent_not_found` + "`" + `. ` + "`" + `scheduledStart` + "`" + ` vazio desliga o agendamento; um novo horário precisa ficar entre 5 minutos e 1 ano (400 ` + "`" + `campaign_schedule_in_past` + "`" + ` ou ` + "`" + `campaign_schedule_out_of_window` + "`" + `) e não vale para campanha em execução (409 ` + "`" + `campaign_running` + "`" + `). Um agendamento novo ou mantido passa pela mesma verificação do Iniciar sobre a campanha já editada: um bloqueio responde 409 ` + "`" + `campaign_launch_blocked` + "`" + ` e riscos novos pedem confirmação com 409 ` + "`" + `campaign_launch_unconfirmed` + "`" + ` (reenvie com o ` + "`" + `confirmedFingerprint` + "`" + ` dos detalhes); riscos já confirmados no agendamento não pedem de novo. Nada é salvo nesses casos, e sem a verificação disponível responde 503 ` + "`" + `campaign_launch_check_unavailable` + "`" + `. Uma campanha preparada a partir de leads não pode ser agendada (409 ` + "`" + `send_schedule_from_leads` + "`" + `). Quem salva o agendamento é quem recebe a notificação se ele não iniciar no horário; o motivo fica em ` + "`" + `scheduleFailure` + "`" + ` até a campanha iniciar ou ser agendada de novo. Definir ou manter um agendamento exige a permissão de iniciar campanhas (403 ` + "`" + `start_permission_required` + "`" + `); editar sem agendamento exige só a de editar.",
                 "consumes": [
                     "application/json"
                 ],
@@ -41113,7 +42565,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "start_permission_required",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -44043,12 +45495,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
                     }
                 }
             }
@@ -44704,145 +46150,6 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "run_export_failed",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/workflow-secrets": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Lista os segredos que os fluxos do workspace podem usar, só com nome, data da última alteração e quem alterou. O valor nunca é retornado por nenhuma rota. Nos fluxos, use {{secret.\u003cnome\u003e}} na URL, nos cabeçalhos ou no corpo de um nó de requisição HTTP, e secrets.get('\u003cnome\u003e') no nó de código. Exige ` + "`" + `workflows:read` + "`" + `.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
-                "summary": "Listar os segredos do workspace",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/workflowsecrethttp.SecretListResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/workflow-secrets/{name}": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Grava o valor do segredo com o nome informado, criptografado. Se o nome já existe, o valor é substituído e quem criou é mantido. O nome usa só letras minúsculas, dígitos e _, com 1 a 64 caracteres; o valor tem até 8 KB. O valor é só de escrita: a resposta traz o nome, a data e quem alterou, nunca o valor. Nos fluxos o valor só é lido quando um nó de requisição HTTP monta a chamada ou um nó de código chama secrets.get, e nunca é gravado no estado, nas etapas da execução nem nos logs. Exige ` + "`" + `workflows:update` + "`" + `.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
-                "summary": "Criar ou substituir um segredo do workspace",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Nome do segredo (ex.: unifecaf_senha)",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Valor do segredo",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/workflowsecrethttp.PutSecretRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/workflowsecrethttp.SecretResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "invalid_body, invalid_name, value_required ou value_too_long",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Apaga o segredo de vez. Fluxos que ainda usam {{secret.\u003cnome\u003e}} passam a falhar nesse nó com um erro que cita o nome, sem enviar a requisição. Exige ` + "`" + `workflows:update` + "`" + `.",
-                "tags": [
-                    "workflows"
-                ],
-                "summary": "Remover um segredo do workspace",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Nome do segredo",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "invalid_name",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "not_found",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -46465,6 +47772,148 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Webhook não configurado",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace-secrets": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lista os segredos que os fluxos e os agentes do workspace podem usar, só com nome, data da última alteração e quem alterou. O valor nunca é retornado por nenhuma rota. Nos fluxos, use {{secret.\u003cnome\u003e}} na URL, nos cabeçalhos ou no corpo de um nó de requisição HTTP, e secrets.get('\u003cnome\u003e') no nó de código. Nos agentes, use {{secret.\u003cnome\u003e}} na URL, nos cabeçalhos, na consulta, no corpo ou na autenticação de uma ferramenta de requisição HTTP. Exige ` + "`" + `agents:update` + "`" + ` ou ` + "`" + `workflows:update` + "`" + `.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows",
+                    "Agentes"
+                ],
+                "summary": "Listar os segredos do workspace",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workspacesecrethttp.SecretListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace-secrets/{name}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Grava o valor do segredo com o nome informado, criptografado. Se o nome já existe, o valor é substituído e quem criou é mantido. O nome usa só letras minúsculas, dígitos e _, com 1 a 64 caracteres; o valor tem até 8 KB. O valor é só de escrita: a resposta traz o nome, a data e quem alterou, nunca o valor. O valor só é lido no servidor, quando um nó de requisição HTTP ou uma ferramenta de agente monta a chamada ou um nó de código chama secrets.get. Ele nunca vai para o modelo de IA e nunca é gravado no estado, nas etapas da execução, nos rastros nem nos logs. Exige ` + "`" + `agents:update` + "`" + ` ou ` + "`" + `workflows:update` + "`" + `.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows",
+                    "Agentes"
+                ],
+                "summary": "Criar ou substituir um segredo do workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Nome do segredo (ex.: unifecaf_senha)",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Valor do segredo",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workspacesecrethttp.PutSecretRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workspacesecrethttp.SecretResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_body, invalid_name, value_required ou value_too_long",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Apaga o segredo de vez. Fluxos e ferramentas de agente que ainda usam {{secret.\u003cnome\u003e}} passam a falhar com um erro que cita o nome, sem enviar a requisição. Exige ` + "`" + `agents:update` + "`" + ` ou ` + "`" + `workflows:update` + "`" + `.",
+                "tags": [
+                    "workflows",
+                    "Agentes"
+                ],
+                "summary": "Remover um segredo do workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Nome do segredo",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "invalid_name",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "not_found",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -48542,7 +49991,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Mantém a caixa de entrada e as conversas abertas atualizadas em tempo real: novas mensagens, leituras, digitação, mudanças de etapa, etiquetas, responsável e status. Também é por ele que o atendente envia mensagens e muda o status da conversa.\n\n## Conectar\n\n` + "`" + `` + "`" + `` + "`" + `text\nwss://SUA_URL_BASE/ws/conversations?token=SEU_ACCESS_TOKEN\u0026workspaceId=SEU_WORKSPACE_ID\n` + "`" + `` + "`" + `` + "`" + `\n\n| Parâmetro | Obrigatório | Descrição |\n|---|---|---|\n| ` + "`" + `workspaceId` + "`" + ` | não | Workspace da conexão. Sem ele, vale o workspace padrão do usuário. |\n| ` + "`" + `departmentId` + "`" + ` | não | Departamento selecionado; filtra a caixa de entrada. |\n| ` + "`" + `campaignId` + "`" + ` + ` + "`" + `campaignType` + "`" + ` | não | Abre a conexão já na caixa de uma campanha. ` + "`" + `campaignType` + "`" + `: ` + "`" + `whatsapp` + "`" + `, ` + "`" + `unofficial_whatsapp` + "`" + `, ` + "`" + `instagram` + "`" + `, ` + "`" + `facebook` + "`" + ` ou ` + "`" + `telegram` + "`" + `. |\n\n- Permissão: ` + "`" + `conversations:read` + "`" + ` no workspace.\n- O servidor envia um ping a cada 54 segundos; navegadores respondem sozinhos. Sem resposta em 60 segundos, a conexão é encerrada.\n- Mensagens do cliente podem ter até 512 KiB.\n\nAo conectar, você recebe ` + "`" + `conversation:connected` + "`" + `, depois ` + "`" + `conversation:connected_users` + "`" + ` e a primeira página da caixa de entrada em ` + "`" + `conversation:inbox` + "`" + `.\n\n## Mensagens que você envia\n\nFormato: ` + "`" + `{\"type\": \"...\", \"payload\": {...}}` + "`" + `. Tipos desconhecidos recebem ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `code: \"unknown_event\"` + "`" + `.\n\n| type | Permissão | payload | Resposta |\n|---|---|---|---|\n| ` + "`" + `subscribe` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:subscribed` + "`" + ` e ` + "`" + `conversation:history` + "`" + `. A partir daí você recebe os eventos dessa conversa. ` + "`" + `page_size` + "`" + ` padrão 50, máximo 100. Abrir a conversa tira a sua marca pessoal de não lida (chega ` + "`" + `conversation:personal_mark` + "`" + ` se havia uma). Logo depois chega ` + "`" + `conversation:viewers` + "`" + ` com quem está com a conversa aberta, e todos os inscritos recebem a lista nova. |\n| ` + "`" + `unsubscribe` + "`" + ` | | ` + "`" + `{\"entry_id\": string, \"entry_type\": string}` + "`" + ` | ` + "`" + `conversation:unsubscribed` + "`" + `. Os inscritos que ficam recebem ` + "`" + `conversation:viewers` + "`" + ` sem você (quando era a sua última conexão inscrita). |\n| ` + "`" + `send` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"text\"?: string, \"media_id\"?: string, \"media_type\"?: \"image\" \\| \"video\" \\| \"audio\" \\| \"document\" \\| \"sticker\", \"signed\"?: boolean, \"request_id\": string, \"reply_to_message_id\"?: string}` + "`" + ` | ` + "`" + `conversation:message_sent` + "`" + ` para todos os inscritos e sempre para a conexão que enviou (mesmo sem inscrição, ou quando ela já recebeu a mensagem no histórico), ou ` + "`" + `conversation:message_error` + "`" + `. Informe ` + "`" + `text` + "`" + ` ou ` + "`" + `media_id` + "`" + `. ` + "`" + `request_id` + "`" + ` (até 128 caracteres, um UUID por envio) torna o envio idempotente: repetir o mesmo ` + "`" + `request_id` + "`" + ` na mesma conversa nunca envia de novo; se a mensagem já foi gravada, a resposta é o mesmo ` + "`" + `conversation:message_sent` + "`" + ` de antes (mesmo ` + "`" + `request_id` + "`" + `); se o primeiro envio ainda está em andamento, a repetição fica sem resposta e vale a resposta do primeiro. Sem ` + "`" + `request_id` + "`" + ` (clientes antigos) não há essa proteção. |\n| ` + "`" + `send_button` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"body_text\": string, \"buttons\": [{\"id\": string, \"title\": string}], \"header_type\"?: string, \"header_text\"?: string, \"footer_text\"?: string, \"request_id\": string, \"reply_to_message_id\"?: string}` + "`" + ` | Igual a ` + "`" + `send` + "`" + `, inclusive a idempotência por ` + "`" + `request_id` + "`" + `. De 1 a 3 botões. Os botões ficam guardados na mensagem e chegam em ` + "`" + `interactive` + "`" + `, para desenhar o balão e para que ela possa ser reenviada. |\n| ` + "`" + `resend_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"request_id\": string}` + "`" + ` | Reenvia uma mensagem que falhou, pelo mesmo caminho de ` + "`" + `send` + "`" + ` (saldo, janela, limite mensal, permissões e cobrança valem iguais), com o conteúdo original (texto, mídia, botões e resposta citada). Só vale para mensagem dessa conversa, enviada por um atendente, com ` + "`" + `deliveryStatus: \"failed\"` + "`" + ` e ainda não reenviada; senão ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `not_found` + "`" + `, ` + "`" + `not_allowed` + "`" + ` ou ` + "`" + `invalid` + "`" + ` (falta ` + "`" + `request_id` + "`" + `). O reenvio cria uma mensagem nova: chega ` + "`" + `conversation:message_updated` + "`" + ` da mensagem que falhou, agora com ` + "`" + `resent_as` + "`" + ` apontando para a nova, e depois ` + "`" + `conversation:message_sent` + "`" + ` da nova com o seu ` + "`" + `request_id` + "`" + `. Se o canal recusar, ` + "`" + `conversation:message_error` + "`" + ` com esse ` + "`" + `request_id` + "`" + ` e ` + "`" + `code: \"send_failed\"` + "`" + `, e a mensagem que falhou fica como estava. Repetir o mesmo ` + "`" + `request_id` + "`" + ` responde com a mesma mensagem nova, sem enviar de novo. |\n| ` + "`" + `react_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"emoji\": string, \"request_id\": string}` + "`" + ` | Reage a uma mensagem no canal; ` + "`" + `emoji: \"\"` + "`" + ` tira a sua reação. Deu certo: ` + "`" + `conversation:message_updated` + "`" + ` com a reação em ` + "`" + `reactions` + "`" + ` (` + "`" + `direction: \"outbound\"` + "`" + `, ` + "`" + `actor_id` + "`" + ` é você). Falhou: ` + "`" + `conversation:error` + "`" + `, e nada muda. |\n| ` + "`" + `edit_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"text\": string, \"request_id\": string}` + "`" + ` | Edita o texto de uma mensagem sua. Deu certo: ` + "`" + `conversation:message_updated` + "`" + ` com o novo ` + "`" + `text` + "`" + ` e ` + "`" + `edited_at` + "`" + `. Falhou: ` + "`" + `conversation:error` + "`" + `, e nada muda. |\n| ` + "`" + `delete_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"request_id\": string}` + "`" + ` | Apaga para todos uma mensagem sua. Deu certo: ` + "`" + `conversation:message_updated` + "`" + ` com ` + "`" + `retracted_at` + "`" + ` e sem o conteúdo. Falhou: ` + "`" + `conversation:error` + "`" + `, e nada muda. |\n| ` + "`" + `mark_read` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_ids\": string[]}` + "`" + ` | ` + "`" + `conversation:read` + "`" + ` para todos os inscritos. Também tira a sua marca pessoal de não lida dessa conversa (veja Marcas pessoais). |\n| ` + "`" + `pin_conversation` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"pinned\": boolean, \"request_id\": string}` + "`" + ` | Fixa (` + "`" + `pinned: true` + "`" + `) ou desafixa a conversa só para você. Resposta ` + "`" + `conversation:personal_mark` + "`" + ` em todas as suas conexões deste workspace, ou ` + "`" + `conversation:error` + "`" + `. |\n| ` + "`" + `mark_unread` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"request_id\": string}` + "`" + ` | Marca a conversa como não lida só para você. Resposta ` + "`" + `conversation:personal_mark` + "`" + ` em todas as suas conexões deste workspace, ou ` + "`" + `conversation:error` + "`" + `. |\n| ` + "`" + `clear_unread_mark` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"request_id\": string}` + "`" + ` | Tira só a sua marca pessoal de não lida (o desfazer de ` + "`" + `mark_unread` + "`" + `): não marca nenhuma mensagem como lida e não manda confirmação de leitura ao contato. Resposta ` + "`" + `conversation:personal_mark` + "`" + ` em todas as suas conexões deste workspace (mesmo quando não havia marca), ou ` + "`" + `conversation:error` + "`" + `. |\n| ` + "`" + `typing` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"is_typing\"?: boolean}` + "`" + ` | ` + "`" + `conversation:typing` + "`" + ` para os outros inscritos. Sem erros. |\n| ` + "`" + `request_connected_users` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{}` + "`" + ` | ` + "`" + `conversation:connected_users` + "`" + ` |\n| ` + "`" + `load_history` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"before\": string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:history` + "`" + ` com mensagens anteriores a ` + "`" + `before` + "`" + ` (RFC 3339). ` + "`" + `has_more` + "`" + ` diz se há mensagens ainda mais antigas. |\n| ` + "`" + `load_around` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"timestamp\"?: string, \"message_id\"?: string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:history` + "`" + ` em torno de ` + "`" + `timestamp` + "`" + ` (RFC 3339) ou da mensagem ` + "`" + `message_id` + "`" + ` (informe exatamente um dos dois). Com ` + "`" + `message_id` + "`" + ` (por exemplo o ` + "`" + `replyToMessageId` + "`" + ` de uma citação que ainda não está carregada), o servidor confere o acesso à conversa, carrega a mensagem e usa o ` + "`" + `createdAt` + "`" + ` dela; se ela não existe ou não é dessa conversa, ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `code: \"not_found\"` + "`" + `, ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `. ` + "`" + `has_after` + "`" + ` diz se há mensagens mais novas depois da página. |\n| ` + "`" + `load_after` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"after\": string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:history` + "`" + ` com ` + "`" + `direction: \"after\"` + "`" + ` e as mensagens logo depois de ` + "`" + `after` + "`" + ` (RFC 3339 com nanossegundos, por exemplo o ` + "`" + `createdAt` + "`" + ` da mensagem mais nova que você já tem). ` + "`" + `has_after: true` + "`" + ` indica que há mais páginas depois; repita com o ` + "`" + `createdAt` + "`" + ` da última mensagem recebida. Serve para recuperar o que chegou durante uma queda de conexão e para voltar ao presente depois de um salto. Mesma checagem de acesso e mesmos limites de ` + "`" + `page_size` + "`" + ` de ` + "`" + `load_history` + "`" + `. |\n| ` + "`" + `request_inbox_page` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"page\"?: number, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:inbox` + "`" + `. ` + "`" + `page_size` + "`" + ` padrão 20, máximo 50. |\n| ` + "`" + `search_inbox` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | Veja Busca na caixa de entrada | ` + "`" + `conversation:search_results` + "`" + ` |\n| ` + "`" + `search_messages` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"query\": string, \"page\"?: number, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:search_messages_results` + "`" + ` |\n| ` + "`" + `load_entry_matches` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | Igual a ` + "`" + `search_messages` + "`" + ` (` + "`" + `page_size` + "`" + ` padrão 10, máximo 50) | ` + "`" + `conversation:entry_matches_results` + "`" + ` |\n| ` + "`" + `reopen_window` + "`" + ` | ` + "`" + `conversations:reopen` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"template_id\": string, \"parameters\"?: string[], \"header_parameters\"?: string[], \"request_id\"?: string}` + "`" + ` | Envia um template para reabrir a janela de atendimento. ` + "`" + `parameters` + "`" + ` são os valores das variáveis do corpo, na ordem em que aparecem; ` + "`" + `header_parameters` + "`" + `, o da variável do texto do cabeçalho. | Resposta ` + "`" + `conversation:window_reopened` + "`" + `. |\n| ` + "`" + `assign_to` + "`" + ` | ` + "`" + `conversations:assign` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"user_id\": string}` + "`" + ` | Sem resposta direta: você recebe ` + "`" + `conversation:entry_update` + "`" + `. |\n| ` + "`" + `request_funnel_column` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"stage_id\": string, \"page\"?: number, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:funnel_column` + "`" + ` |\n| ` + "`" + `request_funnel_summary` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"stage_ids\": string[]}` + "`" + ` | ` + "`" + `conversation:funnel_summary` + "`" + ` |\n| ` + "`" + `switch_view` + "`" + ` | | ` + "`" + `{\"campaign_id\"?: string, \"campaign_type\"?: string, \"whatsapp_campaign_type\"?: \"standard\" \\| \"organic\", \"container_kind\"?: \"\" \\| \"campaign\", \"conversation_status\"?: \"new\" \\| \"ongoing\" \\| \"finished\"}` + "`" + ` | ` + "`" + `conversation:view_switched` + "`" + ` e a primeira página em ` + "`" + `conversation:inbox` + "`" + `. Cancela todas as inscrições em conversas. |\n| ` + "`" + `set_conversation_status` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"status\": \"ongoing\" \\| \"finished\", \"outcome_code\"?: string}` + "`" + ` | Sem resposta direta: você recebe ` + "`" + `conversation:conversation_status_update` + "`" + `. |\n\n` + "`" + `entry_type` + "`" + ` é o canal da conversa: ` + "`" + `whatsapp` + "`" + `, ` + "`" + `unofficial_whatsapp` + "`" + `, ` + "`" + `instagram` + "`" + `, ` + "`" + `facebook` + "`" + ` ou ` + "`" + `telegram` + "`" + `.\n\nRegras de ` + "`" + `react_message` + "`" + `, ` + "`" + `edit_message` + "`" + ` e ` + "`" + `delete_message` + "`" + `: o servidor confere o mesmo acesso de ` + "`" + `send` + "`" + ` e a regra da ação antes de chamar o canal, então um cliente desatualizado nunca age fora dela. Reagir exige um canal que reage e uma mensagem que o canal identifica e que não foi apagada. Editar exige um canal que edita, uma mensagem só de texto enviada por você e dentro da janela de edição do canal. Apagar exige um canal que apaga, uma mensagem enviada por você e dentro da janela de exclusão do canal. Hoje: WhatsApp por QR Code reage, edita por 15 minutos e apaga por 48 horas; Telegram reage, edita e apaga por 48 horas; Instagram, Facebook e WhatsApp oficial só reagem; o site não tem nenhuma ação. ` + "`" + `conversation:subscribed` + "`" + ` traz o que o canal da conversa permite em ` + "`" + `message_capabilities` + "`" + `.\n\nRegras de ` + "`" + `set_conversation_status` + "`" + `: uma conversa volta a ` + "`" + `new` + "`" + ` só quando o contato manda uma mensagem nova; uma conversa finalizada só reabre da mesma forma. Se o workspace exige um desfecho, envie ` + "`" + `outcome_code` + "`" + `; sem ele você recebe ` + "`" + `outcome_required` + "`" + ` com a lista em ` + "`" + `outcomes` + "`" + `.\n\nEm ` + "`" + `switch_view` + "`" + ` com ` + "`" + `campaign_type: \"whatsapp\"` + "`" + `, é preciso ` + "`" + `whatsapp_campaigns:read` + "`" + `; com ` + "`" + `unofficial_whatsapp` + "`" + ` e ` + "`" + `container_kind: \"campaign\"` + "`" + `, ` + "`" + `unofficial_whatsapp_campaigns:read` + "`" + `.\n\n### Busca na caixa de entrada\n\nTodos os campos de ` + "`" + `search_inbox` + "`" + ` são opcionais:\n\n` + "`" + `` + "`" + `` + "`" + `json\n{\n\"query\": \"string\",\n\"stage_id\": \"string\",\n\"stage_name\": \"string\",\n\"min_message_count\": 0,\n\"max_message_count\": 0,\n\"message_search\": \"string\",\n\"window_open\": true,\n\"has_unread\": true,\n\"is_group\": true,\n\"channel\": \"string\",\n\"date_from\": \"RFC 3339\",\n\"date_to\": \"RFC 3339\",\n\"conversation_status\": \"new | ongoing | finished\",\n\"responsible_user_id\": \"string\",\n\"responsible_unassigned\": true,\n\"responsible_kind\": \"ai | workflow\",\n\"sort\": \"recent | waiting\",\n\"label_id\": \"string\",\n\"personal\": \"pinned\",\n\"page\": 1,\n\"page_size\": 20\n}\n` + "`" + `` + "`" + `` + "`" + `\n\n- ` + "`" + `sort` + "`" + `: ` + "`" + `recent` + "`" + ` (padrão, a ordem de sempre: a mensagem mais recente primeiro) ou ` + "`" + `waiting` + "`" + `: primeiro as conversas que esperam resposta (as que têm ` + "`" + `waiting_since` + "`" + `), a que espera desde mais cedo no topo, depois as demais pela mais recente. É a mesma regra de ` + "`" + `waiting_since` + "`" + `: conversa finalizada não espera. Outro valor responde ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `invalid_sort` + "`" + `.\n- ` + "`" + `label_id` + "`" + `: só conversas com essa etiqueta. Um id ilegível responde ` + "`" + `invalid_label` + "`" + `.\n- ` + "`" + `is_group` + "`" + `: ` + "`" + `true` + "`" + `, só conversas de grupo (hoje, grupos do WhatsApp não oficial); ` + "`" + `false` + "`" + `, só conversas com pessoas. Num canal sem grupos, ` + "`" + `true` + "`" + ` não traz nada.\n- ` + "`" + `personal` + "`" + `: sem valor, a sua caixa de entrada (as suas fixadas primeiro, todas as outras em seguida); ` + "`" + `pinned` + "`" + `, só as que você fixou. Outro valor responde ` + "`" + `invalid_personal` + "`" + `.\n- Em qualquer ` + "`" + `sort` + "`" + `, as conversas que você fixou vêm primeiro. ` + "`" + `request_inbox_page` + "`" + `, a primeira página ao conectar e ` + "`" + `switch_view` + "`" + ` usam a sua caixa de entrada (sem ` + "`" + `personal` + "`" + `) com ` + "`" + `sort: \"recent\"` + "`" + `. As colunas do funil (` + "`" + `request_funnel_column` + "`" + `, ` + "`" + `request_funnel_summary` + "`" + `) não usam marcas pessoais.\n\n### Marcas pessoais\n\nFixar e marcar como não lida são só seus: ninguém da equipe vê as suas marcas, e elas nunca mostram uma conversa que você não pode ver (valem as mesmas regras de ` + "`" + `subscribe` + "`" + `: departamento, responsável e ` + "`" + `view_others` + "`" + `). Uma conversa que você deixou de ver some das suas marcas.\n\n- Toda mudança chega em ` + "`" + `conversation:personal_mark` + "`" + ` a todas as suas conexões neste workspace (abas e janelas, em qualquer servidor), com ` + "`" + `mark: null` + "`" + ` quando não sobrou marca.\n- Abrir a conversa (` + "`" + `subscribe` + "`" + `) ou ` + "`" + `mark_read` + "`" + ` tira a sua marca de não lida. Para desfazer ` + "`" + `mark_unread` + "`" + ` use ` + "`" + `clear_unread_mark` + "`" + `, que tira só a marca: ` + "`" + `mark_read` + "`" + ` marca as mensagens do contato como lidas e manda a confirmação de leitura a ele.\n- ` + "`" + `conversation:inbox` + "`" + ` e ` + "`" + `conversation:search_results` + "`" + ` trazem ` + "`" + `personal_marks` + "`" + ` com as suas marcas das conversas da página.\n- Os totais por status (` + "`" + `conversation_status_counts` + "`" + `) são da equipe: as suas marcas não os mudam.\n\nRecusas de ` + "`" + `pin_conversation` + "`" + `, ` + "`" + `mark_unread` + "`" + ` e ` + "`" + `clear_unread_mark` + "`" + ` chegam em ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `request_id` + "`" + `, ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + ` e o código: ` + "`" + `not_allowed` + "`" + ` (sem ` + "`" + `conversations:read` + "`" + ` ou sem acesso à conversa), ` + "`" + `invalid` + "`" + ` (falta ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + ` ou ` + "`" + `pinned` + "`" + `), ` + "`" + `unsupported` + "`" + ` (servidor sem marcas pessoais) ou ` + "`" + `failed` + "`" + ` (não foi possível gravar).\n\n## Mensagens que você recebe\n\nFormato: ` + "`" + `{\"type\": \"...\", \"payload\": {...}}` + "`" + `.\n\n### Respostas aos seus pedidos\n\n| type | payload |\n|---|---|\n| ` + "`" + `conversation:connected` + "`" + ` | ` + "`" + `{\"user_id\": string, \"connection_id\": string}` + "`" + ` |\n| ` + "`" + `conversation:subscribed` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"lead_id\"?, \"lead_name\": string, \"lead_number\": string, \"lead_version\": number, \"blocked\": boolean, \"lead_picture\": string, \"lead_metadata\"?: object, \"entry_variables\"?: string[], \"unread_count\": number, \"automation_enabled\": boolean, \"window_open\": boolean, \"window_expires_at\"?: string, \"window_closed_reason\"?: string, \"window_closed_detail\"?: string, \"window_tier\"?: \"standard\" | \"human_agent\", \"ad_origin\"?: AdOrigin, \"message_capabilities\": {\"react\": boolean, \"edit\": boolean, \"delete\": boolean, \"edit_window_seconds\": number, \"delete_window_seconds\": number}, \"media_limits\"?: [{\"kind\": \"image\" | \"video\" | \"audio\" | \"document\", \"max_bytes\": number, \"mime_types\": string[]}]}` + "`" + `. ` + "`" + `message_capabilities` + "`" + ` diz o que o canal da conversa permite fazer com as mensagens (veja as regras de ` + "`" + `react_message` + "`" + `, ` + "`" + `edit_message` + "`" + ` e ` + "`" + `delete_message` + "`" + `); as janelas contam a partir do ` + "`" + `createdAt` + "`" + ` da mensagem e valem 0 quando a ação não existe. ` + "`" + `media_limits` + "`" + ` diz quais anexos o canal aceita, um item por tipo, com o tamanho máximo em bytes; ` + "`" + `mime_types` + "`" + ` vazio aceita qualquer formato daquele tipo; um tipo fora da lista não é aceito; a lista vazia quer dizer que o canal não aceita anexos; sem o campo, os limites do canal não são conhecidos e o cliente não deve enviar anexos. ` + "`" + `lead_name` + "`" + `, ` + "`" + `lead_number` + "`" + `, ` + "`" + `lead_version` + "`" + ` e ` + "`" + `lead_picture` + "`" + ` vêm sempre (texto vazio ou 0 quando não há valor), para que um valor apagado substitua o anterior na tela. |\n| ` + "`" + `conversation:unsubscribed` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string}` + "`" + ` |\n| ` + "`" + `conversation:history` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"direction\": \"latest\" \\| \"before\" \\| \"around\" \\| \"after\", \"messages\": Message[], \"has_more\": boolean, \"has_after\": boolean, \"total\": number, \"page_size\": number}` + "`" + `. ` + "`" + `direction` + "`" + ` diz qual pedido a página responde: ` + "`" + `latest` + "`" + ` (primeira página de ` + "`" + `subscribe` + "`" + `), ` + "`" + `before` + "`" + ` (` + "`" + `load_history` + "`" + `), ` + "`" + `around` + "`" + ` (` + "`" + `load_around` + "`" + `) ou ` + "`" + `after` + "`" + ` (` + "`" + `load_after` + "`" + `). As mensagens vêm sempre da mais antiga para a mais nova. ` + "`" + `has_more` + "`" + `: há mensagens mais antigas que a página (não se aplica a ` + "`" + `after` + "`" + `). ` + "`" + `has_after` + "`" + `: há mensagens mais novas que a página (só em ` + "`" + `around` + "`" + ` e ` + "`" + `after` + "`" + `). ` + "`" + `total` + "`" + ` vem em ` + "`" + `latest` + "`" + ` e ` + "`" + `around` + "`" + `. |\n| ` + "`" + `conversation:inbox` + "`" + ` | ` + "`" + `{\"entries\": InboxEntry[], \"personal_marks\": PersonalMark[], \"page\", \"page_size\", \"total_items\", \"total_pages\", \"stage_counts\"?: object, \"conversation_status_counts\"?: object, \"available_labels\"?: Label[]}` + "`" + `. ` + "`" + `personal_marks` + "`" + ` traz as suas marcas das conversas da página (lista vazia quando não há). |\n| ` + "`" + `conversation:search_results` + "`" + ` | ` + "`" + `{\"query\"?, \"filters\": object, \"entries\": InboxEntry[], \"personal_marks\": PersonalMark[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + `. ` + "`" + `filters` + "`" + ` repete os filtros pedidos, inclusive ` + "`" + `sort` + "`" + `, ` + "`" + `label_id` + "`" + ` e ` + "`" + `personal` + "`" + `. |\n| ` + "`" + `conversation:personal_mark` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"mark\": {\"pinned_at\"?: string, \"unread_marked_at\"?: string} \\| null}` + "`" + `. Só para as suas conexões neste workspace: resposta a ` + "`" + `pin_conversation` + "`" + `, ` + "`" + `mark_unread` + "`" + ` e ` + "`" + `clear_unread_mark` + "`" + `, e também quando a sua marca muda sozinha (abrir ou ler a conversa). ` + "`" + `mark: null` + "`" + `: nenhuma marca. |\n| ` + "`" + `conversation:search_messages_results` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"query\", \"messages\": Message[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + ` |\n| ` + "`" + `conversation:entry_matches_results` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"query\", \"matches\": MatchedMessage[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + ` |\n| ` + "`" + `conversation:window_reopened` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"request_id\"?, \"template_id\", \"message_id\"}` + "`" + ` |\n| ` + "`" + `conversation:funnel_column` + "`" + ` | ` + "`" + `{\"stage_id\", \"entries\": InboxEntry[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + ` |\n| ` + "`" + `conversation:funnel_summary` + "`" + ` | ` + "`" + `{\"columns\": [{\"stage_id\": string, \"total_items\": number}]}` + "`" + ` |\n| ` + "`" + `conversation:view_switched` + "`" + ` | ` + "`" + `{\"view_mode\": \"global\" \\| \"campaign\", \"campaign_id\"?, \"campaign_type\"?, \"whatsapp_campaign_type\"?, \"container_kind\"?, \"conversation_status\"?}` + "`" + ` |\n| ` + "`" + `conversation:connected_users` + "`" + ` | ` + "`" + `{\"users\": [{\"user_id\", \"workspace_id\", \"campaign_id\", \"campaign_type\", \"campaign_name\"?, \"view_mode\", \"username\"?, \"email\"?, \"connected_at\"}]}` + "`" + `. Também chega sozinho quando alguém entra, sai ou troca de visão. Você só vê colegas dos seus departamentos, salvo se tiver acesso a todo o workspace. |\n| ` + "`" + `conversation:message_error` + "`" + ` | ` + "`" + `{\"request_id\", \"entry_id\", \"entry_type\", \"error\": string, \"code\"?: string}` + "`" + `. Falha de ` + "`" + `send` + "`" + `, ` + "`" + `send_button` + "`" + ` ou do envio de ` + "`" + `resend_message` + "`" + `. |\n| ` + "`" + `conversation:error` + "`" + ` | Veja Erros. |\n\n### Eventos das conversas em que você se inscreveu\n\n| type | payload | Quando |\n|---|---|---|\n| ` + "`" + `conversation:message` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message\": Message}` + "`" + ` | Chegou ou foi enviada uma mensagem (contato, IA, fluxo, agendamento, chamadas). |\n| ` + "`" + `conversation:message_sent` + "`" + ` | ` + "`" + `{\"request_id\", \"entry_id\", \"entry_type\", \"message\": Message}` + "`" + ` | Um atendente enviou uma mensagem. Chega para todos os inscritos. |\n| ` + "`" + `conversation:message_updated` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message\": Message}` + "`" + ` | Uma mensagem já entregue mudou: foi editada ou apagada (pelo contato ou pela equipe), recebeu ou perdeu uma reação, ganhou a transcrição do áudio, ou falhou e foi reenviada (` + "`" + `resent_as` + "`" + `). Traz a mensagem inteira no mesmo formato de ` + "`" + `conversation:message` + "`" + `; substitua a que você tem pelo ` + "`" + `id` + "`" + `. Chega só para quem está inscrito na conversa. |\n| ` + "`" + `conversation:read` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message_ids\": string[], \"read_by\": string, \"read_at\": string}` + "`" + ` | Mensagens foram marcadas como lidas. |\n| ` + "`" + `conversation:typing` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"user_id\"?, \"is_typing\": boolean}` + "`" + ` | Um colega está digitando. |\n| ` + "`" + `conversation:message_status` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message_id\", \"status\": \"sent\" \\| \"delivered\" \\| \"read\" \\| \"failed\"}` + "`" + ` | O canal confirmou a entrega. |\n| ` + "`" + `conversation:analysis_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"analysis\": Analysis \\| null, \"pending\": boolean}` + "`" + ` | A análise da conversa mudou. |\n| ` + "`" + `conversation:ad_origin` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"ad_origin\": AdOrigin}` + "`" + ` | O contato chegou por um anúncio (WhatsApp, Instagram ou Facebook). Só a primeira vez: o anúncio de origem não muda. |\n| ` + "`" + `conversation:conversation_status_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"status\", \"close_source\"?, \"close_reason\"?, \"close_outcome\"?, \"closed_at\"?}` + "`" + ` | O status da conversa mudou. |\n| ` + "`" + `conversation:viewers` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"viewers\": [{\"user_id\": string, \"name\": string}]}` + "`" + ` | Quem está com a conversa aberta agora mudou: alguém se inscreveu, cancelou a inscrição ou desconectou (em qualquer servidor). Também chega logo depois do seu ` + "`" + `subscribe` + "`" + `, com a lista atual. Traz todos os inscritos, inclusive você (filtre o seu ` + "`" + `user_id` + "`" + `); cada pessoa aparece uma vez, mesmo com várias abas ou janelas destacadas. ` + "`" + `name` + "`" + ` é o nome de usuário (texto vazio quando não foi encontrado). A lista é a fotografia completa: substitua a anterior. |\n| ` + "`" + `conversation:note` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"note\": Note}` + "`" + ` | Alguém da equipe gravou uma nota interna na conversa (POST /conversations/{entryType}/{entryId}/notes). |\n| ` + "`" + `conversation:note_deleted` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"note_id\": string}` + "`" + ` | O autor apagou uma nota interna; tire-a da tela. |\n\nUma mesma mensagem chega uma vez só por conexão: como ` + "`" + `conversation:message` + "`" + ` ou como ` + "`" + `conversation:message_sent` + "`" + `.\n\n### Eventos do workspace\n\nChegam mesmo sem inscrição, para quem tem acesso à conversa e está na visão correspondente:\n\n| type | payload | Quando |\n|---|---|---|\n| ` + "`" + `conversation:entry_update` + "`" + ` | ` + "`" + `{\"entry\": InboxEntry, \"silent\"?: boolean}` + "`" + ` | Nova mensagem, envio, troca de responsável, status ou etapa. ` + "`" + `silent: true` + "`" + ` indica atualização sem novidade para o atendente. |\n| ` + "`" + `conversation:conversation_status_counts_update` + "`" + ` | ` + "`" + `{\"counts\": {\"new\": number, \"ongoing\": number, \"finished\": number}}` + "`" + ` | Os totais por status mudaram. |\n| ` + "`" + `conversation:stage_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"stage\": Stage \\| null}` + "`" + ` | A etapa da conversa mudou. |\n| ` + "`" + `conversation:label_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"labels\": Label[]}` + "`" + ` | As etiquetas mudaram. |\n| ` + "`" + `conversation:entry_removed` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"reason\": \"assigned\"}` + "`" + ` | A conversa foi para outra pessoa e você não a vê mais. |\n| ` + "`" + `audience:analyzed` + "`" + ` | ` + "`" + `{\"workspaceId\", \"source\", \"accountId\", \"containerId\", \"items\": CommentAnalyzed[], \"more\": number}` + "`" + ` | Um lote de comentários foi analisado. Só para quem tem ` + "`" + `audience:read` + "`" + `. |\n| ` + "`" + `notification:created` + "`" + ` | ` + "`" + `{\"workspaceId\", \"item\": {\"id\", \"category\", \"severity\", \"title\", \"body\", \"imageUrl\"?, \"actionUrl\"?, \"actionLabel\"?, \"createdAt\"}}` + "`" + ` | Uma notificação nova chegou para você neste workspace (a mesma forma de GET /notifications). Só para os destinatários dela. Atualize o contador com GET /notifications/summary. |\n| ` + "`" + `conversation:lead_update` + "`" + ` | ` + "`" + `{\"leadId\": string, \"version\": number, \"fields\": string[]}` + "`" + ` | Um lead mudou (edição, nome, bloqueio, responsável, opt-out, família, anonimização). Traz só os nomes dos campos, nunca os valores; um campo personalizado aparece como ` + "`" + `customFields.\u003cchave\u003e` + "`" + `, e ` + "`" + `anonymized` + "`" + ` diz que o lead foi anonimizado e não existe mais (a nova leitura responde 404): busque o lead de novo por uma rota que você pode usar (GET /leads/{id} com ` + "`" + `leads:read` + "`" + `, ou a própria conversa). Chega para quem tem ` + "`" + `leads:read` + "`" + ` e para quem está inscrito em uma conversa desse lead. Use ` + "`" + `version` + "`" + ` no ` + "`" + `If-Match` + "`" + ` da próxima edição. |\n| ` + "`" + `conversation:leads_bulk_update` + "`" + ` | ` + "`" + `{\"runId\": string}` + "`" + ` | Um lote de uma ação em massa sobre leads (classificar, atribuir, bloquear) foi gravado. Chega uma vez por lote, só para quem tem ` + "`" + `leads:read` + "`" + `; não traz ids de leads nem valores. Recarregue a lista e consulte o andamento em GET /leads/actions/{runId}. |\n\n### Chat da equipe\n\nConversas internas entre colegas (veja a seção Chat da equipe da API). Os eventos chegam só para quem participa da conversa, em todas as suas conexões deste workspace, em qualquer servidor. Os comandos são pela API HTTP; o socket só traz os eventos e a digitação. Quem não tem ` + "`" + `conversations:read` + "`" + ` não abre este socket: atualize GET /team-chat/summary a cada minuto. Ao reconectar, recupere o que perdeu com GET /team-chat/threads e, em cada conversa aberta, GET /team-chat/threads/{id}/messages com ` + "`" + `after_seq` + "`" + ` igual ao maior ` + "`" + `seq` + "`" + ` que você já tem.\n\n| type | Direção | payload | Quando |\n|---|---|---|---|\n| ` + "`" + `team_chat_typing` + "`" + ` | você envia | ` + "`" + `{\"thread_id\": string}` + "`" + ` | Você está digitando. Envie no máximo um a cada 3 segundos. Precisa participar da conversa; recusas não têm resposta. |\n| ` + "`" + `team_chat:message` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"message\": TeamChatMessage}` + "`" + ` | Mensagem nova, inclusive as suas (para as suas outras abas), as de sistema e as agendadas no momento do envio. |\n| ` + "`" + `team_chat:message_updated` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"message\": TeamChatMessage}` + "`" + ` | Uma mensagem foi editada (` + "`" + `edited_at` + "`" + `) ou apagada (` + "`" + `deleted_at` + "`" + `, sem texto). |\n| ` + "`" + `team_chat:read` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"user_id\", \"seq\"}` + "`" + ` | Alguém leu a conversa até ` + "`" + `seq` + "`" + ` (confirmação de leitura; quando é você, sincroniza as suas abas). |\n| ` + "`" + `team_chat:thread` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\"}` + "`" + ` | A conversa mudou (criada com você, título, participantes, silenciada): busque GET /team-chat/threads/{id}. |\n| ` + "`" + `team_chat:thread_removed` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\"}` + "`" + ` | Você saiu ou foi tirado do grupo: remova a conversa da tela. |\n| ` + "`" + `team_chat:typing` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"user_id\"}` + "`" + ` | Alguém está digitando. Some sozinho depois de 5 segundos sem um novo aviso. |\n| ` + "`" + `team_chat:scheduled` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"scheduled\": TeamChatScheduled}` + "`" + ` | Uma mensagem que você agendou mudou: criada, alterada, cancelada, enviada ou falhou (` + "`" + `failure_reason` + "`" + `). Só para o autor. |\n\n**TeamChatMessage**: ` + "`" + `id` + "`" + `, ` + "`" + `thread_id` + "`" + `, ` + "`" + `seq` + "`" + ` (ordem na conversa, sem buracos), ` + "`" + `author_id` + "`" + `, ` + "`" + `author_name` + "`" + `, ` + "`" + `kind` + "`" + ` (` + "`" + `text | system` + "`" + `), ` + "`" + `body` + "`" + `, ` + "`" + `event` + "`" + `? (só em ` + "`" + `system` + "`" + `: ` + "`" + `created | renamed | members_added | member_removed | member_left` + "`" + `), ` + "`" + `subject_ids` + "`" + ` (quem a mensagem de sistema afeta), ` + "`" + `reply_to_id` + "`" + `?, ` + "`" + `mentions` + "`" + `, ` + "`" + `client_id` + "`" + `?, ` + "`" + `created_at` + "`" + `, ` + "`" + `edited_at` + "`" + `?, ` + "`" + `deleted_at` + "`" + `?. **TeamChatScheduled**: ` + "`" + `id` + "`" + `, ` + "`" + `thread_id` + "`" + `, ` + "`" + `body` + "`" + `, ` + "`" + `mentions` + "`" + `, ` + "`" + `reply_to_id` + "`" + `?, ` + "`" + `send_at` + "`" + `, ` + "`" + `status` + "`" + ` (` + "`" + `pending | sent | canceled | failed` + "`" + `), ` + "`" + `failure_reason` + "`" + `?, ` + "`" + `sent_message_id` + "`" + `?, ` + "`" + `created_at` + "`" + `, ` + "`" + `updated_at` + "`" + `.\n\n## Tipos usados nas mensagens\n\n**InboxEntry**: ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `campaign_id` + "`" + `?, ` + "`" + `campaign_name` + "`" + `?, ` + "`" + `lead_id` + "`" + `?, ` + "`" + `lead_name` + "`" + `?, ` + "`" + `lead_number` + "`" + `?, ` + "`" + `lead_version` + "`" + `?, ` + "`" + `blocked` + "`" + `, ` + "`" + `lead_picture` + "`" + `?, ` + "`" + `is_group` + "`" + `?, ` + "`" + `lead_metadata` + "`" + `?, ` + "`" + `entry_variables` + "`" + `?, ` + "`" + `unread_count` + "`" + `, ` + "`" + `last_message_preview` + "`" + `?, ` + "`" + `last_message_at` + "`" + `, ` + "`" + `last_message_type` + "`" + `?, ` + "`" + `last_message_sender` + "`" + `?, ` + "`" + `last_message_sender_avatar` + "`" + `?, ` + "`" + `last_message_sender_kind` + "`" + `? (` + "`" + `contact | human | ai | workflow | campaign | system | external` + "`" + `: quem mandou a última mensagem, para o cliente nomear o remetente no idioma de quem lê; ` + "`" + `external` + "`" + ` é uma mensagem enviada pela conta fora da plataforma, no app do próprio canal ou no celular; ausente em mensagens antigas sem remetente gravado), ` + "`" + `last_message_author` + "`" + `? (groups: name of the member who sent the last message), ` + "`" + `last_message_from_us` + "`" + `? (groups: the last message was ours), ` + "`" + `last_customer_message_at` + "`" + `? (quando o contato escreveu por último, em todos os canais), ` + "`" + `last_agent_message_at` + "`" + `? (quando a equipe, uma IA, um fluxo ou uma campanha escreveu por último), ` + "`" + `waiting_since` + "`" + `? (RFC 3339: desde quando o contato espera resposta, a primeira mensagem dele depois da última resposta da equipe, de uma IA ou de um fluxo, inclusive a digitada no celular fora da plataforma; campanha e aviso do sistema não são resposta; ausente quando ninguém espera ou a conversa está finalizada; finalizar a conversa encerra a espera e a próxima mensagem do contato começa outra), ` + "`" + `window_open` + "`" + `, ` + "`" + `window_expires_at` + "`" + `?, ` + "`" + `window_closed_reason` + "`" + `?, ` + "`" + `window_closed_detail` + "`" + `? (o mesmo estado da janela que ` + "`" + `conversation:subscribed` + "`" + ` informa, em todos os canais; sem como confirmar o estado, a linha vem fechada com ` + "`" + `channel_unavailable` + "`" + `), ` + "`" + `business_phone_id` + "`" + `?, ` + "`" + `assigned_user_id` + "`" + `?, ` + "`" + `assigned_username` + "`" + `?, ` + "`" + `automation_enabled` + "`" + `, ` + "`" + `stage` + "`" + `?: Stage, ` + "`" + `labels` + "`" + `?: Label[], ` + "`" + `available_stages` + "`" + `?: Stage[], ` + "`" + `matched_messages` + "`" + `?: MatchedMessage[], ` + "`" + `total_matches` + "`" + `?, ` + "`" + `latest_analysis` + "`" + `?: Analysis, ` + "`" + `analysis_phase` + "`" + `?: ` + "`" + `\"awaiting\" | \"queued\"` + "`" + `, ` + "`" + `live_read` + "`" + `?: LiveRead, ` + "`" + `conversation_status` + "`" + `?: ` + "`" + `new | ongoing | finished` + "`" + `, ` + "`" + `close_source` + "`" + `?: ` + "`" + `human | ai | system` + "`" + `, ` + "`" + `close_reason` + "`" + `?: ` + "`" + `manual | customer_idle | ai_resolved | max_age | workflow` + "`" + `, ` + "`" + `closed_at` + "`" + `?, ` + "`" + `close_outcome` + "`" + `?, ` + "`" + `ai_handler` + "`" + `?: AIHandler.\n\n**Message** (chaves em camelCase): ` + "`" + `id` + "`" + `, ` + "`" + `entryId` + "`" + `, ` + "`" + `entryType` + "`" + `, ` + "`" + `channel` + "`" + `, ` + "`" + `messageType` + "`" + `, ` + "`" + `direction` + "`" + `?: ` + "`" + `INBOUND | OUTBOUND` + "`" + `, ` + "`" + `from` + "`" + `, ` + "`" + `to` + "`" + `, ` + "`" + `text` + "`" + `, ` + "`" + `mediaId` + "`" + `?, ` + "`" + `mediaType` + "`" + `?, ` + "`" + `read` + "`" + `, ` + "`" + `readAt` + "`" + `?, ` + "`" + `readBy` + "`" + `?, ` + "`" + `whatsappMessageId` + "`" + `?, ` + "`" + `externalMessageId` + "`" + `?, ` + "`" + `replyToMessageId` + "`" + `?, ` + "`" + `deliveryStatus` + "`" + `?: ` + "`" + `sent | delivered | read | failed` + "`" + `, ` + "`" + `senderName` + "`" + `?, ` + "`" + `senderAvatar` + "`" + `?, ` + "`" + `sentVia` + "`" + `?: ` + "`" + `business_app` + "`" + `, ` + "`" + `sentBy` + "`" + `: ` + "`" + `{\"kind\": \"contact\" | \"human\" | \"ai\" | \"workflow\" | \"campaign\" | \"external\" | \"system\", \"id\": string}` + "`" + `, ` + "`" + `metadata` + "`" + `?, ` + "`" + `location` + "`" + `?: ` + "`" + `{\"latitude\": number, \"longitude\": number, \"name\"?: string, \"address\"?: string, \"candidate\": boolean}` + "`" + `, ` + "`" + `createdAt` + "`" + `, ` + "`" + `updatedAt` + "`" + `. Em snake_case: ` + "`" + `transcript` + "`" + `? (transcrição de um áudio recebido; hoje só no WhatsApp oficial; o ` + "`" + `text` + "`" + ` do áudio continua sendo o marcador ` + "`" + `[Áudio]` + "`" + `), ` + "`" + `edited_at` + "`" + `? (a mensagem foi editada, pelo contato ou por um atendente; ` + "`" + `text` + "`" + ` já é o novo texto), ` + "`" + `retracted_at` + "`" + `? (a mensagem foi apagada, pelo contato ou por um atendente: ` + "`" + `text` + "`" + ` vem vazio e ` + "`" + `transcript` + "`" + `, ` + "`" + `mediaId` + "`" + `, ` + "`" + `mediaType` + "`" + `, ` + "`" + `media` + "`" + `, ` + "`" + `metadata` + "`" + ` e ` + "`" + `location` + "`" + ` não vêm), ` + "`" + `reactions` + "`" + `?: Reaction[] (ausente quando não há reações), ` + "`" + `sender_user_id` + "`" + `? (o usuário da equipe que enviou a mensagem; ausente quando não foi um atendente), ` + "`" + `client_request_id` + "`" + `? (o ` + "`" + `request_id` + "`" + ` do envio de um atendente, para casar a mensagem com o balão pendente), ` + "`" + `resent_as` + "`" + `? (esta mensagem falhou e foi reenviada como a mensagem com esse ` + "`" + `id` + "`" + `; esconda esta e mostre a nova), ` + "`" + `interactive` + "`" + `?: Interactive, ` + "`" + `interactive_reply` + "`" + `?: InteractiveReply.\n\n**Interactive** (mensagem enviada com opções, em qualquer canal e por qualquer remetente: fluxo, agente de IA, atendente, campanha ou modelo do WhatsApp oficial; traz só o que o contato recebeu, depois dos limites do canal): ` + "`" + `{\"kind\": \"buttons\" | \"list\" | \"cta_url\" | \"template\", \"header\"?: {\"type\": \"text\" | \"image\" | \"video\" | \"document\", \"text\"?: string, \"media_url\"?: string}, \"body\": string, \"footer\"?: string, \"button_label\"?: string (o rótulo que abre a lista), \"sections\"?: [{\"title\"?: string, \"rows\": [{\"id\": string, \"title\": string, \"description\"?: string}]}], \"buttons\"?: [{\"kind\": \"reply\" | \"url\" | \"phone\" | \"copy_code\" | \"flow\", \"id\"?: string, \"title\": string, \"url\"?: string, \"phone\"?: string, \"code\"?: string}], \"template_name\"?: string}` + "`" + `. **InteractiveReply** (resposta do contato que escolheu uma opção; ` + "`" + `replyToMessageId` + "`" + ` aponta para a mensagem com as opções quando o canal informa): ` + "`" + `{\"kind\": \"button\" | \"list\" | \"template_button\" | \"option\" | \"quick_reply\" | \"postback\", \"option_id\": string, \"title\"?: string}` + "`" + `.\n\n` + "`" + `location` + "`" + ` aparece em toda mensagem de localização (WhatsApp oficial e coexistência, Telegram), recebida ou enviada, para desenhar o cartão do mapa. ` + "`" + `candidate: true` + "`" + ` marca a localização que o lead mandou, dentro do Brasil, que pode virar a posição dele por ` + "`" + `POST /leads/{id}/location-candidates/{messageId}/accept` + "`" + ` (exige ` + "`" + `leads:update` + "`" + `; o servidor confere de novo a conversa e o lead).\n\nValores de ` + "`" + `messageType` + "`" + `: ` + "`" + `user_message` + "`" + `, ` + "`" + `ai_response` + "`" + `, ` + "`" + `tool_call` + "`" + `, ` + "`" + `tool_result` + "`" + `, ` + "`" + `audio` + "`" + `, ` + "`" + `system` + "`" + `, ` + "`" + `media` + "`" + `, ` + "`" + `operator` + "`" + `, ` + "`" + `template` + "`" + `, ` + "`" + `call_permission_request` + "`" + `, ` + "`" + `call_permission_granted` + "`" + `, ` + "`" + `call_permission_rejected` + "`" + `, ` + "`" + `call_received` + "`" + `, ` + "`" + `call_answered` + "`" + `, ` + "`" + `call_missed` + "`" + `, ` + "`" + `call_ended` + "`" + `, ` + "`" + `story_reply` + "`" + `, ` + "`" + `story_mention` + "`" + `, ` + "`" + `reaction` + "`" + `, ` + "`" + `unsupported` + "`" + `, ` + "`" + `post_share` + "`" + `, ` + "`" + `sticker` + "`" + `, ` + "`" + `link_share` + "`" + `.\n\n**Stage**: ` + "`" + `stage_id` + "`" + `, ` + "`" + `name` + "`" + `, ` + "`" + `color` + "`" + `?. **Label**: ` + "`" + `label_id` + "`" + `, ` + "`" + `name` + "`" + `, ` + "`" + `color` + "`" + `?.\n\n**PersonalMark**: ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `pinned_at` + "`" + `? (fixada por você), ` + "`" + `unread_marked_at` + "`" + `? (marcada por você como não lida). Só as marcas de quem pediu.\n\n**Note** (nota interna, só da equipe; nunca vai para o contato, a IA, a análise, os fluxos, as exportações ou o chat do site): ` + "`" + `id` + "`" + `, ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `author_id` + "`" + `, ` + "`" + `author_name` + "`" + `, ` + "`" + `body` + "`" + `, ` + "`" + `mentions` + "`" + `: string[] (IDs de usuários mencionados; lista vazia quando não há), ` + "`" + `created_at` + "`" + `. A mesma forma de GET /conversations/{entryType}/{entryId}/notes.\n\n**Reaction**: ` + "`" + `emoji` + "`" + `, ` + "`" + `direction` + "`" + `: ` + "`" + `inbound | outbound` + "`" + ` (` + "`" + `inbound` + "`" + ` é do contato, ` + "`" + `outbound` + "`" + ` é nossa), ` + "`" + `actor_id` + "`" + `? (quem reagiu: o identificador do contato no canal ou o usuário da equipe), ` + "`" + `at` + "`" + `. Há no máximo uma reação de cada contato e uma só nossa (` + "`" + `outbound` + "`" + `), porque a conta da empresa reage uma vez por mensagem: uma reação nova substitui a anterior do mesmo lado e remover a reação a tira da lista. Na reação ` + "`" + `outbound` + "`" + `, ` + "`" + `actor_id` + "`" + ` é o atendente que reagiu pelo sistema; reações feitas direto no celular chegam sem ` + "`" + `actor_id` + "`" + `. Mensagens antigas do Instagram e do Facebook com a reação guardada no formato anterior chegam na mesma forma.\n\n**MatchedMessage**: ` + "`" + `message_id` + "`" + `, ` + "`" + `text` + "`" + `, ` + "`" + `from` + "`" + `, ` + "`" + `message_type` + "`" + `, ` + "`" + `channel` + "`" + `, ` + "`" + `created_at` + "`" + `, ` + "`" + `position` + "`" + `, ` + "`" + `page` + "`" + `.\n\n**AIHandler**: ` + "`" + `kind` + "`" + `, ` + "`" + `agent_id` + "`" + `?, ` + "`" + `agent_name` + "`" + `?, ` + "`" + `agent_avatar` + "`" + `?, ` + "`" + `agent_active` + "`" + `, ` + "`" + `workflow_id` + "`" + `?, ` + "`" + `workflow_name` + "`" + `?, ` + "`" + `workflow_run_id` + "`" + `?, ` + "`" + `run_status` + "`" + `?, ` + "`" + `current_node_id` + "`" + `?, ` + "`" + `current_node_type` + "`" + `?.\n\n**AdOrigin** (camelCase): o primeiro anúncio que trouxe o contato. ` + "`" + `adId` + "`" + `?, ` + "`" + `platform` + "`" + `?: ` + "`" + `facebook | instagram` + "`" + `, ` + "`" + `title` + "`" + `?, ` + "`" + `sourceUrl` + "`" + `?, ` + "`" + `image` + "`" + `?: ` + "`" + `{\"url\", \"mimeType\"?, \"layout\": {\"width\"?, \"height\"?, \"thumbhash\"?}}` + "`" + ` (cópia guardada pela plataforma), ` + "`" + `arrivedAt` + "`" + `.\n\n**LiveRead** (camelCase): ` + "`" + `interest` + "`" + `?, ` + "`" + `disposition` + "`" + `?, ` + "`" + `sentiment` + "`" + `?, ` + "`" + `qualification` + "`" + `?, ` + "`" + `nextAction` + "`" + `?, ` + "`" + `language` + "`" + `?, ` + "`" + `attendanceQuality` + "`" + `, ` + "`" + `certainty` + "`" + `?: object, ` + "`" + `decidedAt` + "`" + `.\n\n**Analysis** (camelCase): análise da conversa com ` + "`" + `id` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `sentiment` + "`" + `?, ` + "`" + `intent` + "`" + `?, ` + "`" + `interest` + "`" + `?, ` + "`" + `productInterest` + "`" + `?, ` + "`" + `disposition` + "`" + `?, ` + "`" + `qualification` + "`" + `?, ` + "`" + `nextAction` + "`" + `?, ` + "`" + `summary` + "`" + `?, ` + "`" + `attendanceQuality` + "`" + `?, ` + "`" + `messageCount` + "`" + `?, ` + "`" + `requiresAction` + "`" + `, ` + "`" + `excerpt` + "`" + `, ` + "`" + `analyzedAt` + "`" + `? e demais campos de identificação (` + "`" + `workspaceId` + "`" + `, ` + "`" + `source` + "`" + `, ` + "`" + `accountId` + "`" + `, ` + "`" + `containerId` + "`" + `, ` + "`" + `subjectId` + "`" + `, ` + "`" + `createdAt` + "`" + `, ` + "`" + `updatedAt` + "`" + `).\n\n**CommentAnalyzed** (camelCase): ` + "`" + `commentId` + "`" + `, ` + "`" + `subjectKind` + "`" + `, ` + "`" + `authorExternalId` + "`" + `, ` + "`" + `authorHandle` + "`" + `?, ` + "`" + `stance` + "`" + `?, ` + "`" + `sentiment` + "`" + `?, ` + "`" + `intent` + "`" + `?, ` + "`" + `topicKey` + "`" + `?, ` + "`" + `severity` + "`" + `, ` + "`" + `requiresAction` + "`" + `, ` + "`" + `isSpam` + "`" + `, ` + "`" + `excerpt` + "`" + `, ` + "`" + `interest` + "`" + `?, ` + "`" + `productInterest` + "`" + `?, ` + "`" + `disposition` + "`" + `?, ` + "`" + `qualification` + "`" + `?, ` + "`" + `nextAction` + "`" + `?, ` + "`" + `summary` + "`" + `?, ` + "`" + `occurredAt` + "`" + `, ` + "`" + `analyzedAt` + "`" + `.\n\nValores de ` + "`" + `window_closed_reason` + "`" + `: ` + "`" + `expired` + "`" + `, ` + "`" + `no_inbound` + "`" + `, ` + "`" + `contact_blocked` + "`" + `, ` + "`" + `session_down` + "`" + `, ` + "`" + `account_restricted` + "`" + `, ` + "`" + `reply_revoked` + "`" + ` e ` + "`" + `channel_unavailable` + "`" + `.\n\nDatas são strings RFC 3339.\n\n## Erros\n\n` + "`" + `conversation:error` + "`" + ` traz ` + "`" + `{\"code\": string, \"message\": string}` + "`" + `; recusas de ` + "`" + `reopen_window` + "`" + `, ` + "`" + `react_message` + "`" + `, ` + "`" + `edit_message` + "`" + `, ` + "`" + `delete_message` + "`" + `, ` + "`" + `resend_message` + "`" + `, ` + "`" + `pin_conversation` + "`" + `, ` + "`" + `mark_unread` + "`" + ` e ` + "`" + `clear_unread_mark` + "`" + ` também trazem ` + "`" + `request_id` + "`" + `, ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `; em mudanças de status, também ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `previous_status` + "`" + ` e ` + "`" + `outcomes` + "`" + ` (` + "`" + `[{\"code\", \"label\", \"isDurable\", \"position\"}]` + "`" + `).\n\n| code | Significado |\n|---|---|\n| ` + "`" + `forbidden` + "`" + ` | Falta permissão, a campanha é de outro workspace ou a regra de status não permite a mudança. Se o acesso ao workspace for revogado, a conexão é encerrada logo depois. |\n| ` + "`" + `unauthorized` + "`" + ` | Você não tem acesso a essa conversa, ou o responsável escolhido não pode recebê-la. |\n| ` + "`" + `unknown_event` + "`" + ` | ` + "`" + `type` + "`" + ` desconhecido. |\n| ` + "`" + `invalid_payload` + "`" + ` | O ` + "`" + `payload` + "`" + ` não tem o formato esperado. |\n| ` + "`" + `missing_fields` + "`" + ` | Falta um campo obrigatório. |\n| ` + "`" + `missing_content` + "`" + ` | Mensagem sem texto nem mídia. |\n| ` + "`" + `invalid_buttons` + "`" + ` | É preciso de 1 a 3 botões. |\n| ` + "`" + `invalid_entry_type` + "`" + ` | ` + "`" + `entry_type` + "`" + ` inválido. |\n| ` + "`" + `invalid_timestamp` + "`" + ` | Data fora do formato RFC 3339. |\n| ` + "`" + `invalid_status` + "`" + ` | Status diferente de ` + "`" + `new` + "`" + `, ` + "`" + `ongoing` + "`" + ` ou ` + "`" + `finished` + "`" + `. |\n| ` + "`" + `invalid_sort` + "`" + `, ` + "`" + `invalid_personal` + "`" + `, ` + "`" + `invalid_label` + "`" + ` | ` + "`" + `search_inbox` + "`" + ` com ` + "`" + `sort` + "`" + `, ` + "`" + `personal` + "`" + ` ou ` + "`" + `label_id` + "`" + ` inválido. |\n| ` + "`" + `invalid_campaign_type` + "`" + `, ` + "`" + `invalid_container_kind` + "`" + `, ` + "`" + `invalid_whatsapp_campaign_type` + "`" + ` | Filtro de visão inválido. |\n| ` + "`" + `not_found` + "`" + ` | Campanha não encontrada, ou mensagem que não existe ou não é dessa conversa. |\n| ` + "`" + `not_configured` + "`" + ` | O recurso não está disponível neste servidor. |\n| ` + "`" + `not_allowed` + "`" + ` | Ações sobre mensagens: falta ` + "`" + `conversations:send` + "`" + ` ou acesso à conversa, a mensagem não é sua, já foi apagada ou não pode receber essa ação (por exemplo, editar uma mídia ou reenviar uma mensagem que não falhou). Marcas pessoais: falta ` + "`" + `conversations:read` + "`" + ` ou acesso à conversa. |\n| ` + "`" + `invalid` + "`" + ` | Ações sobre mensagens: falta ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `message_id` + "`" + `, o texto da edição ou o ` + "`" + `request_id` + "`" + ` do reenvio, ou o ` + "`" + `request_id` + "`" + ` passa de 128 caracteres. Marcas pessoais: falta ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + ` ou ` + "`" + `pinned` + "`" + `. |\n| ` + "`" + `unsupported` + "`" + ` | O canal da conversa não tem essa ação. Em marcas pessoais: o servidor não oferece marcas pessoais. |\n| ` + "`" + `window_expired` + "`" + ` | A janela do canal para essa ação já passou, ou a janela de atendimento está fechada. |\n| ` + "`" + `failed` + "`" + ` | O canal recusou a ação ou ela não pôde ser gravada; nada mudou na conversa. Em marcas pessoais: a marca não pôde ser gravada. |\n| ` + "`" + `outcome_required` + "`" + ` | Escolha um desfecho (lista em ` + "`" + `outcomes` + "`" + `) para finalizar. |\n| ` + "`" + `outcome_unknown` + "`" + ` | O desfecho não existe no workspace (lista em ` + "`" + `outcomes` + "`" + `). |\n| ` + "`" + `history_error` + "`" + `, ` + "`" + `inbox_error` + "`" + `, ` + "`" + `search_error` + "`" + `, ` + "`" + `fetch_error` + "`" + `, ` + "`" + `template_send_failed` + "`" + `, ` + "`" + `assign_failed` + "`" + `, ` + "`" + `internal_error` + "`" + ` | Falha ao processar o pedido; tente de novo. |\n| ` + "`" + `lead_opted_out` + "`" + `, ` + "`" + `lead_blocked` + "`" + `, ` + "`" + `within_spam_window` + "`" + `, ` + "`" + `window_already_open` + "`" + `, ` + "`" + `insufficient_balance` + "`" + `, ` + "`" + `monthly_send_cap_reached` + "`" + `, ` + "`" + `pricing_unavailable` + "`" + `, ` + "`" + `quote_out_of_range` + "`" + `, ` + "`" + `template_not_sendable` + "`" + `, ` + "`" + `template_phone_mismatch` + "`" + `, ` + "`" + `invalid_phone` + "`" + `, ` + "`" + `phone_not_connected` + "`" + `, ` + "`" + `send_in_progress` + "`" + `, ` + "`" + `idempotency_key_required` + "`" + `, ` + "`" + `billing_unavailable` + "`" + `, ` + "`" + `conversation_not_found` + "`" + ` | Recusa de ` + "`" + `reopen_window` + "`" + `, com ` + "`" + `request_id` + "`" + ` (o mesmo do pedido), ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `: o mesmo código que POST /whatsapp/outreach/conversations responde para a mesma recusa (inclusive ` + "`" + `forbidden` + "`" + ` e ` + "`" + `not_found` + "`" + ` para número ou modelo). Uma falha sem motivo conhecido chega como ` + "`" + `template_send_failed` + "`" + `. |\n| ` + "`" + `send_outcome_unknown` + "`" + ` | ` + "`" + `reopen_window` + "`" + ` sem resposta do WhatsApp: o modelo pode ter sido entregue e cobrado. Confira a conversa antes de enviar de novo; não repita automaticamente. Traz ` + "`" + `request_id` + "`" + `, ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `. |\n\nCódigos de ` + "`" + `conversation:message_error` + "`" + `: ` + "`" + `unauthorized` + "`" + `, ` + "`" + `not_configured` + "`" + `, ` + "`" + `send_failed` + "`" + `, ` + "`" + `internal_error` + "`" + `, ` + "`" + `media_not_sendable` + "`" + ` (a mídia não é um envio desta conversa nem da biblioteca do workspace, ou é imagem de nota interna; a mesma resposta vale para uma mídia que não existe) e, no e-mail, ` + "`" + `email_balance_insufficient` + "`" + ` (o saldo da carteira não cobre o envio), ` + "`" + `email_attachment_blocked` + "`" + `, ` + "`" + `email_attachment_too_large` + "`" + `, ` + "`" + `email_domain_checking` + "`" + ` (o domínio do destinatário ainda está sendo verificado; nada foi cobrado, tente de novo em instantes), ` + "`" + `email_domain_unknown` + "`" + `, ` + "`" + `email_disposable_address` + "`" + ` e ` + "`" + `email_no_mail_domain` + "`" + ` (a higiene de lista recusou o destinatário; nada foi cobrado).\n\n## Autenticação\n\nUse o mesmo access token da API HTTP. Navegadores não permitem cabeçalhos em WebSockets, então o token pode ir no cabeçalho ` + "`" + `Authorization: Bearer SEU_ACCESS_TOKEN` + "`" + ` (clientes fora do navegador), no parâmetro ` + "`" + `token` + "`" + ` da URL ou no cookie ` + "`" + `accessToken` + "`" + ` do login em modo cookie. Com o cookie, a conexão só é aceita quando o ` + "`" + `Origin` + "`" + ` é o próprio painel ou uma origem confiável; o token no cabeçalho ou na URL vale de qualquer origem.\n\n## Workspace\n\nInforme o workspace em ` + "`" + `workspace_id` + "`" + ` e em ` + "`" + `workspaceId` + "`" + `, com o mesmo valor (ou o cabeçalho ` + "`" + `X-Workspace-ID` + "`" + ` junto com ` + "`" + `workspaceId` + "`" + `). O primeiro é usado na checagem de permissão da conexão; o segundo define o workspace da sessão.\n\n## Formato das mensagens\n\nCada quadro de texto carrega um único objeto JSON com o tipo da mensagem. Datas são strings RFC 3339. Antes de abrir o WebSocket, erros de autenticação, workspace e permissão voltam como HTTP comum (401, 400, 403, 429, 501).",
+                "description": "Mantém a caixa de entrada e as conversas abertas atualizadas em tempo real: novas mensagens, leituras, digitação, mudanças de etapa, etiquetas, responsável e status. Também é por ele que o atendente envia mensagens e muda o status da conversa.\n\n## Conectar\n\n` + "`" + `` + "`" + `` + "`" + `text\nwss://SUA_URL_BASE/ws/conversations?token=SEU_ACCESS_TOKEN\u0026workspaceId=SEU_WORKSPACE_ID\n` + "`" + `` + "`" + `` + "`" + `\n\n| Parâmetro | Obrigatório | Descrição |\n|---|---|---|\n| ` + "`" + `workspaceId` + "`" + ` | não | Workspace da conexão. Sem ele, vale o workspace padrão do usuário. |\n| ` + "`" + `departmentId` + "`" + ` | não | Departamento selecionado; filtra a caixa de entrada. |\n| ` + "`" + `campaignId` + "`" + ` + ` + "`" + `campaignType` + "`" + ` | não | Abre a conexão já na caixa de uma campanha. ` + "`" + `campaignType` + "`" + `: ` + "`" + `whatsapp` + "`" + `, ` + "`" + `unofficial_whatsapp` + "`" + `, ` + "`" + `instagram` + "`" + `, ` + "`" + `facebook` + "`" + ` ou ` + "`" + `telegram` + "`" + `. |\n\n- Permissão: ` + "`" + `conversations:read` + "`" + ` no workspace.\n- O servidor envia um ping a cada 54 segundos; navegadores respondem sozinhos. Sem resposta em 60 segundos, a conexão é encerrada.\n- Mensagens do cliente podem ter até 512 KiB.\n\nAo conectar, você recebe ` + "`" + `conversation:connected` + "`" + `, depois ` + "`" + `conversation:connected_users` + "`" + ` e a primeira página da caixa de entrada em ` + "`" + `conversation:inbox` + "`" + `.\n\n## Mensagens que você envia\n\nFormato: ` + "`" + `{\"type\": \"...\", \"payload\": {...}}` + "`" + `. Tipos desconhecidos recebem ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `code: \"unknown_event\"` + "`" + `.\n\n| type | Permissão | payload | Resposta |\n|---|---|---|---|\n| ` + "`" + `subscribe` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:subscribed` + "`" + ` e ` + "`" + `conversation:history` + "`" + `. A partir daí você recebe os eventos dessa conversa. ` + "`" + `page_size` + "`" + ` padrão 50, máximo 100. Abrir a conversa tira a sua marca pessoal de não lida (chega ` + "`" + `conversation:personal_mark` + "`" + ` se havia uma). Logo depois chega ` + "`" + `conversation:viewers` + "`" + ` com quem está com a conversa aberta, e todos os inscritos recebem a lista nova. |\n| ` + "`" + `unsubscribe` + "`" + ` | | ` + "`" + `{\"entry_id\": string, \"entry_type\": string}` + "`" + ` | ` + "`" + `conversation:unsubscribed` + "`" + `. Os inscritos que ficam recebem ` + "`" + `conversation:viewers` + "`" + ` sem você (quando era a sua última conexão inscrita). |\n| ` + "`" + `send` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"text\"?: string, \"media_id\"?: string, \"media_type\"?: \"image\" \\| \"video\" \\| \"audio\" \\| \"document\" \\| \"sticker\", \"signed\"?: boolean, \"request_id\": string, \"reply_to_message_id\"?: string}` + "`" + ` | ` + "`" + `conversation:message_sent` + "`" + ` para todos os inscritos e sempre para a conexão que enviou (mesmo sem inscrição, ou quando ela já recebeu a mensagem no histórico), ou ` + "`" + `conversation:message_error` + "`" + `. Informe ` + "`" + `text` + "`" + ` ou ` + "`" + `media_id` + "`" + `. ` + "`" + `request_id` + "`" + ` (até 128 caracteres, um UUID por envio) torna o envio idempotente: repetir o mesmo ` + "`" + `request_id` + "`" + ` na mesma conversa nunca envia de novo; se a mensagem já foi gravada, a resposta é o mesmo ` + "`" + `conversation:message_sent` + "`" + ` de antes (mesmo ` + "`" + `request_id` + "`" + `); se o primeiro envio ainda está em andamento, a repetição fica sem resposta e vale a resposta do primeiro. Sem ` + "`" + `request_id` + "`" + ` (clientes antigos) não há essa proteção. |\n| ` + "`" + `send_button` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"body_text\": string, \"buttons\": [{\"id\": string, \"title\": string}], \"header_type\"?: string, \"header_text\"?: string, \"footer_text\"?: string, \"request_id\": string, \"reply_to_message_id\"?: string}` + "`" + ` | Igual a ` + "`" + `send` + "`" + `, inclusive a idempotência por ` + "`" + `request_id` + "`" + `. De 1 a 3 botões. Os botões ficam guardados na mensagem e chegam em ` + "`" + `interactive` + "`" + `, para desenhar o balão e para que ela possa ser reenviada. |\n| ` + "`" + `resend_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"request_id\": string}` + "`" + ` | Reenvia uma mensagem que falhou, pelo mesmo caminho de ` + "`" + `send` + "`" + ` (saldo, janela, limite mensal, permissões e cobrança valem iguais), com o conteúdo original (texto, mídia, botões e resposta citada). Só vale para mensagem dessa conversa, enviada por um atendente, com ` + "`" + `deliveryStatus: \"failed\"` + "`" + ` e ainda não reenviada; senão ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `not_found` + "`" + `, ` + "`" + `not_allowed` + "`" + ` ou ` + "`" + `invalid` + "`" + ` (falta ` + "`" + `request_id` + "`" + `). O reenvio cria uma mensagem nova: chega ` + "`" + `conversation:message_updated` + "`" + ` da mensagem que falhou, agora com ` + "`" + `resent_as` + "`" + ` apontando para a nova, e depois ` + "`" + `conversation:message_sent` + "`" + ` da nova com o seu ` + "`" + `request_id` + "`" + `. Se o canal recusar, ` + "`" + `conversation:message_error` + "`" + ` com esse ` + "`" + `request_id` + "`" + ` e ` + "`" + `code: \"send_failed\"` + "`" + `, e a mensagem que falhou fica como estava. Repetir o mesmo ` + "`" + `request_id` + "`" + ` responde com a mesma mensagem nova, sem enviar de novo. |\n| ` + "`" + `react_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"emoji\": string, \"request_id\": string}` + "`" + ` | Reage a uma mensagem no canal; ` + "`" + `emoji: \"\"` + "`" + ` tira a sua reação. Deu certo: ` + "`" + `conversation:message_updated` + "`" + ` com a reação em ` + "`" + `reactions` + "`" + ` (` + "`" + `direction: \"outbound\"` + "`" + `, ` + "`" + `actor_id` + "`" + ` é você). Falhou: ` + "`" + `conversation:error` + "`" + `, e nada muda. |\n| ` + "`" + `edit_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"text\": string, \"request_id\": string}` + "`" + ` | Edita o texto de uma mensagem sua. Deu certo: ` + "`" + `conversation:message_updated` + "`" + ` com o novo ` + "`" + `text` + "`" + ` e ` + "`" + `edited_at` + "`" + `. Falhou: ` + "`" + `conversation:error` + "`" + `, e nada muda. |\n| ` + "`" + `delete_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"request_id\": string}` + "`" + ` | Apaga para todos uma mensagem sua. Deu certo: ` + "`" + `conversation:message_updated` + "`" + ` com ` + "`" + `retracted_at` + "`" + ` e sem o conteúdo. Falhou: ` + "`" + `conversation:error` + "`" + `, e nada muda. |\n| ` + "`" + `mark_read` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_ids\": string[]}` + "`" + ` | ` + "`" + `conversation:read` + "`" + ` para todos os inscritos. Também tira a sua marca pessoal de não lida dessa conversa (veja Marcas pessoais). |\n| ` + "`" + `pin_conversation` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"pinned\": boolean, \"request_id\": string}` + "`" + ` | Fixa (` + "`" + `pinned: true` + "`" + `) ou desafixa a conversa só para você. Resposta ` + "`" + `conversation:personal_mark` + "`" + ` em todas as suas conexões deste workspace, ou ` + "`" + `conversation:error` + "`" + `. |\n| ` + "`" + `mark_unread` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"request_id\": string}` + "`" + ` | Marca a conversa como não lida só para você. Resposta ` + "`" + `conversation:personal_mark` + "`" + ` em todas as suas conexões deste workspace, ou ` + "`" + `conversation:error` + "`" + `. |\n| ` + "`" + `clear_unread_mark` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"request_id\": string}` + "`" + ` | Tira só a sua marca pessoal de não lida (o desfazer de ` + "`" + `mark_unread` + "`" + `): não marca nenhuma mensagem como lida e não manda confirmação de leitura ao contato. Resposta ` + "`" + `conversation:personal_mark` + "`" + ` em todas as suas conexões deste workspace (mesmo quando não havia marca), ou ` + "`" + `conversation:error` + "`" + `. |\n| ` + "`" + `typing` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"is_typing\"?: boolean}` + "`" + ` | ` + "`" + `conversation:typing` + "`" + ` para os outros inscritos. Sem erros. |\n| ` + "`" + `request_connected_users` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{}` + "`" + ` | ` + "`" + `conversation:connected_users` + "`" + ` |\n| ` + "`" + `load_history` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"before\": string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:history` + "`" + ` com mensagens anteriores a ` + "`" + `before` + "`" + ` (RFC 3339). ` + "`" + `has_more` + "`" + ` diz se há mensagens ainda mais antigas. |\n| ` + "`" + `load_around` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"timestamp\"?: string, \"message_id\"?: string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:history` + "`" + ` em torno de ` + "`" + `timestamp` + "`" + ` (RFC 3339) ou da mensagem ` + "`" + `message_id` + "`" + ` (informe exatamente um dos dois). Com ` + "`" + `message_id` + "`" + ` (por exemplo o ` + "`" + `replyToMessageId` + "`" + ` de uma citação que ainda não está carregada), o servidor confere o acesso à conversa, carrega a mensagem e usa o ` + "`" + `createdAt` + "`" + ` dela; se ela não existe ou não é dessa conversa, ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `code: \"not_found\"` + "`" + `, ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `. ` + "`" + `has_after` + "`" + ` diz se há mensagens mais novas depois da página. |\n| ` + "`" + `load_after` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"after\": string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:history` + "`" + ` com ` + "`" + `direction: \"after\"` + "`" + ` e as mensagens logo depois de ` + "`" + `after` + "`" + ` (RFC 3339 com nanossegundos, por exemplo o ` + "`" + `createdAt` + "`" + ` da mensagem mais nova que você já tem). ` + "`" + `has_after: true` + "`" + ` indica que há mais páginas depois; repita com o ` + "`" + `createdAt` + "`" + ` da última mensagem recebida. Serve para recuperar o que chegou durante uma queda de conexão e para voltar ao presente depois de um salto. Mesma checagem de acesso e mesmos limites de ` + "`" + `page_size` + "`" + ` de ` + "`" + `load_history` + "`" + `. |\n| ` + "`" + `request_inbox_page` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"page\"?: number, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:inbox` + "`" + `. ` + "`" + `page_size` + "`" + ` padrão 20, máximo 50. |\n| ` + "`" + `search_inbox` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | Veja Busca na caixa de entrada | ` + "`" + `conversation:search_results` + "`" + ` |\n| ` + "`" + `search_messages` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"query\": string, \"page\"?: number, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:search_messages_results` + "`" + ` |\n| ` + "`" + `load_entry_matches` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | Igual a ` + "`" + `search_messages` + "`" + ` (` + "`" + `page_size` + "`" + ` padrão 10, máximo 50) | ` + "`" + `conversation:entry_matches_results` + "`" + ` |\n| ` + "`" + `reopen_window` + "`" + ` | ` + "`" + `conversations:reopen` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"template_id\": string, \"parameters\"?: string[], \"header_parameters\"?: string[], \"request_id\"?: string}` + "`" + ` | Envia um template para reabrir a janela de atendimento. ` + "`" + `parameters` + "`" + ` são os valores das variáveis do corpo, na ordem em que aparecem; ` + "`" + `header_parameters` + "`" + `, o da variável do texto do cabeçalho. | Resposta ` + "`" + `conversation:window_reopened` + "`" + `. |\n| ` + "`" + `assign_to` + "`" + ` | ` + "`" + `conversations:assign` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"user_id\": string}` + "`" + ` | Sem resposta direta: você recebe ` + "`" + `conversation:entry_update` + "`" + `. |\n| ` + "`" + `request_funnel_column` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"stage_id\": string, \"page\"?: number, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:funnel_column` + "`" + ` |\n| ` + "`" + `request_funnel_summary` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"stage_ids\": string[]}` + "`" + ` | ` + "`" + `conversation:funnel_summary` + "`" + ` |\n| ` + "`" + `switch_view` + "`" + ` | | ` + "`" + `{\"campaign_id\"?: string, \"campaign_type\"?: string, \"whatsapp_campaign_type\"?: \"standard\" \\| \"organic\", \"container_kind\"?: \"\" \\| \"campaign\", \"conversation_status\"?: \"new\" \\| \"ongoing\" \\| \"finished\"}` + "`" + ` | ` + "`" + `conversation:view_switched` + "`" + ` e a primeira página em ` + "`" + `conversation:inbox` + "`" + `. Cancela todas as inscrições em conversas. |\n| ` + "`" + `set_conversation_status` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"status\": \"ongoing\" \\| \"finished\", \"outcome_code\"?: string}` + "`" + ` | Sem resposta direta: você recebe ` + "`" + `conversation:conversation_status_update` + "`" + `. |\n\n` + "`" + `entry_type` + "`" + ` é o canal da conversa: ` + "`" + `whatsapp` + "`" + `, ` + "`" + `unofficial_whatsapp` + "`" + `, ` + "`" + `instagram` + "`" + `, ` + "`" + `facebook` + "`" + ` ou ` + "`" + `telegram` + "`" + `.\n\nRegras de ` + "`" + `react_message` + "`" + `, ` + "`" + `edit_message` + "`" + ` e ` + "`" + `delete_message` + "`" + `: o servidor confere o mesmo acesso de ` + "`" + `send` + "`" + ` e a regra da ação antes de chamar o canal, então um cliente desatualizado nunca age fora dela. Reagir exige um canal que reage e uma mensagem que o canal identifica e que não foi apagada. Editar exige um canal que edita, uma mensagem só de texto enviada por você e dentro da janela de edição do canal. Apagar exige um canal que apaga, uma mensagem enviada por você e dentro da janela de exclusão do canal. Hoje: WhatsApp por QR Code reage, edita por 15 minutos e apaga por 48 horas; Telegram reage, edita e apaga por 48 horas; Instagram, Facebook e WhatsApp oficial só reagem; o site não tem nenhuma ação. ` + "`" + `conversation:subscribed` + "`" + ` traz o que o canal da conversa permite em ` + "`" + `message_capabilities` + "`" + `.\n\nRegras de ` + "`" + `set_conversation_status` + "`" + `: uma conversa volta a ` + "`" + `new` + "`" + ` só quando o contato manda uma mensagem nova; uma conversa finalizada só reabre da mesma forma. Se o workspace exige um desfecho, envie ` + "`" + `outcome_code` + "`" + `; sem ele você recebe ` + "`" + `outcome_required` + "`" + ` com a lista em ` + "`" + `outcomes` + "`" + `.\n\nEm ` + "`" + `switch_view` + "`" + ` com ` + "`" + `campaign_type: \"whatsapp\"` + "`" + `, é preciso ` + "`" + `whatsapp_campaigns:read` + "`" + `; com ` + "`" + `unofficial_whatsapp` + "`" + ` e ` + "`" + `container_kind: \"campaign\"` + "`" + `, ` + "`" + `unofficial_whatsapp_campaigns:read` + "`" + `.\n\n### Busca na caixa de entrada\n\nTodos os campos de ` + "`" + `search_inbox` + "`" + ` são opcionais:\n\n` + "`" + `` + "`" + `` + "`" + `json\n{\n\"query\": \"string\",\n\"stage_id\": \"string\",\n\"stage_name\": \"string\",\n\"min_message_count\": 0,\n\"max_message_count\": 0,\n\"message_search\": \"string\",\n\"window_open\": true,\n\"has_unread\": true,\n\"is_group\": true,\n\"channel\": \"string\",\n\"date_from\": \"RFC 3339\",\n\"date_to\": \"RFC 3339\",\n\"conversation_status\": \"new | ongoing | finished\",\n\"responsible_user_id\": \"string\",\n\"responsible_unassigned\": true,\n\"responsible_kind\": \"ai | workflow\",\n\"sort\": \"recent | waiting\",\n\"label_id\": \"string\",\n\"personal\": \"pinned\",\n\"page\": 1,\n\"page_size\": 20\n}\n` + "`" + `` + "`" + `` + "`" + `\n\n- ` + "`" + `sort` + "`" + `: ` + "`" + `recent` + "`" + ` (padrão, a ordem de sempre: a mensagem mais recente primeiro) ou ` + "`" + `waiting` + "`" + `: primeiro as conversas que esperam resposta (as que têm ` + "`" + `waiting_since` + "`" + `), a que espera desde mais cedo no topo, depois as demais pela mais recente. É a mesma regra de ` + "`" + `waiting_since` + "`" + `: conversa finalizada não espera. Outro valor responde ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `invalid_sort` + "`" + `.\n- ` + "`" + `label_id` + "`" + `: só conversas com essa etiqueta. Um id ilegível responde ` + "`" + `invalid_label` + "`" + `.\n- ` + "`" + `is_group` + "`" + `: ` + "`" + `true` + "`" + `, só conversas de grupo (hoje, grupos do WhatsApp não oficial); ` + "`" + `false` + "`" + `, só conversas com pessoas. Num canal sem grupos, ` + "`" + `true` + "`" + ` não traz nada.\n- ` + "`" + `personal` + "`" + `: sem valor, a sua caixa de entrada (as suas fixadas primeiro, todas as outras em seguida); ` + "`" + `pinned` + "`" + `, só as que você fixou. Outro valor responde ` + "`" + `invalid_personal` + "`" + `.\n- Em qualquer ` + "`" + `sort` + "`" + `, as conversas que você fixou vêm primeiro. ` + "`" + `request_inbox_page` + "`" + `, a primeira página ao conectar e ` + "`" + `switch_view` + "`" + ` usam a sua caixa de entrada (sem ` + "`" + `personal` + "`" + `) com ` + "`" + `sort: \"recent\"` + "`" + `. As colunas do funil (` + "`" + `request_funnel_column` + "`" + `, ` + "`" + `request_funnel_summary` + "`" + `) não usam marcas pessoais.\n\n### Marcas pessoais\n\nFixar e marcar como não lida são só seus: ninguém da equipe vê as suas marcas, e elas nunca mostram uma conversa que você não pode ver (valem as mesmas regras de ` + "`" + `subscribe` + "`" + `: departamento, responsável e ` + "`" + `view_others` + "`" + `). Uma conversa que você deixou de ver some das suas marcas.\n\n- Toda mudança chega em ` + "`" + `conversation:personal_mark` + "`" + ` a todas as suas conexões neste workspace (abas e janelas, em qualquer servidor), com ` + "`" + `mark: null` + "`" + ` quando não sobrou marca.\n- Abrir a conversa (` + "`" + `subscribe` + "`" + `) ou ` + "`" + `mark_read` + "`" + ` tira a sua marca de não lida. Para desfazer ` + "`" + `mark_unread` + "`" + ` use ` + "`" + `clear_unread_mark` + "`" + `, que tira só a marca: ` + "`" + `mark_read` + "`" + ` marca as mensagens do contato como lidas e manda a confirmação de leitura a ele.\n- ` + "`" + `conversation:inbox` + "`" + ` e ` + "`" + `conversation:search_results` + "`" + ` trazem ` + "`" + `personal_marks` + "`" + ` com as suas marcas das conversas da página.\n- Os totais por status (` + "`" + `conversation_status_counts` + "`" + `) são da equipe: as suas marcas não os mudam.\n\nRecusas de ` + "`" + `pin_conversation` + "`" + `, ` + "`" + `mark_unread` + "`" + ` e ` + "`" + `clear_unread_mark` + "`" + ` chegam em ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `request_id` + "`" + `, ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + ` e o código: ` + "`" + `not_allowed` + "`" + ` (sem ` + "`" + `conversations:read` + "`" + ` ou sem acesso à conversa), ` + "`" + `invalid` + "`" + ` (falta ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + ` ou ` + "`" + `pinned` + "`" + `), ` + "`" + `unsupported` + "`" + ` (servidor sem marcas pessoais) ou ` + "`" + `failed` + "`" + ` (não foi possível gravar).\n\n## Mensagens que você recebe\n\nFormato: ` + "`" + `{\"type\": \"...\", \"payload\": {...}}` + "`" + `.\n\n### Respostas aos seus pedidos\n\n| type | payload |\n|---|---|\n| ` + "`" + `conversation:connected` + "`" + ` | ` + "`" + `{\"user_id\": string, \"connection_id\": string}` + "`" + ` |\n| ` + "`" + `conversation:subscribed` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"lead_id\"?, \"lead_name\": string, \"lead_number\": string, \"lead_version\": number, \"blocked\": boolean, \"lead_picture\": string, \"lead_metadata\"?: object, \"entry_variables\"?: string[], \"unread_count\": number, \"automation_enabled\": boolean, \"window_open\": boolean, \"window_expires_at\"?: string, \"window_closed_reason\"?: string, \"window_closed_detail\"?: string, \"window_tier\"?: \"standard\" | \"human_agent\", \"ad_origin\"?: AdOrigin, \"message_capabilities\": {\"react\": boolean, \"edit\": boolean, \"delete\": boolean, \"edit_window_seconds\": number, \"delete_window_seconds\": number}, \"media_limits\"?: [{\"kind\": \"image\" | \"video\" | \"audio\" | \"document\", \"max_bytes\": number, \"mime_types\": string[]}]}` + "`" + `. ` + "`" + `message_capabilities` + "`" + ` diz o que o canal da conversa permite fazer com as mensagens (veja as regras de ` + "`" + `react_message` + "`" + `, ` + "`" + `edit_message` + "`" + ` e ` + "`" + `delete_message` + "`" + `); as janelas contam a partir do ` + "`" + `createdAt` + "`" + ` da mensagem e valem 0 quando a ação não existe. ` + "`" + `media_limits` + "`" + ` diz quais anexos o canal aceita, um item por tipo, com o tamanho máximo em bytes; ` + "`" + `mime_types` + "`" + ` vazio aceita qualquer formato daquele tipo; um tipo fora da lista não é aceito; a lista vazia quer dizer que o canal não aceita anexos; sem o campo, os limites do canal não são conhecidos e o cliente não deve enviar anexos. ` + "`" + `lead_name` + "`" + `, ` + "`" + `lead_number` + "`" + `, ` + "`" + `lead_version` + "`" + ` e ` + "`" + `lead_picture` + "`" + ` vêm sempre (texto vazio ou 0 quando não há valor), para que um valor apagado substitua o anterior na tela. |\n| ` + "`" + `conversation:unsubscribed` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string}` + "`" + ` |\n| ` + "`" + `conversation:history` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"direction\": \"latest\" \\| \"before\" \\| \"around\" \\| \"after\", \"messages\": Message[], \"has_more\": boolean, \"has_after\": boolean, \"total\": number, \"page_size\": number}` + "`" + `. ` + "`" + `direction` + "`" + ` diz qual pedido a página responde: ` + "`" + `latest` + "`" + ` (primeira página de ` + "`" + `subscribe` + "`" + `), ` + "`" + `before` + "`" + ` (` + "`" + `load_history` + "`" + `), ` + "`" + `around` + "`" + ` (` + "`" + `load_around` + "`" + `) ou ` + "`" + `after` + "`" + ` (` + "`" + `load_after` + "`" + `). As mensagens vêm sempre da mais antiga para a mais nova. ` + "`" + `has_more` + "`" + `: há mensagens mais antigas que a página (não se aplica a ` + "`" + `after` + "`" + `). ` + "`" + `has_after` + "`" + `: há mensagens mais novas que a página (só em ` + "`" + `around` + "`" + ` e ` + "`" + `after` + "`" + `). ` + "`" + `total` + "`" + ` vem em ` + "`" + `latest` + "`" + ` e ` + "`" + `around` + "`" + `. |\n| ` + "`" + `conversation:inbox` + "`" + ` | ` + "`" + `{\"entries\": InboxEntry[], \"personal_marks\": PersonalMark[], \"page\", \"page_size\", \"total_items\", \"total_pages\", \"stage_counts\"?: object, \"conversation_status_counts\"?: object, \"available_labels\"?: Label[]}` + "`" + `. ` + "`" + `personal_marks` + "`" + ` traz as suas marcas das conversas da página (lista vazia quando não há). |\n| ` + "`" + `conversation:search_results` + "`" + ` | ` + "`" + `{\"query\"?, \"filters\": object, \"entries\": InboxEntry[], \"personal_marks\": PersonalMark[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + `. ` + "`" + `filters` + "`" + ` repete os filtros pedidos, inclusive ` + "`" + `sort` + "`" + `, ` + "`" + `label_id` + "`" + ` e ` + "`" + `personal` + "`" + `. |\n| ` + "`" + `conversation:personal_mark` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"mark\": {\"pinned_at\"?: string, \"unread_marked_at\"?: string} \\| null}` + "`" + `. Só para as suas conexões neste workspace: resposta a ` + "`" + `pin_conversation` + "`" + `, ` + "`" + `mark_unread` + "`" + ` e ` + "`" + `clear_unread_mark` + "`" + `, e também quando a sua marca muda sozinha (abrir ou ler a conversa). ` + "`" + `mark: null` + "`" + `: nenhuma marca. |\n| ` + "`" + `conversation:search_messages_results` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"query\", \"messages\": Message[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + ` |\n| ` + "`" + `conversation:entry_matches_results` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"query\", \"matches\": MatchedMessage[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + ` |\n| ` + "`" + `conversation:window_reopened` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"request_id\"?, \"template_id\", \"message_id\"}` + "`" + ` |\n| ` + "`" + `conversation:funnel_column` + "`" + ` | ` + "`" + `{\"stage_id\", \"entries\": InboxEntry[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + ` |\n| ` + "`" + `conversation:funnel_summary` + "`" + ` | ` + "`" + `{\"columns\": [{\"stage_id\": string, \"total_items\": number}]}` + "`" + ` |\n| ` + "`" + `conversation:view_switched` + "`" + ` | ` + "`" + `{\"view_mode\": \"global\" \\| \"campaign\", \"campaign_id\"?, \"campaign_type\"?, \"whatsapp_campaign_type\"?, \"container_kind\"?, \"conversation_status\"?}` + "`" + ` |\n| ` + "`" + `conversation:connected_users` + "`" + ` | ` + "`" + `{\"users\": [{\"user_id\", \"workspace_id\", \"campaign_id\", \"campaign_type\", \"campaign_name\"?, \"view_mode\", \"username\"?, \"email\"?, \"connected_at\"}]}` + "`" + `. Também chega sozinho quando alguém entra, sai ou troca de visão. Você só vê colegas dos seus departamentos, salvo se tiver acesso a todo o workspace. |\n| ` + "`" + `conversation:message_error` + "`" + ` | ` + "`" + `{\"request_id\", \"entry_id\", \"entry_type\", \"error\": string, \"code\"?: string}` + "`" + `. Falha de ` + "`" + `send` + "`" + `, ` + "`" + `send_button` + "`" + ` ou do envio de ` + "`" + `resend_message` + "`" + `. |\n| ` + "`" + `conversation:error` + "`" + ` | Veja Erros. |\n\n### Eventos das conversas em que você se inscreveu\n\n| type | payload | Quando |\n|---|---|---|\n| ` + "`" + `conversation:message` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message\": Message}` + "`" + ` | Chegou ou foi enviada uma mensagem (contato, IA, fluxo, agendamento, chamadas). |\n| ` + "`" + `conversation:message_sent` + "`" + ` | ` + "`" + `{\"request_id\", \"entry_id\", \"entry_type\", \"message\": Message}` + "`" + ` | Um atendente enviou uma mensagem. Chega para todos os inscritos. |\n| ` + "`" + `conversation:message_updated` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message\": Message}` + "`" + ` | Uma mensagem já entregue mudou: foi editada ou apagada (pelo contato ou pela equipe), recebeu ou perdeu uma reação, ganhou a transcrição do áudio, ou falhou e foi reenviada (` + "`" + `resent_as` + "`" + `). Traz a mensagem inteira no mesmo formato de ` + "`" + `conversation:message` + "`" + `; substitua a que você tem pelo ` + "`" + `id` + "`" + `. Chega só para quem está inscrito na conversa. |\n| ` + "`" + `conversation:read` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message_ids\": string[], \"read_by\": string, \"read_at\": string}` + "`" + ` | Mensagens foram marcadas como lidas. |\n| ` + "`" + `conversation:typing` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"user_id\"?, \"is_typing\": boolean}` + "`" + ` | Um colega está digitando. |\n| ` + "`" + `conversation:message_status` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message_id\", \"status\": \"sent\" \\| \"delivered\" \\| \"read\" \\| \"failed\"}` + "`" + ` | O canal confirmou a entrega. |\n| ` + "`" + `conversation:analysis_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"analysis\": Analysis \\| null, \"pending\": boolean}` + "`" + ` | A análise da conversa mudou. |\n| ` + "`" + `conversation:ad_origin` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"ad_origin\": AdOrigin}` + "`" + ` | O contato chegou por um anúncio (WhatsApp, Instagram ou Facebook). Só a primeira vez: o anúncio de origem não muda. |\n| ` + "`" + `conversation:conversation_status_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"status\", \"close_source\"?, \"close_reason\"?, \"close_outcome\"?, \"closed_at\"?}` + "`" + ` | O status da conversa mudou. |\n| ` + "`" + `conversation:viewers` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"viewers\": [{\"user_id\": string, \"name\": string}]}` + "`" + ` | Quem está com a conversa aberta agora mudou: alguém se inscreveu, cancelou a inscrição ou desconectou (em qualquer servidor). Também chega logo depois do seu ` + "`" + `subscribe` + "`" + `, com a lista atual. Traz todos os inscritos, inclusive você (filtre o seu ` + "`" + `user_id` + "`" + `); cada pessoa aparece uma vez, mesmo com várias abas ou janelas destacadas. ` + "`" + `name` + "`" + ` é o nome de usuário (texto vazio quando não foi encontrado). A lista é a fotografia completa: substitua a anterior. |\n| ` + "`" + `conversation:note` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"note\": Note}` + "`" + ` | Alguém da equipe gravou uma nota interna na conversa (POST /conversations/{entryType}/{entryId}/notes). |\n| ` + "`" + `conversation:note_deleted` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"note_id\": string}` + "`" + ` | O autor apagou uma nota interna; tire-a da tela. |\n\nUma mesma mensagem chega uma vez só por conexão: como ` + "`" + `conversation:message` + "`" + ` ou como ` + "`" + `conversation:message_sent` + "`" + `.\n\n### Eventos do workspace\n\nChegam mesmo sem inscrição, para quem tem acesso à conversa e está na visão correspondente:\n\n| type | payload | Quando |\n|---|---|---|\n| ` + "`" + `conversation:entry_update` + "`" + ` | ` + "`" + `{\"entry\": InboxEntry, \"silent\"?: boolean, \"alert\"?: boolean}` + "`" + ` | Nova mensagem, envio, troca de responsável, status ou etapa. ` + "`" + `silent: true` + "`" + ` indica atualização sem novidade para o atendente. ` + "`" + `alert: true` + "`" + ` só vem numa mensagem nova do cliente e só para quem deve ser avisado: o responsável humano; ninguém quando um agente ou fluxo é o responsável ou quando a distribuição automática vai entregar a conversa; na fila manual, quem pode pegá-la. Toque o som e mostre o aviso só quando ` + "`" + `alert` + "`" + ` vier. |\n| ` + "`" + `conversation:assigned_to_you` + "`" + ` | ` + "`" + `{\"entry\": InboxEntry, \"assigned_at\": string}` + "`" + ` | Uma conversa passou a ser sua pela distribuição automática, por um colega, por uma transferência ou por um agente ou fluxo. Não chega quando você mesmo a pega. Chega uma vez por atribuição, em todas as suas conexões deste workspace. |\n| ` + "`" + `conversation:conversation_status_counts_update` + "`" + ` | ` + "`" + `{\"counts\": {\"new\": number, \"ongoing\": number, \"finished\": number}}` + "`" + ` | Os totais por status mudaram. |\n| ` + "`" + `conversation:stage_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"stage\": Stage \\| null}` + "`" + ` | A etapa da conversa mudou. |\n| ` + "`" + `conversation:label_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"labels\": Label[]}` + "`" + ` | As etiquetas mudaram. |\n| ` + "`" + `conversation:entry_removed` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"reason\": \"assigned\"}` + "`" + ` | A conversa foi para outra pessoa e você não a vê mais. |\n| ` + "`" + `audience:analyzed` + "`" + ` | ` + "`" + `{\"workspaceId\", \"source\", \"accountId\", \"containerId\", \"items\": CommentAnalyzed[], \"more\": number}` + "`" + ` | Um lote de comentários foi analisado. Só para quem tem ` + "`" + `audience:read` + "`" + `. |\n| ` + "`" + `notification:created` + "`" + ` | ` + "`" + `{\"workspaceId\", \"item\": {\"id\", \"category\", \"severity\", \"title\", \"body\", \"imageUrl\"?, \"actionUrl\"?, \"actionLabel\"?, \"createdAt\"}}` + "`" + ` | Uma notificação nova chegou para você neste workspace (a mesma forma de GET /notifications). Só para os destinatários dela. Atualize o contador com GET /notifications/summary. |\n| ` + "`" + `conversation:lead_update` + "`" + ` | ` + "`" + `{\"leadId\": string, \"version\": number, \"fields\": string[]}` + "`" + ` | Um lead mudou (edição, nome, bloqueio, responsável, opt-out, família, anonimização). Traz só os nomes dos campos, nunca os valores; um campo personalizado aparece como ` + "`" + `customFields.\u003cchave\u003e` + "`" + `, e ` + "`" + `anonymized` + "`" + ` diz que o lead foi anonimizado e não existe mais (a nova leitura responde 404): busque o lead de novo por uma rota que você pode usar (GET /leads/{id} com ` + "`" + `leads:read` + "`" + `, ou a própria conversa). Chega para quem tem ` + "`" + `leads:read` + "`" + ` e para quem está inscrito em uma conversa desse lead. Use ` + "`" + `version` + "`" + ` no ` + "`" + `If-Match` + "`" + ` da próxima edição. |\n| ` + "`" + `conversation:leads_bulk_update` + "`" + ` | ` + "`" + `{\"runId\": string}` + "`" + ` | Um lote de uma ação em massa sobre leads (classificar, atribuir, bloquear) foi gravado. Chega uma vez por lote, só para quem tem ` + "`" + `leads:read` + "`" + `; não traz ids de leads nem valores. Recarregue a lista e consulte o andamento em GET /leads/actions/{runId}. |\n\n### Chat da equipe\n\nConversas internas entre colegas (veja a seção Chat da equipe da API). Os eventos chegam só para quem participa da conversa, em todas as suas conexões deste workspace, em qualquer servidor. Os comandos são pela API HTTP; o socket só traz os eventos e a digitação. Quem não tem ` + "`" + `conversations:read` + "`" + ` não abre este socket: atualize GET /team-chat/summary a cada minuto. Ao reconectar, recupere o que perdeu com GET /team-chat/threads e, em cada conversa aberta, GET /team-chat/threads/{id}/messages com ` + "`" + `after_seq` + "`" + ` igual ao maior ` + "`" + `seq` + "`" + ` que você já tem.\n\n| type | Direção | payload | Quando |\n|---|---|---|---|\n| ` + "`" + `team_chat_typing` + "`" + ` | você envia | ` + "`" + `{\"thread_id\": string}` + "`" + ` | Você está digitando. Envie no máximo um a cada 3 segundos. Precisa participar da conversa; recusas não têm resposta. |\n| ` + "`" + `team_chat:message` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"message\": TeamChatMessage}` + "`" + ` | Mensagem nova, inclusive as suas (para as suas outras abas), as de sistema e as agendadas no momento do envio. |\n| ` + "`" + `team_chat:message_updated` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"message\": TeamChatMessage}` + "`" + ` | Uma mensagem foi editada (` + "`" + `edited_at` + "`" + `) ou apagada (` + "`" + `deleted_at` + "`" + `, sem texto). |\n| ` + "`" + `team_chat:read` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"user_id\", \"seq\"}` + "`" + ` | Alguém leu a conversa até ` + "`" + `seq` + "`" + ` (confirmação de leitura; quando é você, sincroniza as suas abas). |\n| ` + "`" + `team_chat:thread` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\"}` + "`" + ` | A conversa mudou (criada com você, título, participantes, silenciada): busque GET /team-chat/threads/{id}. |\n| ` + "`" + `team_chat:thread_removed` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\"}` + "`" + ` | Você saiu ou foi tirado do grupo: remova a conversa da tela. |\n| ` + "`" + `team_chat:typing` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"user_id\"}` + "`" + ` | Alguém está digitando. Some sozinho depois de 5 segundos sem um novo aviso. |\n| ` + "`" + `team_chat:scheduled` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"scheduled\": TeamChatScheduled}` + "`" + ` | Uma mensagem que você agendou mudou: criada, alterada, cancelada, enviada ou falhou (` + "`" + `failure_reason` + "`" + `). Só para o autor. |\n\n**TeamChatMessage**: ` + "`" + `id` + "`" + `, ` + "`" + `thread_id` + "`" + `, ` + "`" + `seq` + "`" + ` (ordem na conversa, sem buracos), ` + "`" + `author_id` + "`" + `, ` + "`" + `author_name` + "`" + `, ` + "`" + `kind` + "`" + ` (` + "`" + `text | system` + "`" + `), ` + "`" + `body` + "`" + `, ` + "`" + `event` + "`" + `? (só em ` + "`" + `system` + "`" + `: ` + "`" + `created | renamed | members_added | member_removed | member_left` + "`" + `), ` + "`" + `subject_ids` + "`" + ` (quem a mensagem de sistema afeta), ` + "`" + `reply_to_id` + "`" + `?, ` + "`" + `mentions` + "`" + `, ` + "`" + `client_id` + "`" + `?, ` + "`" + `created_at` + "`" + `, ` + "`" + `edited_at` + "`" + `?, ` + "`" + `deleted_at` + "`" + `?. **TeamChatScheduled**: ` + "`" + `id` + "`" + `, ` + "`" + `thread_id` + "`" + `, ` + "`" + `body` + "`" + `, ` + "`" + `mentions` + "`" + `, ` + "`" + `reply_to_id` + "`" + `?, ` + "`" + `send_at` + "`" + `, ` + "`" + `status` + "`" + ` (` + "`" + `pending | sent | canceled | failed` + "`" + `), ` + "`" + `failure_reason` + "`" + `?, ` + "`" + `sent_message_id` + "`" + `?, ` + "`" + `created_at` + "`" + `, ` + "`" + `updated_at` + "`" + `.\n\n## Tipos usados nas mensagens\n\n**InboxEntry**: ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `campaign_id` + "`" + `?, ` + "`" + `campaign_name` + "`" + `?, ` + "`" + `lead_id` + "`" + `?, ` + "`" + `lead_name` + "`" + `?, ` + "`" + `lead_number` + "`" + `?, ` + "`" + `lead_version` + "`" + `?, ` + "`" + `blocked` + "`" + `, ` + "`" + `lead_picture` + "`" + `?, ` + "`" + `is_group` + "`" + `?, ` + "`" + `lead_metadata` + "`" + `?, ` + "`" + `entry_variables` + "`" + `?, ` + "`" + `unread_count` + "`" + `, ` + "`" + `last_message_preview` + "`" + `?, ` + "`" + `last_message_at` + "`" + `, ` + "`" + `last_message_type` + "`" + `?, ` + "`" + `last_message_sender` + "`" + `?, ` + "`" + `last_message_sender_avatar` + "`" + `?, ` + "`" + `last_message_sender_kind` + "`" + `? (` + "`" + `contact | human | ai | workflow | campaign | system | external` + "`" + `: quem mandou a última mensagem, para o cliente nomear o remetente no idioma de quem lê; ` + "`" + `external` + "`" + ` é uma mensagem enviada pela conta fora da plataforma, no app do próprio canal ou no celular; ausente em mensagens antigas sem remetente gravado), ` + "`" + `last_message_author` + "`" + `? (groups: name of the member who sent the last message), ` + "`" + `last_message_from_us` + "`" + `? (groups: the last message was ours), ` + "`" + `last_customer_message_at` + "`" + `? (quando o contato escreveu por último, em todos os canais), ` + "`" + `last_agent_message_at` + "`" + `? (quando a equipe, uma IA, um fluxo ou uma campanha escreveu por último), ` + "`" + `waiting_since` + "`" + `? (RFC 3339: desde quando o contato espera resposta, a primeira mensagem dele depois da última resposta da equipe, de uma IA ou de um fluxo, inclusive a digitada no celular fora da plataforma; campanha e aviso do sistema não são resposta; ausente quando ninguém espera ou a conversa está finalizada; finalizar a conversa encerra a espera e a próxima mensagem do contato começa outra), ` + "`" + `window_open` + "`" + `, ` + "`" + `window_expires_at` + "`" + `?, ` + "`" + `window_closed_reason` + "`" + `?, ` + "`" + `window_closed_detail` + "`" + `? (o mesmo estado da janela que ` + "`" + `conversation:subscribed` + "`" + ` informa, em todos os canais; sem como confirmar o estado, a linha vem fechada com ` + "`" + `channel_unavailable` + "`" + `), ` + "`" + `business_phone_id` + "`" + `?, ` + "`" + `assigned_user_id` + "`" + `?, ` + "`" + `assigned_username` + "`" + `?, ` + "`" + `automation_enabled` + "`" + `, ` + "`" + `stage` + "`" + `?: Stage, ` + "`" + `labels` + "`" + `?: Label[], ` + "`" + `available_stages` + "`" + `?: Stage[], ` + "`" + `matched_messages` + "`" + `?: MatchedMessage[], ` + "`" + `total_matches` + "`" + `?, ` + "`" + `latest_analysis` + "`" + `?: Analysis, ` + "`" + `analysis_phase` + "`" + `?: ` + "`" + `\"awaiting\" | \"queued\"` + "`" + `, ` + "`" + `live_read` + "`" + `?: LiveRead, ` + "`" + `conversation_status` + "`" + `?: ` + "`" + `new | ongoing | finished` + "`" + `, ` + "`" + `close_source` + "`" + `?: ` + "`" + `human | ai | system` + "`" + `, ` + "`" + `close_reason` + "`" + `?: ` + "`" + `manual | customer_idle | ai_resolved | max_age | workflow` + "`" + `, ` + "`" + `closed_at` + "`" + `?, ` + "`" + `close_outcome` + "`" + `?, ` + "`" + `ai_handler` + "`" + `?: AIHandler.\n\n**Message** (chaves em camelCase): ` + "`" + `id` + "`" + `, ` + "`" + `entryId` + "`" + `, ` + "`" + `entryType` + "`" + `, ` + "`" + `channel` + "`" + `, ` + "`" + `messageType` + "`" + `, ` + "`" + `direction` + "`" + `?: ` + "`" + `INBOUND | OUTBOUND` + "`" + `, ` + "`" + `from` + "`" + `, ` + "`" + `to` + "`" + `, ` + "`" + `text` + "`" + `, ` + "`" + `mediaId` + "`" + `?, ` + "`" + `mediaType` + "`" + `?, ` + "`" + `read` + "`" + `, ` + "`" + `readAt` + "`" + `?, ` + "`" + `readBy` + "`" + `?, ` + "`" + `whatsappMessageId` + "`" + `?, ` + "`" + `externalMessageId` + "`" + `?, ` + "`" + `replyToMessageId` + "`" + `?, ` + "`" + `deliveryStatus` + "`" + `?: ` + "`" + `sent | delivered | read | failed` + "`" + `, ` + "`" + `senderName` + "`" + `?, ` + "`" + `senderAvatar` + "`" + `?, ` + "`" + `sentVia` + "`" + `?: ` + "`" + `business_app` + "`" + `, ` + "`" + `sentBy` + "`" + `: ` + "`" + `{\"kind\": \"contact\" | \"human\" | \"ai\" | \"workflow\" | \"campaign\" | \"external\" | \"system\", \"id\": string}` + "`" + `, ` + "`" + `metadata` + "`" + `?, ` + "`" + `location` + "`" + `?: ` + "`" + `{\"latitude\": number, \"longitude\": number, \"name\"?: string, \"address\"?: string, \"candidate\": boolean}` + "`" + `, ` + "`" + `createdAt` + "`" + `, ` + "`" + `updatedAt` + "`" + `. Em snake_case: ` + "`" + `transcript` + "`" + `? (transcrição de um áudio recebido; hoje só no WhatsApp oficial; o ` + "`" + `text` + "`" + ` do áudio continua sendo o marcador ` + "`" + `[Áudio]` + "`" + `), ` + "`" + `edited_at` + "`" + `? (a mensagem foi editada, pelo contato ou por um atendente; ` + "`" + `text` + "`" + ` já é o novo texto), ` + "`" + `retracted_at` + "`" + `? (a mensagem foi apagada, pelo contato ou por um atendente: ` + "`" + `text` + "`" + ` vem vazio e ` + "`" + `transcript` + "`" + `, ` + "`" + `mediaId` + "`" + `, ` + "`" + `mediaType` + "`" + `, ` + "`" + `media` + "`" + `, ` + "`" + `metadata` + "`" + ` e ` + "`" + `location` + "`" + ` não vêm), ` + "`" + `reactions` + "`" + `?: Reaction[] (ausente quando não há reações), ` + "`" + `sender_user_id` + "`" + `? (o usuário da equipe que enviou a mensagem; ausente quando não foi um atendente), ` + "`" + `client_request_id` + "`" + `? (o ` + "`" + `request_id` + "`" + ` do envio de um atendente, para casar a mensagem com o balão pendente), ` + "`" + `resent_as` + "`" + `? (esta mensagem falhou e foi reenviada como a mensagem com esse ` + "`" + `id` + "`" + `; esconda esta e mostre a nova), ` + "`" + `interactive` + "`" + `?: Interactive, ` + "`" + `interactive_reply` + "`" + `?: InteractiveReply.\n\n**Interactive** (mensagem enviada com opções, em qualquer canal e por qualquer remetente: fluxo, agente de IA, atendente, campanha ou modelo do WhatsApp oficial; traz só o que o contato recebeu, depois dos limites do canal): ` + "`" + `{\"kind\": \"buttons\" | \"list\" | \"cta_url\" | \"template\", \"header\"?: {\"type\": \"text\" | \"image\" | \"video\" | \"document\", \"text\"?: string, \"media_url\"?: string}, \"body\": string, \"footer\"?: string, \"button_label\"?: string (o rótulo que abre a lista), \"sections\"?: [{\"title\"?: string, \"rows\": [{\"id\": string, \"title\": string, \"description\"?: string}]}], \"buttons\"?: [{\"kind\": \"reply\" | \"url\" | \"phone\" | \"copy_code\" | \"flow\", \"id\"?: string, \"title\": string, \"url\"?: string, \"phone\"?: string, \"code\"?: string}], \"template_name\"?: string}` + "`" + `. **InteractiveReply** (resposta do contato que escolheu uma opção; ` + "`" + `replyToMessageId` + "`" + ` aponta para a mensagem com as opções quando o canal informa): ` + "`" + `{\"kind\": \"button\" | \"list\" | \"template_button\" | \"option\" | \"quick_reply\" | \"postback\", \"option_id\": string, \"title\"?: string}` + "`" + `.\n\n` + "`" + `location` + "`" + ` aparece em toda mensagem de localização (WhatsApp oficial e coexistência, Telegram), recebida ou enviada, para desenhar o cartão do mapa. ` + "`" + `candidate: true` + "`" + ` marca a localização que o lead mandou, dentro do Brasil, que pode virar a posição dele por ` + "`" + `POST /leads/{id}/location-candidates/{messageId}/accept` + "`" + ` (exige ` + "`" + `leads:update` + "`" + `; o servidor confere de novo a conversa e o lead).\n\nValores de ` + "`" + `messageType` + "`" + `: ` + "`" + `user_message` + "`" + `, ` + "`" + `ai_response` + "`" + `, ` + "`" + `tool_call` + "`" + `, ` + "`" + `tool_result` + "`" + `, ` + "`" + `audio` + "`" + `, ` + "`" + `system` + "`" + `, ` + "`" + `media` + "`" + `, ` + "`" + `operator` + "`" + `, ` + "`" + `template` + "`" + `, ` + "`" + `call_permission_request` + "`" + `, ` + "`" + `call_permission_granted` + "`" + `, ` + "`" + `call_permission_rejected` + "`" + `, ` + "`" + `call_received` + "`" + `, ` + "`" + `call_answered` + "`" + `, ` + "`" + `call_missed` + "`" + `, ` + "`" + `call_ended` + "`" + `, ` + "`" + `story_reply` + "`" + `, ` + "`" + `story_mention` + "`" + `, ` + "`" + `reaction` + "`" + `, ` + "`" + `unsupported` + "`" + `, ` + "`" + `post_share` + "`" + `, ` + "`" + `sticker` + "`" + `, ` + "`" + `link_share` + "`" + `.\n\n**Stage**: ` + "`" + `stage_id` + "`" + `, ` + "`" + `name` + "`" + `, ` + "`" + `color` + "`" + `?. **Label**: ` + "`" + `label_id` + "`" + `, ` + "`" + `name` + "`" + `, ` + "`" + `color` + "`" + `?.\n\n**PersonalMark**: ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `pinned_at` + "`" + `? (fixada por você), ` + "`" + `unread_marked_at` + "`" + `? (marcada por você como não lida). Só as marcas de quem pediu.\n\n**Note** (nota interna, só da equipe; nunca vai para o contato, a IA, a análise, os fluxos, as exportações ou o chat do site): ` + "`" + `id` + "`" + `, ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `author_id` + "`" + `, ` + "`" + `author_name` + "`" + `, ` + "`" + `body` + "`" + `, ` + "`" + `mentions` + "`" + `: string[] (IDs de usuários mencionados; lista vazia quando não há), ` + "`" + `created_at` + "`" + `. A mesma forma de GET /conversations/{entryType}/{entryId}/notes.\n\n**Reaction**: ` + "`" + `emoji` + "`" + `, ` + "`" + `direction` + "`" + `: ` + "`" + `inbound | outbound` + "`" + ` (` + "`" + `inbound` + "`" + ` é do contato, ` + "`" + `outbound` + "`" + ` é nossa), ` + "`" + `actor_id` + "`" + `? (quem reagiu: o identificador do contato no canal ou o usuário da equipe), ` + "`" + `at` + "`" + `. Há no máximo uma reação de cada contato e uma só nossa (` + "`" + `outbound` + "`" + `), porque a conta da empresa reage uma vez por mensagem: uma reação nova substitui a anterior do mesmo lado e remover a reação a tira da lista. Na reação ` + "`" + `outbound` + "`" + `, ` + "`" + `actor_id` + "`" + ` é o atendente que reagiu pelo sistema; reações feitas direto no celular chegam sem ` + "`" + `actor_id` + "`" + `. Mensagens antigas do Instagram e do Facebook com a reação guardada no formato anterior chegam na mesma forma.\n\n**MatchedMessage**: ` + "`" + `message_id` + "`" + `, ` + "`" + `text` + "`" + `, ` + "`" + `from` + "`" + `, ` + "`" + `message_type` + "`" + `, ` + "`" + `channel` + "`" + `, ` + "`" + `created_at` + "`" + `, ` + "`" + `position` + "`" + `, ` + "`" + `page` + "`" + `.\n\n**AIHandler**: ` + "`" + `kind` + "`" + `, ` + "`" + `agent_id` + "`" + `?, ` + "`" + `agent_name` + "`" + `?, ` + "`" + `agent_avatar` + "`" + `?, ` + "`" + `agent_active` + "`" + `, ` + "`" + `workflow_id` + "`" + `?, ` + "`" + `workflow_name` + "`" + `?, ` + "`" + `workflow_run_id` + "`" + `?, ` + "`" + `run_status` + "`" + `?, ` + "`" + `current_node_id` + "`" + `?, ` + "`" + `current_node_type` + "`" + `?.\n\n**AdOrigin** (camelCase): o primeiro anúncio que trouxe o contato. ` + "`" + `adId` + "`" + `?, ` + "`" + `platform` + "`" + `?: ` + "`" + `facebook | instagram` + "`" + `, ` + "`" + `title` + "`" + `?, ` + "`" + `sourceUrl` + "`" + `?, ` + "`" + `image` + "`" + `?: ` + "`" + `{\"url\", \"mimeType\"?, \"layout\": {\"width\"?, \"height\"?, \"thumbhash\"?}}` + "`" + ` (cópia guardada pela plataforma), ` + "`" + `arrivedAt` + "`" + `.\n\n**LiveRead** (camelCase): ` + "`" + `interest` + "`" + `?, ` + "`" + `disposition` + "`" + `?, ` + "`" + `sentiment` + "`" + `?, ` + "`" + `qualification` + "`" + `?, ` + "`" + `nextAction` + "`" + `?, ` + "`" + `language` + "`" + `?, ` + "`" + `attendanceQuality` + "`" + `, ` + "`" + `certainty` + "`" + `?: object, ` + "`" + `decidedAt` + "`" + `.\n\n**Analysis** (camelCase): análise da conversa com ` + "`" + `id` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `sentiment` + "`" + `?, ` + "`" + `intent` + "`" + `?, ` + "`" + `interest` + "`" + `?, ` + "`" + `productInterest` + "`" + `?, ` + "`" + `disposition` + "`" + `?, ` + "`" + `qualification` + "`" + `?, ` + "`" + `nextAction` + "`" + `?, ` + "`" + `summary` + "`" + `?, ` + "`" + `attendanceQuality` + "`" + `?, ` + "`" + `messageCount` + "`" + `?, ` + "`" + `requiresAction` + "`" + `, ` + "`" + `excerpt` + "`" + `, ` + "`" + `analyzedAt` + "`" + `? e demais campos de identificação (` + "`" + `workspaceId` + "`" + `, ` + "`" + `source` + "`" + `, ` + "`" + `accountId` + "`" + `, ` + "`" + `containerId` + "`" + `, ` + "`" + `subjectId` + "`" + `, ` + "`" + `createdAt` + "`" + `, ` + "`" + `updatedAt` + "`" + `).\n\n**CommentAnalyzed** (camelCase): ` + "`" + `commentId` + "`" + `, ` + "`" + `subjectKind` + "`" + `, ` + "`" + `authorExternalId` + "`" + `, ` + "`" + `authorHandle` + "`" + `?, ` + "`" + `stance` + "`" + `?, ` + "`" + `sentiment` + "`" + `?, ` + "`" + `intent` + "`" + `?, ` + "`" + `topicKey` + "`" + `?, ` + "`" + `severity` + "`" + `, ` + "`" + `requiresAction` + "`" + `, ` + "`" + `isSpam` + "`" + `, ` + "`" + `excerpt` + "`" + `, ` + "`" + `interest` + "`" + `?, ` + "`" + `productInterest` + "`" + `?, ` + "`" + `disposition` + "`" + `?, ` + "`" + `qualification` + "`" + `?, ` + "`" + `nextAction` + "`" + `?, ` + "`" + `summary` + "`" + `?, ` + "`" + `occurredAt` + "`" + `, ` + "`" + `analyzedAt` + "`" + `.\n\nValores de ` + "`" + `window_closed_reason` + "`" + `: ` + "`" + `expired` + "`" + `, ` + "`" + `no_inbound` + "`" + `, ` + "`" + `contact_blocked` + "`" + `, ` + "`" + `session_down` + "`" + `, ` + "`" + `account_restricted` + "`" + `, ` + "`" + `reply_revoked` + "`" + ` e ` + "`" + `channel_unavailable` + "`" + `.\n\nDatas são strings RFC 3339.\n\n## Erros\n\n` + "`" + `conversation:error` + "`" + ` traz ` + "`" + `{\"code\": string, \"message\": string}` + "`" + `; recusas de ` + "`" + `reopen_window` + "`" + `, ` + "`" + `react_message` + "`" + `, ` + "`" + `edit_message` + "`" + `, ` + "`" + `delete_message` + "`" + `, ` + "`" + `resend_message` + "`" + `, ` + "`" + `pin_conversation` + "`" + `, ` + "`" + `mark_unread` + "`" + ` e ` + "`" + `clear_unread_mark` + "`" + ` também trazem ` + "`" + `request_id` + "`" + `, ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `; em mudanças de status, também ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `previous_status` + "`" + ` e ` + "`" + `outcomes` + "`" + ` (` + "`" + `[{\"code\", \"label\", \"isDurable\", \"position\"}]` + "`" + `).\n\n| code | Significado |\n|---|---|\n| ` + "`" + `forbidden` + "`" + ` | Falta permissão, a campanha é de outro workspace ou a regra de status não permite a mudança. Se o acesso ao workspace for revogado, a conexão é encerrada logo depois. |\n| ` + "`" + `unauthorized` + "`" + ` | Você não tem acesso a essa conversa, ou o responsável escolhido não pode recebê-la. |\n| ` + "`" + `unknown_event` + "`" + ` | ` + "`" + `type` + "`" + ` desconhecido. |\n| ` + "`" + `invalid_payload` + "`" + ` | O ` + "`" + `payload` + "`" + ` não tem o formato esperado. |\n| ` + "`" + `missing_fields` + "`" + ` | Falta um campo obrigatório. |\n| ` + "`" + `missing_content` + "`" + ` | Mensagem sem texto nem mídia. |\n| ` + "`" + `invalid_buttons` + "`" + ` | É preciso de 1 a 3 botões. |\n| ` + "`" + `invalid_entry_type` + "`" + ` | ` + "`" + `entry_type` + "`" + ` inválido. |\n| ` + "`" + `invalid_timestamp` + "`" + ` | Data fora do formato RFC 3339. |\n| ` + "`" + `invalid_status` + "`" + ` | Status diferente de ` + "`" + `new` + "`" + `, ` + "`" + `ongoing` + "`" + ` ou ` + "`" + `finished` + "`" + `. |\n| ` + "`" + `invalid_sort` + "`" + `, ` + "`" + `invalid_personal` + "`" + `, ` + "`" + `invalid_label` + "`" + ` | ` + "`" + `search_inbox` + "`" + ` com ` + "`" + `sort` + "`" + `, ` + "`" + `personal` + "`" + ` ou ` + "`" + `label_id` + "`" + ` inválido. |\n| ` + "`" + `invalid_campaign_type` + "`" + `, ` + "`" + `invalid_container_kind` + "`" + `, ` + "`" + `invalid_whatsapp_campaign_type` + "`" + ` | Filtro de visão inválido. |\n| ` + "`" + `not_found` + "`" + ` | Campanha não encontrada, ou mensagem que não existe ou não é dessa conversa. |\n| ` + "`" + `not_configured` + "`" + ` | O recurso não está disponível neste servidor. |\n| ` + "`" + `not_allowed` + "`" + ` | Ações sobre mensagens: falta ` + "`" + `conversations:send` + "`" + ` ou acesso à conversa, a mensagem não é sua, já foi apagada ou não pode receber essa ação (por exemplo, editar uma mídia ou reenviar uma mensagem que não falhou). Marcas pessoais: falta ` + "`" + `conversations:read` + "`" + ` ou acesso à conversa. |\n| ` + "`" + `invalid` + "`" + ` | Ações sobre mensagens: falta ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `message_id` + "`" + `, o texto da edição ou o ` + "`" + `request_id` + "`" + ` do reenvio, ou o ` + "`" + `request_id` + "`" + ` passa de 128 caracteres. Marcas pessoais: falta ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + ` ou ` + "`" + `pinned` + "`" + `. |\n| ` + "`" + `unsupported` + "`" + ` | O canal da conversa não tem essa ação. Em marcas pessoais: o servidor não oferece marcas pessoais. |\n| ` + "`" + `window_expired` + "`" + ` | A janela do canal para essa ação já passou, ou a janela de atendimento está fechada. |\n| ` + "`" + `failed` + "`" + ` | O canal recusou a ação ou ela não pôde ser gravada; nada mudou na conversa. Em marcas pessoais: a marca não pôde ser gravada. |\n| ` + "`" + `outcome_required` + "`" + ` | Escolha um desfecho (lista em ` + "`" + `outcomes` + "`" + `) para finalizar. |\n| ` + "`" + `outcome_unknown` + "`" + ` | O desfecho não existe no workspace (lista em ` + "`" + `outcomes` + "`" + `). |\n| ` + "`" + `history_error` + "`" + `, ` + "`" + `inbox_error` + "`" + `, ` + "`" + `search_error` + "`" + `, ` + "`" + `fetch_error` + "`" + `, ` + "`" + `template_send_failed` + "`" + `, ` + "`" + `assign_failed` + "`" + `, ` + "`" + `internal_error` + "`" + ` | Falha ao processar o pedido; tente de novo. |\n| ` + "`" + `lead_opted_out` + "`" + `, ` + "`" + `lead_blocked` + "`" + `, ` + "`" + `within_spam_window` + "`" + `, ` + "`" + `window_already_open` + "`" + `, ` + "`" + `insufficient_balance` + "`" + `, ` + "`" + `monthly_send_cap_reached` + "`" + `, ` + "`" + `pricing_unavailable` + "`" + `, ` + "`" + `quote_out_of_range` + "`" + `, ` + "`" + `template_not_sendable` + "`" + `, ` + "`" + `template_phone_mismatch` + "`" + `, ` + "`" + `invalid_phone` + "`" + `, ` + "`" + `phone_not_connected` + "`" + `, ` + "`" + `send_in_progress` + "`" + `, ` + "`" + `idempotency_key_required` + "`" + `, ` + "`" + `billing_unavailable` + "`" + `, ` + "`" + `conversation_not_found` + "`" + ` | Recusa de ` + "`" + `reopen_window` + "`" + `, com ` + "`" + `request_id` + "`" + ` (o mesmo do pedido), ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `: o mesmo código que POST /whatsapp/outreach/conversations responde para a mesma recusa (inclusive ` + "`" + `forbidden` + "`" + ` e ` + "`" + `not_found` + "`" + ` para número ou modelo). Uma falha sem motivo conhecido chega como ` + "`" + `template_send_failed` + "`" + `. |\n| ` + "`" + `send_outcome_unknown` + "`" + ` | ` + "`" + `reopen_window` + "`" + ` sem resposta do WhatsApp: o modelo pode ter sido entregue e cobrado. Confira a conversa antes de enviar de novo; não repita automaticamente. Traz ` + "`" + `request_id` + "`" + `, ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `. |\n\nCódigos de ` + "`" + `conversation:message_error` + "`" + `: ` + "`" + `unauthorized` + "`" + `, ` + "`" + `not_configured` + "`" + `, ` + "`" + `send_failed` + "`" + `, ` + "`" + `internal_error` + "`" + `, ` + "`" + `media_not_sendable` + "`" + ` (a mídia não é um envio desta conversa nem da biblioteca do workspace, ou é imagem de nota interna; a mesma resposta vale para uma mídia que não existe) e, no e-mail, ` + "`" + `email_balance_insufficient` + "`" + ` (o saldo da carteira não cobre o envio), ` + "`" + `email_attachment_blocked` + "`" + `, ` + "`" + `email_attachment_too_large` + "`" + `, ` + "`" + `email_domain_checking` + "`" + ` (o domínio do destinatário ainda está sendo verificado; nada foi cobrado, tente de novo em instantes), ` + "`" + `email_domain_unknown` + "`" + `, ` + "`" + `email_disposable_address` + "`" + ` e ` + "`" + `email_no_mail_domain` + "`" + ` (a higiene de lista recusou o destinatário; nada foi cobrado).\n\n## Autenticação\n\nUse o mesmo access token da API HTTP. Navegadores não permitem cabeçalhos em WebSockets, então o token pode ir no cabeçalho ` + "`" + `Authorization: Bearer SEU_ACCESS_TOKEN` + "`" + ` (clientes fora do navegador), no parâmetro ` + "`" + `token` + "`" + ` da URL ou no cookie ` + "`" + `accessToken` + "`" + ` do login em modo cookie. Com o cookie, a conexão só é aceita quando o ` + "`" + `Origin` + "`" + ` é o próprio painel ou uma origem confiável; o token no cabeçalho ou na URL vale de qualquer origem.\n\n## Workspace\n\nInforme o workspace em ` + "`" + `workspace_id` + "`" + ` e em ` + "`" + `workspaceId` + "`" + `, com o mesmo valor (ou o cabeçalho ` + "`" + `X-Workspace-ID` + "`" + ` junto com ` + "`" + `workspaceId` + "`" + `). O primeiro é usado na checagem de permissão da conexão; o segundo define o workspace da sessão.\n\n## Formato das mensagens\n\nCada quadro de texto carrega um único objeto JSON com o tipo da mensagem. Datas são strings RFC 3339. Antes de abrir o WebSocket, erros de autenticação, workspace e permissão voltam como HTTP comum (401, 400, 403, 429, 501).",
                 "tags": [
                     "WebSockets"
                 ],
@@ -49509,26 +50958,26 @@ const docTemplate = `{
         "advertising.Destination": {
             "type": "string",
             "enum": [
+                "WHATSAPP",
+                "MESSENGER",
+                "INSTAGRAM_DIRECT",
                 "WEBSITE",
                 "ON_AD",
                 "APP",
                 "ON_POST",
                 "NONE",
-                "CATALOG",
-                "WHATSAPP",
-                "MESSENGER",
-                "INSTAGRAM_DIRECT"
+                "CATALOG"
             ],
             "x-enum-varnames": [
+                "DestinationWhatsApp",
+                "DestinationMessenger",
+                "DestinationInstagramDirect",
                 "DestinationWebsite",
                 "DestinationInstantForm",
                 "DestinationApp",
                 "DestinationOnPost",
                 "DestinationNone",
-                "DestinationCatalog",
-                "DestinationWhatsApp",
-                "DestinationMessenger",
-                "DestinationInstagramDirect"
+                "DestinationCatalog"
             ]
         },
         "advertising.ExportLabels": {
@@ -49947,6 +51396,7 @@ const docTemplate = `{
         "advertising.OptimizationGoal": {
             "type": "string",
             "enum": [
+                "CONVERSATIONS",
                 "REACH",
                 "IMPRESSIONS",
                 "AD_RECALL_LIFT",
@@ -49959,10 +51409,10 @@ const docTemplate = `{
                 "QUALITY_LEAD",
                 "OFFSITE_CONVERSIONS",
                 "VALUE",
-                "APP_INSTALLS",
-                "CONVERSATIONS"
+                "APP_INSTALLS"
             ],
             "x-enum-varnames": [
+                "GoalConversations",
                 "GoalReach",
                 "GoalImpressions",
                 "GoalAdRecallLift",
@@ -49975,8 +51425,7 @@ const docTemplate = `{
                 "GoalQualityLead",
                 "GoalOffsiteConversion",
                 "GoalValue",
-                "GoalAppInstalls",
-                "GoalConversations"
+                "GoalAppInstalls"
             ]
         },
         "advertising.Pixel": {
@@ -52607,6 +54056,192 @@ const docTemplate = `{
                 }
             }
         },
+        "agent.Agent": {
+            "type": "object",
+            "properties": {
+                "archived": {
+                    "type": "boolean"
+                },
+                "avatarUrl": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "departmentId": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "externalId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "internalTools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agent.ToolBinding"
+                    }
+                },
+                "isActive": {
+                    "type": "boolean"
+                },
+                "knowledgeBaseIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "mcpCollectionIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "mediaIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "messagingModel": {
+                    "type": "string"
+                },
+                "messagingPrompt": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "provider": {
+                    "$ref": "#/definitions/agent.AgentProvider"
+                },
+                "ragConfig": {
+                    "$ref": "#/definitions/agent.RAGConfig"
+                },
+                "ragEnabled": {
+                    "type": "boolean"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agent.AgentVariable"
+                    }
+                },
+                "workspaceId": {
+                    "type": "string"
+                }
+            }
+        },
+        "agent.AgentProvider": {
+            "type": "string",
+            "enum": [
+                "platform"
+            ],
+            "x-enum-varnames": [
+                "AgentProviderAI"
+            ]
+        },
+        "agent.AgentVariable": {
+            "type": "object",
+            "properties": {
+                "defaultValue": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "agent.RAGConfig": {
+            "type": "object",
+            "properties": {
+                "contextWindow": {
+                    "type": "integer"
+                },
+                "maxCharacters": {
+                    "type": "integer"
+                },
+                "maxChunks": {
+                    "type": "integer"
+                },
+                "maxChunksPerDoc": {
+                    "type": "integer"
+                },
+                "minScore": {
+                    "type": "number"
+                },
+                "numCandidates": {
+                    "type": "integer"
+                }
+            }
+        },
+        "agent.ToolBinding": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "description": {
+                    "type": "string"
+                },
+                "function": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "revision": {
+                    "type": "integer"
+                },
+                "testInputs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/testinput.TestInput"
+                    }
+                },
+                "visibility": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agent.ToolVisibility"
+                    }
+                }
+            }
+        },
+        "agent.ToolVisibility": {
+            "type": "string",
+            "enum": [
+                "messaging"
+            ],
+            "x-enum-varnames": [
+                "ToolVisibilityMessaging"
+            ]
+        },
         "agent_presence.OccupancyRow": {
             "type": "object",
             "properties": {
@@ -52621,6 +54256,964 @@ const docTemplate = `{
                 },
                 "user_id": {
                     "type": "string"
+                }
+            }
+        },
+        "agentpublishhttp.PublicationResponse": {
+            "type": "object",
+            "properties": {
+                "hasUnpublishedChanges": {
+                    "type": "boolean"
+                },
+                "publishedAt": {
+                    "type": "string"
+                },
+                "publishedBy": {
+                    "type": "string"
+                },
+                "publishedVersion": {
+                    "type": "integer"
+                }
+            }
+        },
+        "agentpublishhttp.ToolPinResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "revision": {
+                    "type": "integer"
+                }
+            }
+        },
+        "agentpublishhttp.VersionListResponse": {
+            "type": "object",
+            "properties": {
+                "versions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentpublishhttp.VersionResponse"
+                    }
+                }
+            }
+        },
+        "agentpublishhttp.VersionResponse": {
+            "type": "object",
+            "properties": {
+                "messagingModel": {
+                    "type": "string"
+                },
+                "messagingPrompt": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "publishedAt": {
+                    "type": "string"
+                },
+                "publishedBy": {
+                    "type": "string"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentpublishhttp.ToolPinResponse"
+                    }
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 3
+                }
+            }
+        },
+        "agentrun.Detail": {
+            "type": "object",
+            "properties": {
+                "run": {
+                    "$ref": "#/definitions/agentrun.Run"
+                },
+                "spans": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ai_attendance.ToolCall"
+                    }
+                }
+            }
+        },
+        "agentrun.Run": {
+            "type": "object",
+            "properties": {
+                "agentId": {
+                    "type": "string"
+                },
+                "agentVersion": {
+                    "type": "integer"
+                },
+                "cachedTokens": {
+                    "type": "integer"
+                },
+                "costMicros": {
+                    "type": "integer"
+                },
+                "durationMs": {
+                    "type": "integer"
+                },
+                "entryId": {
+                    "type": "string"
+                },
+                "entryType": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "errorKind": {
+                    "type": "string"
+                },
+                "failedToolCalls": {
+                    "type": "integer"
+                },
+                "handledFailures": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "inputTokens": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "modelCalls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ai.ModelCall"
+                    }
+                },
+                "outputTokens": {
+                    "type": "integer"
+                },
+                "reasoningTokens": {
+                    "type": "integer"
+                },
+                "reply": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/agentrun.Source"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/agentrun.Status"
+                },
+                "toolCalls": {
+                    "type": "integer"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentrun.ToolPin"
+                    }
+                },
+                "userMessage": {
+                    "type": "string"
+                },
+                "workspaceId": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentrun.Source": {
+            "type": "string",
+            "enum": [
+                "conversation",
+                "simulator",
+                "scenario",
+                "workflow"
+            ],
+            "x-enum-varnames": [
+                "SourceConversation",
+                "SourceSimulator",
+                "SourceScenario",
+                "SourceWorkflow"
+            ]
+        },
+        "agentrun.Status": {
+            "type": "string",
+            "enum": [
+                "ok",
+                "tool_failed",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "StatusOK",
+                "StatusToolFailed",
+                "StatusFailed"
+            ]
+        },
+        "agentrun.ToolPin": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "revision": {
+                    "type": "integer"
+                }
+            }
+        },
+        "agentscenario.Assertion": {
+            "type": "object",
+            "properties": {
+                "arguments": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "kind": {
+                    "$ref": "#/definitions/agentscenario.Kind"
+                },
+                "match": {
+                    "$ref": "#/definitions/agentscenario.Match"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "rubric": {
+                    "type": "string"
+                },
+                "toolId": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentscenario.AssertionResult": {
+            "type": "object",
+            "properties": {
+                "index": {
+                    "type": "integer"
+                },
+                "kind": {
+                    "$ref": "#/definitions/agentscenario.Kind"
+                },
+                "passed": {
+                    "type": "boolean"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentscenario.Kind": {
+            "type": "string",
+            "enum": [
+                "tool_called",
+                "tool_not_called",
+                "tool_output_matches",
+                "reply_matches",
+                "reply_judged"
+            ],
+            "x-enum-varnames": [
+                "KindToolCalled",
+                "KindToolNotCalled",
+                "KindToolOutputMatches",
+                "KindReplyMatches",
+                "KindReplyJudged"
+            ]
+        },
+        "agentscenario.Match": {
+            "type": "string",
+            "enum": [
+                "exact",
+                "subset",
+                "regex",
+                "contains"
+            ],
+            "x-enum-varnames": [
+                "MatchExact",
+                "MatchSubset",
+                "MatchRegex",
+                "MatchContains"
+            ]
+        },
+        "agentscenario.Message": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentscenario.Mock": {
+            "type": "object",
+            "properties": {
+                "isError": {
+                    "type": "boolean"
+                },
+                "result": {}
+            }
+        },
+        "agentscenario.ObservedCall": {
+            "type": "object",
+            "properties": {
+                "arguments": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "isError": {
+                    "type": "boolean"
+                },
+                "mocked": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "output": {},
+                "toolId": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentscenario.Run": {
+            "type": "object",
+            "properties": {
+                "agentId": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "finishedAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "passed": {
+                    "type": "boolean"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentscenario.AssertionResult"
+                    }
+                },
+                "runIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scenarioId": {
+                    "type": "string"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "turns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentscenario.Turn"
+                    }
+                },
+                "workspaceId": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentscenario.RunSummary": {
+            "type": "object",
+            "properties": {
+                "finishedAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "passed": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "agentscenario.Scenario": {
+            "type": "object",
+            "properties": {
+                "agentId": {
+                    "type": "string"
+                },
+                "assertions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentscenario.Assertion"
+                    }
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdBy": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last": {
+                    "$ref": "#/definitions/agentscenario.RunSummary"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentscenario.Message"
+                    }
+                },
+                "mocks": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/agentscenario.Mock"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "previous": {
+                    "$ref": "#/definitions/agentscenario.RunSummary"
+                },
+                "sourceRunId": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "workspaceId": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentscenario.Turn": {
+            "type": "object",
+            "properties": {
+                "calls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentscenario.ObservedCall"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "replies": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "runId": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentscenariohttp.RunListResponse": {
+            "type": "object",
+            "properties": {
+                "runs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentscenario.Run"
+                    }
+                }
+            }
+        },
+        "agentscenariohttp.ScenarioListResponse": {
+            "type": "object",
+            "properties": {
+                "scenarios": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentscenario.Scenario"
+                    }
+                }
+            }
+        },
+        "agentscenariohttp.ScenarioRequest": {
+            "type": "object",
+            "properties": {
+                "assertions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentscenario.Assertion"
+                    }
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentscenario.Message"
+                    }
+                },
+                "mocks": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/agentscenario.Mock"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Pedido atrasado"
+                },
+                "sourceRunId": {
+                    "type": "string"
+                }
+            }
+        },
+        "agenttool.Issue": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "hint": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "severity": {
+                    "$ref": "#/definitions/lint.Severity"
+                },
+                "toolId": {
+                    "type": "string"
+                }
+            }
+        },
+        "agenttool.TestMode": {
+            "type": "string",
+            "enum": [
+                "run",
+                "preview",
+                "scenario"
+            ],
+            "x-enum-varnames": [
+                "TestModeRun",
+                "TestModePreview",
+                "TestModeScenario"
+            ]
+        },
+        "agenttoolhttp.CreateToolRequest": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Consulta o status de um pedido pelo número que o cliente informou."
+                },
+                "name": {
+                    "type": "string",
+                    "example": "consultar_status_do_pedido"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "http_request"
+                },
+                "visibility": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "agenttoolhttp.DraftTestRequest": {
+            "type": "object",
+            "properties": {
+                "arguments": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "confirmRealCall": {
+                    "type": "boolean"
+                },
+                "context": {
+                    "$ref": "#/definitions/agenttoolhttp.TestContext"
+                },
+                "tool": {
+                    "$ref": "#/definitions/agenttoolhttp.DraftTool"
+                }
+            }
+        },
+        "agenttoolhttp.DraftTool": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "http_request"
+                },
+                "visibility": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "agenttoolhttp.MCPSourcesResponse": {
+            "type": "object",
+            "properties": {
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tools_usecase.MCPSourceView"
+                    }
+                }
+            }
+        },
+        "agenttoolhttp.OrderRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "agenttoolhttp.RevisionListResponse": {
+            "type": "object",
+            "properties": {
+                "revisions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agenttoolhttp.RevisionResponse"
+                    }
+                }
+            }
+        },
+        "agenttoolhttp.RevisionResponse": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "consultar_status_do_pedido"
+                },
+                "revision": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "savedAt": {
+                    "type": "string"
+                },
+                "savedBy": {
+                    "type": "string"
+                },
+                "toolId": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "http_request"
+                },
+                "visibility": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "agenttoolhttp.TestContext": {
+            "type": "object",
+            "properties": {
+                "entryId": {
+                    "type": "string"
+                },
+                "entryType": {
+                    "type": "string"
+                },
+                "leadId": {
+                    "type": "string"
+                },
+                "vars": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "agenttoolhttp.TestInputsRequest": {
+            "type": "object",
+            "properties": {
+                "testInputs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/testinput.TestInput"
+                    }
+                }
+            }
+        },
+        "agenttoolhttp.TestInputsResponse": {
+            "type": "object",
+            "properties": {
+                "testInputs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/testinput.TestInput"
+                    }
+                }
+            }
+        },
+        "agenttoolhttp.TestRequest": {
+            "type": "object",
+            "properties": {
+                "arguments": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "confirmRealCall": {
+                    "type": "boolean"
+                },
+                "context": {
+                    "$ref": "#/definitions/agenttoolhttp.TestContext"
+                },
+                "testInputId": {
+                    "type": "string"
+                }
+            }
+        },
+        "agenttoolhttp.TestResponse": {
+            "type": "object",
+            "properties": {
+                "durationMs": {
+                    "type": "integer"
+                },
+                "errorChain": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "errorKind": {
+                    "type": "string"
+                },
+                "exchanges": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/calltrace.HTTPExchange"
+                    }
+                },
+                "isError": {
+                    "type": "boolean"
+                },
+                "issues": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agenttool.Issue"
+                    }
+                },
+                "mappedOutput": {},
+                "modelResult": {
+                    "type": "string"
+                },
+                "preview": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "agenttoolhttp.ToolListResponse": {
+            "type": "object",
+            "properties": {
+                "green": {
+                    "type": "boolean"
+                },
+                "issues": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agenttool.Issue"
+                    }
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agenttoolhttp.ToolResponse"
+                    }
+                }
+            }
+        },
+        "agenttoolhttp.ToolResponse": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Consulta o status de um pedido pelo número que o cliente informou."
+                },
+                "id": {
+                    "type": "string",
+                    "example": "5b0c1d4e-9a7f-4f4a-8a52-3b7e1e2f9c10"
+                },
+                "inputSchema": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "name": {
+                    "type": "string",
+                    "example": "consultar_status_do_pedido"
+                },
+                "position": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "revision": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "testInputs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/testinput.TestInput"
+                    }
+                },
+                "testMode": {
+                    "enum": [
+                        "run",
+                        "preview",
+                        "scenario"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agenttool.TestMode"
+                        }
+                    ],
+                    "example": "run"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "http_request"
+                },
+                "visibility": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "agenttoolhttp.UpdateToolRequest": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Consulta o status de um pedido pelo número que o cliente informou."
+                },
+                "name": {
+                    "type": "string",
+                    "example": "consultar_status_do_pedido"
+                },
+                "revision": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "visibility": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "agenttoolhttp.ValidateRequest": {
+            "type": "object",
+            "properties": {
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agenttoolhttp.DraftTool"
+                    }
+                }
+            }
+        },
+        "agenttoolhttp.ValidationResponse": {
+            "type": "object",
+            "properties": {
+                "green": {
+                    "type": "boolean"
+                },
+                "issues": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agenttool.Issue"
+                    }
+                }
+            }
+        },
+        "ai.ModelCall": {
+            "type": "object",
+            "properties": {
+                "cachedTokens": {
+                    "type": "integer"
+                },
+                "costMicros": {
+                    "type": "integer"
+                },
+                "finishReason": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "inputTokens": {
+                    "type": "integer"
+                },
+                "latencyMs": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "outputTokens": {
+                    "type": "integer"
+                },
+                "reasoningTokens": {
+                    "type": "integer"
                 }
             }
         },
@@ -52720,6 +55313,9 @@ const docTemplate = `{
                 "agentId": {
                     "type": "string"
                 },
+                "agentRunId": {
+                    "type": "string"
+                },
                 "args": {
                     "type": "object",
                     "additionalProperties": true
@@ -52739,10 +55335,35 @@ const docTemplate = `{
                 "error": {
                     "type": "string"
                 },
+                "errorChain": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "errorCode": {
                     "type": "string"
                 },
+                "errorKind": {
+                    "type": "string"
+                },
+                "followedBy": {
+                    "type": "string"
+                },
+                "http": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/calltrace.HTTPExchange"
+                    }
+                },
                 "id": {
+                    "type": "string"
+                },
+                "mappedOutput": {},
+                "modelCallIndex": {
+                    "type": "integer"
+                },
+                "modelResult": {
                     "type": "string"
                 },
                 "outcome": {
@@ -52751,13 +55372,31 @@ const docTemplate = `{
                 "runId": {
                     "type": "string"
                 },
+                "sequence": {
+                    "type": "integer"
+                },
                 "sessionId": {
+                    "type": "string"
+                },
+                "simulated": {
+                    "type": "boolean"
+                },
+                "source": {
                     "type": "string"
                 },
                 "toolCallId": {
                     "type": "string"
                 },
+                "toolInstanceId": {
+                    "type": "string"
+                },
                 "toolName": {
+                    "type": "string"
+                },
+                "toolRevision": {
+                    "type": "integer"
+                },
+                "toolType": {
                     "type": "string"
                 },
                 "workflowId": {
@@ -58024,6 +60663,59 @@ const docTemplate = `{
                 }
             }
         },
+        "calltrace.HTTPExchange": {
+            "type": "object",
+            "properties": {
+                "attempt": {
+                    "type": "integer"
+                },
+                "egressRefusal": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "latencyMs": {
+                    "type": "integer"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "redirects": {
+                    "type": "integer"
+                },
+                "requestBody": {
+                    "type": "string"
+                },
+                "requestHeaders": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "responseBody": {
+                    "type": "string"
+                },
+                "responseHeaders": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "tlsFallback": {
+                    "type": "boolean"
+                },
+                "truncated": {
+                    "type": "boolean"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "campaign.BindingSource": {
             "type": "string",
             "enum": [
@@ -59578,6 +62270,20 @@ const docTemplate = `{
                 "recurrence": {
                     "$ref": "#/definitions/carriercampaign.RecurrenceDTO"
                 },
+                "schedule_failure": {
+                    "enum": [
+                        "schedule_blocked",
+                        "schedule_unconfirmed",
+                        "schedule_needs_review",
+                        "schedule_nothing_to_send",
+                        "schedule_start_failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/scheduledstart.Failure"
+                        }
+                    ]
+                },
                 "scheduled_at": {
                     "type": "string"
                 },
@@ -59694,6 +62400,20 @@ const docTemplate = `{
                 },
                 "recurrence": {
                     "$ref": "#/definitions/carriercampaign.RecurrenceDTO"
+                },
+                "schedule_failure": {
+                    "enum": [
+                        "schedule_blocked",
+                        "schedule_unconfirmed",
+                        "schedule_needs_review",
+                        "schedule_nothing_to_send",
+                        "schedule_start_failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/scheduledstart.Failure"
+                        }
+                    ]
                 },
                 "scheduled_at": {
                     "type": "string"
@@ -62395,6 +65115,31 @@ const docTemplate = `{
         "crmfilter.Field": {
             "type": "string",
             "enum": [
+                "id",
+                "phone_any",
+                "email",
+                "nickname",
+                "birthday",
+                "birth_date",
+                "zip",
+                "state",
+                "city",
+                "district",
+                "geo_precision",
+                "geo_status",
+                "has_address",
+                "has_identity",
+                "opted_out",
+                "whatsapp_opt_in",
+                "relation_kind",
+                "relatives_count",
+                "referred_count",
+                "referred_by",
+                "geo_placement",
+                "opt_out_source",
+                "opted_out_at",
+                "company",
+                "area_approximate",
                 "owner",
                 "carteira",
                 "pipeline",
@@ -62425,34 +65170,34 @@ const docTemplate = `{
                 "memory_count",
                 "memory_updated_at",
                 "custom",
-                "area",
-                "id",
-                "phone_any",
-                "email",
-                "nickname",
-                "birthday",
-                "birth_date",
-                "zip",
-                "state",
-                "city",
-                "district",
-                "geo_precision",
-                "geo_status",
-                "has_address",
-                "has_identity",
-                "opted_out",
-                "whatsapp_opt_in",
-                "relation_kind",
-                "relatives_count",
-                "referred_count",
-                "referred_by",
-                "geo_placement",
-                "opt_out_source",
-                "opted_out_at",
-                "company",
-                "area_approximate"
+                "area"
             ],
             "x-enum-varnames": [
+                "FieldID",
+                "FieldPhoneAny",
+                "FieldEmail",
+                "FieldNickname",
+                "FieldBirthday",
+                "FieldBirthDate",
+                "FieldZip",
+                "FieldState",
+                "FieldCity",
+                "FieldDistrict",
+                "FieldGeoPrecision",
+                "FieldGeoStatus",
+                "FieldHasAddress",
+                "FieldHasIdentity",
+                "FieldOptedOut",
+                "FieldWhatsAppOptIn",
+                "FieldRelationKind",
+                "FieldRelativesCount",
+                "FieldReferredCount",
+                "FieldReferredBy",
+                "FieldGeoPlacement",
+                "FieldOptOutSource",
+                "FieldOptedOutAt",
+                "FieldCompany",
+                "FieldAreaApproximate",
                 "FieldOwner",
                 "FieldCarteira",
                 "FieldPipeline",
@@ -62483,32 +65228,7 @@ const docTemplate = `{
                 "FieldMemoryCount",
                 "FieldMemoryUpdatedAt",
                 "FieldCustom",
-                "FieldArea",
-                "FieldID",
-                "FieldPhoneAny",
-                "FieldEmail",
-                "FieldNickname",
-                "FieldBirthday",
-                "FieldBirthDate",
-                "FieldZip",
-                "FieldState",
-                "FieldCity",
-                "FieldDistrict",
-                "FieldGeoPrecision",
-                "FieldGeoStatus",
-                "FieldHasAddress",
-                "FieldHasIdentity",
-                "FieldOptedOut",
-                "FieldWhatsAppOptIn",
-                "FieldRelationKind",
-                "FieldRelativesCount",
-                "FieldReferredCount",
-                "FieldReferredBy",
-                "FieldGeoPlacement",
-                "FieldOptOutSource",
-                "FieldOptedOutAt",
-                "FieldCompany",
-                "FieldAreaApproximate"
+                "FieldArea"
             ]
         },
         "crmfilter.Filter": {
@@ -67130,6 +69850,20 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.agentVariableRequest": {
+            "type": "object",
+            "properties": {
+                "defaultValue": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.draftConflictDetails": {
             "type": "object",
             "properties": {
@@ -67191,6 +69925,29 @@ const docTemplate = `{
                 },
                 "content": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.ragConfigRequest": {
+            "type": "object",
+            "properties": {
+                "contextWindow": {
+                    "type": "integer"
+                },
+                "maxCharacters": {
+                    "type": "integer"
+                },
+                "maxChunks": {
+                    "type": "integer"
+                },
+                "maxChunksPerDoc": {
+                    "type": "integer"
+                },
+                "minScore": {
+                    "type": "number"
+                },
+                "numCandidates": {
+                    "type": "integer"
                 }
             }
         },
@@ -67280,6 +70037,68 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/workflow.TriggerInputIssue"
+                    }
+                }
+            }
+        },
+        "handlers.updateAgentRequest": {
+            "type": "object",
+            "properties": {
+                "avatarUrl": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "isActive": {
+                    "type": "boolean"
+                },
+                "knowledgeBaseIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "mediaIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "messagingModel": {
+                    "type": "string"
+                },
+                "messagingPrompt": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "ragConfig": {
+                    "$ref": "#/definitions/handlers.ragConfigRequest"
+                },
+                "ragEnabled": {
+                    "type": "boolean"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.agentVariableRequest"
                     }
                 }
             }
@@ -71768,6 +74587,19 @@ const docTemplate = `{
                 }
             }
         },
+        "lint.Severity": {
+            "type": "string",
+            "enum": [
+                "blocking",
+                "advisory",
+                "info"
+            ],
+            "x-enum-varnames": [
+                "SeverityBlocking",
+                "SeverityAdvisory",
+                "SeverityInfo"
+            ]
+        },
         "mediagen.Clip": {
             "type": "object",
             "properties": {
@@ -73786,7 +76618,6 @@ const docTemplate = `{
         "report.FailureCode": {
             "type": "string",
             "enum": [
-                "forbidden",
                 "unknown_kind",
                 "unsupported_format",
                 "too_many_rows",
@@ -73796,10 +76627,10 @@ const docTemplate = `{
                 "source_unavailable",
                 "cancelled",
                 "workspace_required",
-                "empty_result"
+                "empty_result",
+                "forbidden"
             ],
             "x-enum-varnames": [
-                "FailureForbidden",
                 "FailureUnknownKind",
                 "FailureUnsupported",
                 "FailureTooManyRows",
@@ -73809,7 +76640,8 @@ const docTemplate = `{
                 "FailureSourceFailed",
                 "FailureCancelled",
                 "FailureWorkspaceEmpty",
-                "FailureEmptyResult"
+                "FailureEmptyResult",
+                "FailureForbidden"
             ]
         },
         "report.Format": {
@@ -73887,22 +76719,22 @@ const docTemplate = `{
         "report.Kind": {
             "type": "string",
             "enum": [
-                "leads",
-                "whatsapp_dispatch",
-                "whatsapp_form_responses",
                 "attendance_overview",
                 "conversation_entries",
                 "balance_transactions",
-                "opportunities"
+                "opportunities",
+                "leads",
+                "whatsapp_dispatch",
+                "whatsapp_form_responses"
             ],
             "x-enum-varnames": [
-                "KindLeads",
-                "KindWhatsAppDispatch",
-                "KindWhatsAppFormResponses",
                 "KindAttendanceOverview",
                 "KindConversationEntries",
                 "KindBalanceTransactions",
-                "KindOpportunities"
+                "KindOpportunities",
+                "KindLeads",
+                "KindWhatsAppDispatch",
+                "KindWhatsAppFormResponses"
             ]
         },
         "report.KindDescriptor": {
@@ -74430,6 +77262,23 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "scheduledstart.Failure": {
+            "type": "string",
+            "enum": [
+                "schedule_blocked",
+                "schedule_unconfirmed",
+                "schedule_needs_review",
+                "schedule_nothing_to_send",
+                "schedule_start_failed"
+            ],
+            "x-enum-varnames": [
+                "FailureBlocked",
+                "FailureUnconfirmed",
+                "FailureNeedsReview",
+                "FailureNothingToSend",
+                "FailureStartFailed"
+            ]
         },
         "shared.EntryType": {
             "type": "string",
@@ -76881,6 +79730,24 @@ const docTemplate = `{
                 }
             }
         },
+        "testinput.TestInput": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "input": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "name": {
+                    "type": "string"
+                },
+                "savedAt": {
+                    "type": "string"
+                }
+            }
+        },
         "tiktok.AccountResponse": {
             "type": "object",
             "properties": {
@@ -77195,6 +80062,43 @@ const docTemplate = `{
                 }
             }
         },
+        "tools_usecase.MCPSourceView": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tools_usecase.MCPToolView"
+                    }
+                },
+                "unavailable": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "tools_usecase.MCPToolView": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "unofficial_whatsapp.GroupRole": {
             "type": "string",
             "enum": [
@@ -77406,6 +80310,20 @@ const docTemplate = `{
                 },
                 "readyToStart": {
                     "type": "boolean"
+                },
+                "scheduleFailure": {
+                    "enum": [
+                        "schedule_blocked",
+                        "schedule_unconfirmed",
+                        "schedule_needs_review",
+                        "schedule_nothing_to_send",
+                        "schedule_start_failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/scheduledstart.Failure"
+                        }
+                    ]
                 },
                 "scheduledStart": {
                     "type": "string"
@@ -82762,16 +85680,20 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "config",
+                "arguments",
+                "render",
+                "secret",
+                "transport",
                 "timeout",
                 "http_status",
-                "transport",
+                "mapping",
+                "internal",
+                "cancelled",
                 "script",
                 "panic",
                 "guard",
                 "gate",
                 "validation",
-                "cancelled",
-                "internal",
                 "handled",
                 "real_call_not_confirmed",
                 "wrong_workflow_type",
@@ -82780,17 +85702,11 @@ const docTemplate = `{
                 "window_closed"
             ],
             "x-enum-varnames": [
-                "ErrorKindConfig",
-                "ErrorKindTimeout",
-                "ErrorKindHTTPStatus",
-                "ErrorKindTransport",
                 "ErrorKindScript",
                 "ErrorKindPanic",
                 "ErrorKindGuard",
                 "ErrorKindGate",
                 "ErrorKindValidation",
-                "ErrorKindCancelled",
-                "ErrorKindInternal",
                 "ErrorKindHandled",
                 "ErrorKindRealCallNotConfirmed",
                 "ErrorKindWrongWorkflowType",
@@ -82819,6 +85735,9 @@ const docTemplate = `{
         "workflow.HTTPExchange": {
             "type": "object",
             "properties": {
+                "attempt": {
+                    "type": "integer"
+                },
                 "egressRefusal": {
                     "type": "string"
                 },
@@ -82943,6 +85862,7 @@ const docTemplate = `{
         "workflow.LintIssueCode": {
             "type": "string",
             "enum": [
+                "NODE_HTTP_URL_NOT_HTTPS",
                 "GRAPH_EMPTY",
                 "GRAPH_TOO_MANY_NODES",
                 "GRAPH_TOO_MANY_EDGES",
@@ -82991,15 +85911,16 @@ const docTemplate = `{
                 "NODE_CODE_READS_TEMPLATE",
                 "NODE_SECRET_IN_PLAIN_TEXT",
                 "NODE_PINNED_OUTPUT",
+                "NODE_INVALID_PLATFORM_EMAIL",
                 "NODE_CONSENT_GRANT_NEEDS_REPLY",
                 "SEND_OUTSIDE_WINDOW_RISK",
-                "NODE_AGENT_CALL_INPUTS_INVALID",
-                "NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER",
-                "NODE_INVALID_PLATFORM_EMAIL",
                 "DATA_REF_NEVER_SET",
-                "DATA_REF_SOME_PATHS"
+                "DATA_REF_SOME_PATHS",
+                "NODE_AGENT_CALL_INPUTS_INVALID",
+                "NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER"
             ],
             "x-enum-varnames": [
+                "LintHTTPURLNotHTTPS",
                 "LintGraphEmpty",
                 "LintGraphTooManyNodes",
                 "LintGraphTooManyEdges",
@@ -83048,13 +85969,13 @@ const docTemplate = `{
                 "LintCodeReadsTemplate",
                 "LintSecretInPlainText",
                 "LintPinnedOutput",
+                "LintInvalidPlatformEmail",
                 "LintConsentGrantNeedsReply",
                 "LintSendOutsideWindowRisk",
-                "LintAgentCallInputsInvalid",
-                "LintReplyToAgentWithoutTrigger",
-                "LintInvalidPlatformEmail",
                 "LintDataRefNeverSet",
-                "LintDataRefSomePaths"
+                "LintDataRefSomePaths",
+                "LintAgentCallInputsInvalid",
+                "LintReplyToAgentWithoutTrigger"
             ]
         },
         "workflow.LintSeverity": {
@@ -84526,42 +87447,6 @@ const docTemplate = `{
                 }
             }
         },
-        "workflowsecrethttp.PutSecretRequest": {
-            "type": "object",
-            "properties": {
-                "value": {
-                    "type": "string",
-                    "example": "s3nh4-do-portal"
-                }
-            }
-        },
-        "workflowsecrethttp.SecretListResponse": {
-            "type": "object",
-            "properties": {
-                "secrets": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/workflowsecrethttp.SecretResponse"
-                    }
-                }
-            }
-        },
-        "workflowsecrethttp.SecretResponse": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "example": "unifecaf_senha"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "updated_by": {
-                    "type": "string",
-                    "example": "5b0c1d4e-9a7f-4f4a-8a52-3b7e1e2f9c10"
-                }
-            }
-        },
         "workflowwebhook.webhookConfigRequest": {
             "type": "object",
             "properties": {
@@ -85657,6 +88542,42 @@ const docTemplate = `{
                 "priceMicros": {
                     "type": "integer",
                     "example": 6000000
+                }
+            }
+        },
+        "workspacesecrethttp.PutSecretRequest": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "string",
+                    "example": "s3nh4-do-portal"
+                }
+            }
+        },
+        "workspacesecrethttp.SecretListResponse": {
+            "type": "object",
+            "properties": {
+                "secrets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workspacesecrethttp.SecretResponse"
+                    }
+                }
+            }
+        },
+        "workspacesecrethttp.SecretResponse": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "unifecaf_senha"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
+                    "type": "string",
+                    "example": "5b0c1d4e-9a7f-4f4a-8a52-3b7e1e2f9c10"
                 }
             }
         }

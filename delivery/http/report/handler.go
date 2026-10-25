@@ -33,8 +33,6 @@ type CreateReportRequest struct {
 
 func writeReportError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, report_usecase.ErrNotConfigured):
-		response.WriteError(w, http.StatusServiceUnavailable, "Reports are not configured on this server", nil)
 	case errors.Is(err, reportdomain.ErrNotFound):
 		response.WriteError(w, http.StatusNotFound, "Report not found", nil)
 	case errors.Is(err, reportdomain.ErrKindNotOffered):

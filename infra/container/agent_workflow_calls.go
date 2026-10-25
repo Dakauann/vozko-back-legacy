@@ -3,7 +3,6 @@ package container
 import (
 	"log"
 
-	"vozko/domain/cache"
 	"vozko/domain/conversation"
 	"vozko/domain/tools"
 	conversation_repository "vozko/infra/repositories/conversation"
@@ -33,37 +32,11 @@ func (c *Container) wireAgentWorkflowCalls(steps *workflow_usecase.NodeExecutorR
 	}
 	turnAssembler.TrackAgentRuns(status)
 
-	canceller, err := workflow_usecase.NewAgentRunFinishCanceller(runs, c.repositories.workflowRunLog)
-	if err != nil {
-		log.Fatalf("[agent-workflow] cancelling agent runs on finish: %v", err)
-	}
-	if c.services.conversationStatusService == nil {
-		log.Fatalf("[agent-workflow] the conversation status service is read before it is built")
-	}
-	c.services.conversationStatusService.SetAgentRunCanceller(canceller)
-
-	names := c.actorNames()
 	channels := c.mustChannelAIReply()
-	channels.SetWorkflowNames(names)
-	whatsapp, ok := c.useCases.handleWhatsAppMessage.(interface {
-		SetWorkflowNames(conversation_usecase.ActorNameResolver)
-		SetAgentTurnLock(*conversation_usecase.AgentTurnLock)
-		conversation_usecase.AgentTurnContinuer
-	})
+	whatsapp, ok := c.useCases.handleWhatsAppMessage.(conversation_usecase.AgentTurnContinuer)
 	if !ok {
-		log.Fatalf("[agent-workflow] the official WhatsApp reply path cannot label workflow messages or continue an agent turn")
+		log.Fatalf("[agent-workflow] the official WhatsApp reply path cannot continue an agent turn")
 	}
-	whatsapp.SetWorkflowNames(names)
-
-	sharedState := c.redisProvider.SharedState()
-	if _, guarded := sharedState.(cache.OwnedKeyDeleter); !guarded {
-		log.Fatalf("[agent-workflow] the shared state cannot release a turn lock only for its holder")
-	}
-	turnLock := conversation_usecase.NewAgentTurnLock(sharedState)
-	whatsapp.SetAgentTurnLock(turnLock)
-	channels.SetAgentTurnLock(turnLock)
-	channels.SetAIAttendance(c.services.aiAttendanceService)
-	channels.SetEntryLeads(c.repositories.lead)
 
 	customerSpeech, ok := c.repositories.conversation.(conversation.CustomerSpeech)
 	if !ok {
@@ -75,7 +48,7 @@ func (c *Container) wireAgentWorkflowCalls(steps *workflow_usecase.NodeExecutorR
 		Claims:      runs,
 		Messages:    customerSpeech,
 		Continuers:  conversation_usecase.AgentTurnContinuers{Official: whatsapp, Channels: channels},
-		Lock:        turnLock,
+		Lock:        c.agentTurnLock(),
 		Metrics:     c.services.metrics,
 	})
 	if err != nil {

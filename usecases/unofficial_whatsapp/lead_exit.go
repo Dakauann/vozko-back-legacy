@@ -2,7 +2,6 @@ package unofficial_whatsapp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -12,19 +11,10 @@ import (
 	uw "vozko/domain/unofficial_whatsapp"
 )
 
-var errLeadExitStepMissing = errors.New("unofficial whatsapp: the lead exit step is not wired, the message cannot be checked for an exit")
-
-func (uc *HandleWebhookUseCase) SetLeadExitStep(step leadexit.Step) {
-	uc.exitStep = step
-}
-
 func (uc *HandleWebhookUseCase) runLeadExit(ctx context.Context, instance *uw.Instance, sub *chatContext, ev *uw.Event) (leadexit.Result, error) {
 	leadID := exitLeadOf(sub)
 	if leadID == "" {
 		return leadexit.Result{}, nil
-	}
-	if uc.exitStep == nil {
-		return leadexit.Result{}, errLeadExitStepMissing
 	}
 	in := leadexit.Inbound{
 		WorkspaceID:      instance.WorkspaceID,
@@ -58,7 +48,7 @@ type uazapiExitReplier struct {
 }
 
 func (r *uazapiExitReplier) Reply(ctx context.Context, text string) error {
-	adapter := NewChannelAdapter(r.uc.instances, r.uc.servers, r.uc.contacts, r.uc.conversations, r.uc.messaging)
+	adapter := newTextAdapter(r.uc.instances, r.uc.servers, r.uc.contacts, r.uc.conversations, r.uc.messaging)
 	ec, err := adapter.ResolveEntry(ctx, r.entryID)
 	if err != nil {
 		return err

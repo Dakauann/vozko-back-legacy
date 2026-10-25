@@ -92,13 +92,7 @@ func parityService() conversation.InboxService {
 		"awaiting": {EntryID: "awaiting", EntryType: "whatsapp", CampaignID: "camp-1"},
 	}}
 	authorizer := &inboxServiceTestAuthorizer{canAccessCampaign: true, departmentScopeOkay: true}
-	service := NewInboxService(history, parityStages{}, parityLabels{}, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, parityAnalysis{}, nil)
-	service.(interface {
-		SetLiveReadProvider(conversation.LiveReadProvider)
-	}).SetLiveReadProvider(parityLive{})
-	service.(interface {
-		SetAnalysisScheduleReader(conversation.AnalysisScheduleReader)
-	}).SetAnalysisScheduleReader(paritySchedule{})
+	service := NewInboxService(history, parityStages{}, parityLabels{}, &inboxServiceTestResolver{workspaceID: "ws-1"}, nil, authorizer, parityAnalysis{}, nil, InboxSources{Schedules: paritySchedule{}, Templates: inboxUnusedTemplates{}, LiveReads: parityLive{}})
 	return service
 }
 

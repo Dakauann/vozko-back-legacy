@@ -51,12 +51,17 @@ func (s *Service) Launch(ctx context.Context, workspaceID, id string, a Actor) (
 		return LaunchResult{}, err
 	}
 	if c.ScheduledAt != nil || c.Recurrence != nil {
-		return s.schedule(ctx, *c, now, defs)
+		scheduled, err := s.schedule(ctx, *c, now, defs)
+		if err == nil {
+			s.schedules.Cleared(ctx, c.ID, c.ScheduleFailure)
+		}
+		return scheduled, err
 	}
 	run, err := s.startRun(ctx, *c, a, route, now, true)
 	if err != nil {
 		return LaunchResult{}, err
 	}
+	s.schedules.Cleared(ctx, c.ID, c.ScheduleFailure)
 	stored, err := s.deps.Campaigns.FindByIDUnscoped(ctx, c.ID)
 	if err != nil {
 		return LaunchResult{}, err

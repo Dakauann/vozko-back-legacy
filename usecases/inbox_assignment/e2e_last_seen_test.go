@@ -50,15 +50,15 @@ func newWorld(t *testing.T, members []string, mode string) *world {
 		status:  &stubStatus{},
 	}
 
-	w.svc = NewAssignmentService(w.repo, w.online, defaultResolver("ws-1", ""), w.cfg)
-	w.svc.SetRoster(w.roster)
-	w.svc.SetPresence(w.seen)
-	w.svc.SetHistory(w.history)
-	w.svc.Candidates().SetClock(func() time.Time { return w.clock })
+	w.svc = newService(w.repo, w.online, defaultResolver("ws-1", ""), w.cfg)
+	w.svc.candidates.roster = w.roster
+	w.svc.candidates.seen = w.seen
+	w.svc.telemetry = historyTelemetry{store: w.history}
+	w.svc.Candidates().now = func() time.Time { return w.clock }
 
 	w.rescue = &stubRescueHistory{}
-	w.job = NewRescueJob(&worldConfigReader{w}, w.rescue, w.att, w.status, w.svc)
-	w.job.SetClock(func() time.Time { return w.clock })
+	w.job = rescueJob(&worldConfigReader{w}, w.rescue, w.att, w.status, w.svc)
+	w.job.now = func() time.Time { return w.clock }
 	return w
 }
 

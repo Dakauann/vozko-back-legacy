@@ -24,11 +24,13 @@ import (
 	mercadolivrehttp "vozko/delivery/http/mercadolivre"
 	"vozko/domain/agent"
 	"vozko/domain/ai"
+	aa "vozko/domain/ai_attendance"
 	"vozko/domain/auth"
 	"vozko/domain/cache"
 	"vozko/domain/conversation"
 	ce "vozko/domain/conversation_event"
 	ia "vozko/domain/inbox_assignment"
+	"vozko/domain/lead"
 	mldomain "vozko/domain/mercadolivre"
 	"vozko/domain/messaging"
 	"vozko/domain/notification"
@@ -54,8 +56,10 @@ import (
 	"vozko/infra/repositories/repotest"
 	webhook_repository "vozko/infra/repositories/webhook"
 	"vozko/infra/testenv"
+	"vozko/usecases/agentturn"
 	cauc "vozko/usecases/commentautomation"
 	conversation_usecase "vozko/usecases/conversation"
+	"vozko/usecases/conversation/loopguard"
 	"vozko/usecases/conversationmedia"
 	entrypurge_usecase "vozko/usecases/entrypurge"
 	mluc "vozko/usecases/mercadolivre"
@@ -586,8 +590,12 @@ func newHarness(t testing.TB) *harness {
 
 	agentRecord := &agent.Agent{ID: h.agentID, WorkspaceID: h.workspaceID, Name: "Atendente", MessagingModel: "e2e-model", MessagingPrompt: "Você atende compradores do Mercado Livre.", IsActive: true}
 	agentRepo := agents{byID: map[string]*agent.Agent{h.agentID: agentRecord}}
-	h.sender = conversation_usecase.NewMessageSenderService(h.messages, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	replies := conversation_usecase.NewChannelAIReplyService(agentRepo, h.ai, h.messages, h.sender, adapterRegistry{h: h}, h.handOffs, events{})
+	h.sender = conversation_usecase.NewMessageSenderService(h.messages, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, adapterRegistry{h: h})
+	replies := conversation_usecase.NewChannelAIReplyService(conversation_usecase.ChannelAIReplyDeps{
+		Agents: agentRepo, AI: h.ai, Messages: h.messages, Sender: h.sender, Adapters: adapterRegistry{h: h}, HandOff: h.handOffs,
+		Events: events{}, Guard: loopguard.AlwaysAllow{}, Assembler: agentturn.New(nil, nil, nil),
+		TurnLock: conversation_usecase.NewAgentTurnLock(redis.SharedState()), Attendance: quietAttendance{}, Leads: noContinuationLeads{}, WorkflowNames: noWorkflowNames{},
+	})
 	automation := conversation_usecase.NewInboundAutomation(nil, replies, nil, h.messages).WithDelegations(conversation_repository.NewDelegationRepository(db))
 	mediaStore := conversationmedia.NewStore(h.files, conversation_repository.NewMediaRepository(db), mediaprobe.New())
 	durable := webhook_repository.NewProcessedEventRepository(db)
@@ -601,7 +609,6 @@ func newHarness(t testing.TB) *harness {
 		Accounts: h.accounts, Contacts: h.contacts, Conversations: h.conversations, Services: services, Tokens: h.tokens,
 		Threads: threads, Refresh: publisher, Media: mlinfra.NewMediaFetcher(&http.Client{Timeout: 5 * time.Second}), Metrics: h.metrics,
 	})
-	h.sender.SetChannelAdapters(conversation.NewAdapterRegistry(h.adapter))
 
 	salesSync := mluc.NewSalesSync(h.conversations, services, h.tokens, summaries, threads)
 	listings := mluc.NewListings(mluc.ListingsDeps{Accounts: h.accounts, Listings: listingRepo, Services: services, Tokens: h.tokens, Images: thumbnails, Metrics: h.metrics})
@@ -852,3 +859,21 @@ func (h *harness) aiReplies(conversationID string) int64 {
 func sellerID(n int) string { return fmt.Sprintf("4154583%02d", n) }
 
 func runes(s string) int { return len([]rune(s)) }
+
+type quietAttendance struct{}
+
+func (quietAttendance) RecordAIReply(aa.StartInput, string) {}
+
+type noWorkflowNames struct{}
+
+func (noWorkflowNames) ResolveNames(...string) (map[string]string, error) { return nil, nil }
+
+type noContinuationLeads struct{}
+
+func (noContinuationLeads) LeadOfEntry(context.Context, string, shared.EntryRef) (string, error) {
+	return "", lead.ErrLeadNotFound
+}
+
+func (noContinuationLeads) FindByID(string, string) (*lead.Lead, error) {
+	return nil, lead.ErrLeadNotFound
+}

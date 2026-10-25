@@ -387,7 +387,7 @@ func TestFlushAndBackstopJobs(t *testing.T) {
 
 func TestIngest_IdempotentAndSkipsOurs(t *testing.T) {
 	h := newHarness(t, smallBudget())
-	ingest := NewIngestUseCase(h.repo, NewSettingsResolver(h.settings), h.scheduler, nil, fixedClock{now})
+	ingest := ingestFor(h.repo, NewSettingsResolver(h.settings), h.scheduler, nil, fixedClock{now})
 	in := ca.IngestInput{WorkspaceID: "ws-1", Container: ref(), SubjectID: "c-1", AuthorExternalID: "u-1", Text: "oi"}
 
 	for i := 0; i < 3; i++ {

@@ -25,6 +25,7 @@ var errorCodes = []struct {
 	{ErrSelectionSendLocked, "send_selection_locked"},
 	{ErrSendPreparing, "send_preparing"},
 	{ErrSelectionStartNeedsReview, "send_start_from_leads"},
+	{ErrSelectionScheduleRefused, "send_schedule_from_leads"},
 	{template.ErrPricingUnavailable, "send_pricing_unavailable"},
 	{ErrBindingsMismatch, "send_bindings_mismatch"},
 	{ErrBindingUnknown, "send_binding_unknown"},

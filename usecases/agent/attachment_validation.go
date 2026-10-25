@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"vozko/domain/agent"
-	mcpdomain "vozko/domain/agent/mcp"
 	"vozko/domain/rag"
 )
 
@@ -48,28 +47,6 @@ func validateKnowledgeBaseOwnership(ctx context.Context, repo rag.KnowledgeBaseR
 	}
 	if owned != len(wanted) {
 		return agent.ErrAgentKnowledgeBaseNoAccess
-	}
-	return nil
-}
-
-func validateMCPCollectionOwnership(ctx context.Context, repo mcpdomain.CollectionRepository, workspaceID string, ids []string) error {
-	wanted := uniqueIDs(ids)
-	if len(wanted) == 0 || repo == nil {
-		return nil
-	}
-
-	found, err := repo.ListByIDs(ctx, workspaceID, wanted)
-	if err != nil {
-		return err
-	}
-	owned := 0
-	for _, c := range found {
-		if c != nil {
-			owned++
-		}
-	}
-	if owned != len(wanted) {
-		return agent.ErrAgentMCPCollectionNoAccess
 	}
 	return nil
 }

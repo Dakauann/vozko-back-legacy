@@ -1,276 +1,302 @@
 package tools_usecase
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	neturl "net/url"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
+	"vozko/domain/agenttool"
+	"vozko/domain/calltrace"
+	"vozko/domain/httpcall"
+	"vozko/domain/redact"
 	"vozko/domain/tools"
 	"vozko/domain/workflow"
+	"vozko/domain/workspacesecret"
+	httpcall_usecase "vozko/usecases/httpcall"
 )
-
-const httpRequestToolName = workflow.AgentHTTPRequestTool
 
 const (
-	defaultRequestTimeout = 30 * time.Second
-	maxResponseBytes      = 1 << 20
+	httpRequestToolName = workflow.AgentHTTPRequestTool
+	HTTPRequestToolName = httpRequestToolName
 )
 
+const (
+	maxResponseBytes        = 1 << 20
+	ModelResultCharLimit    = 15000
+	truncatedMarker         = "… [resposta cortada]"
+	maxIdempotentRetries    = 2
+	defaultIdempotencyKey   = "Idempotency-Key"
+	httpToolOverallDeadline = httpcall.MaxTimeout
+)
+
+var idempotencyNamespace = uuid.MustParse("1b8f4a52-7c3e-5d90-9a61-2e4f8c0d3b17")
+
 type httpRequestTool struct {
-	httpClient *http.Client
+	caller  *httpcall_usecase.Caller
+	secrets workspacesecret.Resolver
+	sleep   func(context.Context, time.Duration) bool
 }
 
-func NewHTTPRequestToolUseCase(client *http.Client) tools.Handler {
-	return &httpRequestTool{httpClient: client}
+func NewHTTPRequestToolUseCase(egress httpcall_usecase.Egress, secrets workspacesecret.Resolver) tools.Handler {
+	return &httpRequestTool{caller: httpcall_usecase.NewCaller(egress), secrets: secrets, sleep: sleepFor}
+}
+
+func sleepFor(ctx context.Context, d time.Duration) bool {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
 
 func (t *httpRequestTool) Definition() tools.Definition {
 	return tools.Definition{
 		Name:               httpRequestToolName,
 		DisplayName:        "Requisição HTTP",
-		DisplayDescription: "Realiza requisições HTTP para APIs externas, webhooks ou serviços configurados.",
-		Description: `Realiza requisições HTTP para um endpoint configurado. Esta ferramenta deve ser configurada no nível do agente com a URL de destino, método, cabeçalhos e schemas de parâmetros.
-
-A IA irá gerar dinamicamente parâmetros de caminho, consulta e corpo baseado nos schemas configurados e no contexto da conversa.
-
-Use esta ferramenta para integrar com APIs externas, webhooks ou serviços.`,
-		Parameters: map[string]tools.Parameter{
-			"path_values": {
-				Type:               "object",
-				Description:        "Valores para parâmetros de caminho definidos na URL (ex: {id} -> {\"id\": \"123\"}). Usado para substituir placeholders na URL configurada.",
-				DisplayName:        "Parâmetros de Caminho",
-				DisplayDescription: "Valores para substituir placeholders na URL",
-			},
-			"query_values": {
-				Type:               "object",
-				Description:        "Valores para parâmetros de consulta conforme definido no query_schema. Estes serão adicionados como string de query na URL.",
-				DisplayName:        "Parâmetros de Consulta",
-				DisplayDescription: "Valores para os parâmetros de consulta da URL",
-			},
-			"body_values": {
-				Type:               "object",
-				Description:        "Valores para parâmetros do corpo da requisição conforme definido no body_schema. Será enviado como JSON no corpo da requisição.",
-				DisplayName:        "Corpo da Requisição",
-				DisplayDescription: "Valores para o corpo da requisição (JSON)",
-			},
-			"reason": {
-				Type:               "string",
-				Description:        "Breve descrição do motivo pela qual esta requisição está sendo feita (para registro e contexto).",
-				DisplayName:        "Motivo",
-				DisplayDescription: "Descrição do motivo da requisição",
-			},
-		},
-		Required:   []string{},
-		Visibility: []tools.ToolVisibility{tools.VisibilityMessaging},
-		Category:   tools.CategoryAgentAction,
-
+		DisplayDescription: "Chama uma API externa com campos que a IA preenche, valores fixos e dados da conversa.",
+		Description:        "Chama uma API externa configurada para este agente.",
+		Parameters:         map[string]tools.Parameter{},
+		Visibility:         []tools.ToolVisibility{tools.VisibilityMessaging},
+		Category:           tools.CategoryAgentAction,
 		ConfigSchema: map[string]tools.ConfigParameter{
-			"url": {
-				Type:               "string",
-				Description:        "URL do endpoint HTTP. Use {param} para parâmetros de caminho (ex: /api/users/{user_id}). A URL pode conter múltiplos placeholders que serão substituídos dinamicamente.",
-				DisplayName:        "URL do endpoint",
-				DisplayDescription: "Endereço completo da API, webhook ou serviço externo.",
-				Required:           true,
-			},
-			"method": {
-				Type:               "string",
-				Description:        "Método HTTP a ser utilizado (GET, POST, PUT, PATCH, DELETE)",
-				DisplayName:        "Método HTTP",
-				DisplayDescription: "Operação usada em todas as chamadas dessa ferramenta.",
-				Default:            "GET",
-				Options: []tools.ConfigParameterOption{
-					{Value: "GET", Label: "GET"},
-					{Value: "POST", Label: "POST"},
-					{Value: "PUT", Label: "PUT"},
-					{Value: "PATCH", Label: "PATCH"},
-					{Value: "DELETE", Label: "DELETE"},
-				},
-				Required: true,
-			},
-			"headers": {
-				Type:               "object",
-				Description:        "Cabeçalhos HTTP estáticos enviados com cada requisição (ex: Authorization, Content-Type, Accept)",
-				DisplayName:        "Cabeçalhos fixos",
-				DisplayDescription: "Headers enviados automaticamente em cada requisição.",
-				Default:            map[string]interface{}{},
-				Required:           false,
-				Sensitive:          true,
-			},
-			"timeout_seconds": {
-				Type:               "number",
-				Description:        "Tempo limite para a requisição em segundos (padrão: 30 segundos)",
-				DisplayName:        "Tempo limite",
-				DisplayDescription: "Máximo de segundos antes de cancelar a chamada.",
-				Default:            30,
-				Required:           false,
-			},
-			"path_params": {
-				Type:               "array",
-				Description:        "Define parâmetros de caminho que a IA deve fornecer. Cada item: {name, type, description, required, example}",
-				DisplayName:        "Parâmetros de caminho",
-				DisplayDescription: "Campos que substituem placeholders como {lead_id} na URL.",
-				Default:            []interface{}{},
-				Required:           false,
-			},
-			"query_schema": {
-				Type:               "array",
-				Description:        "Define parâmetros de consulta que a IA deve fornecer. Cada item: {name, type, description, required, example}",
-				DisplayName:        "Parâmetros de consulta",
-				DisplayDescription: "Campos que a IA pode preencher na query string.",
-				Default:            []interface{}{},
-				Required:           false,
-			},
-			"body_schema": {
-				Type:               "array",
-				Description:        "Define parâmetros do corpo que a IA deve fornecer. Cada item: {name, type, description, required, example}",
-				DisplayName:        "Campos do corpo",
-				DisplayDescription: "Campos enviados como JSON no corpo da requisição.",
-				Default:            []interface{}{},
-				Required:           false,
-			},
+			"url":                {Type: "string", DisplayName: "URL do endpoint", DisplayDescription: "Endereço https da API. Use {campo} no caminho para valores que a IA ou a conversa preenchem.", Required: true},
+			"method":             {Type: "string", DisplayName: "Método HTTP", DisplayDescription: "Operação usada em todas as chamadas desta ferramenta.", Default: "GET", Required: true, Options: []tools.ConfigParameterOption{{Value: "GET", Label: "GET"}, {Value: "POST", Label: "POST"}, {Value: "PUT", Label: "PUT"}, {Value: "PATCH", Label: "PATCH"}, {Value: "DELETE", Label: "DELETE"}}},
+			"fields":             {Type: "array", DisplayName: "Campos", DisplayDescription: "Cada campo do caminho, da consulta, do cabeçalho ou do corpo, e quem o preenche: a IA, um valor fixo ou a conversa."},
+			"body_template":      {Type: "string", DisplayName: "Modelo do corpo", DisplayDescription: "JSON com {{args.campo}}, {{var.nome}}, {{conversation.entry_id}}, {{lead.id}} e {{secret.nome}}; cada marcador vira um valor JSON."},
+			"auth":               {Type: "object", DisplayName: "Autenticação", DisplayDescription: "Bearer, Basic ou chave de API, sempre com um segredo do workspace."},
+			"output":             {Type: "object", DisplayName: "Resposta", DisplayDescription: "Caminhos da resposta que a IA recebe. Sem caminhos, a IA recebe o JSON da resposta."},
+			"timeout_seconds":    {Type: "number", DisplayName: "Tempo limite", DisplayDescription: "De 1 a 30 segundos; o padrão é 15.", Default: 15},
+			"idempotency_header": {Type: "string", DisplayName: "Cabeçalho de idempotência", DisplayDescription: "Nome do cabeçalho com a chave que POST e PATCH enviam. O padrão é Idempotency-Key."},
+			"headers":            {Type: "object", DisplayName: "Cabeçalhos fixos", DisplayDescription: "Forma antiga, convertida em campos ao salvar.", Sensitive: true},
+			"path_params":        {Type: "array", DisplayName: "Parâmetros de caminho", DisplayDescription: "Forma antiga, convertida em campos ao salvar."},
+			"query_schema":       {Type: "array", DisplayName: "Parâmetros de consulta", DisplayDescription: "Forma antiga, convertida em campos ao salvar."},
+			"body_schema":        {Type: "array", DisplayName: "Campos do corpo", DisplayDescription: "Forma antiga, convertida em campos ao salvar."},
 		},
 		RequiredConfig: []string{"url", "method"},
+		Instances:      tools.Many(),
 		RequiresConfig: true,
 	}
 }
 
+func (t *httpRequestTool) DefinitionWithContext(ctx tools.ToolContext) tools.Definition {
+	def := t.Definition()
+	config, err := agenttool.ParseHTTPConfig(ctx.Config)
+	if err != nil {
+		return def
+	}
+	def.Parameters, def.Required = config.Parameters()
+	return def
+}
+
 func (t *httpRequestTool) Execute(ctx context.Context, params map[string]interface{}) (tools.ExecutionResult, error) {
-	return tools.ExecutionResult{
-		Result:  nil,
-		IsError: true,
-	}, fmt.Errorf("http_request tool requires agent-level configuration - use ExecuteWithConfig instead")
+	return t.ExecuteWithConfig(ctx, nil, params)
 }
 
 func (t *httpRequestTool) ExecuteWithConfig(ctx context.Context, config map[string]interface{}, params map[string]interface{}) (tools.ExecutionResult, error) {
-	baseURL, _ := config["url"].(string)
-	method, _ := config["method"].(string)
-	method = strings.ToUpper(method)
-
-	validMethods := map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true}
-	if !validMethods[method] {
-		return tools.ExecutionResult{
-			Result:  nil,
-			IsError: true,
-		}, fmt.Errorf("invalid HTTP method: %s", method)
+	call, err := agenttool.ParseHTTPConfig(config)
+	if err != nil || call.URL == "" {
+		return failed(calltrace.ErrorKindConfig, "a ferramenta não está configurada", nil, nil), nil
 	}
-
-	url := baseURL
-	if pathValues, ok := params["path_values"].(map[string]interface{}); ok {
-		for key, val := range pathValues {
-			placeholder := "{" + key + "}"
-			url = strings.ReplaceAll(url, placeholder, neturl.PathEscape(fmt.Sprintf("%v", val)))
-		}
-	}
-
-	if strings.Contains(url, "{") && strings.Contains(url, "}") {
-		return tools.ExecutionResult{
-			Result:  nil,
-			IsError: true,
-		}, fmt.Errorf("missing path parameter values in URL: %s", url)
-	}
-
-	if queryValues, ok := params["query_values"].(map[string]interface{}); ok && len(queryValues) > 0 {
-		queryString := buildQueryString(queryValues)
-		if strings.Contains(url, "?") {
-			url += "&" + queryString
-		} else {
-			url += "?" + queryString
-		}
-	}
-
-	var bodyReader io.Reader
-	if bodyValues, ok := params["body_values"].(map[string]interface{}); ok && len(bodyValues) > 0 {
-		jsonBody, err := json.Marshal(bodyValues)
-		if err != nil {
-			return tools.ExecutionResult{
-				Result:  nil,
-				IsError: true,
-			}, fmt.Errorf("failed to marshal request body: %w", err)
-		}
-		bodyReader = bytes.NewReader(jsonBody)
-	}
-
-	timeout := defaultRequestTimeout
-	if timeoutSec, ok := config["timeout_seconds"].(float64); ok && timeoutSec > 0 {
-		timeout = time.Duration(timeoutSec) * time.Second
-	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
+	secrets, err := httpcall_usecase.ResolveSecrets(ctx, t.secrets, configString(config, "__workspace_id"), secretNamesOf(call))
 	if err != nil {
-		return tools.ExecutionResult{
-			Result:  nil,
-			IsError: true,
-		}, fmt.Errorf("failed to create HTTP request: %w", err)
+		return failed(calltrace.ErrorKindSecret, err.Error(), err, nil), nil
+	}
+	rendered, err := call.Render(params, contextLookup(config, secrets.Values))
+	if err != nil {
+		var callErr *agenttool.CallError
+		kind := calltrace.ErrorKindRender
+		if errors.As(err, &callErr) {
+			kind = callErr.Kind
+		}
+		return failed(kind, secrets.Scrub.String(err.Error()), err, nil), nil
+	}
+	scrub := redact.SecretsOnly(append(rendered.Secrets, secretValues(secrets.Values)...)...)
+	headers := rendered.Headers
+	if !httpcall.IdempotentMethod(rendered.Method) {
+		name := call.IdempotencyHeader
+		if name == "" {
+			name = defaultIdempotencyKey
+		}
+		headers[name] = idempotencyKey(ctx)
 	}
 
-	if headers, ok := config["headers"].(map[string]interface{}); ok {
-		for key, val := range headers {
-			if strVal, ok := val.(string); ok {
-				req.Header.Set(key, strVal)
+	budget, cancel := context.WithTimeout(ctx, httpToolOverallDeadline)
+	defer cancel()
+	prepared := httpcall_usecase.Prepared{
+		Method: rendered.Method, URL: rendered.URL, Body: rendered.Body, Headers: headers,
+		Auth:    httpcall.Auth{Mode: rendered.Auth.Mode, User: rendered.Auth.User, Token: rendered.Auth.Token, KeyName: rendered.Auth.KeyName},
+		Timeout: httpcall.Timeout(call.TimeoutSeconds), ResponseLimit: maxResponseBytes,
+	}
+	var exchanges []calltrace.HTTPExchange
+	var outcome httpcall_usecase.Outcome
+	for attempt := 0; ; attempt++ {
+		outcome = t.caller.Do(budget, prepared)
+		outcome.Exchange.Attempt = attempt + 1
+		exchanges = append(exchanges, outcome.Exchange.Redact(scrub).Redact(redact.New()))
+		wait, retry := retryAfter(rendered.Method, outcome, attempt)
+		if !retry {
+			break
+		}
+		if deadline, ok := budget.Deadline(); ok && time.Until(deadline) <= wait {
+			break
+		}
+		if !t.sleep(budget, wait) {
+			break
+		}
+	}
+	trace := &calltrace.ToolTrace{Exchanges: calltrace.FitHTTPExchanges(exchanges)}
+
+	if outcome.Err != nil {
+		message := fmt.Sprintf("a chamada à API falhou (%s): %s", outcome.Kind, scrub.String(httpcall_usecase.TransportCause(outcome.Err)))
+		return failed(outcome.Kind, message, outcome.Err, trace), nil
+	}
+	body := scrub.String(string(outcome.Body))
+	contextUpdate := fmt.Sprintf("a API respondeu %d", outcome.Status)
+	if outcome.Status < 200 || outcome.Status >= 300 {
+		trace.ErrorKind = calltrace.ErrorKindHTTPStatus
+		trace.ErrorChain = []string{fmt.Sprintf("HTTP %d", outcome.Status)}
+		return tools.ExecutionResult{
+			Result:            map[string]interface{}{"status": outcome.Status, "error": capForModel(body)},
+			IsError:           true,
+			ContextUpdateText: contextUpdate,
+			Trace:             trace,
+		}, nil
+	}
+	mapped, err := call.MapOutput(outcome.Status, []byte(body))
+	if err != nil {
+		return failed(calltrace.ErrorKindMapping, err.Error(), err, trace), nil
+	}
+	trace.MappedOutput = mapped
+	return tools.ExecutionResult{Result: modelValue(mapped), ContextUpdateText: contextUpdate, Trace: trace}, nil
+}
+
+func failed(kind calltrace.ErrorKind, message string, cause error, trace *calltrace.ToolTrace) tools.ExecutionResult {
+	if trace == nil {
+		trace = &calltrace.ToolTrace{}
+	}
+	trace.ErrorKind = kind
+	if cause != nil {
+		trace.ErrorChain = redact.New().Strings(calltrace.ErrorChain(cause))
+	} else {
+		trace.ErrorChain = []string{message}
+	}
+	return tools.ExecutionResult{Result: message, IsError: true, ContextUpdateText: message, Trace: trace}
+}
+
+func retryAfter(method string, outcome httpcall_usecase.Outcome, attempt int) (time.Duration, bool) {
+	if attempt >= maxIdempotentRetries || !httpcall.IdempotentMethod(method) {
+		return 0, false
+	}
+	switch {
+	case outcome.Err != nil && (outcome.Kind == calltrace.ErrorKindTransport || outcome.Kind == calltrace.ErrorKindTimeout) && outcome.Exchange.EgressRefusal == "":
+		return backoff(attempt), true
+	case outcome.Status == http.StatusTooManyRequests || outcome.Status == http.StatusServiceUnavailable:
+		if seconds, err := strconv.Atoi(strings.TrimSpace(outcome.Header.Get("Retry-After"))); err == nil && seconds >= 0 {
+			return time.Duration(seconds) * time.Second, true
+		}
+		return backoff(attempt), true
+	}
+	return 0, false
+}
+
+func backoff(attempt int) time.Duration {
+	return time.Duration(250*(attempt+1)) * time.Millisecond
+}
+
+func idempotencyKey(ctx context.Context) string {
+	seed := tools.RunIDFrom(ctx) + "\x00" + tools.CallIDFrom(ctx)
+	if ref, ok := tools.InstanceFrom(ctx); ok {
+		seed += "\x00" + ref.ID
+	}
+	if strings.Trim(seed, "\x00") == "" {
+		return uuid.NewString()
+	}
+	return uuid.NewSHA1(idempotencyNamespace, []byte(seed)).String()
+}
+
+func secretNamesOf(c agenttool.HTTPConfig) []string {
+	texts := []string{c.URL, c.BodyTemplate, c.Auth.Token, c.Auth.User}
+	for _, f := range c.Fields {
+		if f.Source != agenttool.SourceModel {
+			texts = append(texts, f.Value)
+		}
+	}
+	return agenttool.SecretNames(texts...)
+}
+
+func contextLookup(config map[string]interface{}, secrets map[string]string) agenttool.Lookup {
+	return func(scope, key string) (string, bool) {
+		switch scope {
+		case agenttool.ScopeSecret:
+			value, ok := secrets[key]
+			return value, ok
+		case agenttool.ScopeConversation:
+			value := configString(config, "__"+key)
+			return value, value != "" && (key == "entry_id" || key == "entry_type")
+		case agenttool.ScopeLead:
+			value := configString(config, "__lead_id")
+			return value, key == "id" && value != ""
+		case agenttool.ScopeVar:
+			switch vars := config["__vars"].(type) {
+			case map[string]string:
+				value, ok := vars[key]
+				return value, ok
+			case map[string]interface{}:
+				value, ok := vars[key].(string)
+				return value, ok
 			}
 		}
+		return "", false
 	}
-
-	if bodyReader != nil && req.Header.Get("Content-Type") == "" {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	resp, err := t.httpClient.Do(req)
-	if err != nil {
-		return tools.ExecutionResult{
-			Result:            nil,
-			IsError:           true,
-			ContextUpdateText: fmt.Sprintf("HTTP request to %s failed: %v", url, err),
-		}, fmt.Errorf("HTTP request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-	if err != nil {
-		return tools.ExecutionResult{
-			Result:  nil,
-			IsError: true,
-		}, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	var responseData interface{}
-	if err := json.Unmarshal(respBody, &responseData); err != nil {
-		responseData = string(respBody)
-	}
-
-	isSuccess := resp.StatusCode >= 200 && resp.StatusCode < 300
-	contextUpdate := fmt.Sprintf("HTTP %s request to %s completed with status %d", method, url, resp.StatusCode)
-
-	if reason, ok := params["reason"].(string); ok && reason != "" {
-		contextUpdate += fmt.Sprintf(" - Reason: %s", reason)
-	}
-
-	return tools.ExecutionResult{
-		Result: map[string]interface{}{
-			"status_code": resp.StatusCode,
-			"headers":     resp.Header,
-			"body":        responseData,
-			"success":     isSuccess,
-		},
-		IsError:           !isSuccess,
-		ContextUpdateText: contextUpdate,
-	}, nil
 }
 
-func buildQueryString(params map[string]interface{}) string {
-	values := neturl.Values{}
-	for key, val := range params {
-		values.Set(key, fmt.Sprintf("%v", val))
+func secretValues(values map[string]string) []string {
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		out = append(out, v)
 	}
-	return values.Encode()
+	return out
 }
 
-var _ tools.Handler = (*httpRequestTool)(nil)
+func modelValue(value interface{}) interface{} {
+	if s, ok := value.(string); ok {
+		return capForModel(s)
+	}
+	raw, err := json.Marshal(value)
+	if err != nil || len([]rune(string(raw))) <= ModelResultCharLimit {
+		return value
+	}
+	return capForModel(string(raw))
+}
+
+func capForModel(text string) string {
+	runes := []rune(text)
+	if len(runes) <= ModelResultCharLimit {
+		return text
+	}
+	return string(runes[:ModelResultCharLimit]) + truncatedMarker
+}
+
+var (
+	_ tools.Handler           = (*httpRequestTool)(nil)
+	_ tools.ContextualHandler = (*httpRequestTool)(nil)
+)
+
+func (t *httpRequestTool) NormalizeConfig(config map[string]interface{}) (map[string]interface{}, error) {
+	if len(config) == 0 {
+		return config, nil
+	}
+	return agenttool.CanonicalHTTPConfig(config)
+}
+
+var _ tools.ConfigNormalizer = (*httpRequestTool)(nil)

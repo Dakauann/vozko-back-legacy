@@ -7,6 +7,7 @@ import (
 	mldomain "vozko/domain/mercadolivre"
 	"vozko/domain/shared"
 	"vozko/infra/database/sqlexpr"
+	"vozko/infra/repositories/departmentscope"
 )
 
 type channelQuery struct {
@@ -488,7 +489,7 @@ var channelQueries = []channelQuery{
 				JOIN unofficial_whatsapp_instances uwi_f ON uwi_f.id = uwc_f.instance_id
 				WHERE uwc_f.instance_id = ? AND uwc_f.deleted_at IS NULL%[1]s
 			)`,
-		DepartmentColumn:   "uwi_f.department_id",
+		DepartmentColumn:   UnofficialDepartment("uwc_f", "uwi_f"),
 		DepartmentEntryCol: "uwc_f.id",
 
 		WindowOpenPredicate: unofficialWindowOpen,
@@ -636,9 +637,16 @@ func (q channelQuery) filterForKind(
 	departmentClause func(column, entryCol string) (string, []interface{}),
 ) (string, []interface{}) {
 	if q.usesCampaignContainer(kind) {
-		clause, args := departmentClause(q.CampaignDeptColumn, q.CampaignDeptEntryCol)
+		clause, args := departmentClause(q.routedDepartment(q.CampaignDeptEntryCol, q.CampaignDeptColumn), q.CampaignDeptEntryCol)
 		return fmt.Sprintf(q.CampaignFilter, clause), args
 	}
-	clause, args := departmentClause(q.DepartmentColumn, q.DepartmentEntryCol)
+	clause, args := departmentClause(q.routedDepartment(q.DepartmentEntryCol, q.DepartmentColumn), q.DepartmentEntryCol)
 	return fmt.Sprintf(q.ContainerFilter, clause), args
+}
+
+func (q channelQuery) routedDepartment(entryCol, column string) string {
+	if column == "" {
+		return ""
+	}
+	return departmentscope.Routed(entryCol, string(q.EntryType), column)
 }

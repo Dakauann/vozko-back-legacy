@@ -543,8 +543,6 @@ func (h *AIChatHandler) writeQueueError(w http.ResponseWriter, err error) {
 		response.WriteError(w, http.StatusBadRequest, "anexo inválido", nil)
 	case errors.Is(err, aichat.ErrQueuedMessageGone):
 		response.WriteErrorWithCode(w, http.StatusNotFound, "queued_message_gone", "a mensagem já foi entregue ou retirada da fila", nil)
-	case errors.Is(err, copilot_usecase.ErrQueueUnavailable):
-		response.WriteError(w, http.StatusServiceUnavailable, "fila indisponível", nil)
 	default:
 		h.writeTurnError(w, err)
 	}

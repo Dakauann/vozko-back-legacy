@@ -64,7 +64,7 @@ func (g *minuteGuard) reserveNextMinute() {
 		if g.stop == nil {
 			g.stop = g.runner.timerAt(coverageEnd)
 		}
-		if retryAt := g.runner.nowFn().Add(g.runner.reservationRetry); retryAt.Before(coverageEnd) {
+		if retryAt := time.Now().Add(g.runner.reservationRetry); retryAt.Before(coverageEnd) {
 			g.scheduleNext(retryAt)
 		}
 		return
@@ -112,7 +112,7 @@ func (g *minuteGuard) close() {
 }
 
 func (r *OutboundCallLifecycleRunner) timerAt(at time.Time) *time.Timer {
-	delay := at.Sub(r.nowFn())
+	delay := at.Sub(time.Now())
 	if delay < 0 {
 		delay = 0
 	}

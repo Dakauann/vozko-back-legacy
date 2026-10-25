@@ -32,10 +32,7 @@ func (s *stubPlatformCoverage) List(_ context.Context, caller geocoding.Caller, 
 }
 
 func platformRouter(service GeocodingPlatformService) http.Handler {
-	h := NewWorkspaceConfigHandler(nil, nil, nil)
-	if service != nil {
-		h.SetGeocodingPlatformCoverage(service)
-	}
+	h := NewWorkspaceConfigHandler(nil, nil, nil, service)
 	r := mux.NewRouter()
 	RegisterAdminRoutes(r, h)
 	RegisterProtectedRoutes(r, h)
@@ -116,9 +113,6 @@ func TestPlatformGeocodingRefusals(t *testing.T) {
 				t.Fatalf("body = %s, want code %s", rec.Body.String(), tt.code)
 			}
 		})
-	}
-	if rec := callPlatform(platformRouter(nil), platformStaff, ""); rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "geocoding_unavailable") {
-		t.Fatalf("a server without the service = %d %s", rec.Code, rec.Body.String())
 	}
 }
 

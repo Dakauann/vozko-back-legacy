@@ -52,7 +52,8 @@ func sendCapIntegrationDB(t *testing.T) *gorm.DB {
 		}
 	})
 	if err := db.AutoMigrate(&schema.User{}, &schema.Workspace{}, &schema.Balance{}, &schema.BalanceTransaction{},
-		&schema.PricingItem{}, &schema.WorkspaceMonthlySendCap{}, &schema.WorkspaceMonthlySendSlot{}); err != nil {
+		&schema.PricingItem{}, &schema.WorkspaceMonthlySendCap{}, &schema.WorkspaceMonthlySendSlot{},
+		&schema.Lead{}, &schema.WhatsAppCampaign{}, &schema.WhatsAppCampaignEntry{}, &schema.WhatsAppTemplateSend{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db

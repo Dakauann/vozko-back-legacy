@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 
 	"vozko/domain/campaign"
-	audience "vozko/domain/campaignaudience"
 	"vozko/domain/emailcampaign"
 )
 
@@ -31,17 +30,14 @@ func (s *Service) Create(ctx context.Context, a Actor, d emailcampaign.Draft) (*
 }
 
 func (s *Service) attachList(ctx context.Context, a Actor, c emailcampaign.Campaign) error {
-	if s.audience == nil {
-		return audience.ErrUnavailable
-	}
-	return s.audience.Attach(ctx, a, c.ListID, c.AudienceOwner())
+	return s.deps.Audience.Attach(ctx, a, c.ListID, c.AudienceOwner())
 }
 
 func (s *Service) releaseList(ctx context.Context, c emailcampaign.Campaign, listID string) {
-	if listID == "" || s.audience == nil {
+	if listID == "" {
 		return
 	}
-	if err := s.audience.Release(context.WithoutCancel(ctx), c.WorkspaceID, c.AudienceOwner(), listID); err != nil {
+	if err := s.deps.Audience.Release(context.WithoutCancel(ctx), c.WorkspaceID, c.AudienceOwner(), listID); err != nil {
 		s.logf("could not release list %s of %s: %v", listID, c.ID, err)
 	}
 }

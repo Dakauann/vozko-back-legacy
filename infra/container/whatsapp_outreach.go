@@ -43,7 +43,7 @@ func (c *Container) buildWhatsAppOutreach(d whatsAppOutreachDeps) whatsAppOutrea
 		Inflight:       d.inflight,
 		BalanceChecker: c.services.cachedBalanceChecker,
 		Alerter:        d.alerter,
-		Forms:          lazyFormSends{c: c},
+		Forms:          lateFormSends{forms: c.formSendsHandle()},
 		Choices:        c.choiceStatsRecorder(),
 		ClickLinkBase:  c.cfg.ShortLinkBaseURL,
 		ClickTokens:    c.choiceClickTokens(),

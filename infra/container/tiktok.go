@@ -18,6 +18,7 @@ import (
 	"vozko/domain/shared"
 	ttdomain "vozko/domain/tiktok"
 	"vozko/domain/workspace"
+	cronPackage "vozko/infra/cron"
 	"vozko/infra/netguard"
 	"vozko/infra/remotefile"
 	ca_repository "vozko/infra/repositories/audience"
@@ -307,57 +308,31 @@ func (c *Container) wireTikTokConversationStack() {
 	if b == nil || b.Tokens == nil {
 		log.Fatalf("[tiktok] the conversation stack needs the channel runtime")
 	}
-	if c.services.conversationAutomation == nil || c.services.conversationAuthImpl == nil || c.services.conversationStatusService == nil {
-		log.Fatalf("[tiktok] conversation services must be built before the TikTok conversation stack")
-	}
 	conversations := b.Repos.Conversations
 
-	c.registerChannelAdapter(ttuc.NewChannelAdapter(ttuc.ChannelAdapterDeps{
-		Accounts:      b.Repos.Accounts,
-		Contacts:      b.Repos.Contacts,
+	c.registerConversationChannel(conversationChannel{
+		EntryType: shared.EntryTypeTikTok,
+		Adapter: ttuc.NewChannelAdapter(ttuc.ChannelAdapterDeps{
+			Accounts:      b.Repos.Accounts,
+			Contacts:      b.Repos.Contacts,
+			Conversations: conversations,
+			Tokens:        b.Tokens,
+			Messaging:     b.Services.Messaging,
+			Errors:        b.Services.Errors,
+			Fetcher:       b.Fetcher,
+			Side:          b.Side,
+			Metrics:       b.Metrics,
+		}),
 		Conversations: conversations,
-		Tokens:        b.Tokens,
-		Messaging:     b.Services.Messaging,
-		Errors:        b.Services.Errors,
-		Fetcher:       b.Fetcher,
-		Side:          b.Side,
-		Metrics:       b.Metrics,
-	}))
-
-	automationReader, ok := c.services.conversationHistory.(interface {
-		SetAutomationReader(shared.EntryType, func(context.Context, string) (*bool, error))
+		Automation: func(ctx context.Context, entryID string) (*bool, error) {
+			conv, err := conversations.FindByID(ctx, entryID)
+			if err != nil {
+				return nil, err
+			}
+			return conv.AutomationEnabled, nil
+		},
+		Contacts: tiktokContactIdentity(b),
 	})
-	if !ok {
-		log.Fatalf("[tiktok] history provider exposes no SetAutomationReader")
-	}
-	automationReader.SetAutomationReader(shared.EntryTypeTikTok, func(ctx context.Context, entryID string) (*bool, error) {
-		conv, err := conversations.FindByID(ctx, entryID)
-		if err != nil {
-			return nil, err
-		}
-		return conv.AutomationEnabled, nil
-	})
-	c.services.conversationAutomation.Register(shared.EntryTypeTikTok, conversations.SetAutomationEnabled)
-	c.services.conversationAuthImpl.SetEntryAccessRepo(shared.EntryTypeTikTok, conversations)
-	c.services.conversationStatusService.SetConversationStatusStore(shared.EntryTypeTikTok,
-		conversationStatusFuncs{status: conversations.StatusForEntry, set: conversations.SetStatus})
-	c.services.conversationStatusService.SetConversationCounter(shared.EntryTypeTikTok, conversations.CountByStatus)
-
-	owners, ok := c.services.campaignWorkspaceResolver.(interface {
-		SetEntryOwnerResolver(shared.EntryType, conversation_usecase.EntryOwnerResolver)
-	})
-	if !ok {
-		log.Fatalf("[tiktok] workspace resolver exposes no SetEntryOwnerResolver")
-	}
-	owners.SetEntryOwnerResolver(shared.EntryTypeTikTok, conversations)
-
-	identities, ok := c.services.conversationHistory.(interface {
-		SetContactIdentityLookup(shared.EntryType, conversation_usecase.ContactIdentityLookup)
-	})
-	if !ok {
-		log.Fatalf("[tiktok] history provider exposes no SetContactIdentityLookup")
-	}
-	identities.SetContactIdentityLookup(shared.EntryTypeTikTok, tiktokContactIdentity(b))
 }
 
 func tiktokContactIdentity(b *tiktokBundle) conversation_usecase.ContactIdentityLookup {
@@ -438,12 +413,17 @@ func (c *Container) tiktokReadinessProbe(access workspace.CheckAccessUseCase) re
 		}), 0, access)
 }
 
-func (c *Container) registerTikTokJobs() {
+func (c *Container) tiktokJobs() cronJobs {
 	b := c.tiktok
 	if b == nil || b.RefreshTokens == nil || b.Health == nil || b.Purge == nil || b.CommentWorker == nil {
 		log.Fatalf("[tiktok] the channel jobs were not built")
 	}
-	c.jobRunner.SetTikTokJobs(b.RefreshTokens, b.Health, b.Purge, b.CommentWorker)
+	return cronJobs{
+		"tiktok_token_refresh": cronPackage.Executes(b.RefreshTokens),
+		"tiktok_health_check":  cronPackage.Executes(b.Health),
+		"tiktok_purge":         cronPackage.Executes(b.Purge),
+		"tiktok_comment_work":  cronPackage.Executes(b.CommentWorker),
+	}
 }
 
 func (c *Container) tiktokAnalysisChannel() analysisChannel {

@@ -13,12 +13,14 @@ import (
 func targetsServiceAt(t *testing.T, repo at.Repository, now string) *TargetsService {
 	t.Helper()
 	resolver := NewScheduleResolver(stubConfigReader{config: businessConfig()}, stubDepartmentSchedules{})
-	svc := NewTargetsService(repo, resolver)
 	parsed, err := time.Parse(time.RFC3339, now)
 	if err != nil {
 		t.Fatalf("Parse(%q) error = %v", now, err)
 	}
-	svc.SetClock(func() time.Time { return parsed })
+	svc, err := NewTargetsService(TargetsDeps{Repo: repo, Schedules: resolver, Versions: newMemoryVersions(), Clock: func() time.Time { return parsed }})
+	if err != nil {
+		t.Fatal(err)
+	}
 	return svc
 }
 
@@ -28,20 +30,6 @@ func septemberInput() UpsertTargetInput {
 		MetricKey: attendance.MetricFinished,
 		Period:    at.Month{Year: 2026, Month: time.September},
 		Value:     1786,
-	}
-}
-
-func TestTargetsServiceWithoutARepositoryIsUnavailable(t *testing.T) {
-	svc := NewTargetsService(nil, nil)
-
-	if _, err := svc.List(context.Background(), "ws1", at.Month{}, TargetAccess{}); !errors.Is(err, ErrTargetsUnavailable) {
-		t.Fatalf("List() err = %v, want %v rather than an empty no-target list", err, ErrTargetsUnavailable)
-	}
-	if _, err := svc.Upsert(context.Background(), "ws1", septemberInput(), TargetAccess{}); !errors.Is(err, ErrTargetsUnavailable) {
-		t.Fatalf("Upsert() err = %v, want %v", err, ErrTargetsUnavailable)
-	}
-	if err := svc.Delete(context.Background(), "ws1", "id", TargetAccess{}); !errors.Is(err, ErrTargetsUnavailable) {
-		t.Fatalf("Delete() err = %v, want %v", err, ErrTargetsUnavailable)
 	}
 }
 

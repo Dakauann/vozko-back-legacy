@@ -10,6 +10,7 @@ import (
 	"vozko/domain/export"
 	"vozko/domain/messaging"
 	"vozko/domain/report"
+	"vozko/domain/shared/deps"
 )
 
 const (
@@ -22,17 +23,17 @@ type Worker struct {
 	subscriber messaging.MessageQueueSub
 }
 
-func NewWorker(service *Service, subscriber messaging.MessageQueueSub) *Worker {
-	return &Worker{service: service, subscriber: subscriber}
+func NewWorker(service *Service, subscriber messaging.MessageQueueSub) (*Worker, error) {
+	if err := deps.Require("report worker", map[string]any{
+		"report service": service,
+		"subscriber":     subscriber,
+	}); err != nil {
+		return nil, err
+	}
+	return &Worker{service: service, subscriber: subscriber}, nil
 }
 
 func (w *Worker) Start() error {
-	if w == nil || w.service == nil || w.subscriber == nil {
-		return ErrNotConfigured
-	}
-	if err := w.service.ready(); err != nil {
-		return err
-	}
 	for _, topic := range report.QueueTopics() {
 		if err := w.subscriber.Subscribe(topic, w.handle); err != nil {
 			return fmt.Errorf("report worker: subscribing to %s: %w", topic, err)
@@ -124,7 +125,7 @@ func (w *Worker) process(payload report.QueueMessage) error {
 		return fmt.Errorf("upload %s: %w", job.ID, err)
 	}
 
-	expires := w.service.now().Add(w.service.retention)
+	expires := w.service.now().Add(report.DefaultRetention)
 	return w.service.repo.MarkDone(
 		job.ID,
 		key,

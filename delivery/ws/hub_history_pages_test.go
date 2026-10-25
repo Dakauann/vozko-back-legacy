@@ -49,11 +49,10 @@ func (p *aroundHistoryProvider) PresentMessage(_, _ string, message *conversatio
 func historyHub(t *testing.T, allowed bool) (*ConversationHub, *WSConnection, *pagedHistoryReader) {
 	t.Helper()
 	auth := &hubDepartmentTestAuthorizer{entryAccess: map[string]bool{"user-1": allowed}}
-	hub := NewConversationHub(auth, nil, nil, &eligibilityFakeSharedState{}, "test-replica", "")
-	hub.SetWSMetrics(noopWSMetricsRecorder{})
+	hub := testHub(ConversationHubDeps{Authorizer: auth, SharedState: &eligibilityFakeSharedState{}})
 	reader := &pagedHistoryReader{page: conversation.HistoryPage{Messages: []*conversation.Message{{ID: "m3"}, {ID: "m4"}}, HasAfter: true}}
-	hub.SetHistoryReader(reader)
-	hub.SetHistoryProvider(&aroundHistoryProvider{})
+	hub.historyReader = reader
+	hub.historyProvider = &aroundHistoryProvider{}
 	conn := &WSConnection{ID: "conn-1", UserID: "user-1", WorkspaceID: "ws-1", Send: make(chan []byte, 16), Done: make(chan struct{})}
 	hub.connections[conn.ID] = conn
 	hub.userConnections[conn.UserID] = map[string]bool{conn.ID: true}
@@ -167,7 +166,7 @@ func TestEveryHistoryPageSaysWhichWayItReads(t *testing.T) {
 func TestMessageUpdatedReachesOnlyTheEntrysSubscribersPresented(t *testing.T) {
 	hub, subscriber, _ := historyHub(t, true)
 	provider := &aroundHistoryProvider{}
-	hub.SetHistoryProvider(provider)
+	hub.historyProvider = provider
 	bystander := &WSConnection{ID: "conn-2", UserID: "user-2", WorkspaceID: "ws-1", Send: make(chan []byte, 16), Done: make(chan struct{})}
 	hub.connections[bystander.ID] = bystander
 	hub.userConnections[bystander.UserID] = map[string]bool{bystander.ID: true}
@@ -223,12 +222,12 @@ func quoteHub(t *testing.T, allowed bool) (*ConversationHub, *WSConnection, *anc
 	t.Helper()
 	hub, conn, _ := historyHub(t, allowed)
 	provider := &anchorHistoryProvider{}
-	hub.SetHistoryProvider(provider)
+	hub.historyProvider = provider
 	at := time.Date(2026, 10, 1, 9, 30, 0, 0, time.UTC)
-	hub.SetMessageRepo(quotedMessages{byID: map[string]*conversation.Message{
+	hub.messageRepo = quotedMessages{byID: map[string]*conversation.Message{
 		"quoted":  {ID: "quoted", EntryID: "e1", EntryType: shared.EntryTypeWhatsApp, CreatedAt: at},
 		"foreign": {ID: "foreign", EntryID: "e2", EntryType: shared.EntryTypeWhatsApp, CreatedAt: at},
-	}})
+	}}
 	return hub, conn, provider
 }
 

@@ -25,8 +25,8 @@ func TestTheVisibleEntryPredicateIsTheInboxRulePerChannel(t *testing.T) {
 	clause, args := VisibleEntrySQL("r.entry_id", "r.entry_type", "ws-1", scope)
 
 	whatsapp := "(r.entry_type = 'whatsapp' AND EXISTS (SELECT 1 FROM whatsapp_campaign_entries wce JOIN whatsapp_campaigns wc ON wc.id = wce.campaign_id AND wc.workspace_id = ? WHERE wce.id = r.entry_id" +
-		" AND (wc.department_id = ANY(?::uuid[]) OR EXISTS (SELECT 1 FROM inbox_assignments ia_d WHERE ia_d.entry_id = wce.id AND ia_d.assigned_user_id = ?))" +
-		" AND (NOT EXISTS (SELECT 1 FROM inbox_assignments ia_s WHERE ia_s.entry_id = wce.id) OR EXISTS (SELECT 1 FROM inbox_assignments ia_s2 WHERE ia_s2.entry_id = wce.id AND ia_s2.assigned_user_id = ?))))"
+		" AND (COALESCE((SELECT cdr.department_id FROM conversation_department_routes cdr WHERE cdr.entry_id = wce.id AND cdr.entry_type = 'whatsapp'), wc.department_id) = ANY(?::uuid[]) OR EXISTS (SELECT 1 FROM inbox_assignments ia_d WHERE ia_d.entry_id = wce.id AND ia_d.assigned_user_id = ?))" +
+		" AND COALESCE((SELECT bool_or(ia_s.assigned_user_id IS NOT DISTINCT FROM ?::uuid) FROM inbox_assignments ia_s WHERE ia_s.entry_id = wce.id), true)))"
 	if !strings.HasPrefix(clause, "("+whatsapp+" OR ") || !strings.HasSuffix(clause, ")") {
 		t.Fatalf("whatsapp branch is not the inbox rule:\n%s", clause)
 	}
@@ -62,7 +62,7 @@ func TestAMemberWithoutViewOthersSeesOnlyUnassignedAndOwnConversations(t *testin
 	if strings.Contains(clause, "department_id") {
 		t.Fatalf("no department limit expected:\n%s", clause)
 	}
-	if strings.Count(clause, "ia_s2.assigned_user_id = ?") != len(entrySources) {
+	if strings.Count(clause, "bool_or(ia_s.assigned_user_id IS NOT DISTINCT FROM ?::uuid)") != len(entrySources) {
 		t.Fatalf("every channel must apply the ownership rule:\n%s", clause)
 	}
 	if got := strings.Count(clause, "?"); got != len(args) {

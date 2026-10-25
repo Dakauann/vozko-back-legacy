@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"vozko/domain/conversation"
 	"vozko/domain/media"
 	"vozko/domain/shared"
 	"vozko/infra/netguard"
@@ -34,7 +35,7 @@ func TestTheAgentMediaToolRefusesInternalAddressesWithoutFallingBackToTheLink(t 
 			client := &recordingWhatsAppClient{}
 			repo := &fakeMediaRepoForMediaTool{byID: map[string]*media.Media{item.ID: inToolWorkspace(item)}}
 			tool := NewSendWhatsappMediaToolUseCase(context.Background(), &stubFactory{c: client}, repo,
-				remotefile.NewDownloader(netguard.NewHTTPClient(2*time.Second)))
+				remotefile.NewDownloader(netguard.NewHTTPClient(2*time.Second)), conversation.NewAdapterRegistry(), &conversation.MediaURLResolver{})
 
 			_, err := tool.ExecuteWithConfig(context.Background(), cfg(), map[string]interface{}{"to": "5511999999999", "media_id": item.ID})
 			if !errors.Is(err, shared.ErrEgressBlocked) {
@@ -52,7 +53,7 @@ func TestTheAgentMediaToolWithoutTheGuardedDownloaderSendsNothing(t *testing.T) 
 	defer srv.Close()
 	client := &recordingWhatsAppClient{}
 	repo := &fakeMediaRepoForMediaTool{byID: map[string]*media.Media{"m1": inToolWorkspace(media.Media{ID: "m1", URL: srv.URL + "/img.png", Type: media.MediaTypeProductImage})}}
-	tool := NewSendWhatsappMediaToolUseCase(context.Background(), &stubFactory{c: client}, repo, nil)
+	tool := NewSendWhatsappMediaToolUseCase(context.Background(), &stubFactory{c: client}, repo, nil, conversation.NewAdapterRegistry(), &conversation.MediaURLResolver{})
 
 	_, err := tool.ExecuteWithConfig(context.Background(), cfg(), map[string]interface{}{"to": "5511999999999", "media_id": "m1"})
 	if !errors.Is(err, media.ErrRemoteFilesUnwired) {

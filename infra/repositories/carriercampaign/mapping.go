@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 
+	"vozko/domain/campaign/scheduledstart"
 	"vozko/domain/carriercampaign"
 	"vozko/domain/carriermessaging"
 	"vozko/infra/database"
@@ -94,37 +95,39 @@ func toCampaignRow(c *carriercampaign.Campaign) (*schema.CarrierCampaign, error)
 		}
 	}
 	return &schema.CarrierCampaign{
-		ID:          c.ID,
-		WorkspaceID: c.WorkspaceID,
-		Name:        c.Name,
-		SenderID:    c.SenderID,
-		Channel:     string(c.Channel),
-		Status:      string(c.Status),
-		Kind:        string(c.Kind),
-		Variants:    variants,
-		Fallback:    fallback,
-		Audience:    audience,
-		ScheduledAt: c.ScheduledAt,
-		Recurrence:  recurrence,
-		CreatedBy:   schema.OptionalText(c.CreatedBy),
-		CreatedAt:   c.CreatedAt,
-		UpdatedAt:   c.UpdatedAt,
+		ID:              c.ID,
+		WorkspaceID:     c.WorkspaceID,
+		Name:            c.Name,
+		SenderID:        c.SenderID,
+		Channel:         string(c.Channel),
+		Status:          string(c.Status),
+		Kind:            string(c.Kind),
+		Variants:        variants,
+		Fallback:        fallback,
+		Audience:        audience,
+		ScheduledAt:     c.ScheduledAt,
+		Recurrence:      recurrence,
+		CreatedBy:       schema.OptionalText(c.CreatedBy),
+		ScheduleFailure: string(c.ScheduleFailure),
+		CreatedAt:       c.CreatedAt,
+		UpdatedAt:       c.UpdatedAt,
 	}, nil
 }
 
 func toCampaign(r *schema.CarrierCampaign) (*carriercampaign.Campaign, error) {
 	c := &carriercampaign.Campaign{
-		ID:          r.ID,
-		WorkspaceID: r.WorkspaceID,
-		Name:        r.Name,
-		SenderID:    r.SenderID,
-		Channel:     carriermessaging.Channel(r.Channel),
-		Status:      carriercampaign.Status(r.Status),
-		Kind:        carriercampaign.Kind(r.Kind),
-		ScheduledAt: r.ScheduledAt,
-		CreatedBy:   string(r.CreatedBy),
-		CreatedAt:   r.CreatedAt,
-		UpdatedAt:   r.UpdatedAt,
+		ID:              r.ID,
+		WorkspaceID:     r.WorkspaceID,
+		Name:            r.Name,
+		SenderID:        r.SenderID,
+		Channel:         carriermessaging.Channel(r.Channel),
+		Status:          carriercampaign.Status(r.Status),
+		Kind:            carriercampaign.Kind(r.Kind),
+		ScheduledAt:     r.ScheduledAt,
+		CreatedBy:       string(r.CreatedBy),
+		ScheduleFailure: scheduledstart.Failure(r.ScheduleFailure),
+		CreatedAt:       r.CreatedAt,
+		UpdatedAt:       r.UpdatedAt,
 	}
 	if err := validCampaign(c); err != nil {
 		return nil, fmt.Errorf("carrier campaign %s: %w", r.ID, err)

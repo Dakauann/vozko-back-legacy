@@ -189,13 +189,15 @@ type callSessionTestHarness struct {
 	admission *recordingAdmission
 	lifecycle *callsession_usecase.OutboundCallLifecycleRunner
 	fakeCall  *fakeCallSessionCRMCall
+	cdrStarts *swappableCDRStart
 }
 
 func newCallSessionTestHarness(t *testing.T, call *fakeCallSessionCRMCall) *callSessionTestHarness {
 	t.Helper()
 
 	adm := &recordingAdmission{}
-	lifecycle, err := callsession_usecase.NewOutboundCallLifecycleRunner(adm, nil, nil, noopBillingPub{}, log.Default())
+	cdrStarts := &swappableCDRStart{}
+	lifecycle, err := lifecycleFor(adm, noopBillingPub{}, log.Default(), cdrStarts)
 	if err != nil {
 		t.Fatalf("lifecycle: %v", err)
 	}
@@ -232,6 +234,7 @@ func newCallSessionTestHarness(t *testing.T, call *fakeCallSessionCRMCall) *call
 		endUC:     end,
 		admission: adm,
 		lifecycle: lifecycle,
+		cdrStarts: cdrStarts,
 		fakeCall:  call,
 	}
 }

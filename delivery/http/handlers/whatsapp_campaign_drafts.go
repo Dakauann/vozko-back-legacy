@@ -114,6 +114,7 @@ func (f *WhatsAppDraftFinisher) Launch(w http.ResponseWriter, r *http.Request, r
 		Campaign:             camp,
 		Launch:               launch,
 		ConfirmedFingerprint: confirmedFingerprint,
+		ScheduledBy:          middleware.GetClaims(r).UserID,
 		Departments:          middleware.GetDepartmentFilter(r),
 		Settle: func(ctx context.Context, created *wc.Campaign) []string {
 			f.h.cloneStages(r, req.whatsappCampaignRequest, created)

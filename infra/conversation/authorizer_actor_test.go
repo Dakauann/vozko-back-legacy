@@ -5,7 +5,6 @@ import (
 
 	"vozko/domain/inbox_assignment"
 	"vozko/domain/workspace"
-	workspace_department "vozko/domain/workspace/workspace_department"
 )
 
 type countingMembership struct {
@@ -20,12 +19,12 @@ func (m *countingMembership) GetMember(workspaceID, userID string) (*workspace.M
 
 type countingDepartments struct {
 	stubDepartments
-	lists int
+	existenceChecks int
 }
 
-func (d *countingDepartments) ListDepartments(workspaceID string) ([]workspace_department.Department, error) {
-	d.lists++
-	return d.stubDepartments.ListDepartments(workspaceID)
+func (d *countingDepartments) HasDepartments(workspaceID string) (bool, error) {
+	d.existenceChecks++
+	return d.stubDepartments.HasDepartments(workspaceID)
 }
 
 func countingAuthorizer(assignment *inbox_assignment.InboxAssignment) (*Authorizer, *countingMembership, *countingDepartments) {
@@ -53,8 +52,8 @@ func TestEntryAccessFor_ReadsTheActorScopeOnceForManyEntries(t *testing.T) {
 		}
 	}
 
-	if members.members > 2 || departments.lists != 1 {
-		t.Fatalf("the actor scope must be read once, got %d member reads and %d department lists", members.members, departments.lists)
+	if members.members > 2 || departments.existenceChecks != 1 {
+		t.Fatalf("the actor scope must be read once, got %d member reads and %d department lists", members.members, departments.existenceChecks)
 	}
 }
 

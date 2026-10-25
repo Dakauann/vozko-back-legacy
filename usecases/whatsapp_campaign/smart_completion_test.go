@@ -21,7 +21,7 @@ func drainedStore(smart SmartCampaigns) (campaignStatusStore, *mockCampaignRepo)
 	repo.campaigns["plain"] = &wc.Campaign{ID: "plain", Status: wc.CampaignStatusRunning}
 	repo.campaigns["smart"] = &wc.Campaign{ID: "smart", Status: wc.CampaignStatusRunning}
 	owner := &messageConsumerUseCase{CampaignRepo: repo}
-	owner.SetSmartCampaigns(smart)
+	owner.smart = smart
 	return campaignStatusStore{repo: repo, owner: owner}, repo
 }
 
