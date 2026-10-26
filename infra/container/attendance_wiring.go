@@ -11,6 +11,7 @@ import (
 	"vozko/domain/conversation"
 	wsc "vozko/domain/workspace_config"
 	redisCache "vozko/infra/cache"
+	attendance_repository "vozko/infra/repositories/attendance"
 	attendance_usecase "vozko/usecases/attendance"
 	conversation_usecase "vozko/usecases/conversation"
 )
@@ -123,6 +124,19 @@ func (c *Container) attendanceOverview() attendance_usecase.OverviewService {
 	return overview
 }
 
+func (c *Container) attendanceServiceMessages() *attendance_usecase.ServiceMessageSections {
+	sections, err := attendance_usecase.NewServiceMessageSections(attendance_usecase.ServiceMessagesDeps{
+		Reader:  attendance_repository.NewServiceMessageReader(c.db),
+		Prices:  c.services.serviceMessagePrices,
+		Rates:   c.walletRate(),
+		Caching: c.attendanceSectionCaching(),
+	})
+	if err != nil {
+		log.Fatalf("[container] %v", err)
+	}
+	return sections
+}
+
 func (c *Container) entryDepartmentResolver() entryDepartmentResolver {
 	lookup, ok := c.services.campaignWorkspaceResolver.(entryDepartmentLookup)
 	if !ok {
@@ -154,6 +168,7 @@ func (c *Container) attendanceHandler() *attendancehttp.AttendanceHandler {
 		Targets:         c.attendanceTargetsService(),
 		TargetScoper:    c.services.conversationAuthImpl,
 		MemberActivity:  c.memberActivityUseCase(),
+		ServiceMessages: c.attendanceServiceMessages(),
 	})
 	if err != nil {
 		log.Fatalf("[container] %v", err)

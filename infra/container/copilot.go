@@ -36,9 +36,10 @@ func (c *Container) buildCopilot(
 	now := time.Now
 	state := c.workspaceReadiness()
 	attendanceDeps := attendancetools.AttendanceDeps{
-		Sections:    c.useCases.getOverview,
-		Departments: c.useCases.listWorkspaceDepartments,
-		Now:         now,
+		Sections:        c.useCases.getOverview,
+		ServiceMessages: c.attendanceServiceMessages(),
+		Departments:     c.useCases.listWorkspaceDepartments,
+		Now:             now,
 	}
 	skillLibrary, err := skills.Load()
 	if err != nil {
@@ -65,6 +66,7 @@ func (c *Container) buildCopilot(
 		attendancetools.NewAttendanceStagesTool(attendanceDeps),
 		attendancetools.NewAttendanceReworkTool(attendanceDeps),
 		attendancetools.NewAttendanceLiveTool(attendanceDeps),
+		attendancetools.NewAttendanceServiceMessagesTool(attendanceDeps),
 		attendancetools.NewCampaignDispatchTool(c.useCases.getWCDispatchReport, attendanceDeps),
 		attendancetools.NewReadChoiceStatsTool(attendancetools.ChoiceStatsDeps{Reader: c.choiceStatsReader(), Permissions: c.useCases.checkWsAccess, Scopes: c.services.conversationAuthImpl, Now: now}),
 		c.conversationInsightsTool(now),

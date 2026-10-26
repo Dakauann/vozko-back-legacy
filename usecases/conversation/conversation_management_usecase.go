@@ -1560,20 +1560,20 @@ func (s *MessageSenderService) sendViaAdapter(
 
 	now := time.Now().UTC()
 	message := &conversation.Message{
-		ID:             uuid.NewString(),
-		EntryID:        entryID,
-		EntryType:      shared.EntryType(entryType),
-		Channel:        conversation.MessageChannel(entryType),
-		MessageType:    msgType,
-		SentBy:         sentBy,
-		From:           sentBy.Participant(),
-		To:             ec.ContactRef,
-		Text:           text,
-		Read:           true,
-		ReadAt:         &now,
-		DeliveryStatus: conversation.DeliveryStatusSent,
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		ID:              uuid.NewString(),
+		EntryID:         entryID,
+		EntryType:       shared.EntryType(entryType),
+		Channel:         conversation.MessageChannel(entryType),
+		MessageType:     msgType,
+		SentBy:          sentBy,
+		From:            sentBy.Participant(),
+		To:              ec.ContactRef,
+		Text:            text,
+		Read:            true,
+		ReadAt:          &now,
+		DeliveryStatus:  outcome.RecordedStatus(),
+		CreatedAt:       now,
+		UpdatedAt:       now,
 		ClientRequestID: origin.ClientRequestID,
 	}
 	if sentBy.Kind() == conversation.SenderHuman {
@@ -1584,9 +1584,6 @@ func (s *MessageSenderService) sendViaAdapter(
 	if outcome != nil && outcome.ProviderMessageID != "" {
 		providerID := outcome.ProviderMessageID
 		message.ExternalMessageID = &providerID
-	}
-	if outcome != nil && outcome.DeliveryStatus != conversation.DeliveryStatusNone {
-		message.DeliveryStatus = outcome.DeliveryStatus
 	}
 	if outcome != nil {
 		for _, key := range slices.Sorted(maps.Keys(outcome.Metadata)) {

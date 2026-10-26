@@ -50,9 +50,10 @@ func onScreen(arg, view string) string {
 }
 
 type AttendanceDeps struct {
-	Sections    attendance.OverviewSectionsUseCase
-	Departments wd.ListDepartmentsUseCase
-	Now         copilottools.Clock
+	Sections        attendance.OverviewSectionsUseCase
+	ServiceMessages attendance.ServiceMessageSectionsUseCase
+	Departments     wd.ListDepartmentsUseCase
+	Now             copilottools.Clock
 }
 
 var (

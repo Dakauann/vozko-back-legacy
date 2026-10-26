@@ -80,7 +80,7 @@ type HandleWebhookUseCase struct {
 	router             *conversation_usecase.InboundRouter
 	leads              LeadLinker
 	analysis           AnalysisScheduler
-	delegations        conversation.DelegationRepository
+	gate               *conversation_usecase.AutomationGate
 	sessionHost
 	profiles      subjectProfile
 	groups        groupMetadata
@@ -111,8 +111,9 @@ type HandleWebhookDeps struct {
 	Workflows   WorkflowTrigger
 	Leads       LeadLinker
 	Analysis    AnalysisScheduler
-	Delegations conversation.DelegationRepository
 	Choices     choicestats.Recorder
+
+	AutomationGate *conversation_usecase.AutomationGate
 
 	LinkGate           LinkGate
 	Listener           ConnectionListener
@@ -135,6 +136,7 @@ func NewHandleWebhookUseCase(d HandleWebhookDeps) (*HandleWebhookUseCase, error)
 		"campaign sink":       d.CampaignSink,
 		"campaign automation": d.CampaignAutomation,
 		"exit step":           d.ExitStep,
+		"automation gate":     d.AutomationGate,
 	}); err != nil {
 		return nil, err
 	}
@@ -166,7 +168,7 @@ func NewHandleWebhookUseCase(d HandleWebhookDeps) (*HandleWebhookUseCase, error)
 		router:             conversation_usecase.InboundRouterOf(d.Workflows),
 		leads:              d.Leads,
 		analysis:           d.Analysis,
-		delegations:        d.Delegations,
+		gate:               d.AutomationGate,
 		choices:            d.Choices,
 		sessionHost:        newSessionHost(d.Instances, d.LinkGate, d.Listener),
 		profiles:           profiles,
@@ -267,20 +269,21 @@ func (uc *HandleWebhookUseCase) handleInbound(ctx context.Context, instance *uw.
 	auto := uc.automationFor(sub.conversation.ID)
 
 	uc.ensureAssignment(sub.conversation, instance)
-	automation, err := conversation_usecase.EffectiveAutomation(ctx, uc.delegations, sub.conversation.ID,
-		shared.EntryTypeUnofficialWhatsApp, channelAutomation(instance, sub.conversation, auto))
-	if err != nil {
-		log.Printf("[unofficial-whatsapp] delegation of %s unreadable, no automation runs: %v", sub.conversation.ID, err)
-	} else {
-		event := uc.messageEvent(instance, sub.conversation, ev, auto, automation)
-		route := uc.router.Route(event, sub.conversation.RunsAutomation(instance.HandleGroups), false)
-		routed := uc.router.Deliver(route, event)
-		if route.Consumer.StartsRuns() {
-			uc.fireWorkflowTriggers(instance, sub.conversation, routed, automation)
-		}
-		if route.Consumer.AgentReplies() && !exit.OptedOut {
-			uc.maybeReplyWithAgent(ctx, instance, sub.subject, sub.conversation, ev, automation)
-		}
+	automation, mayAct := uc.gate.Admit(ctx, conversation_usecase.AutomationAdmission{
+		WorkspaceID: instance.WorkspaceID,
+		EntryID:     sub.conversation.ID,
+		EntryType:   shared.EntryTypeUnofficialWhatsApp,
+		Enabled:     sub.conversation.AutomationEnabled,
+		Channel:     channelAutomation(instance, sub.conversation, auto),
+	})
+	event := uc.messageEvent(instance, sub.conversation, ev, auto, automation)
+	route := uc.router.Route(event, mayAct, false)
+	routed := uc.router.Deliver(route, event)
+	if route.Consumer.StartsRuns() {
+		uc.fireWorkflowTriggers(routed, automation)
+	}
+	if route.Consumer.AgentReplies() && !exit.OptedOut {
+		uc.maybeReplyWithAgent(ctx, instance, sub.subject, sub.conversation, ev, automation)
 	}
 	uc.scheduleAnalysis(instance, sub.conversation, auto)
 	uc.broadcastEntryUpdate(sub.conversation.ID)
@@ -808,13 +811,8 @@ func (uc *HandleWebhookUseCase) scheduleAnalysis(instance *uw.Instance, conv *uw
 	uc.analysis.ScheduleAnalysis(conv.ID, shared.EntryTypeUnofficialWhatsApp)
 }
 
-func (uc *HandleWebhookUseCase) fireWorkflowTriggers(
-	instance *uw.Instance,
-	conv *uw.Conversation,
-	event workflow.TriggerEvent,
-	automation conversation.ChannelAutomation,
-) {
-	if uc.workflows == nil || !conv.RunsAutomation(instance.HandleGroups) || !automation.RunsWorkflows() {
+func (uc *HandleWebhookUseCase) fireWorkflowTriggers(event workflow.TriggerEvent, automation conversation.ChannelAutomation) {
+	if uc.workflows == nil || !automation.RunsWorkflows() {
 		return
 	}
 	uc.workflows.Evaluate(event)
@@ -862,7 +860,7 @@ func (uc *HandleWebhookUseCase) maybeReplyWithAgent(
 	ev *uw.Event,
 	automation conversation.ChannelAutomation,
 ) {
-	if uc.aiReply == nil || !conv.RunsAutomation(instance.HandleGroups) || !automation.HasAgent() || !automation.EnableAgentResponses {
+	if uc.aiReply == nil || !automation.HasAgent() || !automation.EnableAgentResponses {
 		return
 	}
 
@@ -876,7 +874,6 @@ func (uc *HandleWebhookUseCase) maybeReplyWithAgent(
 		EntryType:             shared.EntryTypeUnofficialWhatsApp,
 		AgentID:               *automation.AgentID,
 		AgentResponsesEnabled: automation.EnableAgentResponses,
-		AutomationEnabled:     conv.AutomationEnabled,
 		Text:                  ev.Text,
 		LeadID:                leadID,
 	})

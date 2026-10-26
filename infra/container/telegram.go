@@ -95,22 +95,22 @@ func (c *Container) initTelegramRuntime(history conversation_domain.MessageHisto
 	bundle.WebhookHandler = telegramhttp.NewWebhookHandler(bundle.Accounts, c.useCases.publishWebhook)
 
 	handler := tguc.NewHandleWebhookUseCase(tguc.HandleWebhookDeps{
-		Accounts:      bundle.Accounts,
-		Contacts:      bundle.Contacts,
-		Conversations: bundle.Conversations,
-		DeepLinks:     bundle.DeepLinks,
-		API:           bundle.API,
-		History:       history,
-		Messages:      c.repositories.conversation,
-		Media:         c.mediaStore(),
-		FileStorage:   c.services.fileStorage,
-		Broadcaster:   c.services.conversationHub,
-		Assignments:   c.services.assignmentService,
-		AIReply:       c.mustChannelAIReply(),
-		Workflows:     c.useCases.triggerEvaluator,
-		Leads:         telegram_repository.NewLeadLinker(c.repositories.lead),
-		Analysis:      c.services.analysisScheduler,
-		Delegations:   c.services.delegations,
+		Accounts:       bundle.Accounts,
+		Contacts:       bundle.Contacts,
+		Conversations:  bundle.Conversations,
+		DeepLinks:      bundle.DeepLinks,
+		API:            bundle.API,
+		History:        history,
+		Messages:       c.repositories.conversation,
+		Media:          c.mediaStore(),
+		FileStorage:    c.services.fileStorage,
+		Broadcaster:    c.services.conversationHub,
+		Assignments:    c.services.assignmentService,
+		AIReply:        c.mustChannelAIReply(),
+		Workflows:      c.useCases.triggerEvaluator,
+		Leads:          telegram_repository.NewLeadLinker(c.repositories.lead),
+		Analysis:       c.services.analysisScheduler,
+		AutomationGate: c.services.automationGate,
 	})
 
 	bundle.Consume = tguc.NewConsumeWebhookUseCase(

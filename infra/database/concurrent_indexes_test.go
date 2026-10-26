@@ -165,3 +165,28 @@ func TestTheLiveCampaignCountsReadOnlyTheirIndex(t *testing.T) {
 		}
 	}
 }
+
+func TestTheChargedServiceMessageIndexServesTheAttendanceCount(t *testing.T) {
+	sql, ok := ConcurrentIndexSQL(ChargedServiceMessageIndex)
+	if !ok {
+		t.Fatalf("%s is not in the concurrent index list; conversation_messages is the largest table and a plain build locks it", ChargedServiceMessageIndex)
+	}
+	if _, plain := PerformanceIndexSQL(ChargedServiceMessageIndex); plain {
+		t.Fatalf("%s is still declared as a plain index", ChargedServiceMessageIndex)
+	}
+	flat := strings.Join(strings.Fields(sql), " ")
+	head := "ON conversation_messages (entry_id, created_at) INCLUDE (delivery_status, meta_conversation_origin) WHERE "
+	if !strings.Contains(flat, head) {
+		t.Fatalf("%s\nwant: %s\ngot:  %s", ChargedServiceMessageIndex, head, flat)
+	}
+	for _, part := range []string{sqlexpr.ServiceMessageIndexed(""), sqlexpr.MetaBilledServiceIndexed("")} {
+		if !strings.Contains(flat, strings.Join(strings.Fields(part), " ")) {
+			t.Fatalf("%s predicate is not built from the shared rule %q: %s", ChargedServiceMessageIndex, part, flat)
+		}
+	}
+	for _, mutable := range []string{"delivery_status IN", "meta_conversation_origin, '') <>"} {
+		if strings.Contains(flat, mutable) {
+			t.Fatalf("%s filters on %q, which every status webhook rewrites", ChargedServiceMessageIndex, mutable)
+		}
+	}
+}

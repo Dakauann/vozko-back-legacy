@@ -45,7 +45,7 @@ func (s stubInboundCounter) GetByEntryAndExternalMessageID(shared.EntryType, str
 
 func newAutomationUnderTest(count int64) (*InboundAutomation, *recordingEvaluator, *recordingReplier, *recordingScheduler) {
 	ev, rep, sch := &recordingEvaluator{}, &recordingReplier{}, &recordingScheduler{}
-	return NewInboundAutomation(ev, rep, sch, stubInboundCounter{count: count}), ev, rep, sch
+	return NewInboundAutomation(ev, rep, sch, stubInboundCounter{count: count}, openGate()), ev, rep, sch
 }
 
 func fullyEnabled() conversation.ChannelAutomation {
@@ -92,7 +92,7 @@ func TestDispatchSkipsFirstMessageTriggerAfterTheFirst(t *testing.T) {
 
 func TestFirstMessageTriggerIsSkippedWhenCountFails(t *testing.T) {
 	ev, rep, sch := &recordingEvaluator{}, &recordingReplier{}, &recordingScheduler{}
-	auto := NewInboundAutomation(ev, rep, sch, stubInboundCounter{err: errors.New("db down")})
+	auto := NewInboundAutomation(ev, rep, sch, stubInboundCounter{err: errors.New("db down")}, openGate())
 	auto.Dispatch(context.Background(), automationInput())
 	if len(ev.events) != 1 {
 		t.Fatalf("workflow events = %d, want only message_received", len(ev.events))

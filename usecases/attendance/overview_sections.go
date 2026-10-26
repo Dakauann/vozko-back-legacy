@@ -204,12 +204,22 @@ func rememberSection[T any](
 	filter attendance.OverviewFilter,
 	compute func(context.Context) (T, error),
 ) (T, error) {
-	version, err := uc.versions.Version(workspaceID)
+	return rememberKeyed(ctx, SectionCaching{Memo: uc.memo, Versions: uc.versions, TTL: uc.ttl}, workspaceID, filter.Fingerprint(section), compute)
+}
+
+func rememberKeyed[T any](
+	ctx context.Context,
+	caching SectionCaching,
+	workspaceID string,
+	fingerprint string,
+	compute func(context.Context) (T, error),
+) (T, error) {
+	version, err := caching.Versions.Version(workspaceID)
 	if err != nil {
 		return compute(ctx)
 	}
-	key := sectionCachePrefix + ":" + workspaceID + ":" + version + ":" + filter.Fingerprint(section)
-	return cache.Remember(ctx, uc.memo, key, uc.ttl, compute)
+	key := sectionCachePrefix + ":" + workspaceID + ":" + version + ":" + fingerprint
+	return cache.Remember(ctx, caching.Memo, key, caching.TTL, compute)
 }
 
 func (uc *getOverviewUseCase) Live(

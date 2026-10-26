@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	ia "vozko/domain/inbox_assignment"
+	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	uw "vozko/domain/unofficial_whatsapp"
 )
 
@@ -16,6 +19,10 @@ var (
 
 const minPhoneDigits = 8
 
+type StarterClaimer interface {
+	ClaimForStarter(in ia.ConversationStart) error
+}
+
 type StartConversationUseCase struct {
 	instances     uw.InstanceRepository
 	servers       uw.ServerRepository
@@ -23,40 +30,44 @@ type StartConversationUseCase struct {
 	conversations uw.ConversationRepository
 	messaging     uw.MessagingAPI
 	leads         LeadLinker
+	starts        StarterClaimer
 }
 
-func NewStartConversationUseCase(
-	instances uw.InstanceRepository,
-	servers uw.ServerRepository,
-	contacts uw.ContactRepository,
-	conversations uw.ConversationRepository,
-	messaging uw.MessagingAPI,
-	leads LeadLinker,
-) *StartConversationUseCase {
-	switch {
-	case instances == nil:
-		panic("unofficial whatsapp: start conversation needs an instance repository")
-	case servers == nil:
-		panic("unofficial whatsapp: start conversation needs a server repository")
-	case contacts == nil:
-		panic("unofficial whatsapp: start conversation needs a contact repository")
-	case conversations == nil:
-		panic("unofficial whatsapp: start conversation needs a conversation repository")
-	case messaging == nil:
-		panic("unofficial whatsapp: start conversation needs a messaging API")
+type StartConversationDeps struct {
+	Instances     uw.InstanceRepository
+	Servers       uw.ServerRepository
+	Contacts      uw.ContactRepository
+	Conversations uw.ConversationRepository
+	Messaging     uw.MessagingAPI
+	Leads         LeadLinker
+	Starts        StarterClaimer
+}
+
+func NewStartConversationUseCase(d StartConversationDeps) (*StartConversationUseCase, error) {
+	if err := deps.Require("unofficial whatsapp start conversation", map[string]any{
+		"instance repository":     d.Instances,
+		"server repository":       d.Servers,
+		"contact repository":      d.Contacts,
+		"conversation repository": d.Conversations,
+		"messaging api":           d.Messaging,
+		"starter rule":            d.Starts,
+	}); err != nil {
+		return nil, err
 	}
 	return &StartConversationUseCase{
-		instances:     instances,
-		servers:       servers,
-		contacts:      contacts,
-		conversations: conversations,
-		messaging:     messaging,
-		leads:         leads,
-	}
+		instances:     d.Instances,
+		servers:       d.Servers,
+		contacts:      d.Contacts,
+		conversations: d.Conversations,
+		messaging:     d.Messaging,
+		leads:         d.Leads,
+		starts:        d.Starts,
+	}, nil
 }
 
 type StartConversationInput struct {
 	WorkspaceID string
+	UserID      string
 	InstanceID  string
 	PhoneNumber string
 	Name        string
@@ -116,6 +127,16 @@ func (uc *StartConversationUseCase) Execute(
 		return nil, err
 	}
 	contact, conv, alreadyExisted := resolved.Contact, resolved.Conversation, resolved.AlreadyExisted
+
+	if err := uc.starts.ClaimForStarter(ia.ConversationStart{
+		WorkspaceID: in.WorkspaceID,
+		EntryID:     conv.ID,
+		EntryType:   string(shared.EntryTypeUnofficialWhatsApp),
+		AccountID:   instance.ID,
+		StarterID:   in.UserID,
+	}); err != nil {
+		return nil, err
+	}
 
 	return &StartedConversation{
 		ConversationID: conv.ID,

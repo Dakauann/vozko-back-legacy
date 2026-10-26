@@ -92,7 +92,7 @@ func (c *Container) initWebchatRuntime(history conversation_domain.MessageHistor
 		Media:         c.mediaStore(),
 		Assignments:   c.services.assignmentService,
 		Automation: conversation_usecase.NewInboundAutomation(
-			c.useCases.triggerEvaluator, c.mustChannelAIReply(), c.services.analysisScheduler, c.repositories.conversation).WithDelegations(c.services.delegations),
+			c.useCases.triggerEvaluator, c.mustChannelAIReply(), c.services.analysisScheduler, c.repositories.conversation, c.services.automationGate),
 		Events:    bundle.Broker,
 		Operators: c.services.conversationHub,
 	})

@@ -1,12 +1,26 @@
 package unofficial_whatsapp
 
-import "testing"
+import (
+	"errors"
+	"testing"
 
-func TestNewStartConversationUseCaseRefusesNilDependencies(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Error("a use case with no instance repository was constructed successfully")
+	"vozko/domain/shared/deps"
+)
+
+func TestNewStartConversationUseCaseNamesEveryMissingDependency(t *testing.T) {
+	_, err := NewStartConversationUseCase(StartConversationDeps{})
+
+	var missing *deps.MissingError
+	if !errors.As(err, &missing) {
+		t.Fatalf("err = %v, want the missing dependencies named", err)
+	}
+	want := []string{"contact repository", "conversation repository", "instance repository", "messaging api", "server repository", "starter rule"}
+	if len(missing.Missing) != len(want) {
+		t.Fatalf("missing = %v, want %v", missing.Missing, want)
+	}
+	for i, name := range want {
+		if missing.Missing[i] != name {
+			t.Fatalf("missing = %v, want %v", missing.Missing, want)
 		}
-	}()
-	_ = NewStartConversationUseCase(nil, nil, nil, nil, nil, nil)
+	}
 }

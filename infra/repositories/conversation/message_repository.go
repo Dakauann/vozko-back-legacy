@@ -154,7 +154,7 @@ func (r *repository) ClaimExternalEcho(message *conversation.Message) (bool, err
 		result := tx.Model(&schema.ConversationMessage{}).
 			Where("entry_type = ? AND entry_id = ? AND external_message_id = ? AND sender_kind = ?",
 				string(message.EntryType), message.EntryID, *message.ExternalMessageID, string(conversation.SenderExternal)).
-			Updates(map[string]interface{}{"sender_kind": string(message.SentBy.Kind()), "sender_id": message.SentBy.ID()})
+			Updates(claimUpdates(message))
 		if result.Error != nil || result.RowsAffected == 0 {
 			return result.Error
 		}
@@ -162,6 +162,17 @@ func (r *repository) ClaimExternalEcho(message *conversation.Message) (bool, err
 		return recordOriginOf(tx, message.EntryID, string(message.EntryType))
 	})
 	return claimed && err == nil, err
+}
+
+func claimUpdates(message *conversation.Message) map[string]interface{} {
+	updates := map[string]interface{}{"sender_kind": string(message.SentBy.Kind()), "sender_id": message.SentBy.ID()}
+	if patch, ok := message.MetadataObject(); ok {
+		updates["metadata"] = mergedMetadata(patch)
+	}
+	if message.DeliveryStatus != conversation.DeliveryStatusNone {
+		updates["delivery_status"] = gorm.Expr("COALESCE(NULLIF(delivery_status, ''), ?)", string(message.DeliveryStatus))
+	}
+	return updates
 }
 
 func (r *repository) Update(messageID string, message *conversation.Message) error {

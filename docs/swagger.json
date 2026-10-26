@@ -6673,6 +6673,113 @@
                 }
             }
         },
+        "/attendance/overview/service_messages": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Conta as mensagens de serviço do WhatsApp oficial que a Meta cobrou (marcadas como cobráveis na categoria service, fora da janela gratuita de anúncio) no período, com a série por dia (até 92 dias), por semana (até 371 dias) ou por mês, e o valor estimado em reais ao preço atual do plano. Só responde para workspaces cujo plano cobra mensagens de serviço; os demais recebem 403 service_messages_not_on_plan, e um preço que não pode ser resolvido responde 503 service_messages_price_unavailable. Respeita o escopo de departamentos de quem pede (403 attendance_department_forbidden fora dele) e os filtros de departamento, membro, campanha, canal e origem. Com outro canal no filtro, applicable vem false e o total vem nulo. Os dias são contados em UTC, como nas demais seções. A contagem fica em cache por 60 segundos; quando o limite de consultas analíticas simultâneas está ocupado, responde 503 com Retry-After.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Atendimento"
+                ],
+                "summary": "Mensagens de serviço do WhatsApp oficial",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Data inicial (YYYY-MM-DD)",
+                        "name": "date_from",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Data final (YYYY-MM-DD)",
+                        "name": "date_to",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID do departamento",
+                        "name": "department_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID do membro responsável pela conversa",
+                        "name": "member_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID da campanha",
+                        "name": "campaign_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Tipo da campanha",
+                        "name": "campaign_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Canal de atendimento; mensagens de serviço só existem em whatsapp",
+                        "name": "channel",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "receptive",
+                            "campaign",
+                            "outreach",
+                            "unknown"
+                        ],
+                        "type": "string",
+                        "description": "Origem da conversa pela primeira mensagem",
+                        "name": "origin",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/attendance.ServiceMessagesSection"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "504": {
+                        "description": "Gateway Timeout",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/attendance/overview/{section}": {
             "get": {
                 "security": [
@@ -6919,6 +7026,37 @@
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attendance/sections": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lista as seções da visão geral de atendimento que este workspace pode ler. A seção service_messages só aparece quando o plano do workspace cobra mensagens de serviço do WhatsApp oficial (preço resolvido como na cobrança: item do plano, senão o padrão de Tarifas, acima de zero). Se o preço não puder ser resolvido, ela não aparece. Nenhum dado de mensagens é lido aqui.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Atendimento"
+                ],
+                "summary": "Seções de atendimento disponíveis",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/attendance.AvailableSectionsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -17942,7 +18080,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Envia um e-mail individual a um lead (`lead_id`) ou a um endereço (`address`, o lead é encontrado pelo e-mail ou um contato de e-mail é criado) e abre ou reaproveita a conversa de e-mail desse contato no inbox, com o e-mail registrado nela pelo operador e a conversa atribuída a ele quando ainda não tem responsável. O corpo é `text` (texto simples com {{first_name}}, {{name}}, {{email}}, {{company}} e {{field.chave}}) ou `design_id` (um modelo salvo), nunca os dois; `sender_id` vazio usa o remetente padrão. Cada envio é cobrado da carteira pelo preço de `GET /email/outreach/quote` e devolvido se o provedor recusar. `idempotency_key` é obrigatória e deve ser gerada uma vez por composição: repetir a mesma chave devolve a mesma conversa e a mesma mensagem (200) sem cobrar nem enviar de novo. Recusas antes de qualquer cobrança: 400 `email_idempotency_key_required`, `email_recipient_missing`, `email_address_invalid`; 403 `email_lead_blocked`, `email_outreach_forbidden` (remetente de um departamento fora do seu acesso); 404 `email_lead_not_found`, `email_design_not_found`; 409 `email_lead_opted_out`, `email_sender_missing`, `email_send_in_progress`; 422 `email_lead_no_email`, `email_message_invalid`, `email_subject_invalid`; 402 `email_balance_insufficient` (details.missing_micros). Depois da cobrança, com reembolso: 409 `email_recipient_suppressed`, `email_sender_not_verified`, `email_account_paused`; 429 `email_daily_cap_reached`; 429 `email_send_throttled` quando o provedor está no limite de envio agora (cabeçalho `Retry-After` e `details.retry_after_seconds` em segundos inteiros; repita com a mesma `idempotency_key` depois desse tempo, o envio sai uma vez e é cobrado uma vez); 503 `email_account_reactivation_failed`; 502 `email_send_failed`. `recorded` falso quer dizer que o e-mail saiu mas não pôde ser registrado no inbox; repetir a mesma chave tenta registrar de novo sem reenviar.",
+                "description": "Envia um e-mail individual a um lead (`lead_id`) ou a um endereço (`address`, o lead é encontrado pelo e-mail ou um contato de e-mail é criado) e abre ou reaproveita a conversa de e-mail desse contato no inbox, com o e-mail registrado nela pelo operador e a conversa atribuída a ele: o agente ou fluxo da caixa não responde ao contato enquanto ele for o responsável (uma conversa de um colega continua com o colega, e uma delegação feita por uma pessoa continua valendo). O corpo é `text` (texto simples com {{first_name}}, {{name}}, {{email}}, {{company}} e {{field.chave}}) ou `design_id` (um modelo salvo), nunca os dois; `sender_id` vazio usa o remetente padrão. Cada envio é cobrado da carteira pelo preço de `GET /email/outreach/quote` e devolvido se o provedor recusar. `idempotency_key` é obrigatória e deve ser gerada uma vez por composição: repetir a mesma chave devolve a mesma conversa e a mesma mensagem (200) sem cobrar nem enviar de novo. Recusas antes de qualquer cobrança: 400 `email_idempotency_key_required`, `email_recipient_missing`, `email_address_invalid`; 403 `email_lead_blocked`, `email_outreach_forbidden` (remetente de um departamento fora do seu acesso); 404 `email_lead_not_found`, `email_design_not_found`; 409 `email_lead_opted_out`, `email_sender_missing`, `email_send_in_progress`; 422 `email_lead_no_email`, `email_message_invalid`, `email_subject_invalid`; 402 `email_balance_insufficient` (details.missing_micros). Depois da cobrança, com reembolso: 409 `email_recipient_suppressed`, `email_sender_not_verified`, `email_account_paused`; 429 `email_daily_cap_reached`; 429 `email_send_throttled` quando o provedor está no limite de envio agora (cabeçalho `Retry-After` e `details.retry_after_seconds` em segundos inteiros; repita com a mesma `idempotency_key` depois desse tempo, o envio sai uma vez e é cobrado uma vez); 503 `email_account_reactivation_failed`; 502 `email_send_failed`. Depois do envio: 503 `email_starter_not_assigned` quando o e-mail saiu mas a conversa não pôde ser atribuída a quem a iniciou; repita com a mesma `idempotency_key`, que não envia nem cobra de novo e tenta atribuir outra vez. `recorded` falso quer dizer que o e-mail saiu mas não pôde ser registrado no inbox; repetir a mesma chave tenta registrar de novo sem reenviar.",
                 "consumes": [
                     "application/json"
                 ],
@@ -39898,6 +40036,82 @@
                 }
             }
         },
+        "/unofficial-whatsapp/instances/{id}/conversations": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Abre, ou reaproveita, a conversa do número `phoneNumber` neste número conectado e a atribui a quem a iniciou, para que o agente ou fluxo do número não responda ao contato enquanto essa pessoa for a responsável. Uma conversa de um colega continua com o colega, e uma delegação feita por uma pessoa continua valendo. Se a conversa não puder ser atribuída a quem a iniciou, nada é aberto e a resposta é 503 `starter_not_assigned` (tente de novo).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Unofficial WhatsApp"
+                ],
+                "summary": "Iniciar conversa no WhatsApp não oficial",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do número conectado",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Número de destino e nome",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/unofficial_whatsapp.startConversationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/unofficial_whatsapp.startedConversationDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/user/balance": {
             "get": {
                 "security": [
@@ -44670,7 +44884,7 @@
         },
         "/whatsapp/outreach/conversations": {
             "post": {
-                "description": "Envia um modelo aprovado para um número que nunca escreveu para a empresa e abre a conversa no CRM. Consome saldo. Envie o cabeçalho `Idempotency-Key` para que um reenvio da requisição não cobre nem envie duas vezes. Recusas antes de qualquer cobrança: 403 `lead_blocked` (contato bloqueado); 409 `lead_opted_out` (o contato pediu para não receber mensagens); 409 `within_spam_window` (o contato recebeu mensagem deste número dentro da proteção contra spam do workspace, ou outro envio para ele a partir deste número está em andamento); 409 `window_already_open`. Depois do envio: 409 `send_outcome_unknown` quando a resposta do WhatsApp se perdeu e o modelo pode ter sido entregue e cobrado (confira a conversa antes de enviar de novo; não repita automaticamente).",
+                "description": "Envia um modelo aprovado para um número que nunca escreveu para a empresa e abre a conversa no CRM. Consome saldo. Envie o cabeçalho `Idempotency-Key` para que um reenvio da requisição não cobre nem envie duas vezes. Recusas antes de qualquer cobrança: 403 `lead_blocked` (contato bloqueado); 409 `lead_opted_out` (o contato pediu para não receber mensagens); 409 `within_spam_window` (o contato recebeu mensagem deste número dentro da proteção contra spam do workspace, ou outro envio para ele a partir deste número está em andamento); 409 `window_already_open`. A conversa fica com quem a iniciou antes do envio, para que o agente ou fluxo do número não responda ao contato: se isso não for possível, nada é enviado nem cobrado e a resposta é 503 `starter_not_assigned` (tente de novo). Depois do envio: 409 `send_outcome_unknown` quando a resposta do WhatsApp se perdeu e o modelo pode ter sido entregue e cobrado (confira a conversa antes de enviar de novo; não repita automaticamente).",
                 "consumes": [
                     "application/json"
                 ],
@@ -50963,26 +51177,26 @@
         "advertising.Destination": {
             "type": "string",
             "enum": [
+                "WHATSAPP",
+                "MESSENGER",
+                "INSTAGRAM_DIRECT",
                 "WEBSITE",
                 "ON_AD",
                 "APP",
                 "ON_POST",
                 "NONE",
-                "CATALOG",
-                "WHATSAPP",
-                "MESSENGER",
-                "INSTAGRAM_DIRECT"
+                "CATALOG"
             ],
             "x-enum-varnames": [
+                "DestinationWhatsApp",
+                "DestinationMessenger",
+                "DestinationInstagramDirect",
                 "DestinationWebsite",
                 "DestinationInstantForm",
                 "DestinationApp",
                 "DestinationOnPost",
                 "DestinationNone",
-                "DestinationCatalog",
-                "DestinationWhatsApp",
-                "DestinationMessenger",
-                "DestinationInstagramDirect"
+                "DestinationCatalog"
             ]
         },
         "advertising.ExportLabels": {
@@ -51401,6 +51615,7 @@
         "advertising.OptimizationGoal": {
             "type": "string",
             "enum": [
+                "CONVERSATIONS",
                 "REACH",
                 "IMPRESSIONS",
                 "AD_RECALL_LIFT",
@@ -51413,10 +51628,10 @@
                 "QUALITY_LEAD",
                 "OFFSITE_CONVERSIONS",
                 "VALUE",
-                "APP_INSTALLS",
-                "CONVERSATIONS"
+                "APP_INSTALLS"
             ],
             "x-enum-varnames": [
+                "GoalConversations",
                 "GoalReach",
                 "GoalImpressions",
                 "GoalAdRecallLift",
@@ -51429,8 +51644,7 @@
                 "GoalQualityLead",
                 "GoalOffsiteConversion",
                 "GoalValue",
-                "GoalAppInstalls",
-                "GoalConversations"
+                "GoalAppInstalls"
             ]
         },
         "advertising.Pixel": {
@@ -55665,6 +55879,17 @@
                 }
             }
         },
+        "attendance.AvailableSectionsResponse": {
+            "type": "object",
+            "properties": {
+                "sections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/attendance.Section"
+                    }
+                }
+            }
+        },
         "attendance.ChannelSlice": {
             "type": "object",
             "properties": {
@@ -56450,6 +56675,90 @@
                     "type": "integer"
                 },
                 "won_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "attendance.Section": {
+            "type": "string",
+            "enum": [
+                "summary",
+                "trend",
+                "stages",
+                "backlog",
+                "team",
+                "rework",
+                "live",
+                "service_messages"
+            ],
+            "x-enum-varnames": [
+                "SectionSummary",
+                "SectionTrend",
+                "SectionStages",
+                "SectionBacklog",
+                "SectionTeam",
+                "SectionRework",
+                "SectionLive",
+                "SectionServiceMessages"
+            ]
+        },
+        "attendance.ServiceMessageBucket": {
+            "type": "object",
+            "properties": {
+                "bucket": {
+                    "type": "string"
+                },
+                "messages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "attendance.ServiceMessageGranularity": {
+            "type": "string",
+            "enum": [
+                "day",
+                "week",
+                "month"
+            ],
+            "x-enum-varnames": [
+                "GranularityDay",
+                "GranularityWeek",
+                "GranularityMonth"
+            ]
+        },
+        "attendance.ServiceMessageSpend": {
+            "type": "object",
+            "properties": {
+                "total_brl": {
+                    "type": "number"
+                },
+                "unit_price_brl": {
+                    "type": "number"
+                }
+            }
+        },
+        "attendance.ServiceMessagesSection": {
+            "type": "object",
+            "properties": {
+                "applicable": {
+                    "type": "boolean"
+                },
+                "buckets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/attendance.ServiceMessageBucket"
+                    }
+                },
+                "channel": {
+                    "type": "string"
+                },
+                "granularity": {
+                    "$ref": "#/definitions/attendance.ServiceMessageGranularity"
+                },
+                "spend": {
+                    "$ref": "#/definitions/attendance.ServiceMessageSpend"
+                },
+                "total": {
                     "type": "integer"
                 }
             }
@@ -80844,6 +81153,40 @@
                 }
             }
         },
+        "unofficial_whatsapp.startConversationRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "phoneNumber": {
+                    "type": "string"
+                }
+            }
+        },
+        "unofficial_whatsapp.startedConversationDTO": {
+            "type": "object",
+            "properties": {
+                "alreadyExisted": {
+                    "type": "boolean"
+                },
+                "contactId": {
+                    "type": "string"
+                },
+                "conversationId": {
+                    "type": "string"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "entryType": {
+                    "type": "string"
+                },
+                "phoneNumber": {
+                    "type": "string"
+                }
+            }
+        },
         "unofficial_whatsapp.updateWorkspaceGroupRequest": {
             "type": "object",
             "properties": {
@@ -86038,13 +86381,6 @@
         "workflow.LintIssueCode": {
             "type": "string",
             "enum": [
-                "NODE_INVALID_PLATFORM_EMAIL",
-                "SEND_OUTSIDE_WINDOW_RISK",
-                "NODE_AGENT_CALL_INPUTS_INVALID",
-                "NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER",
-                "NODE_HTTP_URL_NOT_HTTPS",
-                "DATA_REF_NEVER_SET",
-                "DATA_REF_SOME_PATHS",
                 "GRAPH_EMPTY",
                 "GRAPH_TOO_MANY_NODES",
                 "GRAPH_TOO_MANY_EDGES",
@@ -86093,16 +86429,16 @@
                 "NODE_CODE_READS_TEMPLATE",
                 "NODE_SECRET_IN_PLAIN_TEXT",
                 "NODE_PINNED_OUTPUT",
-                "NODE_CONSENT_GRANT_NEEDS_REPLY"
+                "DATA_REF_NEVER_SET",
+                "DATA_REF_SOME_PATHS",
+                "SEND_OUTSIDE_WINDOW_RISK",
+                "NODE_HTTP_URL_NOT_HTTPS",
+                "NODE_CONSENT_GRANT_NEEDS_REPLY",
+                "NODE_AGENT_CALL_INPUTS_INVALID",
+                "NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER",
+                "NODE_INVALID_PLATFORM_EMAIL"
             ],
             "x-enum-varnames": [
-                "LintInvalidPlatformEmail",
-                "LintSendOutsideWindowRisk",
-                "LintAgentCallInputsInvalid",
-                "LintReplyToAgentWithoutTrigger",
-                "LintHTTPURLNotHTTPS",
-                "LintDataRefNeverSet",
-                "LintDataRefSomePaths",
                 "LintGraphEmpty",
                 "LintGraphTooManyNodes",
                 "LintGraphTooManyEdges",
@@ -86151,7 +86487,14 @@
                 "LintCodeReadsTemplate",
                 "LintSecretInPlainText",
                 "LintPinnedOutput",
-                "LintConsentGrantNeedsReply"
+                "LintDataRefNeverSet",
+                "LintDataRefSomePaths",
+                "LintSendOutsideWindowRisk",
+                "LintHTTPURLNotHTTPS",
+                "LintConsentGrantNeedsReply",
+                "LintAgentCallInputsInvalid",
+                "LintReplyToAgentWithoutTrigger",
+                "LintInvalidPlatformEmail"
             ]
         },
         "workflow.LintSeverity": {

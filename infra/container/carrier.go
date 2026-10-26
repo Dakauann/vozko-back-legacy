@@ -78,7 +78,8 @@ func (c *Container) initCarrier(history conversation_domain.MessageHistoryManage
 		c.mustChannelAIReply(),
 		c.services.analysisScheduler,
 		c.repositories.conversation,
-	).WithDelegations(c.services.delegations)
+		c.services.automationGate,
+	)
 
 	b.Service, err = cmuc.NewService(cmuc.Deps{
 		Repos: cmuc.Repositories{

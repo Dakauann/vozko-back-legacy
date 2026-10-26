@@ -27,5 +27,6 @@ email_send_in_progress
 email_send_throttled
 email_sender_missing
 email_sender_not_verified
+email_starter_not_assigned
 email_subject_invalid
 email_unavailable

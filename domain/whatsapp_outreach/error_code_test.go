@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"vozko/domain/balance"
+	ia "vozko/domain/inbox_assignment"
 	"vozko/domain/whatsapp/template"
 )
 
@@ -42,6 +43,7 @@ func TestErrorCodeNamesEveryRefusalOfATemplateSend(t *testing.T) {
 		{ErrConversationNotFound, CodeConversationNotFound},
 		{fmt.Errorf("%w: %w", template.ErrFormNotSendable, errors.New("blocked")), CodeFormNotSendable},
 		{fmt.Errorf("send: %w", ErrLeadOptedOut), CodeLeadOptedOut},
+		{ia.StarterNotAssigned(errors.New("db down")), CodeStarterNotAssigned},
 		{errors.New("meta answered 500"), ""},
 		{nil, ""},
 	}

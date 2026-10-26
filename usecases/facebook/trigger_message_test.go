@@ -8,6 +8,7 @@ import (
 	"vozko/domain/shared"
 	"vozko/domain/workflow"
 	conversation_usecase "vozko/usecases/conversation"
+	"vozko/usecases/conversation/automationgatetest"
 	"vozko/usecases/metachannel"
 )
 
@@ -30,7 +31,7 @@ func TestTheWorkflowRunNamesTheStoredInboundMessage(t *testing.T) {
 	f.uc = NewHandleMessagingUseCase(HandleMessagingDeps{
 		Pages: f.pages, Contacts: f.contacts, Conversations: f.convs, Profiles: f.profiles,
 		Transcript: transcript, Watermarks: f.watermarks, Assignments: f.assigns,
-		Automation: conversation_usecase.NewInboundAutomation(f.workflows, f.agents, nil, storedByProvider{"facebook|m7": "row-7"}),
+		Automation: conversation_usecase.NewInboundAutomation(f.workflows, f.agents, nil, storedByProvider{"facebook|m7": "row-7"}, automationgatetest.Open()),
 		OurAppID:   ourAppID,
 	})
 

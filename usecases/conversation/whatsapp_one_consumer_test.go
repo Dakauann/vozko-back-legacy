@@ -28,7 +28,10 @@ type oneConsumerWhatsApp struct {
 }
 
 func agentHeldWhatsApp(evaluator *waitingRunEvaluator) oneConsumerWhatsApp {
-	campaign := &wc.Campaign{ID: "camp-1", WorkspaceID: "ws-1", BusinessPhoneID: "phone-1", AgentID: "agent-1", EnableAgentResponses: true}
+	return heldWhatsApp(evaluator, &wc.Campaign{ID: "camp-1", WorkspaceID: "ws-1", BusinessPhoneID: "phone-1", AgentID: "agent-1", EnableAgentResponses: true})
+}
+
+func heldWhatsApp(evaluator *waitingRunEvaluator, campaign *wc.Campaign) oneConsumerWhatsApp {
 	entries := &oneConsumerEntries{routingEntries{existing: &wce.WhatsAppCampaignEntry{ID: "entry-1", CampaignID: campaign.ID, LeadID: "lead-ws-1"}}}
 	h := oneConsumerWhatsApp{
 		ai:        &scriptedAI{replies: []string{"Oi! Como posso ajudar?"}},
@@ -42,7 +45,6 @@ func agentHeldWhatsApp(evaluator *waitingRunEvaluator) oneConsumerWhatsApp {
 		wcEntryRepo:           entries,
 		wcCampaignRepo:        routingCampaigns{byID: map[string]*wc.Campaign{campaign.ID: campaign}},
 		leadRepo:              routingLeads{},
-		delegations:           stubDelegations{},
 		agentRepo:             agentsByID{byID: map[string]*agent.Agent{"agent-1": {ID: "agent-1", WorkspaceID: "ws-1", Name: "Bia", MessagingPrompt: "Você é a Bia."}}},
 		whatsappClientFactory: stubAudioClientFactory{client: h.client},
 		historyManager:        h.history,

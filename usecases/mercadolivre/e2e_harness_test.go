@@ -52,6 +52,7 @@ import (
 	commentautomation_repository "vozko/infra/repositories/commentautomation"
 	conversation_repository "vozko/infra/repositories/conversation"
 	entrypurge_repository "vozko/infra/repositories/entrypurge"
+	inbox_assignment_repository "vozko/infra/repositories/inbox_assignment"
 	mercadolivre_repository "vozko/infra/repositories/mercadolivre"
 	"vozko/infra/repositories/repotest"
 	webhook_repository "vozko/infra/repositories/webhook"
@@ -596,7 +597,12 @@ func newHarness(t testing.TB) *harness {
 		Events: events{}, Guard: loopguard.AlwaysAllow{}, Assembler: agentturn.New(nil, nil, nil),
 		TurnLock: conversation_usecase.NewAgentTurnLock(redis.SharedState()), Attendance: quietAttendance{}, Leads: noContinuationLeads{}, WorkflowNames: noWorkflowNames{},
 	})
-	automation := conversation_usecase.NewInboundAutomation(nil, replies, nil, h.messages).WithDelegations(conversation_repository.NewDelegationRepository(db))
+	gate := conversation_usecase.NewAutomationGate(conversation_usecase.AutomationGateDeps{
+		Owners:      inbox_assignment_repository.New(db),
+		Delegations: conversation_repository.NewDelegationRepository(db),
+		Profiles:    conversation_repository.NewEntryAutomationReader(db),
+	})
+	automation := conversation_usecase.NewInboundAutomation(nil, replies, nil, h.messages, gate)
 	mediaStore := conversationmedia.NewStore(h.files, conversation_repository.NewMediaRepository(db), mediaprobe.New())
 	durable := webhook_repository.NewProcessedEventRepository(db)
 

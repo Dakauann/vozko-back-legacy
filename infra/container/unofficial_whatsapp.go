@@ -80,9 +80,19 @@ func (c *Container) initUnofficialWhatsApp() {
 	bundle.Groups = uwrepo.NewGroupRepository(c.db)
 	bundle.ProcessedEvts = webhook_repository.NewProcessedEventRepository(c.db)
 
-	bundle.StartConv = uwuc.NewStartConversationUseCase(
-		bundle.Instances, bundle.Servers, bundle.Contacts, bundle.Conversations,
-		bundle.Messaging, uwrepo.NewLeadLinker(c.repositories.lead))
+	startConv, err := uwuc.NewStartConversationUseCase(uwuc.StartConversationDeps{
+		Instances:     bundle.Instances,
+		Servers:       bundle.Servers,
+		Contacts:      bundle.Contacts,
+		Conversations: bundle.Conversations,
+		Messaging:     bundle.Messaging,
+		Leads:         uwrepo.NewLeadLinker(c.repositories.lead),
+		Starts:        c.services.assignmentService,
+	})
+	if err != nil {
+		log.Fatalf("[unofficial-whatsapp] %v", err)
+	}
+	bundle.StartConv = startConv
 
 	bundle.Entitlements = uwuc.NewInstanceEntitlementReader(bundle.Instances, lateWorkspaceEntitlements{handle: c.uwEntitlementSourceHandle()})
 	bundle.LinkGuard = uwuc.NewLinkGuard(bundle.Instances, bundle.Servers, bundle.Provider)
@@ -190,7 +200,7 @@ func (c *Container) initUnofficialWhatsAppRuntime(history conversation_domain.Me
 		Workflows:          c.useCases.triggerEvaluator,
 		Leads:              uwrepo.NewLeadLinker(c.repositories.lead),
 		Analysis:           c.services.analysisScheduler,
-		Delegations:        c.services.delegations,
+		AutomationGate:     c.services.automationGate,
 		Choices:            c.choiceStatsRecorder(),
 		LinkGate:           bundle.LinkGuard,
 		Listener:           lateConnectionListener{handle: c.uwConnectionListenerHandle()},

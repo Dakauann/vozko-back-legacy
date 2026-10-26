@@ -13,7 +13,7 @@ func TestNewAttendanceHandlerRefusesMissingDependencies(t *testing.T) {
 	if h != nil || !errors.As(err, &missing) {
 		t.Fatalf("h = %v err = %v, want the missing dependencies refused", h, err)
 	}
-	for _, name := range []string{"target scoper", "member activity", "frt stats", "queue events", "presence", "targets"} {
+	for _, name := range []string{"target scoper", "member activity", "frt stats", "queue events", "presence", "targets", "service messages"} {
 		found := false
 		for _, m := range missing.Missing {
 			found = found || m == name

@@ -209,15 +209,24 @@ type SandboxAutomationGate struct{}
 
 func (SandboxAutomationGate) AutomationEnabled(string, string) (bool, error) { return true, nil }
 
-func (e *RunEngine) automationOff(entryID, entryType string) (bool, error) {
-	if entryID == "" {
+func (SandboxAutomationGate) AutomationMayAct(string, string, string) (bool, error) { return true, nil }
+
+func (e *RunEngine) automationOff(run *workflow.WorkflowRun) (bool, error) {
+	if run.EntryID == "" {
 		return false, nil
 	}
-	enabled, err := e.automationGate.AutomationEnabled(entryID, entryType)
+	allowed, err := e.automationAllows(run)
 	if err != nil {
-		return false, fmt.Errorf("%w: entry %s (%s): %v", workflow.ErrAutomationStateUnreadable, entryID, entryType, err)
+		return false, fmt.Errorf("%w: entry %s (%s): %v", workflow.ErrAutomationStateUnreadable, run.EntryID, run.EntryType, err)
 	}
-	return !enabled, nil
+	return !allowed, nil
+}
+
+func (e *RunEngine) automationAllows(run *workflow.WorkflowRun) (bool, error) {
+	if run.AnswersConversation() {
+		return e.automationGate.AutomationMayAct(run.WorkspaceID, run.EntryID, run.EntryType)
+	}
+	return e.automationGate.AutomationEnabled(run.EntryID, run.EntryType)
 }
 
 func retryBackoff(attempt int) time.Duration {

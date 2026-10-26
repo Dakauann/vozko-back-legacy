@@ -47,6 +47,11 @@ func (p AutomationProfile) Configured() (Automation, bool) {
 	return Automation{}, false
 }
 
+func (p AutomationProfile) Delegated() bool {
+	standing := p.Standing()
+	return standing.Delegated && AutomationAllowed(standing.Enabled)
+}
+
 func (p AutomationProfile) Governing() (Automation, bool) {
 	if p.AutomationEnabled != nil && !*p.AutomationEnabled {
 		return Automation{}, false

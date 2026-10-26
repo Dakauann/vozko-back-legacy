@@ -11,6 +11,7 @@ import (
 	mm "vozko/domain/metamessaging"
 	"vozko/domain/shared"
 	cauc "vozko/usecases/commentautomation"
+	"vozko/usecases/conversation/automationgatetest"
 	webhook_usecase "vozko/usecases/webhook"
 )
 
@@ -98,9 +99,10 @@ func commentEvent() (*igdomain.Account, *igdomain.Event) {
 func TestUnavailableRulesFailTheCommentSoTheConsumerRetries(t *testing.T) {
 	enq := &recordingEnqueuer{}
 	uc := NewHandleWebhookUseCase(HandleWebhookDeps{
-		Comments:     &fakeCommentRepo{},
-		CommentRules: NewCommentRules(cauc.NewEvaluator(unavailableRules{}, &onceClaims{}), NewCommentActionRunner(nil, nil, nil)),
-		Audience:     enq,
+		AutomationGate: automationgatetest.Open(),
+		Comments:       &fakeCommentRepo{},
+		CommentRules:   NewCommentRules(cauc.NewEvaluator(unavailableRules{}, &onceClaims{}), NewCommentActionRunner(nil, nil, nil)),
+		Audience:       enq,
 	})
 	account, ev := commentEvent()
 
@@ -121,9 +123,10 @@ func TestAFailedRuleActionDoesNotFailTheComment(t *testing.T) {
 	moderate := moderation(accountRepoFor(connectedAccount()), &fakeCommentService{}, &fakeCommentRepo{})
 	enq := &recordingEnqueuer{}
 	uc := NewHandleWebhookUseCase(HandleWebhookDeps{
-		Comments:     &fakeCommentRepo{},
-		CommentRules: NewCommentRules(cauc.NewEvaluator(&candidateRules{rules: []*ca.Rule{hide}}, &onceClaims{}), NewCommentActionRunner(nil, nil, moderate)),
-		Audience:     enq,
+		AutomationGate: automationgatetest.Open(),
+		Comments:       &fakeCommentRepo{},
+		CommentRules:   NewCommentRules(cauc.NewEvaluator(&candidateRules{rules: []*ca.Rule{hide}}, &onceClaims{}), NewCommentActionRunner(nil, nil, moderate)),
+		Audience:       enq,
 	})
 	account, ev := commentEvent()
 

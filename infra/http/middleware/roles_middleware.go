@@ -7,6 +7,8 @@ import (
 	"vozko/domain/user"
 )
 
+var RefusalRoleRequired = response.Refusal{Status: http.StatusForbidden, Code: "forbidden", Message: "Forbidden: insufficient permissions"}
+
 type RolesMiddleware struct{}
 
 func NewRolesMiddleware() *RolesMiddleware {
@@ -23,9 +25,9 @@ func (m *RolesMiddleware) RequireRole(role user.Role) func(http.Handler) http.Ha
 			}
 
 			if claims.Role != string(role) {
-				response.WriteError(w, http.StatusForbidden, "Forbidden: insufficient permissions", map[string]string{
+				response.WriteRefusal(w, RefusalRoleRequired.Expecting(map[string]string{
 					"role": "requires '" + string(role) + "' role",
-				})
+				}))
 				return
 			}
 
@@ -56,9 +58,9 @@ func (m *RolesMiddleware) RequireAnyRole(roles ...user.Role) func(http.Handler) 
 				for i, role := range roles {
 					roleNames[i] = string(role)
 				}
-				response.WriteError(w, http.StatusForbidden, "Forbidden: insufficient permissions", map[string]string{
+				response.WriteRefusal(w, RefusalRoleRequired.Expecting(map[string]string{
 					"role": "requires one of: " + joinRolesStrings(roleNames, ", "),
-				})
+				}))
 				return
 			}
 

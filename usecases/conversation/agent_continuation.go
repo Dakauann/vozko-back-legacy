@@ -11,6 +11,7 @@ import (
 	"vozko/domain/conversation"
 	"vozko/domain/metrics"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/domain/workflow"
 )
 
@@ -46,13 +47,13 @@ func (c AgentTurnContinuers) For(entryType shared.EntryType) (AgentTurnContinuer
 }
 
 type AgentContinuationDeps struct {
-	Automations conversation.EntryAutomationReader
-	Runs        workflow.AgentCallRuns
-	Claims      workflow.AgentContinuationClaims
-	Messages    conversation.CustomerSpeech
-	Continuers  AgentTurnContinuers
-	Lock        *AgentTurnLock
-	Metrics     metrics.WorkflowMetricsRecorder
+	Gate       *AutomationGate
+	Runs       workflow.AgentCallRuns
+	Claims     workflow.AgentContinuationClaims
+	Messages   conversation.CustomerSpeech
+	Continuers AgentTurnContinuers
+	Lock       *AgentTurnLock
+	Metrics    metrics.WorkflowMetricsRecorder
 }
 
 type AgentContinuation struct {
@@ -62,14 +63,14 @@ type AgentContinuation struct {
 func NewAgentContinuation(d AgentContinuationDeps) (*AgentContinuation, error) {
 	missing := []string{}
 	for name, dep := range map[string]any{
-		"automation reader":  d.Automations,
+		"automation gate":    d.Gate,
 		"agent runs":         d.Runs,
 		"continuation claim": d.Claims,
 		"messages":           d.Messages,
 		"turn lock":          d.Lock,
 		"metrics":            d.Metrics,
 	} {
-		if dep == nil {
+		if deps.IsNil(dep) {
 			missing = append(missing, name)
 		}
 	}
@@ -108,11 +109,10 @@ func (c *AgentContinuation) handle(ctx context.Context, ev workflow.AgentRunFini
 		return "not_due", nil
 	}
 
-	profile, err := c.d.Automations.EntryAutomation(ev.EntryID, ev.EntryType)
+	governing, governed, err := c.d.Gate.Governing(ev.WorkspaceID, ev.EntryID, shared.EntryType(ev.EntryType))
 	if err != nil {
 		return "automation_unreadable", err
 	}
-	governing, governed := profile.Governing()
 	if !governed || governing.Kind != conversation.AutomationAgent || governing.ID != ev.AgentID {
 		return "automation_changed", nil
 	}

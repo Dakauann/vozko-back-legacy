@@ -42,7 +42,7 @@ func (h *Handler) scope(w http.ResponseWriter, r *http.Request) (workspaceID str
 }
 
 // @Summary		Iniciar conversa no WhatsApp oficial enviando um modelo
-// @Description	Envia um modelo aprovado para um número que nunca escreveu para a empresa e abre a conversa no CRM. Consome saldo. Envie o cabeçalho `Idempotency-Key` para que um reenvio da requisição não cobre nem envie duas vezes. Recusas antes de qualquer cobrança: 403 `lead_blocked` (contato bloqueado); 409 `lead_opted_out` (o contato pediu para não receber mensagens); 409 `within_spam_window` (o contato recebeu mensagem deste número dentro da proteção contra spam do workspace, ou outro envio para ele a partir deste número está em andamento); 409 `window_already_open`. Depois do envio: 409 `send_outcome_unknown` quando a resposta do WhatsApp se perdeu e o modelo pode ter sido entregue e cobrado (confira a conversa antes de enviar de novo; não repita automaticamente).
+// @Description	Envia um modelo aprovado para um número que nunca escreveu para a empresa e abre a conversa no CRM. Consome saldo. Envie o cabeçalho `Idempotency-Key` para que um reenvio da requisição não cobre nem envie duas vezes. Recusas antes de qualquer cobrança: 403 `lead_blocked` (contato bloqueado); 409 `lead_opted_out` (o contato pediu para não receber mensagens); 409 `within_spam_window` (o contato recebeu mensagem deste número dentro da proteção contra spam do workspace, ou outro envio para ele a partir deste número está em andamento); 409 `window_already_open`. A conversa fica com quem a iniciou antes do envio, para que o agente ou fluxo do número não responda ao contato: se isso não for possível, nada é enviado nem cobrado e a resposta é 503 `starter_not_assigned` (tente de novo). Depois do envio: 409 `send_outcome_unknown` quando a resposta do WhatsApp se perdeu e o modelo pode ter sido entregue e cobrado (confira a conversa antes de enviar de novo; não repita automaticamente).
 // @Tags			whatsapp-outreach
 // @Accept			json
 // @Produce		json
@@ -193,6 +193,7 @@ var refusalReplies = map[string]refusalReply{
 	wo.CodeSendOutcomeUnknown:     {http.StatusConflict, "o WhatsApp pode ter entregue o modelo, confira a conversa antes de enviar de novo"},
 	wo.CodeConversationNotFound:   {http.StatusNotFound, "conversa não encontrada"},
 	wo.CodeFormNotSendable:        {http.StatusUnprocessableEntity, "o formulário deste modelo não pode ser enviado deste número agora"},
+	wo.CodeStarterNotAssigned:     {http.StatusServiceUnavailable, "não foi possível atribuir a conversa a você, então o modelo não foi enviado nem cobrado; tente novamente"},
 }
 
 func (h *Handler) writeDomainError(w http.ResponseWriter, err error, result *wo.StartedConversation) {

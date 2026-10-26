@@ -146,6 +146,7 @@ func (f *fakeClaimer) ClaimIfUnassigned(entryID, entryType, phoneID, workspaceID
 type h struct {
 	uc      wo.StartOfficialConversationUseCase
 	claims  *fakeClaimer
+	starts  *fakeStarts
 	entries *fakeEntries
 	sender  *fakeSender
 	history *fakeHistory
@@ -161,6 +162,7 @@ func newUC(t *testing.T, mutate ...func(*Deps)) *h {
 	history := &fakeHistory{}
 	windows := &fakeWindows{}
 	claims := &fakeClaimer{}
+	starts := &fakeStarts{sender: sender}
 
 	deps := Deps{
 		Phones: &fakePhones{phone: &businessphone.WhatsAppBusinessPhoneNumber{
@@ -181,6 +183,7 @@ func newUC(t *testing.T, mutate ...func(*Deps)) *h {
 		SendClaims:      newFakeClaims(),
 		History:         history,
 		Assignments:     claims,
+		Starts:          starts,
 		Sender:          sender,
 	}
 	_ = windows
@@ -191,7 +194,8 @@ func newUC(t *testing.T, mutate ...func(*Deps)) *h {
 	if err != nil {
 		t.Fatalf("constructor: %v", err)
 	}
-	return &h{uc: uc, claims: claims, entries: entries, sender: sender, history: history, windows: windows}
+	starts.sender = deps.Sender.(*fakeSender)
+	return &h{uc: uc, claims: claims, starts: starts, entries: entries, sender: sender, history: history, windows: windows}
 }
 
 func input() wo.StartConversationInput {

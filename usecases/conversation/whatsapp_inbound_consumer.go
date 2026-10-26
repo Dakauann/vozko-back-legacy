@@ -6,7 +6,7 @@ import (
 )
 
 func (a *agentContext) automationRuns() bool {
-	return a != nil && a.automationResolved && (a.wcEntry == nil || a.wcEntry.IsAutomationEnabled())
+	return a != nil && a.automationAdmitted
 }
 
 func (uc *handleWhatsAppMessageUseCase) routeInbound(agentCtx *agentContext, event workflow_domain.TriggerEvent, resumedByForm bool) InboundRoute {

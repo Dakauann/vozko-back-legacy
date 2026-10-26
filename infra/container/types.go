@@ -495,6 +495,7 @@ type services struct {
 	conversationAuth              conversation_domain.ConversationAuthorizer
 	assignmentService             *ia_usecase.AssignmentService
 	delegations                   conversation_domain.DelegationRepository
+	automationGate                *conversation_usecase.AutomationGate
 	personalInbox                 *personalinbox_usecase.Service
 	messageActions                conversation_domain.MessageActionUseCases
 	messageArrivals               conversation_domain.EventBroadcaster
@@ -524,6 +525,7 @@ type services struct {
 	analysisScheduler     *conversation_usecase.AnalysisScheduler
 	decisionModel         decision_domain.Model
 	serviceMessageBilling conversation_domain.ServiceMessageBilling
+	serviceMessagePrices  attendance_usecase.ServiceMessagePrices
 
 	callSessions                callsession_domain.CallSessionRegistry
 	calls                       callsession_domain.CallRegistry

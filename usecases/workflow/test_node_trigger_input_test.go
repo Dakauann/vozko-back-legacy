@@ -21,7 +21,7 @@ func TestTheNodeTestSeedsExecuteUntilFromTheChosenTrigger(t *testing.T) {
 	if len(out.UpstreamSteps) == 0 || out.UpstreamSteps[0].NodeID != "hook" {
 		t.Fatalf("upstream = %+v, want the path to start at the chosen trigger", out.UpstreamSteps)
 	}
-	if out.StateAfter["resumo"] != "{{input.cpf}}|Ana|{{message}}" {
+	if out.StateAfter["resumo"] != nil || out.StateAfter["_node_copia_error"] != workflow.UnresolvedWriteReason([]string{"input.cpf", "message"}) {
 		t.Fatalf("state = %v, want the webhook body seeded by the production builder", out.StateAfter)
 	}
 }

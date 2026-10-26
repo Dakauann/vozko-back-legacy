@@ -131,7 +131,6 @@ func newMediaReplyHarness(t *testing.T) mediaReplyHarness {
 		wcEntryRepo:           entries,
 		wcCampaignRepo:        routingCampaigns{byID: map[string]*wc.Campaign{campaign.ID: campaign}},
 		leadRepo:              routingLeads{},
-		delegations:           stubDelegations{},
 		agentRepo:             agentsByID{byID: map[string]*agent.Agent{"agent-1": {ID: "agent-1", WorkspaceID: "ws-1", Name: "Bia", MessagingPrompt: "Você é a Bia."}}},
 		whatsappClientFactory: stubAudioClientFactory{client: h.client},
 		historyManager:        h.history,

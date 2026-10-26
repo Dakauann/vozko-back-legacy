@@ -56,7 +56,7 @@ func agentOnly() conversation.ChannelAutomation {
 
 func automationWith(evaluator *waitingRunEvaluator) (*InboundAutomation, *recordingReplier) {
 	rep := &recordingReplier{}
-	return NewInboundAutomation(evaluator, rep, &recordingScheduler{}, stubInboundCounter{count: 2}), rep
+	return NewInboundAutomation(evaluator, rep, &recordingScheduler{}, stubInboundCounter{count: 2}, openGate()), rep
 }
 
 func TestARunWaitingForAReplyTakesTheMessageAndTheAgentStaysQuiet(t *testing.T) {

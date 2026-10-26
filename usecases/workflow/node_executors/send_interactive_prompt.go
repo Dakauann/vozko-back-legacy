@@ -226,22 +226,13 @@ func (e *interactivePromptExecutor) recordPrompt(ctx *workflow.NodeContext, mess
 }
 
 func (e *interactivePromptExecutor) sendViaAdapter(ctx *workflow.NodeContext, body, footer string) (string, []string, error) {
-	options, err := interactiveOptionsOf(ctx.Node.Config, customerTextIn(ctx))
+	req, err := InteractivePromptRequest(ctx.Node.Config, customerTextIn(ctx))
 	if err != nil {
 		return "", nil, err
 	}
-	if len(options) == 0 {
-		return "", nil, workflow.ErrNodeConfigMissing
-	}
+	req.Body, req.Footer = body, footer
 
-	sent, err := e.channel.SendInteractive(context.Background(), ctx.Run, conversation.SendInteractiveRequest{
-		Body:       body,
-		Header:     workflow.CustomerText(ctx, stringConfig(ctx.Node.Config, "header_text")),
-		Footer:     footer,
-		Options:    options,
-		Style:      workflow.InteractivePromptStyle(ctx.Node.Config),
-		ListButton: listButtonLabel(ctx),
-	})
+	sent, err := e.channel.SendInteractive(context.Background(), ctx.Run, req)
 	if err != nil {
 		return "", nil, err
 	}
@@ -249,6 +240,24 @@ func (e *interactivePromptExecutor) sendViaAdapter(ctx *workflow.NodeContext, bo
 		return "", nil, nil
 	}
 	return sent.ProviderMessageID, sent.ShownOptionIDs, nil
+}
+
+func InteractivePromptRequest(config map[string]interface{}, text func(string) string) (conversation.SendInteractiveRequest, error) {
+	options, err := interactiveOptionsOf(config, text)
+	if err != nil {
+		return conversation.SendInteractiveRequest{}, err
+	}
+	if len(options) == 0 {
+		return conversation.SendInteractiveRequest{}, workflow.ErrNodeConfigMissing
+	}
+	return conversation.SendInteractiveRequest{
+		Body:       text(stringConfig(config, "body")),
+		Header:     text(stringConfig(config, "header_text")),
+		Footer:     text(stringConfig(config, "footer")),
+		Options:    options,
+		Style:      workflow.InteractivePromptStyle(config),
+		ListButton: strings.TrimSpace(text(stringConfig(config, "list_button"))),
+	}, nil
 }
 
 func interactiveOptionsOf(config map[string]interface{}, text func(string) string) ([]conversation.InteractiveOption, error) {

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	igdomain "vozko/domain/instagram"
+	"vozko/usecases/conversation/automationgatetest"
 )
 
 var errConsent = errors.New("User consent is required to access user profile")
@@ -13,7 +14,7 @@ var errConsent = errors.New("User consent is required to access user profile")
 func enrichmentFixture(senders map[string]*igdomain.MessageSender) (*HandleWebhookUseCase, *fakeContactRepo, *fakeMessagingService) {
 	contacts := &fakeContactRepo{}
 	messaging := &fakeMessagingService{ProfileErr: errConsent, Senders: senders}
-	uc := NewHandleWebhookUseCase(HandleWebhookDeps{Contacts: contacts, Messaging: messaging})
+	uc := NewHandleWebhookUseCase(HandleWebhookDeps{AutomationGate: automationgatetest.Open(), Contacts: contacts, Messaging: messaging})
 	return uc, contacts, messaging
 }
 

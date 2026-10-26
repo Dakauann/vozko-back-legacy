@@ -106,6 +106,7 @@ func (uc *conversationTemplateUseCase) Send(ctx context.Context, in wo.Conversat
 	}
 	if !result.Replayed {
 		sent.Recorded = uc.settle(ctx, d, result)
+		uc.claimForSender(d)
 	}
 	return sent, nil
 }

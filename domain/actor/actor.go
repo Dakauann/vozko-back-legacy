@@ -64,6 +64,10 @@ func IsAutomation(id string) bool {
 	return IsAI(id) || IsWorkflow(id)
 }
 
+func IsPerson(id string) bool {
+	return KindOf(id) == KindHuman
+}
+
 func KindOf(actorID string) Kind {
 	id := strings.TrimSpace(actorID)
 	if id == "" || id == SystemID {

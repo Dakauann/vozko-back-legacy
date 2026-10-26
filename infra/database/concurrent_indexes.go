@@ -174,6 +174,12 @@ func concurrentIndexes() []ddl {
 				WHERE deleted_at IS NULL`,
 		},
 		{
+			name: ChargedServiceMessageIndex,
+			sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS ` + ChargedServiceMessageIndex + `
+				ON conversation_messages (entry_id, created_at) INCLUDE (delivery_status, meta_conversation_origin)
+				WHERE ` + sqlexpr.ServiceMessageIndexed("") + ` AND ` + sqlexpr.MetaBilledServiceIndexed(""),
+		},
+		{
 			name: UnresolvedChargeCampaignIndex,
 			sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS ` + UnresolvedChargeCampaignIndex + `
 				ON balance_transactions (id)
@@ -294,6 +300,7 @@ const (
 	UnofficialCampaignEntryLiveStatusIndex = "idx_uwce_campaign_status_live"
 	UnofficialConversationInboxIndex       = "idx_uwc_instance_lastmsg_live"
 	MessageSenderCreatedIndex              = "idx_cm_entry_sender_created"
+	ChargedServiceMessageIndex             = "idx_cm_charged_service_entry"
 	UnresolvedChargeCampaignIndex          = "idx_bt_charge_campaign_unresolved"
 )
 

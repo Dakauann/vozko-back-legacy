@@ -132,7 +132,6 @@ func (r sendRules) settle(ctx context.Context, d delivery, result *template.Bill
 	if err := r.deps.CampaignSends.Record(d.leadID, d.phoneID, d.campaignID); err != nil {
 		log.Printf("[whatsapp-outreach] could not record the send against lead %s: %v", d.leadID, err)
 	}
-	r.claimForSender(d)
 	return recorded
 }
 

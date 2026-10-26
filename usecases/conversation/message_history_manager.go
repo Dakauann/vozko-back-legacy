@@ -77,7 +77,10 @@ func (m *messageHistoryManager) Record(_ context.Context, record conversation.Me
 		}
 		switch {
 		case err == nil && existing != nil && message.SentBy.Claims(existing.SentBy):
-			_, claimErr := m.repo.ClaimExternalEcho(message)
+			claimed, claimErr := m.repo.ClaimExternalEcho(message)
+			if claimed && !record.Silent {
+				m.repaint(entryType, entryID, providerID)
+			}
 			return nil, claimErr
 		case err == nil && existing != nil:
 			log.Printf("[MessageHistoryManager] duplicate message ignored: id=%s entry=%s:%s", dedupID, entryType, entryID)
@@ -115,6 +118,18 @@ func (m *messageHistoryManager) persist(message *conversation.Message, entryID s
 	}
 
 	return nil
+}
+
+func (m *messageHistoryManager) repaint(entryType shared.EntryType, entryID, providerID string) {
+	if m.hub == nil || entryID == "" || providerID == "" {
+		return
+	}
+	stored, err := m.repo.GetByEntryAndExternalMessageID(entryType, entryID, providerID)
+	if err != nil || stored == nil {
+		log.Printf("[MessageHistoryManager] claimed echo %s on %s:%s not reread for repaint: %v", providerID, entryType, entryID, err)
+		return
+	}
+	m.hub.BroadcastMessageUpdated(entryID, string(entryType), stored)
 }
 
 func ensureMessageID(_ string) string {

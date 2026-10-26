@@ -13,6 +13,7 @@ import (
 	"vozko/domain/shared"
 	"vozko/domain/workflow"
 	conversation_usecase "vozko/usecases/conversation"
+	"vozko/usecases/conversation/automationgatetest"
 	"vozko/usecases/metachannel"
 )
 
@@ -84,6 +85,10 @@ func (r *recordingAds) Record(_ context.Context, _ string, _ shared.EntryType, a
 }
 
 func newMessagingFixture() *messagingFixture {
+	return newGatedMessagingFixture(automationgatetest.Open())
+}
+
+func newGatedMessagingFixture(gate *conversation_usecase.AutomationGate) *messagingFixture {
 	agent := "agent-1"
 	page := connectedPage("p1", "ws-1")
 	page.FBPageID = "PAGE"
@@ -101,7 +106,7 @@ func newMessagingFixture() *messagingFixture {
 	f.uc = NewHandleMessagingUseCase(HandleMessagingDeps{
 		Pages: f.pages, Contacts: f.contacts, Conversations: f.convs, Profiles: f.profiles,
 		Transcript: transcript, Watermarks: f.watermarks, Assignments: f.assigns,
-		Automation: conversation_usecase.NewInboundAutomation(f.workflows, f.agents, nil, nil),
+		Automation: conversation_usecase.NewInboundAutomation(f.workflows, f.agents, nil, nil, gate),
 		OurAppID:   ourAppID,
 	})
 	return f

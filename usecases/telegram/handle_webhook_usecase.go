@@ -59,17 +59,17 @@ type HandleWebhookDeps struct {
 	DeepLinks     tgdomain.DeepLinkRepository
 	API           tgdomain.BotAPI
 
-	History     conversation.MessageHistoryManager
-	Messages    conversation.MessageRepository
-	Media       conversation.MediaStore
-	FileStorage media.FileStorage
-	Broadcaster conversation.EventBroadcaster
-	Assignments AssignmentService
-	AIReply     conversation_usecase.AgentReplier
-	Workflows   conversation_usecase.WorkflowEvaluator
-	Leads       LeadLinker
-	Analysis    conversation_usecase.AnalysisRequester
-	Delegations conversation.DelegationRepository
+	History        conversation.MessageHistoryManager
+	Messages       conversation.MessageRepository
+	Media          conversation.MediaStore
+	FileStorage    media.FileStorage
+	Broadcaster    conversation.EventBroadcaster
+	Assignments    AssignmentService
+	AIReply        conversation_usecase.AgentReplier
+	Workflows      conversation_usecase.WorkflowEvaluator
+	Leads          LeadLinker
+	Analysis       conversation_usecase.AnalysisRequester
+	AutomationGate *conversation_usecase.AutomationGate
 }
 
 func NewHandleWebhookUseCase(d HandleWebhookDeps) *HandleWebhookUseCase {
@@ -85,7 +85,7 @@ func NewHandleWebhookUseCase(d HandleWebhookDeps) *HandleWebhookUseCase {
 		fileStorage:   d.FileStorage,
 		broadcaster:   d.Broadcaster,
 		assignments:   d.Assignments,
-		automation:    conversation_usecase.NewInboundAutomation(d.Workflows, d.AIReply, d.Analysis, d.Messages).WithDelegations(d.Delegations),
+		automation:    conversation_usecase.NewInboundAutomation(d.Workflows, d.AIReply, d.Analysis, d.Messages, d.AutomationGate),
 		leads:         d.Leads,
 	}
 }

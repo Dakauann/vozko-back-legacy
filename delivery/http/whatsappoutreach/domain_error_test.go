@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"vozko/domain/balance"
+	ia "vozko/domain/inbox_assignment"
 	"vozko/domain/whatsapp/template"
 	wo "vozko/domain/whatsapp_outreach"
 )
@@ -58,7 +59,7 @@ func TestWriteDomainError_AnswersTheDomainCodeOfEveryRefusal(t *testing.T) {
 		balance.ErrMonthlySendCapReached, balance.ErrSendWindowClosed, template.ErrSendInProgress, template.ErrPricingUnavailable, template.ErrQuoteOutOfRange,
 		template.ErrTemplateNotSendable, template.ErrTemplatePhoneMismatch, template.ErrIdempotencyKeyRequired,
 		template.ErrWorkspaceRequired, template.ErrBillingNotConfigured, wo.ErrSendOutcomeUnknown, wo.ErrConversationNotFound,
-		template.ErrFormNotSendable,
+		template.ErrFormNotSendable, ia.ErrStarterNotAssigned,
 	}
 	for _, err := range refusals {
 		rec := httptest.NewRecorder()
@@ -87,5 +88,13 @@ func TestWriteDomainError_AMissingConversationIsNotFound(t *testing.T) {
 	(&Handler{}).writeDomainError(rec, wo.ErrConversationNotFound, nil)
 	if rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), `"conversation_not_found"`) {
 		t.Fatalf("status = %d body = %s, want 404 conversation_not_found", rec.Code, rec.Body.String())
+	}
+}
+
+func TestWriteDomainError_AStartTheStarterCannotOwnSendsNothingAndAsksForAnotherTry(t *testing.T) {
+	rec := httptest.NewRecorder()
+	(&Handler{}).writeDomainError(rec, ia.StarterNotAssigned(fmt.Errorf("db down")), nil)
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), `"starter_not_assigned"`) {
+		t.Fatalf("status = %d body = %s, want 503 starter_not_assigned", rec.Code, rec.Body.String())
 	}
 }

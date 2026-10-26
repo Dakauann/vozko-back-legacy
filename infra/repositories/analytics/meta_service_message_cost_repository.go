@@ -10,7 +10,6 @@ import (
 
 	analytics_domain "vozko/domain/analytics"
 	"vozko/domain/balance"
-	"vozko/domain/conversation"
 	"vozko/domain/shared"
 	wsc "vozko/domain/workspace_config"
 	"vozko/infra/database"
@@ -44,9 +43,7 @@ const providerExpr = `COALESCE(p.provider, '` + string(analytics_domain.ServiceM
 
 var serviceMessagePredicate = sqlexpr.ServiceMessage("cm")
 
-var metaConfirmedPredicate = `cm.meta_pricing_billable IS TRUE
-			      AND cm.meta_pricing_category = ` + sqlexpr.Literal(conversation.MetaPricingCategoryService) + `
-			      AND COALESCE(cm.meta_conversation_origin, '') <> ` + sqlexpr.Literal(conversation.MetaOriginFreeEntryPoint)
+var metaConfirmedPredicate = sqlexpr.MetaChargedService("cm")
 
 var (
 	campaignService = sqlexpr.Literal(string(balance.ServiceWhatsAppCampaign))

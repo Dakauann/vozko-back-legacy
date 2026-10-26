@@ -59,7 +59,8 @@ func (c *Container) initFacebookRuntime(history conversation_domain.MessageHisto
 			c.mustChannelAIReply(),
 			c.services.analysisScheduler,
 			c.repositories.conversation,
-		).WithDelegations(c.services.delegations),
+			c.services.automationGate,
+		),
 		OurAppID: c.cfg.MetaAppID,
 	})
 

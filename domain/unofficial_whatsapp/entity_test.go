@@ -180,17 +180,7 @@ func TestGroupScopeAndAutomationAreSeparate(t *testing.T) {
 		t.Error("a private chat is always in scope")
 	}
 
-	if group.RunsAutomation(false) {
-		t.Error("an out-of-scope group must not run automation")
-	}
-	if !group.RunsAutomation(true) {
-		t.Error("an opted-in group with no override must run automation")
-	}
-
 	paused := &Conversation{IsGroup: true, AutomationEnabled: &off}
-	if paused.RunsAutomation(true) {
-		t.Error("the per-conversation override must still win")
-	}
 	if !paused.InScope(true) {
 		t.Error("pausing the AI must not take the conversation out of scope")
 	}
@@ -270,24 +260,16 @@ func TestServerCapacityFailsClosed(t *testing.T) {
 	}
 }
 
-func TestGroupsDoNotRunAutomationByDefault(t *testing.T) {
+func TestGroupsAreOutOfAutomationScopeByDefault(t *testing.T) {
 	group := Conversation{IsGroup: true}
-	if group.RunsAutomation(false) {
-		t.Error("a group must not run automation by default")
+	if group.InScope(false) {
+		t.Error("a group must stay out of automation by default")
 	}
-	if !group.RunsAutomation(true) {
-		t.Error("an instance that opted in must run automation on groups")
+	if !group.InScope(true) {
+		t.Error("an instance that opted in brings its groups into automation")
 	}
-
-	private := Conversation{}
-	if !private.RunsAutomation(false) {
-		t.Error("a private conversation with no override must run automation")
-	}
-
-	off := false
-	paused := Conversation{AutomationEnabled: &off}
-	if paused.RunsAutomation(true) {
-		t.Error("an operator's takeover must override the instance switch")
+	if private := (Conversation{}); !private.InScope(false) {
+		t.Error("a private conversation is always in scope")
 	}
 }
 

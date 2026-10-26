@@ -132,6 +132,7 @@ func (c *Container) initRouter() {
 		c.workflowRunExportHandler(),
 		campaignDraftRoutes(c),
 		agentRoutes(c),
+		c.planDuplicateHandler(),
 	)
 
 }

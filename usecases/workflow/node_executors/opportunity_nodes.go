@@ -168,18 +168,23 @@ func (e *manageOpportunityExecutor) Execute(ctx *workflow.NodeContext) (*workflo
 		return failDeal(edges, "oportunidades indisponíveis neste contexto (ex.: simulação)"), nil
 	}
 
+	values := writeValuesOf(ctx)
 	cmd := opportunity_usecase.EntryCommand{
 		EntryID:       ctx.Run.EntryID,
 		EntryType:     ctx.Run.EntryType,
 		PipelineID:    pipelineID,
 		Actor:         workflowActor(ctx.Run.WorkflowID),
 		Action:        action,
-		OpportunityID: nodeText(ctx, "opportunity_id"),
-		Title:         nodeText(ctx, "title"),
-		StageID:       nodeText(ctx, "stage_id"),
-		LostReasonID:  nodeText(ctx, "lost_reason"),
+		OpportunityID: values.field("opportunity_id"),
+		Title:         values.field("title"),
+		StageID:       values.field("stage_id"),
+		LostReasonID:  values.field("lost_reason"),
 	}
-	if value := nodeText(ctx, "value"); value != "" {
+	value := values.field("value")
+	if reason, refused := values.refusal(); refused {
+		return failDeal(edges, reason), nil
+	}
+	if value != "" {
 		cents, err := opportunity.CentsFromText(value)
 		if err != nil {
 			return failDeal(edges, nodeRefusals[opportunity_usecase.RefusalAmountInvalid]), nil

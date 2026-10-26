@@ -36,3 +36,10 @@ func withMetadataValue(raw json.RawMessage, key string, value any) (json.RawMess
 	fields[key] = encoded
 	return json.Marshal(fields)
 }
+
+func (m *Message) MetadataObject() (json.RawMessage, bool) {
+	if m == nil || metadataFields(m.Metadata) == nil {
+		return nil, false
+	}
+	return m.Metadata, true
+}

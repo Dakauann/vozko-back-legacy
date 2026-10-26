@@ -98,7 +98,6 @@ func routingUseCase(phone *businessphone.WhatsAppBusinessPhoneNumber, entries *r
 		wcEntryRepo:       entries,
 		wcCampaignRepo:    routingCampaigns{byID: campaigns},
 		leadRepo:          routingLeads{},
-		delegations:       stubDelegations{},
 		agentRepo:         agentsByID{byID: map[string]*agent.Agent{"agent-1": {ID: "agent-1", MessagingPrompt: "prompt"}}},
 	})
 	if receptive != nil {

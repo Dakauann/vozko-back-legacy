@@ -24,14 +24,14 @@ func (r agentsByID) FindByID(id string) (*agent.Agent, error) {
 
 func campaignContext() *agentContext {
 	return &agentContext{
-		wcCampaign: &wc.Campaign{ID: "camp-1", AgentID: "camp-agent", WorkflowID: "camp-wf", EnableWorkflow: true},
+		wcCampaign: &wc.Campaign{ID: "camp-1", WorkspaceID: "ws-1", AgentID: "camp-agent", WorkflowID: "camp-wf", EnableWorkflow: true},
 		wcEntry:    &wce.WhatsAppCampaignEntry{ID: "entry-1"},
 	}
 }
 
 func whatsappUseCase(delegations conversation.DelegationRepository) *handleWhatsAppMessageUseCase {
 	return whatsappDefaults(&handleWhatsAppMessageUseCase{
-		delegations: delegations,
+		automationGate: gateWith(ownedBy(""), delegations),
 		agentRepo: agentsByID{byID: map[string]*agent.Agent{
 			"camp-agent": {ID: "camp-agent"},
 			"picked":     {ID: "picked", MessagingPrompt: "prompt"},

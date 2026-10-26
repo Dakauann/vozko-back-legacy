@@ -297,10 +297,6 @@ func (s *ChannelAIReplyService) enabled(req conversation.AIReplyRequest) bool {
 	if strings.TrimSpace(req.AgentID) == "" {
 		return false
 	}
-	if req.AutomationEnabled != nil && !*req.AutomationEnabled {
-		log.Printf("[channel-ai] entry=%s automation disabled for this conversation, not replying", req.EntryID)
-		return false
-	}
 	if !req.AgentResponsesEnabled {
 		return false
 	}

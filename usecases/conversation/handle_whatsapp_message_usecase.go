@@ -88,12 +88,12 @@ type handleWhatsAppMessageUseCase struct {
 	statusEvents            messagestatus.Recorder
 	balanceLedger           balance.Repository
 
-	loopGuard   loopguard.Guard
-	delegations conversation.DelegationRepository
-	live        LiveMode
-	analysis    *AnalysisScheduler
-	receptive   wc.EnsureReceptiveContainerUseCase
-	exitStep    leadexit.Step
+	loopGuard      loopguard.Guard
+	automationGate *AutomationGate
+	live           LiveMode
+	analysis       *AnalysisScheduler
+	receptive      wc.EnsureReceptiveContainerUseCase
+	exitStep       leadexit.Step
 }
 
 const failedStatusRefundTTL = 30 * 24 * time.Hour
@@ -143,12 +143,6 @@ func (uc *handleWhatsAppMessageUseCase) guardRecordAIResponse(ctx context.Contex
 
 func (uc *handleWhatsAppMessageUseCase) fireWorkflowTriggers(agentCtx *agentContext, event workflow_domain.TriggerEvent, history []*conversation.Message) {
 	if event.EntryID == "" {
-		return
-	}
-
-	if agentCtx != nil && agentCtx.wcEntry != nil &&
-		agentCtx.wcEntry.AutomationEnabled != nil && !*agentCtx.wcEntry.AutomationEnabled {
-		log.Printf("[whatsapp-workflow] automation disabled for entry=%s, skipping workflow triggers", event.EntryID)
 		return
 	}
 
@@ -326,11 +320,11 @@ type agentContext struct {
 	skipResponse    bool
 	automation      conversation.ChannelAutomation
 
-	automationResolved bool
+	automationAdmitted bool
 }
 
 func (a *agentContext) firesWorkflow() bool {
-	return a != nil && a.wcCampaign != nil && a.automation.RunsWorkflows() && a.automation.WorkflowRef() != ""
+	return a.automationRuns() && a.wcCampaign != nil && a.automation.RunsWorkflows() && a.automation.WorkflowRef() != ""
 }
 
 func (a *agentContext) sentBy() conversation.SentBy {
@@ -456,7 +450,7 @@ type HandleWhatsAppMessageDeps struct {
 	Attendance      AIAttendanceRecorder
 	Triggers        InboundTriggers
 	TurnLock        *AgentTurnLock
-	Delegations     conversation.DelegationRepository
+	AutomationGate  *AutomationGate
 	Receptive       wc.EnsureReceptiveContainerUseCase
 	LoopGuard       loopguard.Guard
 	Live            LiveMode
@@ -490,7 +484,7 @@ func NewHandleWhatsAppMessageUseCase(d HandleWhatsAppMessageDeps) (conversation.
 		"attendance":       d.Attendance,
 		"triggers":         d.Triggers,
 		"turn lock":        d.TurnLock,
-		"delegations":      d.Delegations,
+		"automation gate":  d.AutomationGate,
 		"receptive":        d.Receptive,
 		"loop guard":       d.LoopGuard,
 		"live":             d.Live,
@@ -533,7 +527,7 @@ func NewHandleWhatsAppMessageUseCase(d HandleWhatsAppMessageDeps) (conversation.
 		triggerEvaluator:        d.Triggers,
 		inboundRouter:           NewInboundRouter(d.Triggers),
 		turnLock:                d.TurnLock,
-		delegations:             d.Delegations,
+		automationGate:          d.AutomationGate,
 		receptive:               d.Receptive,
 		loopGuard:               d.LoopGuard,
 		live:                    d.Live,
@@ -2507,20 +2501,25 @@ func (uc *handleWhatsAppMessageUseCase) storeInboundMedia(entryID string, entryT
 func (uc *handleWhatsAppMessageUseCase) prepareAutomation(actx *agentContext, responsesEnabled bool) bool {
 	campaign := actx.wcCampaign
 	agentID, workflowID := campaign.AgentID, campaign.WorkflowID
-	automation, err := EffectiveAutomation(context.Background(), uc.delegations, actx.wcEntry.ID, shared.EntryTypeWhatsApp,
-		conversation.ChannelAutomation{
+	automation, mayAct := uc.automationGate.Admit(context.Background(), AutomationAdmission{
+		WorkspaceID: campaign.WorkspaceID,
+		EntryID:     actx.wcEntry.ID,
+		EntryType:   shared.EntryTypeWhatsApp,
+		Enabled:     actx.wcEntry.AutomationEnabled,
+		Channel: conversation.ChannelAutomation{
 			AgentID:              &agentID,
 			EnableAgentResponses: responsesEnabled,
 			WorkflowID:           &workflowID,
 			EnableWorkflow:       campaign.EnableWorkflow,
-		})
-	if err != nil {
-		log.Printf("[whatsapp-usecase] delegation of entry %s unreadable, no automation runs: %v", actx.wcEntry.ID, err)
+		},
+	})
+	actx.automation = automation
+	actx.automationAdmitted = mayAct
+	if !mayAct {
 		actx.skipResponse = true
+		log.Printf("[whatsapp-usecase] automation may not act on entry %s, recording without an automated reply", actx.wcEntry.ID)
 		return false
 	}
-	actx.automation = automation
-	actx.automationResolved = true
 
 	switch {
 	case actx.firesWorkflow():

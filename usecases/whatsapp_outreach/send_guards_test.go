@@ -155,7 +155,7 @@ func startDeps() Deps {
 		Phones: &fakePhones{}, Templates: &fakeTemplates{}, TemplateGrant: &fakeGrant{},
 		Leads: &fakeLeads{}, Entries: &fakeEntries{}, EnsureReceptive: &fakeOrganic{},
 		CampaignSends: &fakeCampaignSends{}, SpamPolicy: &fakeSpamPolicy{}, SendClaims: newFakeClaims(),
-		History: &fakeHistory{}, Assignments: &fakeClaimer{}, Sender: &fakeSender{},
+		History: &fakeHistory{}, Assignments: &fakeClaimer{}, Starts: &fakeStarts{}, Sender: &fakeSender{},
 	}
 }
 

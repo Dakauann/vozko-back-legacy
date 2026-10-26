@@ -134,3 +134,24 @@ func TestResolvedEntryAccessReadsEachUsersScopeOncePerBroadcast(t *testing.T) {
 		t.Fatalf("department scope read %d times for two users across five checks, want 2", departments.hasChecks)
 	}
 }
+
+func TestAPlatformAdminSeesEverythingButCanPickADepartmentView(t *testing.T) {
+	cases := []struct {
+		name        string
+		departments departmentMembershipRepository
+		want        conversation.DepartmentAccessScope
+	}{
+		{"a workspace with departments", &scriptedDepartments{has: true}, conversation.DepartmentAccessScope{WorkspaceHasDepartments: true}},
+		{"a workspace without departments", &scriptedDepartments{}, conversation.DepartmentAccessScope{}},
+		{"no department repository", nil, conversation.DepartmentAccessScope{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, allowed := scopeAuthorizer(scopedRoleMembership{}, tc.departments).GetDepartmentScope(viewer, testWorkspace, true)
+
+			if !allowed || !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("scope = %+v allowed %v, want %+v allowed true", got, allowed, tc.want)
+			}
+		})
+	}
+}

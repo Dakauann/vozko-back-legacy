@@ -126,6 +126,7 @@ func (m *continuationMetrics) IncWorkflowAgentContinuation(outcome string) {
 
 type continuationHarness struct {
 	automations stubAutomations
+	owners      *gateOwners
 	runs        stubAgentRuns
 	claims      *onceClaims
 	messages    *messagesSince
@@ -138,6 +139,7 @@ type continuationHarness struct {
 func newContinuationHarness() *continuationHarness {
 	return &continuationHarness{
 		automations: stubAutomations{profile: conversation.AutomationProfile{AgentID: "agent-7", AgentResponsesEnabled: true}},
+		owners:      ownedBy("ai:agent-7"),
 		runs: stubAgentRuns{latest: &workflow.AgentCallRun{
 			RunID: "run-1", WorkflowName: "Matrícula", Status: workflow.RunStatusCompleted,
 			AgentResult: map[string]interface{}{"status": "matriculado"}, Error: "run stuck: not updated within timeout",
@@ -156,13 +158,13 @@ func (h *continuationHarness) continuation(t *testing.T) *AgentContinuation {
 	lock := NewAgentTurnLock(h.lockState)
 	lock.poll = time.Millisecond
 	c, err := NewAgentContinuation(AgentContinuationDeps{
-		Automations: h.automations,
-		Runs:        h.runs,
-		Claims:      h.claims,
-		Messages:    h.messages,
-		Continuers:  AgentTurnContinuers{Official: h.official, Channels: h.channels},
-		Lock:        lock,
-		Metrics:     h.metrics,
+		Gate:       NewAutomationGate(AutomationGateDeps{Owners: h.owners, Delegations: stubDelegations{}, Profiles: h.automations}),
+		Runs:       h.runs,
+		Claims:     h.claims,
+		Messages:   h.messages,
+		Continuers: AgentTurnContinuers{Official: h.official, Channels: h.channels},
+		Lock:       lock,
+		Metrics:    h.metrics,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -257,6 +259,8 @@ func TestNoTurnWhenSomethingCannotBeVerified(t *testing.T) {
 			h.automations.profile.AutomationEnabled = &off
 		}},
 		{"another agent took over", "automation_changed", func(h *continuationHarness) { h.automations.profile.AgentID = "agent-2" }},
+		{"a person took the conversation", "automation_changed", func(h *continuationHarness) { h.owners.owner = "user-1" }},
+		{"the owner cannot be read", "automation_unreadable", func(h *continuationHarness) { h.owners.err = errors.New("db down") }},
 		{"a workflow was delegated the conversation", "automation_changed", func(h *continuationHarness) {
 			h.automations.profile.Delegate = &conversation.Automation{Kind: conversation.AutomationWorkflow, ID: "wf-9"}
 		}},

@@ -161,7 +161,8 @@ func (c *Container) initMercadoLivreRuntime(history conversation_domain.MessageH
 		c.mustChannelAIReply(),
 		nil,
 		c.repositories.conversation,
-	).WithDelegations(c.services.delegations)
+		c.services.automationGate,
+	)
 	b.Threads = mluc.NewThreadSync(mluc.ThreadSyncDeps{
 		Contacts:      b.Contacts,
 		Conversations: b.Conversations,

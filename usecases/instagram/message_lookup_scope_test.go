@@ -8,6 +8,7 @@ import (
 	igdomain "vozko/domain/instagram"
 	mm "vozko/domain/metamessaging"
 	"vozko/domain/shared"
+	"vozko/usecases/conversation/automationgatetest"
 )
 
 type scopedLookupMessages struct {
@@ -37,9 +38,10 @@ func (m *scopedLookupMessages) GetByExternalMessageID(shared.EntryType, string) 
 
 func lookupUC(msgs conversation.MessageRepository, contacts *fakeContactRepo, convs *fakeConversationRepo) *HandleWebhookUseCase {
 	return NewHandleWebhookUseCase(HandleWebhookDeps{
-		Contacts:      contacts,
-		Conversations: convs,
-		Messages:      msgs,
+		AutomationGate: automationgatetest.Open(),
+		Contacts:       contacts,
+		Conversations:  convs,
+		Messages:       msgs,
 	})
 }
 

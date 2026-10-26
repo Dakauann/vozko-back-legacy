@@ -78,13 +78,14 @@ func TestTenancyStillEnforcedAlongsideDepartments(t *testing.T) {
 
 func TestStartConversationRefusesAnotherDepartmentsNumber(t *testing.T) {
 	messaging := &fakeMessaging{}
-	uc := NewStartConversationUseCase(
-		newFakeInstanceRepo(&uw.Instance{
+	uc := mustStart(t, StartConversationDeps{
+		Instances: newFakeInstanceRepo(&uw.Instance{
 			ID: "inst-a", WorkspaceID: "ws-1", Status: uw.StatusConnected,
 			DepartmentID: deptOf("dept-a"),
 		}),
-		newFakeServerRepo(&uw.Server{ID: "srv-1", BaseURL: "https://host.test"}),
-		newFakeContactRepo(), newFakeConversationRepo(), messaging, nil)
+		Servers:  newFakeServerRepo(&uw.Server{ID: "srv-1", BaseURL: "https://host.test"}),
+		Contacts: newFakeContactRepo(), Conversations: newFakeConversationRepo(), Messaging: messaging, Starts: &fakeStarterClaims{},
+	})
 
 	_, err := uc.Execute(context.Background(), StartConversationInput{
 		WorkspaceID: "ws-1", InstanceID: "inst-a",
@@ -100,13 +101,14 @@ func TestStartConversationRefusesAnotherDepartmentsNumber(t *testing.T) {
 }
 
 func TestStartConversationAllowsOwnDepartment(t *testing.T) {
-	uc := NewStartConversationUseCase(
-		newFakeInstanceRepo(&uw.Instance{
+	uc := mustStart(t, StartConversationDeps{
+		Instances: newFakeInstanceRepo(&uw.Instance{
 			ID: "inst-a", WorkspaceID: "ws-1", ServerID: "srv-1",
 			Status: uw.StatusConnected, DepartmentID: deptOf("dept-a"),
 		}),
-		newFakeServerRepo(&uw.Server{ID: "srv-1", BaseURL: "https://host.test"}),
-		newFakeContactRepo(), newFakeConversationRepo(), &fakeMessaging{}, nil)
+		Servers:  newFakeServerRepo(&uw.Server{ID: "srv-1", BaseURL: "https://host.test"}),
+		Contacts: newFakeContactRepo(), Conversations: newFakeConversationRepo(), Messaging: &fakeMessaging{}, Starts: &fakeStarterClaims{},
+	})
 
 	started, err := uc.Execute(context.Background(), StartConversationInput{
 		WorkspaceID: "ws-1", InstanceID: "inst-a",

@@ -9,6 +9,7 @@ import (
 	ca "vozko/domain/audience"
 	igdomain "vozko/domain/instagram"
 	mm "vozko/domain/metamessaging"
+	"vozko/usecases/conversation/automationgatetest"
 )
 
 type captureIngestor struct {
@@ -163,7 +164,7 @@ func (r *recordingEnqueuer) Forget(context.Context, string) {}
 func TestHandleComment_EnqueuesAfterMirror(t *testing.T) {
 	comments := &fakeCommentRepo{}
 	enq := &recordingEnqueuer{}
-	uc := NewHandleWebhookUseCase(HandleWebhookDeps{Comments: comments, Audience: enq})
+	uc := NewHandleWebhookUseCase(HandleWebhookDeps{AutomationGate: automationgatetest.Open(), Comments: comments, Audience: enq})
 	account := &igdomain.Account{ID: "acc-1", WorkspaceID: "ws-1", IGUserID: "ig-me"}
 	ev := &igdomain.Event{
 		Event: mm.Event{Kind: igdomain.EventComment, Timestamp: time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC)},
@@ -180,7 +181,7 @@ func TestHandleComment_EnqueuesAfterMirror(t *testing.T) {
 		t.Fatalf("enqueued = %+v", enq.enqueued)
 	}
 
-	plain := NewHandleWebhookUseCase(HandleWebhookDeps{Comments: comments})
+	plain := NewHandleWebhookUseCase(HandleWebhookDeps{AutomationGate: automationgatetest.Open(), Comments: comments})
 	if err := plain.handleComment(context.Background(), account, ev); err != nil {
 		t.Fatal(err)
 	}

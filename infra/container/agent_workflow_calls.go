@@ -5,7 +5,6 @@ import (
 
 	"vozko/domain/conversation"
 	"vozko/domain/tools"
-	conversation_repository "vozko/infra/repositories/conversation"
 	workflow_repository "vozko/infra/repositories/workflow"
 	workflow_infra "vozko/infra/workflow"
 	"vozko/usecases/agentturn"
@@ -43,13 +42,13 @@ func (c *Container) wireAgentWorkflowCalls(steps *workflow_usecase.NodeExecutorR
 		log.Fatalf("[agent-workflow] the message repository cannot tell whether the customer wrote after a run")
 	}
 	continuation, err := conversation_usecase.NewAgentContinuation(conversation_usecase.AgentContinuationDeps{
-		Automations: conversation_repository.NewEntryAutomationReader(c.db),
-		Runs:        runs,
-		Claims:      runs,
-		Messages:    customerSpeech,
-		Continuers:  conversation_usecase.AgentTurnContinuers{Official: whatsapp, Channels: channels},
-		Lock:        c.agentTurnLock(),
-		Metrics:     c.services.metrics,
+		Gate:       c.services.automationGate,
+		Runs:       runs,
+		Claims:     runs,
+		Messages:   customerSpeech,
+		Continuers: conversation_usecase.AgentTurnContinuers{Official: whatsapp, Channels: channels},
+		Lock:       c.agentTurnLock(),
+		Metrics:    c.services.metrics,
 	})
 	if err != nil {
 		log.Fatalf("[agent-workflow] agent continuation: %v", err)

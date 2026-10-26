@@ -682,6 +682,9 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_uwc_instance_lastmsg_live ON unoffic
 -- idx_cm_entry_sender_created
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cm_entry_sender_created ON conversation_messages (entry_id, entry_type, sender_id, created_at) WHERE deleted_at IS NULL;
 
+-- idx_cm_charged_service_entry
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cm_charged_service_entry ON conversation_messages (entry_id, created_at) INCLUDE (delivery_status, meta_conversation_origin) WHERE deleted_at IS NULL AND entry_type = 'whatsapp' AND direction = 'OUTBOUND' AND message_type IN ('operator', 'ai_response', 'media', 'audio') AND COALESCE(sent_via, '') <> 'business_app' AND meta_pricing_billable IS TRUE AND meta_pricing_category = 'service';
+
 -- idx_bt_charge_campaign_unresolved
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_bt_charge_campaign_unresolved ON balance_transactions (id) WHERE service_type = 'whatsapp_campaign' AND charge_campaign_id IS NULL;
 

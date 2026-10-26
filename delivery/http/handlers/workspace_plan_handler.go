@@ -209,11 +209,7 @@ func (h *WorkspacePlanHandler) GetPlan(w http.ResponseWriter, r *http.Request) {
 	planID := mux.Vars(r)["planId"]
 	plan, err := h.getPlan.Execute(planID)
 	if err != nil {
-		if errors.Is(err, workspace_plan.ErrPlanNotFound) {
-			response.WriteError(w, http.StatusNotFound, "Plan not found", nil)
-			return
-		}
-		response.WriteError(w, http.StatusInternalServerError, "Internal server error", nil)
+		writePlanError(w, err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, plan)
@@ -227,7 +223,7 @@ func (h *WorkspacePlanHandler) CreatePlan(w http.ResponseWriter, r *http.Request
 	}
 	plan, err := h.createPlan.Execute(input)
 	if err != nil {
-		h.writePlanError(w, err)
+		writePlanError(w, err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusCreated, plan)
@@ -242,7 +238,7 @@ func (h *WorkspacePlanHandler) UpdatePlan(w http.ResponseWriter, r *http.Request
 	}
 	plan, err := h.updatePlan.Execute(planID, input)
 	if err != nil {
-		h.writePlanError(w, err)
+		writePlanError(w, err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, plan)
@@ -251,11 +247,7 @@ func (h *WorkspacePlanHandler) UpdatePlan(w http.ResponseWriter, r *http.Request
 func (h *WorkspacePlanHandler) ArchivePlan(w http.ResponseWriter, r *http.Request) {
 	planID := mux.Vars(r)["planId"]
 	if err := h.archivePlan.Execute(planID); err != nil {
-		if errors.Is(err, workspace_plan.ErrPlanNotFound) {
-			response.WriteError(w, http.StatusNotFound, "Plan not found", nil)
-			return
-		}
-		response.WriteError(w, http.StatusInternalServerError, "Internal server error", nil)
+		writePlanError(w, err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, map[string]string{"status": "archived"})
@@ -342,7 +334,7 @@ func (h *WorkspacePlanHandler) SetVisibility(w http.ResponseWriter, r *http.Requ
 	}
 	plan, err := h.setVisibility.Execute(planID, input)
 	if err != nil {
-		h.writePlanError(w, err)
+		writePlanError(w, err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, plan)
@@ -357,7 +349,7 @@ func (h *WorkspacePlanHandler) SetExclusiveAffiliate(w http.ResponseWriter, r *h
 	}
 	plan, err := h.setExclusiveAffiliate.Execute(planID, input)
 	if err != nil {
-		h.writePlanError(w, err)
+		writePlanError(w, err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, plan)
@@ -403,23 +395,6 @@ func (h *WorkspacePlanHandler) ListMyExclusivePlans(w http.ResponseWriter, r *ht
 		Plans:             result,
 		AnnualDiscountPct: workspace_plan.AnnualDiscountPct,
 	})
-}
-
-func (h *WorkspacePlanHandler) writePlanError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, workspace_plan.ErrPlanNotFound):
-		response.WriteError(w, http.StatusNotFound, "Plan not found", nil)
-	case errors.Is(err, workspace_plan.ErrPlanArchived),
-		errors.Is(err, workspace_plan.ErrPlanExclusiveLocked):
-		response.WriteError(w, http.StatusConflict, err.Error(), nil)
-	case errors.Is(err, workspace_plan.ErrInvalidPlanName),
-		errors.Is(err, workspace_plan.ErrInvalidBasePrice),
-		errors.Is(err, workspace_plan.ErrInvalidMaxCallChannels),
-		errors.Is(err, workspace_plan.ErrExclusiveAffiliateRequired):
-		response.WriteError(w, http.StatusBadRequest, err.Error(), nil)
-	default:
-		response.WriteError(w, http.StatusInternalServerError, "Internal server error", nil)
-	}
 }
 
 func (h *WorkspacePlanHandler) writeSubscriptionError(w http.ResponseWriter, err error) {

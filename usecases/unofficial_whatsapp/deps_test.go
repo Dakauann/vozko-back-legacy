@@ -101,6 +101,9 @@ func webhookFor(d HandleWebhookDeps) *HandleWebhookUseCase {
 	if d.ExitStep == nil {
 		d.ExitStep = noLeadExit{}
 	}
+	if d.AutomationGate == nil {
+		d.AutomationGate = openAutomationGate()
+	}
 	uc, err := NewHandleWebhookUseCase(d)
 	if err != nil {
 		panic(err)
@@ -133,6 +136,9 @@ func webhookDefaults(uc *HandleWebhookUseCase) *HandleWebhookUseCase {
 	if uc.sync.listener == nil {
 		uc.sync.listener = quietConnections{}
 	}
+	if uc.gate == nil {
+		uc.gate = openAutomationGate()
+	}
 	return uc
 }
 
@@ -140,6 +146,7 @@ func TestTheUnofficialWebhookRefusesAMissingHistoryWindow(t *testing.T) {
 	_, err := NewHandleWebhookUseCase(HandleWebhookDeps{
 		LinkGate: openLinkGate{}, Listener: quietConnections{}, Handover: NewLineHandover(noLineSiblings{}),
 		GroupWatcher: quietGroupWatcher{}, CampaignSink: quietCampaignSink{}, CampaignAutomation: noCampaignAutomation{}, ExitStep: noLeadExit{},
+		AutomationGate: openAutomationGate(),
 	})
 	if !errors.Is(err, ErrHistoryWindowRequired) {
 		t.Fatalf("err = %v, want ErrHistoryWindowRequired", err)
@@ -152,7 +159,7 @@ func TestTheUnofficialWebhookRefusesAMissingHistoryWindow(t *testing.T) {
 func TestTheUnofficialWebhookRefusesMissingSessionPorts(t *testing.T) {
 	_, err := NewHandleWebhookUseCase(HandleWebhookDeps{HistoryWindow: time.Hour})
 	var missing *deps.MissingError
-	if !errors.As(err, &missing) || len(missing.Missing) != 7 {
+	if !errors.As(err, &missing) || len(missing.Missing) != 8 {
 		t.Fatalf("err = %v, want every session port refused", err)
 	}
 }

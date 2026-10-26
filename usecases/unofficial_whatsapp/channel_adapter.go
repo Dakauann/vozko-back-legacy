@@ -287,28 +287,20 @@ func (a *channelAdapter) SendInteractive(
 		return nil, conversation.ErrCapabilityUnsupported
 	}
 
-	style, fits := uw.FitMenu(req.Style, len(req.Options))
-	shown := req.Options[:fits]
-	options := make([]uw.InteractiveOption, 0, len(shown))
-	for _, opt := range shown {
-		options = append(options, uw.InteractiveOption{ID: opt.ID, Title: opt.Title, Description: opt.Description, Section: opt.Section})
-	}
-
-	showing := req.WithHeaderInBody()
-	showing.Body, showing.Footer = uw.SanitizeOutboundText(showing.Body), uw.SanitizeOutboundText(showing.Footer)
+	menu := uw.ShowMenu(req)
 	result, err := a.messaging.SendMenu(ctx, ref, uw.SendMenuInput{
 		ChatID:      ec.ContactRef,
-		Style:       style,
-		Body:        showing.Body,
-		Footer:      showing.Footer,
-		Button:      showing.ListButtonLabel(),
-		Options:     options,
+		Style:       menu.Style,
+		Body:        menu.Request.Body,
+		Footer:      menu.Request.Footer,
+		Button:      menu.Request.ListButtonLabel(),
+		Options:     menu.ProviderOptions(),
 		DelayMS:     a.pacingDelay(instance, false),
 		TrackSource: uw.TrackSource,
 		TrackID:     ec.EntryID,
 	})
 	out, err := a.outcome(ctx, instance, ec, result, err)
-	return conversation.ShowingOptions(out, showing.ShowingAs(style, shown)), err
+	return conversation.ShowingOptions(out, menu.Content()), err
 }
 
 func (a *channelAdapter) InteractiveLimits() channel.InteractiveLimits {

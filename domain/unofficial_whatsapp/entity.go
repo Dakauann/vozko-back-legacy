@@ -394,13 +394,6 @@ func (c *Conversation) InScope(instanceHandlesGroups bool) bool {
 	return !c.IsGroup || instanceHandlesGroups
 }
 
-func (c *Conversation) RunsAutomation(instanceHandlesGroups bool) bool {
-	if !c.InScope(instanceHandlesGroups) {
-		return false
-	}
-	return c.AutomationEnabled == nil || *c.AutomationEnabled
-}
-
 func NormalizePhone(raw string) string {
 	var b strings.Builder
 	b.Grow(len(raw))

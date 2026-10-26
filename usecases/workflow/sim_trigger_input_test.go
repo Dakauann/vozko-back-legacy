@@ -130,8 +130,9 @@ func TestAStartFromASecondaryWebhookTriggerSeedsTheBody(t *testing.T) {
 		t.Fatalf("sim_started.trigger = %+v", started.Trigger)
 	}
 	completed, _ := readUntil(t, sim.conn, "run_completed")
-	if resumo := decode[statePayload](t, completed).Vars["resumo"]; resumo != "{{input.cpf}}|Ana|{{message}}" {
-		t.Fatalf("resumo = %v, want the webhook body read by the flow", resumo)
+	vars := decode[statePayload](t, completed).Vars
+	if vars["resumo"] != nil || vars["_node_copia_error"] != workflow.UnresolvedWriteReason([]string{"input.cpf", "message"}) {
+		t.Fatalf("vars = %v, want only the webhook body read by the flow and the unseeded refs refused", vars)
 	}
 }
 
@@ -149,8 +150,9 @@ func TestAStartFromAMessageTriggerWaitsForTheFirstMessage(t *testing.T) {
 		t.Fatalf("sim_started.trigger = %+v", started.Trigger)
 	}
 	completed, _ := readUntil(t, sim.conn, "run_completed")
-	if resumo := decode[statePayload](t, completed).Vars["resumo"]; resumo != "{{input.cpf}}|{{webhook.body.nome}}|quero me matricular" {
-		t.Fatalf("resumo = %v", resumo)
+	vars := decode[statePayload](t, completed).Vars
+	if vars["resumo"] != nil || vars["_node_copia_error"] != workflow.UnresolvedWriteReason([]string{"input.cpf", "webhook.body.nome"}) || vars["message"] != "quero me matricular" {
+		t.Fatalf("vars = %v, want the first message seeded and the other refs refused", vars)
 	}
 }
 

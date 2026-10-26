@@ -68,6 +68,7 @@ func New() *Container {
 	}
 
 	c.services.serviceMessageBilling = serviceMessageBilling
+	c.services.serviceMessagePrices = serviceMessageBilling
 
 	c.initSIPTrunks()
 	c.wireConversationHub()

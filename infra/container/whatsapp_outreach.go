@@ -74,6 +74,7 @@ func (c *Container) buildWhatsAppOutreach(d whatsAppOutreachDeps) whatsAppOutrea
 		SendClaims:      c.redisProvider.SharedState(),
 		History:         d.history,
 		Assignments:     c.services.assignmentService,
+		Starts:          c.services.assignmentService,
 		Sender:          sender,
 	}
 

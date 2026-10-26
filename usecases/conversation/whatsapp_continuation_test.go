@@ -98,7 +98,6 @@ func newWhatsAppContinuationHarness() whatsAppContinuationHarness {
 		leadRepo:              continuationLeads{},
 		businessPhoneRepo:     continuationPhones{},
 		messageWindowRepo:     h.windows,
-		delegations:           stubDelegations{},
 		agentRepo:             agentsByID{byID: map[string]*agent.Agent{"agent-7": {ID: "agent-7", WorkspaceID: "ws-1", Name: "Bia", MessagingPrompt: "Você é a Bia."}}},
 		whatsappClientFactory: stubAudioClientFactory{client: h.client},
 		historyManager:        h.history,

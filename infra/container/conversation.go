@@ -73,6 +73,11 @@ func (c *Container) wireConversationHub() {
 	eventLoggerEarly := ce_usecase.NewLogger(telemetryPub)
 
 	c.services.delegations = conversation_repository.NewDelegationRepository(c.db)
+	c.services.automationGate = conversation_usecase.NewAutomationGate(conversation_usecase.AutomationGateDeps{
+		Owners:      c.repositories.inboxAssignment,
+		Delegations: c.services.delegations,
+		Profiles:    conversation_repository.NewEntryAutomationReader(c.db),
+	})
 	workflowRuns, ok := c.repositories.workflowRun.(conversation_usecase.WorkflowRunLookup)
 	if !ok {
 		log.Fatalf("[conversation-history] the workflow run repository cannot find active runs by conversation")

@@ -32,6 +32,7 @@ type AttendanceHandler struct {
 	targets                     *attendance_usecase.TargetsService
 	targetScoper                targetScoper
 	memberActivity              memberActivityReader
+	serviceMessages             attendancedomain.ServiceMessageSectionsUseCase
 }
 
 type Deps struct {
@@ -46,21 +47,23 @@ type Deps struct {
 	Targets         *attendance_usecase.TargetsService
 	TargetScoper    targetScoper
 	MemberActivity  memberActivityReader
+	ServiceMessages attendancedomain.ServiceMessageSectionsUseCase
 }
 
 func NewAttendanceHandler(d Deps) (*AttendanceHandler, error) {
 	if err := deps.Require("attendance handler", map[string]any{
-		"attendance stats":    d.AttendanceStats,
-		"window stats":        d.WindowStats,
-		"response times":      d.ResponseTimes,
-		"ai agent stats":      d.AIAgentStats,
-		"frt stats":           d.FRTStats,
-		"overview sections":   d.Sections,
-		"queue events":        d.Queue,
-		"presence":            d.Presence,
-		"targets":             d.Targets,
-		"target scoper":       d.TargetScoper,
-		"member activity":     d.MemberActivity,
+		"attendance stats":  d.AttendanceStats,
+		"window stats":      d.WindowStats,
+		"response times":    d.ResponseTimes,
+		"ai agent stats":    d.AIAgentStats,
+		"frt stats":         d.FRTStats,
+		"overview sections": d.Sections,
+		"queue events":      d.Queue,
+		"presence":          d.Presence,
+		"targets":           d.Targets,
+		"target scoper":     d.TargetScoper,
+		"member activity":   d.MemberActivity,
+		"service messages":  d.ServiceMessages,
 	}); err != nil {
 		return nil, err
 	}
@@ -76,6 +79,7 @@ func NewAttendanceHandler(d Deps) (*AttendanceHandler, error) {
 		targets:                     d.Targets,
 		targetScoper:                d.TargetScoper,
 		memberActivity:              d.MemberActivity,
+		serviceMessages:             d.ServiceMessages,
 	}, nil
 }
 

@@ -53,20 +53,7 @@ type ReportAccess struct {
 
 func ScopedReportAccess(workspaceID, campaignID, requestedDepartment string, scope *dept.DepartmentFilter) ReportAccess {
 	access := ReportAccess{WorkspaceID: workspaceID, CampaignID: campaignID, AllowDepartment: scope.CanAccess}
-	if scope == nil {
-		access.DepartmentsBlocked = true
-		return access
-	}
-	if requestedDepartment == "" {
-		access.DepartmentIDs = scope.EffectiveDepartmentIDs()
-		access.DepartmentsBlocked = scope.ShouldFilter() && len(access.DepartmentIDs) == 0
-		return access
-	}
-	if !scope.CanAccess(requestedDepartment) {
-		access.DepartmentsBlocked = true
-		return access
-	}
-	access.DepartmentIDs = []string{requestedDepartment}
+	access.DepartmentIDs, access.DepartmentsBlocked = scope.ReportScope(requestedDepartment)
 	return access
 }
 

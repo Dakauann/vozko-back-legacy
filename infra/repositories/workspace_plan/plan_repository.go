@@ -27,10 +27,22 @@ func NewSubscriptionRepository(db *gorm.DB) workspace_plan.SubscriptionRepositor
 }
 
 func (r *planRepository) Create(plan *workspace_plan.PlanDefinition) error {
+	return createPlan(r.db, plan)
+}
+
+func createPlan(db *gorm.DB, plan *workspace_plan.PlanDefinition) error {
 	if plan == nil {
 		return workspace_plan.ErrPlanNotFound
 	}
-	return r.db.Create(planToSchema(plan)).Error
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(planToSchema(plan)).Error; err != nil {
+			return err
+		}
+		if plan.IsGloballyVisible {
+			return nil
+		}
+		return tx.Model(&schema.WorkspacePlanDefinition{}).Where("id = ?", plan.ID).Update("is_globally_visible", false).Error
+	})
 }
 
 func (r *planRepository) Update(plan *workspace_plan.PlanDefinition) error {
@@ -328,17 +340,21 @@ func subscriptionFromSchema(row *schema.WorkspaceSubscription) *workspace_plan.W
 
 func (r *planRepository) ReplacePricingItems(planID string, items []workspace_plan.PlanPricingItem) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("plan_definition_id = ?", planID).Delete(&schema.PlanPricingItem{}).Error; err != nil {
+		return replacePricingItems(tx, planID, items)
+	})
+}
+
+func replacePricingItems(tx *gorm.DB, planID string, items []workspace_plan.PlanPricingItem) error {
+	if err := tx.Where("plan_definition_id = ?", planID).Delete(&schema.PlanPricingItem{}).Error; err != nil {
+		return err
+	}
+	for _, item := range items {
+		row := planPricingItemToSchema(&item, planID)
+		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
-		for _, item := range items {
-			row := planPricingItemToSchema(&item, planID)
-			if err := tx.Create(&row).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	}
+	return nil
 }
 
 func (r *planRepository) ListPricingItems(planID string) ([]workspace_plan.PlanPricingItem, error) {

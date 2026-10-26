@@ -32,8 +32,7 @@ func delegatedTo(kind conversation.AutomationKind, id string) stubDelegations {
 
 func TestADelegatedAgentAnswersOnAChannelWithNoAutomation(t *testing.T) {
 	ev, rep, sch := &recordingEvaluator{}, &recordingReplier{}, &recordingScheduler{}
-	auto := NewInboundAutomation(ev, rep, sch, stubInboundCounter{count: 1}).
-		WithDelegations(delegatedTo(conversation.AutomationAgent, "picked"))
+	auto := NewInboundAutomation(ev, rep, sch, stubInboundCounter{count: 1}, gateWith(ownedBy(""), delegatedTo(conversation.AutomationAgent, "picked")))
 	in := automationInput()
 	in.Config = conversation.ChannelAutomation{}
 
@@ -49,8 +48,7 @@ func TestADelegatedAgentAnswersOnAChannelWithNoAutomation(t *testing.T) {
 
 func TestADelegatedWorkflowReplacesTheChannelAgentAndWorkflow(t *testing.T) {
 	ev, rep, sch := &recordingEvaluator{}, &recordingReplier{}, &recordingScheduler{}
-	auto := NewInboundAutomation(ev, rep, sch, stubInboundCounter{count: 3}).
-		WithDelegations(delegatedTo(conversation.AutomationWorkflow, "picked-wf"))
+	auto := NewInboundAutomation(ev, rep, sch, stubInboundCounter{count: 3}, gateWith(ownedBy(""), delegatedTo(conversation.AutomationWorkflow, "picked-wf")))
 
 	auto.Dispatch(context.Background(), automationInput())
 
@@ -64,20 +62,11 @@ func TestADelegatedWorkflowReplacesTheChannelAgentAndWorkflow(t *testing.T) {
 
 func TestAnUnreadableDelegationRunsNoAutomation(t *testing.T) {
 	ev, rep, sch := &recordingEvaluator{}, &recordingReplier{}, &recordingScheduler{}
-	auto := NewInboundAutomation(ev, rep, sch, stubInboundCounter{count: 1}).
-		WithDelegations(stubDelegations{err: errors.New("db down")})
+	auto := NewInboundAutomation(ev, rep, sch, stubInboundCounter{count: 1}, gateWith(ownedBy(""), stubDelegations{err: errors.New("db down")}))
 
 	auto.Dispatch(context.Background(), automationInput())
 
 	if len(rep.reqs) != 0 || len(ev.events) != 0 {
 		t.Fatalf("an unknown delegation must not let the channel automation answer: replies %d, events %d", len(rep.reqs), len(ev.events))
-	}
-}
-
-func TestEffectiveAutomationWithoutADelegationIsTheChannel(t *testing.T) {
-	channel := fullyEnabled()
-	got, err := EffectiveAutomation(context.Background(), stubDelegations{}, "e-1", shared.EntryTypeTelegram, channel)
-	if err != nil || *got.AgentID != "agent-1" || got.WorkflowRef() != "wf-1" {
-		t.Fatalf("EffectiveAutomation = %+v %v", got, err)
 	}
 }

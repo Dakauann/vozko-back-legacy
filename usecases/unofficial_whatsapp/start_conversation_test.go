@@ -5,11 +5,31 @@ import (
 	"errors"
 	"testing"
 
+	ia "vozko/domain/inbox_assignment"
+	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	uw "vozko/domain/unofficial_whatsapp"
 )
 
+type fakeStarterClaims struct {
+	claimed []ia.ConversationStart
+	err     error
+}
+
+func (f *fakeStarterClaims) ClaimForStarter(in ia.ConversationStart) error {
+	f.claimed = append(f.claimed, in)
+	return f.err
+}
+
 func startFixture(t *testing.T, mutate func(*uw.Instance)) (
 	*StartConversationUseCase, *fakeMessaging, *fakeContactRepo, *fakeConversationRepo,
+) {
+	uc, messaging, contacts, conversations, _ := startFixtureWithStarts(t, mutate)
+	return uc, messaging, contacts, conversations
+}
+
+func startFixtureWithStarts(t *testing.T, mutate func(*uw.Instance)) (
+	*StartConversationUseCase, *fakeMessaging, *fakeContactRepo, *fakeConversationRepo, *fakeStarterClaims,
 ) {
 	t.Helper()
 
@@ -25,16 +45,17 @@ func startFixture(t *testing.T, mutate func(*uw.Instance)) (
 	messaging := &fakeMessaging{}
 	contacts := newFakeContactRepo()
 	conversations := newFakeConversationRepo()
+	starts := &fakeStarterClaims{}
 
-	uc := NewStartConversationUseCase(
-		newFakeInstanceRepo(instance),
-		newFakeServerRepo(healthyServer("srv-a", 10, 1)),
-		contacts,
-		conversations,
-		messaging,
-		nil,
-	)
-	return uc, messaging, contacts, conversations
+	uc := mustStart(t, StartConversationDeps{
+		Instances:     newFakeInstanceRepo(instance),
+		Servers:       newFakeServerRepo(healthyServer("srv-a", 10, 1)),
+		Contacts:      contacts,
+		Conversations: conversations,
+		Messaging:     messaging,
+		Starts:        starts,
+	})
+	return uc, messaging, contacts, conversations, starts
 }
 
 func TestStartConversationRefusesANumberNotOnWhatsApp(t *testing.T) {
@@ -154,4 +175,59 @@ func TestStartConversationRefusesAnotherWorkspacesInstance(t *testing.T) {
 	if len(conversations.created) != 0 {
 		t.Error("a cross-workspace request wrote a conversation")
 	}
+}
+
+func TestStartConversationGivesTheConversationToTheMemberWhoStartedIt(t *testing.T) {
+	uc, _, _, _, starts := startFixtureWithStarts(t, nil)
+
+	started, err := uc.Execute(context.Background(), StartConversationInput{
+		WorkspaceID: "ws-1", UserID: "ana", InstanceID: "inst-1", PhoneNumber: "5511999999999",
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	want := ia.ConversationStart{
+		WorkspaceID: "ws-1", EntryID: started.ConversationID, EntryType: string(shared.EntryTypeUnofficialWhatsApp),
+		AccountID: "inst-1", StarterID: "ana",
+	}
+	if len(starts.claimed) != 1 || starts.claimed[0] != want {
+		t.Fatalf("claimed = %+v, want %+v so the instance's agent does not answer the reply", starts.claimed, want)
+	}
+}
+
+func TestStartConversationFailsWhenTheStarterCannotBeGivenTheConversation(t *testing.T) {
+	uc, _, _, _, starts := startFixtureWithStarts(t, nil)
+	starts.err = ia.StarterNotAssigned(errors.New("db down"))
+
+	started, err := uc.Execute(context.Background(), StartConversationInput{
+		WorkspaceID: "ws-1", UserID: "ana", InstanceID: "inst-1", PhoneNumber: "5511999999999",
+	})
+	if !errors.Is(err, ia.ErrStarterNotAssigned) {
+		t.Fatalf("err = %v, want ErrStarterNotAssigned instead of leaving the conversation to the automation", err)
+	}
+	if started != nil {
+		t.Fatalf("started = %+v, a refused start opens nothing", started)
+	}
+}
+
+func TestStartConversationRefusesToBuildWithoutTheStarterRule(t *testing.T) {
+	_, err := NewStartConversationUseCase(StartConversationDeps{
+		Instances: newFakeInstanceRepo(), Servers: newFakeServerRepo(), Contacts: newFakeContactRepo(),
+		Conversations: newFakeConversationRepo(), Messaging: &fakeMessaging{},
+	})
+
+	var missing *deps.MissingError
+	if !errors.As(err, &missing) || len(missing.Missing) != 1 || missing.Missing[0] != "starter rule" {
+		t.Fatalf("err = %v, a start without the starter rule would leave the conversation to the automation", err)
+	}
+}
+
+func mustStart(t *testing.T, d StartConversationDeps) *StartConversationUseCase {
+	t.Helper()
+	uc, err := NewStartConversationUseCase(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return uc
 }

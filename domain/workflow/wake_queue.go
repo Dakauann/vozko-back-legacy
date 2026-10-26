@@ -25,6 +25,7 @@ type ConsumeRunWakeUseCase interface {
 
 type AutomationGate interface {
 	AutomationEnabled(entryID, entryType string) (bool, error)
+	AutomationMayAct(workspaceID, entryID, entryType string) (bool, error)
 }
 
 const StateKeyGateAttempts = "_engine_gate_attempts"

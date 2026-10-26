@@ -7,6 +7,7 @@ import (
 
 	"vozko/domain/conversation"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/domain/workflow"
 )
 
@@ -51,8 +52,7 @@ type InboundAutomation struct {
 	analysis  AnalysisRequester
 	inbound   InboundMessages
 	router    *InboundRouter
-
-	delegations conversation.DelegationRepository
+	gate      *AutomationGate
 }
 
 func NewInboundAutomation(
@@ -60,23 +60,24 @@ func NewInboundAutomation(
 	agents AgentReplier,
 	analysis AnalysisRequester,
 	inbound InboundMessages,
+	gate *AutomationGate,
 ) *InboundAutomation {
-	return &InboundAutomation{workflows: workflows, agents: agents, analysis: analysis, inbound: inbound, router: InboundRouterOf(workflows)}
-}
-
-func (a *InboundAutomation) WithDelegations(delegations conversation.DelegationRepository) *InboundAutomation {
-	a.delegations = delegations
-	return a
-}
-
-func (a *InboundAutomation) effective(ctx context.Context, in InboundAutomationInput) (InboundAutomationInput, bool) {
-	config, err := EffectiveAutomation(ctx, a.delegations, in.EntryID, in.EntryType, in.Config)
-	if err != nil {
-		log.Printf("[inbound-automation] delegation of %s %s unreadable, no automation runs: %v", in.EntryType, in.EntryID, err)
-		return in, false
+	if err := deps.Require("inbound automation", map[string]any{"automation gate": gate}); err != nil {
+		panic(err.Error())
 	}
+	return &InboundAutomation{workflows: workflows, agents: agents, analysis: analysis, inbound: inbound, router: InboundRouterOf(workflows), gate: gate}
+}
+
+func (a *InboundAutomation) admitted(ctx context.Context, in InboundAutomationInput) (InboundAutomationInput, bool) {
+	config, mayAct := a.gate.Admit(ctx, AutomationAdmission{
+		WorkspaceID: in.WorkspaceID,
+		EntryID:     in.EntryID,
+		EntryType:   in.EntryType,
+		Enabled:     in.ConversationOverride,
+		Channel:     in.Config,
+	})
 	in.Config = config
-	return in, true
+	return in, mayAct
 }
 
 func (a *InboundAutomation) Dispatch(ctx context.Context, in InboundAutomationInput) error {
@@ -94,18 +95,18 @@ func (a *InboundAutomation) FireWorkflows(ctx context.Context, in InboundAutomat
 }
 
 func (a *InboundAutomation) consume(ctx context.Context, in InboundAutomationInput, agentMayReply bool) {
-	effective, ok := a.effective(ctx, in)
-	if !ok {
+	admitted, mayAct := a.admitted(ctx, in)
+	if !mayAct {
 		return
 	}
-	event := a.messageEvent(effective)
-	route := a.router.Route(event, conversation.AutomationAllowed(effective.ConversationOverride), false)
+	event := a.messageEvent(admitted)
+	route := a.router.Route(event, mayAct, false)
 	routed := a.router.Deliver(route, event)
 	if route.Consumer.StartsRuns() {
-		a.fireWorkflows(effective, routed)
+		a.fireWorkflows(admitted, routed)
 	}
 	if agentMayReply && route.Consumer.AgentReplies() {
-		a.replyWithAgent(ctx, effective)
+		a.replyWithAgent(ctx, admitted)
 	}
 }
 
@@ -128,11 +129,6 @@ func (a *InboundAutomation) fireWorkflows(in InboundAutomationInput, event workf
 	if a.workflows == nil || !in.Config.RunsWorkflows() {
 		return
 	}
-	if !conversation.AutomationAllowed(in.ConversationOverride) {
-		log.Printf("[inbound-automation] automation disabled for %s %s, skipping workflow triggers", in.EntryType, in.EntryID)
-		return
-	}
-
 	a.workflows.Evaluate(event)
 
 	if IsFirstInbound(a.inbound, event) {
@@ -150,7 +146,6 @@ func (a *InboundAutomation) replyWithAgent(ctx context.Context, in InboundAutoma
 		EntryType:             in.EntryType,
 		AgentID:               *in.Config.AgentID,
 		AgentResponsesEnabled: in.Config.EnableAgentResponses,
-		AutomationEnabled:     in.ConversationOverride,
 		Text:                  in.Text,
 		Disclosure:            in.Config.Disclosure,
 		LeadID:                in.LeadID,

@@ -118,13 +118,13 @@ func retryAfterUnreadableGate(runRepo workflow.WorkflowRunRepository, engine *Ru
 	return engine.saveWith(runRepo, run)
 }
 
-var errAutomationOff = errors.New("automation is off for this conversation, the run was cancelled before this node")
+var errAutomationOff = errors.New("automation may not act on this conversation, it is paused or a person owns it, so the run was cancelled before this node")
 
 func cancelWhenAutomationOff(runRepo workflow.WorkflowRunRepository, engine *RunEngine, run *workflow.WorkflowRun) (bool, error) {
 	if run.OnLead() {
 		return false, nil
 	}
-	off, err := engine.automationOff(run.EntryID, run.EntryType)
+	off, err := engine.automationOff(run)
 	if err != nil {
 		return true, err
 	}

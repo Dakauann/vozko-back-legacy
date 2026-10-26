@@ -1,0 +1,13 @@
+forbidden
+plan_archived
+plan_base_price_invalid
+plan_duplicate_key_required
+plan_duplicate_key_reused
+plan_duplicate_name_unavailable
+plan_duplicate_requester_required
+plan_exclusive_affiliate_required
+plan_exclusive_locked
+plan_internal_error
+plan_max_call_channels_invalid
+plan_name_required
+plan_not_found

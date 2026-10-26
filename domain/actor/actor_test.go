@@ -86,3 +86,20 @@ func TestThePlatformAIIsAnAIWithoutAnAgent(t *testing.T) {
 		t.Fatalf("normalized to %s %q; the platform AI names no agent", kind, id)
 	}
 }
+
+func TestOnlyAHumanIDIsAPerson(t *testing.T) {
+	cases := map[string]bool{
+		"user-1":        true,
+		"":              false,
+		"   ":           false,
+		SystemID:        false,
+		"ai:agent-1":    false,
+		"workflow:wf-1": false,
+		"campaign:c-1":  false,
+	}
+	for id, want := range cases {
+		if got := IsPerson(id); got != want {
+			t.Errorf("IsPerson(%q) = %v, want %v", id, got, want)
+		}
+	}
+}

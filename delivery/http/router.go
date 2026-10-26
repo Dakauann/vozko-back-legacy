@@ -188,6 +188,7 @@ type router struct {
 	carrier                        CarrierRoutes
 	campaignDrafts                 CampaignDraftRoutes
 	agentRoutes                    AgentRoutes
+	planDuplicateHandler           *handlers.WorkspacePlanDuplicateHandler
 	google                         GoogleRoutes
 	apiKeys                        APIKeyRoutes
 	choiceStatsHandler             *choicestatshttp.Handler
@@ -370,8 +371,10 @@ func NewRouter(
 	workflowRunExportHandler *workflowrunexporthttp.Handler,
 	campaignDrafts CampaignDraftRoutes,
 	agentRoutes AgentRoutes,
+	planDuplicateHandler *handlers.WorkspacePlanDuplicateHandler,
 ) Router {
 	r := &router{
+		planDuplicateHandler:           planDuplicateHandler,
 		campaignDrafts:                 campaignDrafts,
 		agentRoutes:                    agentRoutes,
 		workflowRunExportHandler:       workflowRunExportHandler,
@@ -809,6 +812,7 @@ func (r *router) setupAdminWorkspacePlanRoutes(adminRoutes *mux.Router) {
 	adminRoutes.HandleFunc("/admin/plans/{planId}/archive", r.workspacePlanHandler.ArchivePlan).Methods(http.MethodPatch)
 	adminRoutes.HandleFunc("/admin/plans/{planId}/visibility", r.workspacePlanHandler.SetVisibility).Methods(http.MethodPut)
 	adminRoutes.HandleFunc("/admin/plans/{planId}/exclusive-affiliate", r.workspacePlanHandler.SetExclusiveAffiliate).Methods(http.MethodPut)
+	handlers.RegisterPlanDuplicateAdminRoutes(adminRoutes, r.planDuplicateHandler)
 	adminRoutes.HandleFunc("/admin/workspaces/{workspaceId}/subscription", r.workspacePlanHandler.GetSubscription).Methods(http.MethodGet)
 	adminRoutes.HandleFunc("/admin/workspaces/{workspaceId}/subscription", r.workspacePlanHandler.CreateSubscriptionInvoice).Methods(http.MethodPost)
 	adminRoutes.HandleFunc("/admin/workspaces/{workspaceId}/subscription/cancel", r.workspacePlanHandler.Cancel).Methods(http.MethodPost)

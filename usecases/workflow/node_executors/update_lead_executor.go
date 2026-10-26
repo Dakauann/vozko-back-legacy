@@ -3,7 +3,6 @@ package node_executors
 import (
 	"context"
 	"log"
-	"strings"
 
 	"vozko/domain/address"
 	"vozko/domain/lead"
@@ -42,7 +41,9 @@ func (e *updateLeadExecutor) Definition() workflow.NodeDefinition {
 				"O nome é a exceção: substitui o nome do perfil do WhatsApp ou de uma importação, mas nunca um nome editado por uma pessoa nem o de um formulário. " +
 				"Com CEP, o CEP é conferido e cidade, UF e logradouro vêm dele; sem CEP, informe cidade e UF junto com o bairro ou o logradouro. " +
 				"O endereço vira o endereço principal e aguarda localização no mapa. Campos sensíveis nunca são gravados por fluxos. " +
-				"Campos vazios depois de trocar as variáveis são ignorados; sem nenhum dado, ou com um dado recusado, segue pela saída Erro sem gravar nada. O fluxo fica registrado como autor da mudança.",
+				"Campos vazios depois de trocar as variáveis são ignorados; sem nenhum dado, ou com um dado recusado, segue pela saída Erro sem gravar nada. " +
+				"Uma variável que não existe naquele ponto do fluxo nunca é gravada como texto: o passo segue pela saída Erro sem gravar nada e o rastro mostra a variável. " +
+				"{{message}} é a última mensagem do contato e só existe em fluxos iniciados ou retomados por uma mensagem. O fluxo fica registrado como autor da mudança.",
 			Examples: []string{
 				"nome {{node.extrair.nome}}",
 				"bairro {{node.extrair.bairro}}, cidade {{node.extrair.cidade}}, UF {{node.extrair.uf}}",
@@ -82,22 +83,26 @@ func (e *updateLeadExecutor) Execute(ctx *workflow.NodeContext) (*workflow.NodeR
 	if e.profiles == nil {
 		return failLeadUpdate(edges, "cadastro de leads indisponível neste contexto (ex.: simulação)"), nil
 	}
+	values := writeValuesOf(ctx)
 	customFields := map[string]string{}
 	for key, raw := range workflow.UpdateLeadCustomFieldsOf(ctx.Node.Config) {
-		if value := strings.TrimSpace(workflow.Interpolate(raw, ctx.State, nil)); value != "" {
+		if value := values.text(raw); value != "" {
 			customFields[key] = value
 		}
 	}
 	profile := lead.Profile{
 		Address: address.Postal{
-			ZipCode: nodeText(ctx, workflow.UpdateLeadZipCode), Street: nodeText(ctx, workflow.UpdateLeadStreet),
-			Number: nodeText(ctx, workflow.UpdateLeadNumber), Complement: nodeText(ctx, workflow.UpdateLeadComplement),
-			District: nodeText(ctx, workflow.UpdateLeadDistrict), City: nodeText(ctx, workflow.UpdateLeadCity),
-			State: nodeText(ctx, workflow.UpdateLeadState),
+			ZipCode: values.field(workflow.UpdateLeadZipCode), Street: values.field(workflow.UpdateLeadStreet),
+			Number: values.field(workflow.UpdateLeadNumber), Complement: values.field(workflow.UpdateLeadComplement),
+			District: values.field(workflow.UpdateLeadDistrict), City: values.field(workflow.UpdateLeadCity),
+			State: values.field(workflow.UpdateLeadState),
 		},
-		BirthDate:    nodeText(ctx, workflow.UpdateLeadBirthDate),
+		BirthDate:    values.field(workflow.UpdateLeadBirthDate),
 		CustomFields: customFields,
-		Name:         nodeText(ctx, workflow.UpdateLeadName),
+		Name:         values.field(workflow.UpdateLeadName),
+	}
+	if reason, refused := values.refusal(); refused {
+		return failLeadUpdate(edges, reason), nil
 	}
 	result, err := e.profiles.UpdateOfEntry(context.Background(),
 		shared.EntryRef{EntryID: ctx.Run.EntryID, EntryType: shared.EntryType(ctx.Run.EntryType)},

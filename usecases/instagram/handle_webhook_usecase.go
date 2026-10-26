@@ -64,18 +64,18 @@ type HandleWebhookDeps struct {
 	Messaging     igdomain.MessagingService
 	MediaFetcher  MediaFetcher
 
-	History      conversation.MessageHistoryManager
-	Messages     conversation.MessageRepository
-	Attachments  conversation.MediaStore
-	AdOrigins    conversation.AdOriginRecorder
-	Broadcaster  conversation.EventBroadcaster
-	Assignments  AssignmentService
-	AIReply      conversation_usecase.AgentReplier
-	Workflows    conversation_usecase.WorkflowEvaluator
-	CommentRules CommentRuleEvaluator
-	Analysis     conversation_usecase.AnalysisRequester
-	Delegations  conversation.DelegationRepository
-	Audience     AudienceEnqueuer
+	History        conversation.MessageHistoryManager
+	Messages       conversation.MessageRepository
+	Attachments    conversation.MediaStore
+	AdOrigins      conversation.AdOriginRecorder
+	Broadcaster    conversation.EventBroadcaster
+	Assignments    AssignmentService
+	AIReply        conversation_usecase.AgentReplier
+	Workflows      conversation_usecase.WorkflowEvaluator
+	CommentRules   CommentRuleEvaluator
+	Analysis       conversation_usecase.AnalysisRequester
+	AutomationGate *conversation_usecase.AutomationGate
+	Audience       AudienceEnqueuer
 }
 
 func NewHandleWebhookUseCase(d HandleWebhookDeps) *HandleWebhookUseCase {
@@ -105,7 +105,7 @@ func NewHandleWebhookUseCase(d HandleWebhookDeps) *HandleWebhookUseCase {
 		messaging:     d.Messaging,
 		transcript:    transcript,
 		assignments:   d.Assignments,
-		automation:    conversation_usecase.NewInboundAutomation(d.Workflows, d.AIReply, d.Analysis, d.Messages).WithDelegations(d.Delegations),
+		automation:    conversation_usecase.NewInboundAutomation(d.Workflows, d.AIReply, d.Analysis, d.Messages, d.AutomationGate),
 		commentRules:  d.CommentRules,
 		audience:      d.Audience,
 	}

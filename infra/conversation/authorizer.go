@@ -259,12 +259,20 @@ func (a *Authorizer) CanAccessCampaign(userID, workspaceID, campaignID, campaign
 	return containsString(scope.DepartmentIDs, departmentID)
 }
 
+func (a *Authorizer) workspaceHasDepartments(workspaceID string) bool {
+	if a.departmentRepo == nil {
+		return false
+	}
+	has, err := a.departmentRepo.HasDepartments(workspaceID)
+	return err == nil && has
+}
+
 func (a *Authorizer) GetDepartmentScope(userID, workspaceID string, isAdmin bool) (conversation.DepartmentAccessScope, bool) {
 	if userID == "" || workspaceID == "" {
 		return conversation.DepartmentAccessScope{}, false
 	}
 	if isAdmin {
-		return conversation.DepartmentAccessScope{}, true
+		return conversation.DepartmentAccessScope{WorkspaceHasDepartments: a.workspaceHasDepartments(workspaceID)}, true
 	}
 
 	member, err := a.workspaceRepo.GetMember(workspaceID, userID)
@@ -274,13 +282,7 @@ func (a *Authorizer) GetDepartmentScope(userID, workspaceID string, isAdmin bool
 	}
 
 	if member.Role == workspace.RoleOwner || member.Role == workspace.RoleAdmin {
-		wsHasDepts := false
-		if a.departmentRepo != nil {
-			if has, err := a.departmentRepo.HasDepartments(workspaceID); err == nil && has {
-				wsHasDepts = true
-			}
-		}
-		return conversation.DepartmentAccessScope{WorkspaceHasDepartments: wsHasDepts}, true
+		return conversation.DepartmentAccessScope{WorkspaceHasDepartments: a.workspaceHasDepartments(workspaceID)}, true
 	}
 
 	hasPerm, err := a.workspaceRepo.HasPermission(member.ID, workspace.ResourceConversations, workspace.ActionRead)

@@ -64,7 +64,7 @@ func TestUpdateLeadNodeWritesTheConversationLeadAsTheWorkflow(t *testing.T) {
 
 func TestUpdateLeadNodeWithNothingToWriteFollowsTheErrorOutput(t *testing.T) {
 	stub := &leadProfilesStub{err: lead.ErrProfileEmpty}
-	result := updateLead(t, stub, map[string]interface{}{"district": "{{last.nada}}"})
+	result := updateLead(t, stub, map[string]interface{}{"district": "  "})
 	require.Equal(t, "fail", result.NextNodeID)
 	require.Equal(t, false, result.Output["success"])
 	require.Contains(t, result.Output["error"], "Nenhum dado")

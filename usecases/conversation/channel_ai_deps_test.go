@@ -131,8 +131,8 @@ func whatsappDefaults(uc *handleWhatsAppMessageUseCase) *handleWhatsAppMessageUs
 	if uc.turnLock == nil {
 		uc.turnLock = NewAgentTurnLock(newLockState())
 	}
-	if uc.delegations == nil {
-		uc.delegations = whatsappNoDelegations{}
+	if uc.automationGate == nil {
+		uc.automationGate = gateWith(ownedBy(""), whatsappNoDelegations{})
 	}
 	if uc.receptive == nil {
 		uc.receptive = whatsappNoReceptive{}

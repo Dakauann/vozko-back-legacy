@@ -496,26 +496,26 @@ definitions:
     type: object
   advertising.Destination:
     enum:
+    - WHATSAPP
+    - MESSENGER
+    - INSTAGRAM_DIRECT
     - WEBSITE
     - ON_AD
     - APP
     - ON_POST
     - NONE
     - CATALOG
-    - WHATSAPP
-    - MESSENGER
-    - INSTAGRAM_DIRECT
     type: string
     x-enum-varnames:
+    - DestinationWhatsApp
+    - DestinationMessenger
+    - DestinationInstagramDirect
     - DestinationWebsite
     - DestinationInstantForm
     - DestinationApp
     - DestinationOnPost
     - DestinationNone
     - DestinationCatalog
-    - DestinationWhatsApp
-    - DestinationMessenger
-    - DestinationInstagramDirect
   advertising.ExportLabels:
     properties:
       breakdowns:
@@ -806,6 +806,7 @@ definitions:
     - ObjectiveAppPromotion
   advertising.OptimizationGoal:
     enum:
+    - CONVERSATIONS
     - REACH
     - IMPRESSIONS
     - AD_RECALL_LIFT
@@ -819,9 +820,9 @@ definitions:
     - OFFSITE_CONVERSIONS
     - VALUE
     - APP_INSTALLS
-    - CONVERSATIONS
     type: string
     x-enum-varnames:
+    - GoalConversations
     - GoalReach
     - GoalImpressions
     - GoalAdRecallLift
@@ -835,7 +836,6 @@ definitions:
     - GoalOffsiteConversion
     - GoalValue
     - GoalAppInstalls
-    - GoalConversations
   advertising.Pixel:
     properties:
       creationTime:
@@ -3702,6 +3702,13 @@ definitions:
       username:
         type: string
     type: object
+  attendance.AvailableSectionsResponse:
+    properties:
+      sections:
+        items:
+          $ref: '#/definitions/attendance.Section'
+        type: array
+    type: object
   attendance.ChannelSlice:
     properties:
       channel:
@@ -4225,6 +4232,67 @@ definitions:
       value_cents:
         type: integer
       won_count:
+        type: integer
+    type: object
+  attendance.Section:
+    enum:
+    - summary
+    - trend
+    - stages
+    - backlog
+    - team
+    - rework
+    - live
+    - service_messages
+    type: string
+    x-enum-varnames:
+    - SectionSummary
+    - SectionTrend
+    - SectionStages
+    - SectionBacklog
+    - SectionTeam
+    - SectionRework
+    - SectionLive
+    - SectionServiceMessages
+  attendance.ServiceMessageBucket:
+    properties:
+      bucket:
+        type: string
+      messages:
+        type: integer
+    type: object
+  attendance.ServiceMessageGranularity:
+    enum:
+    - day
+    - week
+    - month
+    type: string
+    x-enum-varnames:
+    - GranularityDay
+    - GranularityWeek
+    - GranularityMonth
+  attendance.ServiceMessageSpend:
+    properties:
+      total_brl:
+        type: number
+      unit_price_brl:
+        type: number
+    type: object
+  attendance.ServiceMessagesSection:
+    properties:
+      applicable:
+        type: boolean
+      buckets:
+        items:
+          $ref: '#/definitions/attendance.ServiceMessageBucket'
+        type: array
+      channel:
+        type: string
+      granularity:
+        $ref: '#/definitions/attendance.ServiceMessageGranularity'
+      spend:
+        $ref: '#/definitions/attendance.ServiceMessageSpend'
+      total:
         type: integer
     type: object
   attendance.Standing:
@@ -21135,6 +21203,28 @@ definitions:
           type: array
         type: object
     type: object
+  unofficial_whatsapp.startConversationRequest:
+    properties:
+      name:
+        type: string
+      phoneNumber:
+        type: string
+    type: object
+  unofficial_whatsapp.startedConversationDTO:
+    properties:
+      alreadyExisted:
+        type: boolean
+      contactId:
+        type: string
+      conversationId:
+        type: string
+      displayName:
+        type: string
+      entryType:
+        type: string
+      phoneNumber:
+        type: string
+    type: object
   unofficial_whatsapp.updateWorkspaceGroupRequest:
     properties:
       adminsOnlyEdit:
@@ -24661,13 +24751,6 @@ definitions:
     type: object
   workflow.LintIssueCode:
     enum:
-    - NODE_INVALID_PLATFORM_EMAIL
-    - SEND_OUTSIDE_WINDOW_RISK
-    - NODE_AGENT_CALL_INPUTS_INVALID
-    - NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER
-    - NODE_HTTP_URL_NOT_HTTPS
-    - DATA_REF_NEVER_SET
-    - DATA_REF_SOME_PATHS
     - GRAPH_EMPTY
     - GRAPH_TOO_MANY_NODES
     - GRAPH_TOO_MANY_EDGES
@@ -24716,16 +24799,16 @@ definitions:
     - NODE_CODE_READS_TEMPLATE
     - NODE_SECRET_IN_PLAIN_TEXT
     - NODE_PINNED_OUTPUT
+    - DATA_REF_NEVER_SET
+    - DATA_REF_SOME_PATHS
+    - SEND_OUTSIDE_WINDOW_RISK
+    - NODE_HTTP_URL_NOT_HTTPS
     - NODE_CONSENT_GRANT_NEEDS_REPLY
+    - NODE_AGENT_CALL_INPUTS_INVALID
+    - NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER
+    - NODE_INVALID_PLATFORM_EMAIL
     type: string
     x-enum-varnames:
-    - LintInvalidPlatformEmail
-    - LintSendOutsideWindowRisk
-    - LintAgentCallInputsInvalid
-    - LintReplyToAgentWithoutTrigger
-    - LintHTTPURLNotHTTPS
-    - LintDataRefNeverSet
-    - LintDataRefSomePaths
     - LintGraphEmpty
     - LintGraphTooManyNodes
     - LintGraphTooManyEdges
@@ -24774,7 +24857,14 @@ definitions:
     - LintCodeReadsTemplate
     - LintSecretInPlainText
     - LintPinnedOutput
+    - LintDataRefNeverSet
+    - LintDataRefSomePaths
+    - LintSendOutsideWindowRisk
+    - LintHTTPURLNotHTTPS
     - LintConsentGrantNeedsReply
+    - LintAgentCallInputsInvalid
+    - LintReplyToAgentWithoutTrigger
+    - LintInvalidPlatformEmail
   workflow.LintSeverity:
     enum:
     - blocking
@@ -31238,6 +31328,88 @@ paths:
       summary: Seção da visão geral de atendimento
       tags:
       - Atendimento
+  /attendance/overview/service_messages:
+    get:
+      description: Conta as mensagens de serviço do WhatsApp oficial que a Meta cobrou
+        (marcadas como cobráveis na categoria service, fora da janela gratuita de
+        anúncio) no período, com a série por dia (até 92 dias), por semana (até 371
+        dias) ou por mês, e o valor estimado em reais ao preço atual do plano. Só
+        responde para workspaces cujo plano cobra mensagens de serviço; os demais
+        recebem 403 service_messages_not_on_plan, e um preço que não pode ser resolvido
+        responde 503 service_messages_price_unavailable. Respeita o escopo de departamentos
+        de quem pede (403 attendance_department_forbidden fora dele) e os filtros
+        de departamento, membro, campanha, canal e origem. Com outro canal no filtro,
+        applicable vem false e o total vem nulo. Os dias são contados em UTC, como
+        nas demais seções. A contagem fica em cache por 60 segundos; quando o limite
+        de consultas analíticas simultâneas está ocupado, responde 503 com Retry-After.
+      parameters:
+      - description: Data inicial (YYYY-MM-DD)
+        in: query
+        name: date_from
+        required: true
+        type: string
+      - description: Data final (YYYY-MM-DD)
+        in: query
+        name: date_to
+        required: true
+        type: string
+      - description: ID do departamento
+        in: query
+        name: department_id
+        type: string
+      - description: ID do membro responsável pela conversa
+        in: query
+        name: member_id
+        type: string
+      - description: ID da campanha
+        in: query
+        name: campaign_id
+        type: string
+      - description: Tipo da campanha
+        in: query
+        name: campaign_type
+        type: string
+      - description: Canal de atendimento; mensagens de serviço só existem em whatsapp
+        in: query
+        name: channel
+        type: string
+      - description: Origem da conversa pela primeira mensagem
+        enum:
+        - receptive
+        - campaign
+        - outreach
+        - unknown
+        in: query
+        name: origin
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/attendance.ServiceMessagesSection'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "504":
+          description: Gateway Timeout
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Mensagens de serviço do WhatsApp oficial
+      tags:
+      - Atendimento
   /attendance/queue-stats:
     get:
       description: Retorna as métricas de fila de atendimento do workspace (aguardando,
@@ -31310,6 +31482,29 @@ paths:
       security:
       - BearerAuth: []
       summary: Distribuição de tempo de resposta
+      tags:
+      - Atendimento
+  /attendance/sections:
+    get:
+      description: 'Lista as seções da visão geral de atendimento que este workspace
+        pode ler. A seção service_messages só aparece quando o plano do workspace
+        cobra mensagens de serviço do WhatsApp oficial (preço resolvido como na cobrança:
+        item do plano, senão o padrão de Tarifas, acima de zero). Se o preço não puder
+        ser resolvido, ela não aparece. Nenhum dado de mensagens é lido aqui.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/attendance.AvailableSectionsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Seções de atendimento disponíveis
       tags:
       - Atendimento
   /attendance/stats:
@@ -39103,12 +39298,14 @@ paths:
       description: 'Envia um e-mail individual a um lead (`lead_id`) ou a um endereço
         (`address`, o lead é encontrado pelo e-mail ou um contato de e-mail é criado)
         e abre ou reaproveita a conversa de e-mail desse contato no inbox, com o e-mail
-        registrado nela pelo operador e a conversa atribuída a ele quando ainda não
-        tem responsável. O corpo é `text` (texto simples com {{first_name}}, {{name}},
-        {{email}}, {{company}} e {{field.chave}}) ou `design_id` (um modelo salvo),
-        nunca os dois; `sender_id` vazio usa o remetente padrão. Cada envio é cobrado
-        da carteira pelo preço de `GET /email/outreach/quote` e devolvido se o provedor
-        recusar. `idempotency_key` é obrigatória e deve ser gerada uma vez por composição:
+        registrado nela pelo operador e a conversa atribuída a ele: o agente ou fluxo
+        da caixa não responde ao contato enquanto ele for o responsável (uma conversa
+        de um colega continua com o colega, e uma delegação feita por uma pessoa continua
+        valendo). O corpo é `text` (texto simples com {{first_name}}, {{name}}, {{email}},
+        {{company}} e {{field.chave}}) ou `design_id` (um modelo salvo), nunca os
+        dois; `sender_id` vazio usa o remetente padrão. Cada envio é cobrado da carteira
+        pelo preço de `GET /email/outreach/quote` e devolvido se o provedor recusar.
+        `idempotency_key` é obrigatória e deve ser gerada uma vez por composição:
         repetir a mesma chave devolve a mesma conversa e a mesma mensagem (200) sem
         cobrar nem enviar de novo. Recusas antes de qualquer cobrança: 400 `email_idempotency_key_required`,
         `email_recipient_missing`, `email_address_invalid`; 403 `email_lead_blocked`,
@@ -39122,8 +39319,11 @@ paths:
         (cabeçalho `Retry-After` e `details.retry_after_seconds` em segundos inteiros;
         repita com a mesma `idempotency_key` depois desse tempo, o envio sai uma vez
         e é cobrado uma vez); 503 `email_account_reactivation_failed`; 502 `email_send_failed`.
-        `recorded` falso quer dizer que o e-mail saiu mas não pôde ser registrado
-        no inbox; repetir a mesma chave tenta registrar de novo sem reenviar.'
+        Depois do envio: 503 `email_starter_not_assigned` quando o e-mail saiu mas
+        a conversa não pôde ser atribuída a quem a iniciou; repita com a mesma `idempotency_key`,
+        que não envia nem cobra de novo e tenta atribuir outra vez. `recorded` falso
+        quer dizer que o e-mail saiu mas não pôde ser registrado no inbox; repetir
+        a mesma chave tenta registrar de novo sem reenviar.'
       parameters:
       - description: Destinatário, remetente e conteúdo
         in: body
@@ -54649,6 +54849,61 @@ paths:
       summary: Temas das análises
       tags:
       - Unofficial WhatsApp Groups
+  /unofficial-whatsapp/instances/{id}/conversations:
+    post:
+      consumes:
+      - application/json
+      description: Abre, ou reaproveita, a conversa do número `phoneNumber` neste
+        número conectado e a atribui a quem a iniciou, para que o agente ou fluxo
+        do número não responda ao contato enquanto essa pessoa for a responsável.
+        Uma conversa de um colega continua com o colega, e uma delegação feita por
+        uma pessoa continua valendo. Se a conversa não puder ser atribuída a quem
+        a iniciou, nada é aberto e a resposta é 503 `starter_not_assigned` (tente
+        de novo).
+      parameters:
+      - description: ID do número conectado
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Número de destino e nome
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/unofficial_whatsapp.startConversationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/unofficial_whatsapp.startedConversationDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Iniciar conversa no WhatsApp não oficial
+      tags:
+      - Unofficial WhatsApp
   /user/balance:
     get:
       description: Retorna o saldo atual do workspace do usuário autenticado, com
@@ -57998,9 +58253,12 @@ paths:
         (o contato pediu para não receber mensagens); 409 `within_spam_window` (o
         contato recebeu mensagem deste número dentro da proteção contra spam do workspace,
         ou outro envio para ele a partir deste número está em andamento); 409 `window_already_open`.
-        Depois do envio: 409 `send_outcome_unknown` quando a resposta do WhatsApp
-        se perdeu e o modelo pode ter sido entregue e cobrado (confira a conversa
-        antes de enviar de novo; não repita automaticamente).'
+        A conversa fica com quem a iniciou antes do envio, para que o agente ou fluxo
+        do número não responda ao contato: se isso não for possível, nada é enviado
+        nem cobrado e a resposta é 503 `starter_not_assigned` (tente de novo). Depois
+        do envio: 409 `send_outcome_unknown` quando a resposta do WhatsApp se perdeu
+        e o modelo pode ter sido entregue e cobrado (confira a conversa antes de enviar
+        de novo; não repita automaticamente).'
       parameters:
       - description: Chave que torna o envio idempotente
         in: header

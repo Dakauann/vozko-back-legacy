@@ -39,6 +39,20 @@ func (f *DepartmentFilter) ReadScope(requested string) (string, error) {
 	return "", ErrDepartmentRequired
 }
 
+func (f *DepartmentFilter) ReportScope(requested string) ([]string, bool) {
+	if f == nil {
+		return nil, true
+	}
+	if requested == "" {
+		departments := f.EffectiveDepartmentIDs()
+		return departments, f.ShouldFilter() && len(departments) == 0
+	}
+	if !f.CanAccess(requested) {
+		return nil, true
+	}
+	return []string{requested}, false
+}
+
 func (f *DepartmentFilter) AllowsMember(memberDepartmentIDs []string) bool {
 	if f == nil || f.BlockedByMissingDepartment() {
 		return false

@@ -20,6 +20,7 @@ import (
 	"vozko/domain/conversation"
 	conv_event "vozko/domain/conversation_event"
 	es "vozko/domain/emailsending"
+	ia "vozko/domain/inbox_assignment"
 	"vozko/domain/messaging"
 	"vozko/domain/notification"
 	"vozko/domain/selection"
@@ -441,17 +442,16 @@ func (a *assignments) EnsureAssignment(entryID, _, _ string) string {
 	return ""
 }
 
-func (a *assignments) ClaimIfUnassigned(entryID, _, _, _, userID, _ string) (bool, error) {
+func (a *assignments) ClaimForStarter(in ia.ConversationStart) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.claimed == nil {
 		a.claimed = map[string]string{}
 	}
-	if _, taken := a.claimed[entryID]; taken {
-		return false, nil
+	if _, taken := a.claimed[in.EntryID]; !taken {
+		a.claimed[in.EntryID] = in.StarterID
 	}
-	a.claimed[entryID] = userID
-	return true, nil
+	return nil
 }
 
 func (a *assignments) claimedBy(entryID string) string {

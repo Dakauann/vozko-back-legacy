@@ -94,9 +94,9 @@ type claimsFake struct {
 	err   error
 }
 
-func (f *claimsFake) ClaimIfUnassigned(entryID, entryType, accountID, workspaceID, userID, trigger string) (bool, error) {
-	f.calls = append(f.calls, entryID+"|"+entryType+"|"+accountID+"|"+workspaceID+"|"+userID+"|"+trigger)
-	return f.err == nil, f.err
+func (f *claimsFake) ClaimForStarter(in ia.ConversationStart) error {
+	f.calls = append(f.calls, in.EntryID+"|"+in.EntryType+"|"+in.AccountID+"|"+in.WorkspaceID+"|"+in.StarterID)
+	return f.err
 }
 
 type rig struct {
@@ -170,7 +170,7 @@ func TestStartSendsThroughTheSharedOneToOneSend(t *testing.T) {
 	if started.ConversationID != "conv-1" || started.EntryType != "email" || started.MessageID != "msg-1" || !started.Recorded || started.Repeated {
 		t.Fatalf("started = %+v", started)
 	}
-	if len(r.claims.calls) != 1 || r.claims.calls[0] != "conv-1|email|"+defaultSender+"|ws-1|"+operator+"|"+ia.TriggerOutreachSent {
+	if len(r.claims.calls) != 1 || r.claims.calls[0] != "conv-1|email|"+defaultSender+"|ws-1|"+operator {
 		t.Fatalf("claims = %v", r.claims.calls)
 	}
 }
@@ -290,13 +290,45 @@ func TestStartClaimsForTheMailboxThatOwnsTheConversation(t *testing.T) {
 	if _, err := r.useCase(t).Execute(context.Background(), in); err != nil {
 		t.Fatal(err)
 	}
-	if r.claims.calls[0] != "conv-1|email|"+salesSender+"|ws-1|"+operator+"|"+ia.TriggerOutreachSent {
+	if r.claims.calls[0] != "conv-1|email|"+salesSender+"|ws-1|"+operator {
 		t.Fatalf("claims = %v", r.claims.calls)
 	}
 
+}
+
+func TestStartFailsClosedWhenTheStarterCannotBeGivenTheConversation(t *testing.T) {
 	failing := newRig()
-	failing.claims.err = errors.New("db down")
-	if started, err := failing.useCase(t).Execute(context.Background(), input()); err != nil || started.ConversationID != "conv-1" {
-		t.Fatalf("a failed claim never fails a sent email: %+v, %v", started, err)
+	failing.claims.err = ia.StarterNotAssigned(errors.New("db down"))
+
+	started, err := failing.useCase(t).Execute(context.Background(), input())
+
+	if !errors.Is(err, ia.ErrStarterNotAssigned) || transactionalemail.CodeOf(err) != CodeStarterNotAssigned {
+		t.Fatalf("err = %v code = %s, want %s instead of leaving the reply to the inbox's automation", err, transactionalemail.CodeOf(err), CodeStarterNotAssigned)
+	}
+	if started.ConversationID != "conv-1" || started.MessageID != "msg-1" {
+		t.Fatalf("started = %+v, the refusal still names the email that went out", started)
+	}
+}
+
+func TestStartFailsClosedWhenTheConversationsMailboxCannotBeRead(t *testing.T) {
+	r := newRig()
+	r.convs.senderOf = map[string]string{}
+
+	_, err := r.useCase(t).Execute(context.Background(), input())
+
+	if transactionalemail.CodeOf(err) != CodeStarterNotAssigned || len(r.claims.calls) != 0 {
+		t.Fatalf("err = %v claims = %v, want %s", err, r.claims.calls, CodeStarterNotAssigned)
+	}
+}
+
+func TestARepeatedStartGivesTheConversationToTheStarterAgain(t *testing.T) {
+	r := newRig()
+	r.send.result.Repeated = true
+
+	if _, err := r.useCase(t).Execute(context.Background(), input()); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.claims.calls) != 1 {
+		t.Fatalf("claims = %v, a retry after a refused claim must try again", r.claims.calls)
 	}
 }

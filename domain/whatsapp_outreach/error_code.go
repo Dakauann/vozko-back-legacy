@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"vozko/domain/balance"
+	ia "vozko/domain/inbox_assignment"
 	"vozko/domain/whatsapp/template"
 )
 
@@ -29,6 +30,7 @@ const (
 	CodeSendOutcomeUnknown     = "send_outcome_unknown"
 	CodeConversationNotFound   = "conversation_not_found"
 	CodeFormNotSendable        = "form_not_sendable"
+	CodeStarterNotAssigned     = ia.CodeStarterNotAssigned
 )
 
 var errorCodes = []struct {
@@ -60,6 +62,7 @@ var errorCodes = []struct {
 	{template.ErrBillingNotConfigured, CodeBillingUnavailable},
 	{ErrConversationNotFound, CodeConversationNotFound},
 	{template.ErrFormNotSendable, CodeFormNotSendable},
+	{ia.ErrStarterNotAssigned, CodeStarterNotAssigned},
 }
 
 func ErrorCode(err error) string {

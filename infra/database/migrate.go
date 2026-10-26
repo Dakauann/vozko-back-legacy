@@ -179,6 +179,7 @@ func autoMigratedModels() [][]any {
 			&schema.WorkspaceSubscription{},
 			&schema.PlanPricingItem{},
 			&schema.PlanVisibilityEntry{},
+			&schema.WorkspacePlanDuplication{},
 			&schema.WorkspaceAddonDefinition{},
 			&schema.WorkspaceAddonSubscription{},
 			&schema.Session{},

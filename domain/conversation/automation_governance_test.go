@@ -121,3 +121,23 @@ func TestParseResponsibleKindAcceptsOnlyAutomationKinds(t *testing.T) {
 		}
 	}
 }
+
+func TestAutomationProfileDelegatedOnlyWhileTheDelegateRuns(t *testing.T) {
+	delegate := &Automation{Kind: AutomationAgent, ID: "agent-2"}
+	cases := []struct {
+		name    string
+		profile AutomationProfile
+		want    bool
+	}{
+		{"delegated", AutomationProfile{Delegate: delegate}, true},
+		{"delegated and switched on", AutomationProfile{Delegate: delegate, AutomationEnabled: boolPtr(true)}, true},
+		{"delegated but paused", AutomationProfile{Delegate: delegate, AutomationEnabled: boolPtr(false)}, false},
+		{"unreadable delegate", AutomationProfile{Delegate: &Automation{Kind: AutomationAgent}}, false},
+		{"only the channel", AutomationProfile{AgentID: "agent-1", AgentResponsesEnabled: true}, false},
+	}
+	for _, tc := range cases {
+		if got := tc.profile.Delegated(); got != tc.want {
+			t.Errorf("%s: Delegated = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

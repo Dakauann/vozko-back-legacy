@@ -55,3 +55,13 @@ func ServiceMessage(alias string) string {
 		LiteralList(conversation.BillableDeliveryStatusStrings()),
 	)
 }
+
+func MetaBilledServiceIndexed(alias string) string {
+	return column(alias, "meta_pricing_billable") + " IS TRUE AND " +
+		column(alias, "meta_pricing_category") + " = " + Literal(conversation.MetaPricingCategoryService)
+}
+
+func MetaChargedService(alias string) string {
+	return MetaBilledServiceIndexed(alias) + " AND COALESCE(" + column(alias, "meta_conversation_origin") + ", '') <> " +
+		Literal(conversation.MetaOriginFreeEntryPoint)
+}

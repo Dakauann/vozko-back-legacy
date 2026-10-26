@@ -15,6 +15,7 @@ import (
 	"vozko/infra/repositories/conversationroute"
 	stage_repository "vozko/infra/repositories/stage"
 	conversation_usecase "vozko/usecases/conversation"
+	"vozko/usecases/conversation/automationgatetest"
 	emuc "vozko/usecases/emailinbox"
 	"vozko/usecases/shared/automationrefs"
 )
@@ -56,7 +57,7 @@ func TestEmailE2E_AReplyOnAConfiguredInboxReachesAnalysisStagingAndMemory(t *tes
 	w := newWorld(t)
 	live := &liveRefs{}
 	w.automation.forwardTo(conversation_usecase.NewInboundAutomation(nil, nil,
-		conversation_usecase.NewAnalysisScheduler(w.shared, live), conversation_repository.NewRepository(w.db)))
+		conversation_usecase.NewAnalysisScheduler(w.shared, live), conversation_repository.NewRepository(w.db), automationgatetest.Open()))
 	ws := w.sendingTenant("Loja Atendimento", roomyWallet)
 	ana := w.seedLeads(ws, 1, "atendimento")[0]
 	res, err := w.sendFromWorkflow(ws, ana, "atendimento:"+ana.ID)

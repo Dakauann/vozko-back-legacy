@@ -1,6 +1,7 @@
 package workflow_infra
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"testing"
@@ -10,9 +11,11 @@ import (
 	"gorm.io/gorm"
 
 	"vozko/domain/conversation"
+	ia "vozko/domain/inbox_assignment"
 	"vozko/domain/shared"
 	"vozko/domain/workflow"
 	conversation_repository "vozko/infra/repositories/conversation"
+	conversation_usecase "vozko/usecases/conversation"
 )
 
 func gateDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, *sql.DB) {
@@ -65,7 +68,7 @@ func TestGateReadsThePauseSwitchOfEveryChannelNotOnlyOfficialWhatsApp(t *testing
 					WithArgs("entry-1", "entry-1", string(channel)).
 					WillReturnRows(entryInfoRow(c.automation))
 
-				gate := NewAutomationGate(conversation_repository.NewEntryAutomationReader(db))
+				gate := NewAutomationGate(conversation_repository.NewEntryAutomationReader(db), ownerGate(""))
 				got, err := gate.AutomationEnabled("entry-1", string(channel))
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
@@ -104,7 +107,7 @@ func TestGateRefusesWhatItCannotReadInsteadOfLettingTheRunContinue(t *testing.T)
 			defer sqlDB.Close()
 			c.expect(mock)
 
-			got, err := NewAutomationGate(conversation_repository.NewEntryAutomationReader(db)).AutomationEnabled("entry-1", c.entryType)
+			got, err := NewAutomationGate(conversation_repository.NewEntryAutomationReader(db), ownerGate("")).AutomationEnabled("entry-1", c.entryType)
 			if err == nil {
 				t.Fatal("an unreadable automation state must be an error")
 			}
@@ -119,7 +122,50 @@ func TestGateRefusesWhatItCannotReadInsteadOfLettingTheRunContinue(t *testing.T)
 }
 
 func TestGateWithoutAReaderIsAnErrorNotAPass(t *testing.T) {
-	got, err := NewAutomationGate(nil).AutomationEnabled("entry-1", "whatsapp")
+	got, err := NewAutomationGate(nil, nil).AutomationEnabled("entry-1", "whatsapp")
+	if err == nil || got {
+		t.Fatalf("got %v, %v; want false and an error", got, err)
+	}
+}
+
+type fixedOwner string
+
+func (o fixedOwner) FindByEntry(workspaceID, entryID, entryType string) (*ia.InboxAssignment, error) {
+	if o == "" {
+		return nil, nil
+	}
+	return &ia.InboxAssignment{WorkspaceID: workspaceID, EntryID: entryID, EntryType: entryType, AssignedUserID: string(o)}, nil
+}
+
+type noDelegation struct {
+	conversation.DelegationRepository
+}
+
+func (noDelegation) Find(context.Context, string, shared.EntryType) (*conversation.Delegation, error) {
+	return nil, nil
+}
+
+type agentProfile struct{}
+
+func (agentProfile) EntryAutomation(string, string) (conversation.AutomationProfile, error) {
+	return conversation.AutomationProfile{AgentID: "agent-1", AgentResponsesEnabled: true}, nil
+}
+
+func ownerGate(owner fixedOwner) *conversation_usecase.AutomationGate {
+	return conversation_usecase.NewAutomationGate(conversation_usecase.AutomationGateDeps{Owners: owner, Delegations: noDelegation{}, Profiles: agentProfile{}})
+}
+
+func TestGateAsksTheConversationRuleWhetherAnAnsweringRunMayAct(t *testing.T) {
+	for owner, want := range map[fixedOwner]bool{"": true, "ai:agent-1": true, "user-1": false} {
+		got, err := NewAutomationGate(agentProfile{}, ownerGate(owner)).AutomationMayAct("ws-1", "entry-1", "instagram")
+		if err != nil || got != want {
+			t.Errorf("owner %q: may act = %v, %v, want %v", owner, got, err, want)
+		}
+	}
+}
+
+func TestGateWithoutTheConversationRuleIsAnErrorNotAPass(t *testing.T) {
+	got, err := NewAutomationGate(agentProfile{}, nil).AutomationMayAct("ws-1", "entry-1", "instagram")
 	if err == nil || got {
 		t.Fatalf("got %v, %v; want false and an error", got, err)
 	}

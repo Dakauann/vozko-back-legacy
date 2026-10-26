@@ -5,6 +5,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	attendancedomain "vozko/domain/attendance"
 	workspace_domain "vozko/domain/workspace"
 )
 
@@ -16,6 +17,8 @@ func RegisterProtectedRoutes(
 ) {
 	att := workspace_domain.ResourceAttendance
 	attRoutes := protected.PathPrefix("/attendance").Subrouter()
+	attRoutes.HandleFunc("/sections", ac(att, workspace_domain.ActionRead, h.GetAvailableSections)).Methods(http.MethodGet)
+	attRoutes.HandleFunc("/overview/"+string(attendancedomain.SectionServiceMessages), ac(att, workspace_domain.ActionRead, h.GetServiceMessagesSection)).Methods(http.MethodGet)
 	attRoutes.HandleFunc("/overview/{section}", ac(att, workspace_domain.ActionRead, h.GetOverviewSection)).Methods(http.MethodGet)
 	attRoutes.HandleFunc("/stats", ac(att, workspace_domain.ActionRead, h.GetAttendanceStats)).Methods(http.MethodGet)
 	attRoutes.HandleFunc("/windows", ac(att, workspace_domain.ActionRead, h.GetWindowStats)).Methods(http.MethodGet)

@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	"vozko/domain/conversation"
+	ia "vozko/domain/inbox_assignment"
 	"vozko/domain/lead"
 	lcs "vozko/domain/lead_campaign_send"
 	"vozko/domain/shared"
@@ -34,6 +36,12 @@ type ConversationClaimer interface {
 	ClaimIfUnassigned(entryID, entryType, businessPhoneID, workspaceID, userID, trigger string) (bool, error)
 }
 
+type StarterHolder interface {
+	HoldForStarter(in ia.ConversationStart) (ia.StartHold, error)
+	ConfirmStart(hold ia.StartHold)
+	ReleaseStart(hold ia.StartHold) error
+}
+
 type Deps struct {
 	Phones        businessphone.Repository
 	PhoneGrants   workspace_phone_access.Repository
@@ -50,6 +58,7 @@ type Deps struct {
 	SendClaims      campaignguard.SendClaims
 	History         conversation.MessageHistoryManager
 	Assignments     ConversationClaimer
+	Starts          StarterHolder
 	Sender          template.BilledTemplateSendUseCase
 	Now             func() time.Time
 }
@@ -61,6 +70,7 @@ type startConversationUseCase struct {
 func NewStartConversationUseCase(deps Deps) (wo.StartOfficialConversationUseCase, error) {
 	rules, err := newSendRules(deps, map[string]bool{
 		"organic campaign use case": deps.EnsureReceptive != nil,
+		"conversation starts":       deps.Starts != nil,
 	})
 	if err != nil {
 		return nil, err
@@ -162,6 +172,18 @@ func (uc *startConversationUseCase) Execute(ctx context.Context, in wo.StartConv
 		}
 	}
 
+	hold, err := uc.deps.Starts.HoldForStarter(ia.ConversationStart{
+		WorkspaceID: in.WorkspaceID,
+		EntryID:     entry.ID,
+		EntryType:   string(shared.EntryTypeWhatsApp),
+		AccountID:   phone.ID,
+		StarterID:   in.UserID,
+	})
+	if err != nil {
+		uc.markEntryFailed(entry.ID, nil, err)
+		return nil, err
+	}
+
 	d := delivery{
 		entry:        entry,
 		tmpl:         tmpl,
@@ -190,6 +212,7 @@ func (uc *startConversationUseCase) Execute(ctx context.Context, in wo.StartConv
 	})
 	sent = keepsClaim(err)
 	if err != nil {
+		uc.settleStart(hold, sent)
 		return nil, err
 	}
 
@@ -205,11 +228,21 @@ func (uc *startConversationUseCase) Execute(ctx context.Context, in wo.StartConv
 	}
 	if sendResult.Replayed {
 		result.Recorded = true
-		return result, nil
+	} else {
+		result.Recorded = uc.settle(ctx, d, sendResult)
 	}
-
-	result.Recorded = uc.settle(ctx, d, sendResult)
+	uc.settleStart(hold, sent)
 	return result, nil
+}
+
+func (uc *startConversationUseCase) settleStart(hold ia.StartHold, sent bool) {
+	if sent {
+		uc.deps.Starts.ConfirmStart(hold)
+		return
+	}
+	if err := uc.deps.Starts.ReleaseStart(hold); err != nil {
+		log.Printf("[whatsapp-outreach] the template to entry %s was not sent and the conversation could not be put back as it was: %v", hold.Start.EntryID, err)
+	}
 }
 
 func (uc *startConversationUseCase) findExistingEntry(workspaceID, number, phoneID string) (*wce.WhatsAppCampaignEntry, bool) {

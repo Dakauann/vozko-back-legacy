@@ -72,6 +72,7 @@ func (d commentAlertDispatcher) dispatchUnofficial(ctx context.Context, in ca.Al
 	}
 	started, err := d.unofficial.Execute(ctx, uwuc.StartConversationInput{
 		WorkspaceID: in.WorkspaceID,
+		UserID:      in.ActorUserID,
 		InstanceID:  instanceID,
 		PhoneNumber: recipient,
 	})

@@ -72,6 +72,10 @@ func (b Billing) price(workspaceID string) (workspace_pricing.PriceResult, error
 	return b.pricer.PriceWhatsAppCategory(workspaceID, conversation.MetaPricingCategoryService)
 }
 
+func (b Billing) ServiceMessagePrice(workspaceID string) (workspace_pricing.PriceResult, error) {
+	return b.price(workspaceID)
+}
+
 func (b Billing) AllowSend(workspaceID string) error {
 	result, err := b.price(workspaceID)
 	if err != nil {

@@ -18,6 +18,7 @@ import (
 const (
 	CodeIdempotencyKeyRequired = transactionalemail.CodeIdempotencyKeyRequired
 	CodeForbidden              = "email_outreach_forbidden"
+	CodeStarterNotAssigned     = "email_" + ia.CodeStarterNotAssigned
 
 	idempotencyPrefix = "outreach:"
 )
@@ -43,7 +44,7 @@ type Conversations interface {
 }
 
 type ConversationClaimer interface {
-	ClaimIfUnassigned(entryID, entryType, accountID, workspaceID, userID, trigger string) (bool, error)
+	ClaimForStarter(in ia.ConversationStart) error
 }
 
 type Deps struct {
@@ -124,7 +125,9 @@ func (uc *StartConversation) Execute(ctx context.Context, in Input) (Started, er
 		Recorded:       sent.ConversationID != "",
 	}
 	if started.Recorded {
-		uc.claim(ctx, in, sent.ConversationID)
+		if err := uc.claim(ctx, in, sent.ConversationID); err != nil {
+			return started, refuse(CodeStarterNotAssigned, err)
+		}
 	}
 	return started, nil
 }
@@ -183,13 +186,21 @@ func (uc *StartConversation) reaches(ctx context.Context, in Input, sender *es.S
 	return nil
 }
 
-func (uc *StartConversation) claim(ctx context.Context, in Input, conversationID string) {
+func (uc *StartConversation) claim(ctx context.Context, in Input, conversationID string) error {
 	conv, err := uc.d.Conversations.FindByID(ctx, conversationID)
 	if err != nil {
 		log.Printf("[email-outreach] email sent into conversation %s but its mailbox could not be read to assign %s: %v", conversationID, in.UserID, err)
-		return
+		return ia.StarterNotAssigned(fmt.Errorf("mailbox of conversation %s: %w", conversationID, err))
 	}
-	if _, err := uc.d.Assignments.ClaimIfUnassigned(conv.ID, string(shared.EntryTypeEmail), conv.SenderID, in.WorkspaceID, in.UserID, ia.TriggerOutreachSent); err != nil {
+	err = uc.d.Assignments.ClaimForStarter(ia.ConversationStart{
+		WorkspaceID: in.WorkspaceID,
+		EntryID:     conv.ID,
+		EntryType:   string(shared.EntryTypeEmail),
+		AccountID:   conv.SenderID,
+		StarterID:   in.UserID,
+	})
+	if err != nil {
 		log.Printf("[email-outreach] email sent into conversation %s but it could not be assigned to %s: %v", conversationID, in.UserID, err)
 	}
+	return err
 }

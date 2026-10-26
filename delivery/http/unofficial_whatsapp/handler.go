@@ -10,6 +10,7 @@ import (
 	"vozko/delivery/http/httpx"
 	"vozko/delivery/http/response"
 	"vozko/domain/conversation"
+	ia "vozko/domain/inbox_assignment"
 	"vozko/domain/shared"
 	uw "vozko/domain/unofficial_whatsapp"
 	user_domain "vozko/domain/user"
@@ -386,6 +387,10 @@ func writeDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, uw.ErrGroupNotFound), errors.Is(err, uwuc.ErrGroupNotInWorkspace):
 		response.WriteError(w, http.StatusNotFound, "not found", nil)
 
+	case errors.Is(err, ia.ErrStarterNotAssigned):
+		response.WriteErrorWithCode(w, http.StatusServiceUnavailable, ia.CodeStarterNotAssigned,
+			"não foi possível atribuir a conversa a você, então ela não foi aberta; tente novamente", nil)
+
 	case errors.Is(err, uw.ErrNotGroupAdmin):
 		response.WriteError(w, http.StatusForbidden,
 			"the connected number is not an admin of this group", nil)
@@ -476,6 +481,21 @@ type startedConversationDTO struct {
 	AlreadyExisted bool   `json:"alreadyExisted"`
 }
 
+// @Summary		Iniciar conversa no WhatsApp não oficial
+// @Description	Abre, ou reaproveita, a conversa do número `phoneNumber` neste número conectado e a atribui a quem a iniciou, para que o agente ou fluxo do número não responda ao contato enquanto essa pessoa for a responsável. Uma conversa de um colega continua com o colega, e uma delegação feita por uma pessoa continua valendo. Se a conversa não puder ser atribuída a quem a iniciou, nada é aberto e a resposta é 503 `starter_not_assigned` (tente de novo).
+// @Tags			Unofficial WhatsApp
+// @Accept			json
+// @Produce		json
+// @Param			id		path		string						true	"ID do número conectado"
+// @Param			body	body		startConversationRequest	true	"Número de destino e nome"
+// @Success		200		{object}	startedConversationDTO
+// @Failure		400		{object}	response.ErrorResponse
+// @Failure		403		{object}	response.ErrorResponse
+// @Failure		404		{object}	response.ErrorResponse
+// @Failure		409		{object}	response.ErrorResponse
+// @Failure		503		{object}	response.ErrorResponse
+// @Security		BearerAuth
+// @Router			/unofficial-whatsapp/instances/{id}/conversations [post]
 func (h *Handler) StartConversation(w http.ResponseWriter, r *http.Request) {
 	workspaceID, scope, ok := h.requireScope(w, r)
 	if !ok {
@@ -489,6 +509,7 @@ func (h *Handler) StartConversation(w http.ResponseWriter, r *http.Request) {
 
 	started, err := h.startConv.Execute(r.Context(), uwuc.StartConversationInput{
 		WorkspaceID: workspaceID,
+		UserID:      middleware.GetClaims(r).UserID,
 		Scope:       scope,
 		InstanceID:  mux.Vars(r)["id"],
 		PhoneNumber: req.PhoneNumber,

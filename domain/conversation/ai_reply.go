@@ -9,7 +9,6 @@ type AIReplyRequest struct {
 
 	AgentID               string
 	AgentResponsesEnabled bool
-	AutomationEnabled     *bool
 
 	Text       string
 	Disclosure string

@@ -10,17 +10,26 @@ import (
 )
 
 type gateStub struct {
-	enabled  bool
-	err      error
-	asked    int
-	lastID   string
-	lastType string
+	enabled       bool
+	mayAct        bool
+	err           error
+	asked         int
+	askedOwner    int
+	lastID        string
+	lastType      string
+	lastWorkspace string
 }
 
 func (g *gateStub) AutomationEnabled(entryID, entryType string) (bool, error) {
 	g.asked++
 	g.lastID, g.lastType = entryID, entryType
 	return g.enabled, g.err
+}
+
+func (g *gateStub) AutomationMayAct(workspaceID, entryID, entryType string) (bool, error) {
+	g.askedOwner++
+	g.lastWorkspace, g.lastID, g.lastType = workspaceID, entryID, entryType
+	return g.mayAct, g.err
 }
 
 type runRepoStub struct {
@@ -72,7 +81,7 @@ func TestResumeCancelsWhenAutomationWasTurnedOff(t *testing.T) {
 	}
 
 	if run.Status != workflow.RunStatusCancelled {
-		t.Errorf("status = %q, want cancelled — an error would retry and eventually deliver the very message the operator silenced", run.Status)
+		t.Errorf("status = %q, want cancelled, since an error would retry and eventually deliver the very message the operator silenced", run.Status)
 	}
 	if runs.updates != 1 || runs.updated != run {
 		t.Errorf("the cancellation must be persisted once, got %d update(s)", runs.updates)
@@ -119,20 +128,27 @@ func (w *passthroughWorkflowRepo) FindByID(string) (*workflow.Workflow, error) {
 func TestAutomationOffAllowsOnlyWhenThereIsNothingToCheck(t *testing.T) {
 	engine := testEngine(nil, nil, nil)
 	engine.automationGate = SandboxAutomationGate{}
-	if off, err := engine.automationOff("entry-1", "whatsapp"); off || err != nil {
+	if off, err := engine.automationOff(parkedRun()); off || err != nil {
 		t.Error("the sandbox gate is the explicit always-on answer for simulations")
+	}
+	answering := parkedRun()
+	answering.TriggerType = workflow.TriggerMessageReceived
+	if off, err := engine.automationOff(answering); off || err != nil {
+		t.Error("the sandbox gate lets an answering run act too")
 	}
 
 	engine.automationGate = &gateStub{enabled: false}
-	if off, err := engine.automationOff("", "whatsapp"); off || err != nil {
+	unattached := parkedRun()
+	unattached.EntryID = ""
+	if off, err := engine.automationOff(unattached); off || err != nil {
 		t.Error("an empty entry id has nothing to check and must be allowed")
 	}
-	if off, err := engine.automationOff("entry-1", "whatsapp"); !off || err != nil {
+	if off, err := engine.automationOff(parkedRun()); !off || err != nil {
 		t.Error("an explicit disabled answer must stop the run")
 	}
 
 	engine.automationGate = &gateStub{enabled: true, err: errors.New("db down")}
-	off, err := engine.automationOff("entry-1", "whatsapp")
+	off, err := engine.automationOff(parkedRun())
 	if !errors.Is(err, workflow.ErrAutomationStateUnreadable) {
 		t.Errorf("err = %v, want ErrAutomationStateUnreadable", err)
 	}
@@ -240,5 +256,78 @@ func TestALeadRunHasNoConversationPauseSwitchToRead(t *testing.T) {
 	}
 	if gate.asked != 0 {
 		t.Fatalf("the conversation switch was read %d time(s) for a lead run", gate.asked)
+	}
+}
+
+func answeringRun(trigger workflow.TriggerType) *workflow.WorkflowRun {
+	run := parkedRun()
+	run.WorkspaceID = "ws-1"
+	run.TriggerType = trigger
+	return run
+}
+
+func TestAnAnsweringRunStopsWhenAPersonOwnsTheConversation(t *testing.T) {
+	for _, trigger := range []workflow.TriggerType{workflow.TriggerMessageReceived, workflow.TriggerFirstMessage, workflow.TriggerAgentCall} {
+		t.Run(string(trigger), func(t *testing.T) {
+			gate := &gateStub{enabled: true, mayAct: false}
+			engine := testEngine(nil, nil, nil)
+			engine.automationGate = gate
+			run := answeringRun(trigger)
+
+			if err := resumeRunFromCurrent(&workflowRepoStub{t: t}, &runRepoStub{}, engine, run); err != nil {
+				t.Fatal(err)
+			}
+
+			if run.Status != workflow.RunStatusCancelled {
+				t.Fatalf("status = %q, the run would answer over the person", run.Status)
+			}
+			if gate.askedOwner != 1 || gate.asked != 0 || gate.lastWorkspace != "ws-1" || gate.lastID != "entry-1" {
+				t.Fatalf("owner asked %d, switch asked %d, about %q/%q", gate.askedOwner, gate.asked, gate.lastWorkspace, gate.lastID)
+			}
+		})
+	}
+}
+
+func TestAnAnsweringRunGoesOnWhileAutomationMayAct(t *testing.T) {
+	engine := testEngine(nil, nil, nil)
+	engine.automationGate = &gateStub{mayAct: true}
+	wfs := &passthroughWorkflowRepo{}
+	run := answeringRun(workflow.TriggerMessageReceived)
+
+	_ = resumeRunFromCurrent(wfs, &runRepoStub{}, engine, run)
+
+	if !wfs.fetched || run.Status == workflow.RunStatusCancelled {
+		t.Fatalf("fetched %v, status %q; the automation still owns the conversation", wfs.fetched, run.Status)
+	}
+}
+
+func TestAnAnsweringRunRetriesWhenTheOwnerCannotBeRead(t *testing.T) {
+	engine := testEngine(nil, nil, nil)
+	engine.automationGate = &gateStub{mayAct: true, err: errors.New("db down")}
+	run := answeringRun(workflow.TriggerMessageReceived)
+
+	if err := resumeRunFromCurrent(&workflowRepoStub{t: t}, &runRepoStub{}, engine, run); err != nil {
+		t.Fatal(err)
+	}
+	if run.Status != workflow.RunStatusWaiting || run.State.GetInt(workflow.StateKeyGateAttempts) != 1 {
+		t.Fatalf("status %q, gate attempts %d; an unreadable owner runs nothing and retries", run.Status, run.State.GetInt(workflow.StateKeyGateAttempts))
+	}
+}
+
+func TestARunAPersonsActionStartedOnlyStopsForThePause(t *testing.T) {
+	for _, trigger := range []workflow.TriggerType{workflow.TriggerStageAdded, workflow.TriggerFormSubmitted, workflow.TriggerWebhook} {
+		t.Run(string(trigger), func(t *testing.T) {
+			gate := &gateStub{enabled: true, mayAct: false}
+			engine := testEngine(nil, nil, nil)
+			engine.automationGate = gate
+			wfs := &passthroughWorkflowRepo{}
+			run := answeringRun(trigger)
+
+			_ = resumeRunFromCurrent(wfs, &runRepoStub{}, engine, run)
+
+			if !wfs.fetched || run.Status == workflow.RunStatusCancelled || gate.askedOwner != 0 {
+				t.Fatalf("fetched %v, status %q, owner asked %d", wfs.fetched, run.Status, gate.askedOwner)
+			}
+		})
 	}
 }

@@ -74,7 +74,7 @@ func (c countingRows) CountInboundByEntry(string, shared.EntryType) (int64, erro
 func TestInboundAutomationNamesTheStoredMessageThatTriggeredTheWorkflow(t *testing.T) {
 	ev := &recordingEvaluator{}
 	rows := countingRows{count: 1, storedRows: storedRows{byProvider: map[string]*conversation.Message{"telegram|e-1|tg:1": {ID: "row-9"}}}}
-	auto := NewInboundAutomation(ev, &recordingReplier{}, &recordingScheduler{}, rows)
+	auto := NewInboundAutomation(ev, &recordingReplier{}, &recordingScheduler{}, rows, openGate())
 	in := automationInput()
 	in.ProviderMessageID = "tg:1"
 

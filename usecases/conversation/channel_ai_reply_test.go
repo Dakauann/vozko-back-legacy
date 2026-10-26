@@ -11,7 +11,6 @@ import (
 )
 
 func TestChannelAIReplyGate(t *testing.T) {
-	enabled, disabled := true, false
 
 	base := func() conversation.AIReplyRequest {
 		return conversation.AIReplyRequest{
@@ -29,16 +28,7 @@ func TestChannelAIReplyGate(t *testing.T) {
 		mutate  func(*conversation.AIReplyRequest)
 		wantRun bool
 	}{
-		{"account on, never overridden", func(r *conversation.AIReplyRequest) {}, true},
-		{"account on, conversation explicitly on", func(r *conversation.AIReplyRequest) { r.AutomationEnabled = &enabled }, true},
-
-		{"conversation overridden off", func(r *conversation.AIReplyRequest) { r.AutomationEnabled = &disabled }, false},
-
-		{"account off, conversation on", func(r *conversation.AIReplyRequest) {
-			r.AgentResponsesEnabled = false
-			r.AutomationEnabled = &enabled
-		}, false},
-
+		{"account on", func(r *conversation.AIReplyRequest) {}, true},
 		{"account off", func(r *conversation.AIReplyRequest) { r.AgentResponsesEnabled = false }, false},
 		{"no agent configured", func(r *conversation.AIReplyRequest) { r.AgentID = "" }, false},
 		{"blank agent id", func(r *conversation.AIReplyRequest) { r.AgentID = "   " }, false},

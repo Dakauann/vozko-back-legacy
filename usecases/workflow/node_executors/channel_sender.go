@@ -168,6 +168,7 @@ func (s *channelSender) SendText(
 			To:                ec.ContactRef,
 			Text:              text,
 			Timestamp:         time.Now().UTC(),
+			DeliveryStatus:    outcome.RecordedStatus(),
 		}); err != nil {
 			return nil, err
 		}
@@ -256,6 +257,7 @@ func (s *channelSender) SendMedia(
 			MediaURL:          mediaURL,
 			Text:              caption,
 			Timestamp:         time.Now().UTC(),
+			DeliveryStatus:    outcome.RecordedStatus(),
 		}); err != nil {
 			return nil, err
 		}
@@ -374,6 +376,7 @@ func (s *channelSender) SendInteractive(
 			Text:              req.Body,
 			Interactive:       content,
 			Timestamp:         time.Now().UTC(),
+			DeliveryStatus:    outcome.RecordedStatus(),
 		}); err != nil {
 			return nil, err
 		}
@@ -490,6 +493,7 @@ func (s *channelSender) SendSegments(
 				To:                ec.ContactRef,
 				Text:              text,
 				Timestamp:         time.Now().UTC(),
+				DeliveryStatus:    outcome.RecordedStatus(),
 			}); err != nil {
 				return false, err
 			}

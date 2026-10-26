@@ -36,7 +36,8 @@ func (c *Container) initEmailInbox(history conversation_domain.MessageHistoryMan
 		c.mustChannelAIReply(),
 		c.services.analysisScheduler,
 		c.repositories.conversation,
-	).WithDelegations(c.services.delegations)
+		c.services.automationGate,
+	)
 	inbox, err := emailwiring.NewInbox(c.db, emailwiring.InboxAdapters{
 		Sending:     email.Sending.Module,
 		Raw:         email.Sending.Raw,
