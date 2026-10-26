@@ -36,6 +36,7 @@ func screenPrompt(view copilot.View) string {
 	b.WriteString("- membro: " + orEveryone(view.MemberID) + "\n")
 	b.WriteString("- canal: " + orEveryone(view.Channel) + "\n")
 	b.WriteString("- campanha: " + orEveryone(view.CampaignID) + "\n")
+	b.WriteString("- origem da conversa: " + orEveryone(view.Origin) + "\n")
 	if view.IncludeAI != nil && !*view.IncludeAI {
 		b.WriteString("- agentes de IA e automações: ocultos na equipe\n")
 	}

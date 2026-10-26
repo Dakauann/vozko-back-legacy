@@ -5,6 +5,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"vozko/domain/conversation"
 )
 
 func TestParseSectionAcceptsEverySection(t *testing.T) {
@@ -35,6 +37,7 @@ func fingerprintFilter() OverviewFilter {
 		CampaignID:   "c1",
 		CampaignType: "whatsapp",
 		Channel:      "whatsapp",
+		Origin:       conversation.OriginReceptive,
 		IncludeAI:    true,
 		TrendBuckets: 13,
 		RankMetric:   "resolved",
@@ -73,6 +76,8 @@ func TestFingerprintChangesWithEveryScopingField(t *testing.T) {
 		"campaign_id":   func(f *OverviewFilter) { f.CampaignID = "c2" },
 		"campaign_type": func(f *OverviewFilter) { f.CampaignType = "" },
 		"channel":       func(f *OverviewFilter) { f.Channel = "instagram" },
+		"origin":        func(f *OverviewFilter) { f.Origin = conversation.OriginCampaign },
+		"no origin":     func(f *OverviewFilter) { f.Origin = "" },
 	}
 	base := fingerprintFilter()
 	for name, mutate := range mutations {

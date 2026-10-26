@@ -7,7 +7,7 @@ import (
 	"vozko/domain/geo"
 )
 
-func AreaViewport(areas []crmfilter.AreaBounds, s Summary) (Viewport, bool) {
+func AreaViewport(areas []crmfilter.AreaBounds) (Viewport, bool) {
 	var union *geo.BBox
 	for _, a := range areas {
 		box := geo.BBox{South: a.South, West: a.West, North: a.North, East: a.East}
@@ -27,5 +27,5 @@ func AreaViewport(areas []crmfilter.AreaBounds, s Summary) (Viewport, bool) {
 	if !ok {
 		return Viewport{}, false
 	}
-	return Viewport{BBox: box, Basis: BasisArea, View: s.DefaultView()}, true
+	return Viewport{BBox: box, Basis: BasisArea}, true
 }

@@ -3,6 +3,8 @@ package conversation_repository
 import (
 	"strings"
 
+	"github.com/lib/pq"
+
 	"vozko/domain/conversation"
 	"vozko/domain/shared"
 	"vozko/infra/database/sqlexpr"
@@ -273,6 +275,7 @@ type entrySourceScope struct {
 	WhatsAppCampaignType string
 	ConversationStatus   string
 	ExcludeFinished      bool
+	Origins              []conversation.Origin
 
 	DepartmentIDs          []string
 	RestrictDepartments    bool
@@ -312,11 +315,27 @@ func (src entrySource) conditions(scope entrySourceScope) (string, []interface{}
 		}
 	}
 
+	if clause, originArgs := originClause(scope.Origins, src.EntryID, "'"+string(src.EntryType)+"'"); clause != "" {
+		sql.WriteString(" AND " + clause)
+		args = append(args, originArgs...)
+	}
+
 	rule, ruleArgs := src.visibilityConditions(scope.visibility())
 	sql.WriteString(rule)
 	args = append(args, ruleArgs...)
 
 	return sql.String(), args
+}
+
+func originClause(origins []conversation.Origin, entryID, entryType string) (string, []interface{}) {
+	if origins == nil {
+		return "", nil
+	}
+	values := make([]string, len(origins))
+	for i, origin := range origins {
+		values[i] = string(origin)
+	}
+	return sqlexpr.ConversationOriginIn(entryID, entryType), []interface{}{pq.Array(values)}
 }
 
 func (s entrySourceScope) visibility() conversation.VisibilityScope {

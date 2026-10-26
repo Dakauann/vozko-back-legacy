@@ -47,7 +47,7 @@ func seedInboxWorld(t *testing.T) inboxWorld {
 		&schema.TelegramAccount{},
 		&schema.TelegramContact{},
 		&schema.TelegramConversation{},
-		&schema.ConversationMessage{},
+		&schema.ConversationMessage{}, &schema.ConversationOrigin{},
 		&schema.ConversationPersonalMark{},
 		&schema.Label{},
 		&schema.EntryLabel{},

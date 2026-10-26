@@ -19,7 +19,7 @@ func purgeDB(t *testing.T) *gorm.DB {
 	db.Config.DisableForeignKeyConstraintWhenMigrating = true
 	if err := db.AutoMigrate(
 		&schema.ConversationMessage{}, &schema.ConversationMedia{}, &schema.ConversationEvent{}, &schema.ConversationNote{},
-		&schema.ConversationPersonalMark{}, &schema.ConversationDelegation{}, &schema.ConversationAdOrigin{},
+		&schema.ConversationPersonalMark{}, &schema.ConversationDelegation{}, &schema.ConversationAdOrigin{}, &schema.ConversationOrigin{},
 		&schema.ConversationLiveRead{}, &schema.LiveDecisionRecord{}, &schema.AIAttendanceSession{}, &schema.AssignmentHistory{},
 		&schema.InboxAssignment{}, &schema.EntryLabel{}, &schema.EntryStage{}, &schema.OpportunityConversation{},
 		&schema.ScheduledMessage{}, &schema.LeadExitRun{}, &schema.WhatsAppFormSend{}, &schema.WhatsAppFormResponse{},

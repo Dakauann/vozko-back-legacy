@@ -42,6 +42,7 @@ type View struct {
 	Channel      string     `json:"channel,omitempty"`
 	CampaignID   string     `json:"campaignId,omitempty"`
 	CampaignType string     `json:"campaignType,omitempty"`
+	Origin       string     `json:"origin,omitempty"`
 	IncludeAI    *bool      `json:"includeAi,omitempty"`
 	ProjectID    string     `json:"projectId,omitempty"`
 	ProjectKind  StudioKind `json:"projectKind,omitempty"`

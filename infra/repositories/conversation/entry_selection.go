@@ -26,16 +26,22 @@ func filteredEntriesCTE(input conversation.SearchByFilterInput, extra ...entryCo
 		return "", nil, errFilterWorkspaceRequired
 	}
 
+	origins, rest, err := conversation.OriginScopeOf(input.Filter)
+	if err != nil {
+		return "", nil, err
+	}
+
 	desc := crmfiltersql.NewConversationDescriptor()
 	desc.WorkspaceID = wsID
 	desc.LastActivityExpr = "ae.lm_created_at"
-	whereSQL, whereArgs, err := crmfiltersql.Compile(input.Filter, desc, 1)
+	whereSQL, whereArgs, err := crmfiltersql.Compile(rest, desc, 1)
 	if err != nil {
 		return "", nil, err
 	}
 
 	entryCTE, entryArgs := buildEntryUnion(entrySourceScope{
 		WhatsAppCampaignType:   input.WhatsAppCampaignType,
+		Origins:                origins,
 		DepartmentIDs:          input.DepartmentIDs,
 		RestrictDepartments:    input.RestrictDepartments,
 		AssigneeOverrideUserID: input.AssigneeOverrideUserID,

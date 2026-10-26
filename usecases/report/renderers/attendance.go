@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"vozko/domain/attendance"
+	"vozko/domain/conversation"
 	"vozko/domain/report"
 	"vozko/domain/workspace"
 )
@@ -20,6 +21,7 @@ type AttendanceParams struct {
 	CampaignID   string `json:"campaignId,omitempty"`
 	CampaignType string `json:"campaignType,omitempty"`
 	Channel      string `json:"channel,omitempty"`
+	Origin       string `json:"origin,omitempty"`
 	IncludeAI    *bool  `json:"includeAi,omitempty"`
 	RankMetric   string `json:"rankMetric,omitempty"`
 	TrendBuckets int    `json:"trendBuckets,omitempty"`
@@ -28,9 +30,10 @@ type AttendanceParams struct {
 	DepartmentLabel string `json:"departmentLabel,omitempty"`
 	MemberLabel     string `json:"memberLabel,omitempty"`
 	ChannelLabel    string `json:"channelLabel,omitempty"`
+	OriginLabel     string `json:"originLabel,omitempty"`
 }
 
-func (p AttendanceParams) Filter() attendance.OverviewFilter {
+func (p AttendanceParams) Filter() (attendance.OverviewFilter, error) {
 	filter := attendance.OverviewFilter{
 		DepartmentID: p.DepartmentID,
 		MemberID:     p.MemberID,
@@ -47,7 +50,14 @@ func (p AttendanceParams) Filter() attendance.OverviewFilter {
 	if to, ok := parseDayEnd(p.DateTo); ok {
 		filter.DateTo = &to
 	}
-	return filter
+	if p.Origin != "" {
+		origin, err := conversation.ParseOrigin(p.Origin)
+		if err != nil {
+			return attendance.OverviewFilter{}, err
+		}
+		filter.Origin = origin
+	}
+	return filter, nil
 }
 
 type AttendanceOverviewSource interface {
@@ -92,7 +102,10 @@ func (r *AttendanceRenderer) Render(
 		return report.Artifact{}, fmt.Errorf("attendance report: reading parameters: %w", err)
 	}
 
-	filter := params.Filter()
+	filter, err := params.Filter()
+	if err != nil {
+		return report.Artifact{}, fmt.Errorf("attendance report: %w", err)
+	}
 
 	progress(10)
 	if err := ctx.Err(); err != nil {
@@ -184,6 +197,9 @@ func attendanceFiltersSection(
 		[]report.CSVCell{report.Text(t("filters.channel")), report.Text(params.ChannelLabel)},
 		[]report.CSVCell{report.Text(t("filters.includeAi")), report.Text(yesNo(t, params.IncludeAI == nil || *params.IncludeAI))},
 	)
+	if params.Origin != "" {
+		rows = append(rows, []report.CSVCell{report.Text(t("filters.origin")), report.Text(params.OriginLabel)})
+	}
 	if params.CampaignID != "" {
 		rows = append(rows, []report.CSVCell{report.Text(t("filters.campaign")), report.Text(params.CampaignID)})
 		if params.CampaignType != "" {
@@ -844,7 +860,11 @@ func (r *AttendanceRenderer) PrintData(ctx context.Context, job report.Job) (int
 		return nil, err
 	}
 
-	overview, err := r.source.Execute(job.WorkspaceID, params.Filter())
+	filter, err := params.Filter()
+	if err != nil {
+		return nil, fmt.Errorf("attendance print: %w", err)
+	}
+	overview, err := r.source.Execute(job.WorkspaceID, filter)
 	if err != nil {
 		return nil, fmt.Errorf("attendance print: reading the overview: %w", err)
 	}

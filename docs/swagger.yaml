@@ -496,26 +496,26 @@ definitions:
     type: object
   advertising.Destination:
     enum:
-    - WHATSAPP
-    - MESSENGER
-    - INSTAGRAM_DIRECT
     - WEBSITE
     - ON_AD
     - APP
     - ON_POST
     - NONE
     - CATALOG
+    - WHATSAPP
+    - MESSENGER
+    - INSTAGRAM_DIRECT
     type: string
     x-enum-varnames:
-    - DestinationWhatsApp
-    - DestinationMessenger
-    - DestinationInstagramDirect
     - DestinationWebsite
     - DestinationInstantForm
     - DestinationApp
     - DestinationOnPost
     - DestinationNone
     - DestinationCatalog
+    - DestinationWhatsApp
+    - DestinationMessenger
+    - DestinationInstagramDirect
   advertising.ExportLabels:
     properties:
       breakdowns:
@@ -806,7 +806,6 @@ definitions:
     - ObjectiveAppPromotion
   advertising.OptimizationGoal:
     enum:
-    - CONVERSATIONS
     - REACH
     - IMPRESSIONS
     - AD_RECALL_LIFT
@@ -820,9 +819,9 @@ definitions:
     - OFFSITE_CONVERSIONS
     - VALUE
     - APP_INSTALLS
+    - CONVERSATIONS
     type: string
     x-enum-varnames:
-    - GoalConversations
     - GoalReach
     - GoalImpressions
     - GoalAdRecallLift
@@ -836,6 +835,7 @@ definitions:
     - GoalOffsiteConversion
     - GoalValue
     - GoalAppInstalls
+    - GoalConversations
   advertising.Pixel:
     properties:
       creationTime:
@@ -3808,6 +3808,8 @@ definitions:
         type: string
       occupancy:
         type: string
+      origin:
+        type: string
       period:
         type: string
       period_scope:
@@ -3965,6 +3967,8 @@ definitions:
         type: boolean
       member_id:
         type: string
+      origin:
+        $ref: '#/definitions/conversation.Origin'
       rank_metric:
         type: string
       trend_buckets:
@@ -9444,6 +9448,8 @@ definitions:
         type: array
       mediaType:
         $ref: '#/definitions/conversation.MediaType'
+      origin:
+        $ref: '#/definitions/conversation.Origin'
       totalMatches:
         type: integer
       unreadCount:
@@ -9785,6 +9791,18 @@ definitions:
     - MessageTypePostShare
     - MessageTypeSticker
     - MessageTypeLinkShare
+  conversation.Origin:
+    enum:
+    - receptive
+    - campaign
+    - outreach
+    - unknown
+    type: string
+    x-enum-varnames:
+    - OriginReceptive
+    - OriginCampaign
+    - OriginOutreach
+    - OriginUnknown
   conversation.Outcome:
     properties:
       code:
@@ -10066,6 +10084,8 @@ definitions:
         $ref: '#/definitions/crmfilter.Filter'
       memberId:
         type: string
+      origin:
+        type: string
       projectId:
         type: string
       projectKind:
@@ -10251,6 +10271,7 @@ definitions:
     - opt_out_source
     - opted_out_at
     - company
+    - sentiment
     - area_approximate
     - owner
     - carteira
@@ -10274,6 +10295,7 @@ definitions:
     - number
     - age
     - blocked
+    - origin
     - campaign_status
     - campaign_count
     - memory_category
@@ -10309,6 +10331,7 @@ definitions:
     - FieldOptOutSource
     - FieldOptedOutAt
     - FieldCompany
+    - FieldSentiment
     - FieldAreaApproximate
     - FieldOwner
     - FieldCarteira
@@ -10332,6 +10355,7 @@ definitions:
     - FieldNumber
     - FieldAge
     - FieldBlocked
+    - FieldOrigin
     - FieldCampaignStatus
     - FieldCampaignCount
     - FieldMemoryCategory
@@ -11162,22 +11186,22 @@ definitions:
     type: object
   emailcampaign.HoldReason:
     enum:
+    - test_batch_bounces
+    - test_batch_complaints
     - ""
     - daily_cap
     - account_paused
     - sender_unavailable
     - balance_insufficient
-    - test_batch_bounces
-    - test_batch_complaints
     type: string
     x-enum-varnames:
+    - HoldTestBatchBounces
+    - HoldTestBatchComplaints
     - HoldNone
     - HoldDailyCap
     - HoldAccountPaused
     - HoldSenderUnavailable
     - HoldBalanceShort
-    - HoldTestBatchBounces
-    - HoldTestBatchComplaints
   emailcampaign.Issue:
     properties:
       addresses:
@@ -15995,6 +16019,8 @@ definitions:
         - approximate
         example: on_map
         type: string
+      sentiment:
+        $ref: '#/definitions/lead.MapSentimentResponse'
     type: object
   lead.MapCityResponse:
     properties:
@@ -16091,11 +16117,92 @@ definitions:
         example: 9
         type: integer
     type: object
+  lead.MapPeekLeadResponse:
+    properties:
+      addresses:
+        items:
+          $ref: '#/definitions/lead.AddressResponse'
+        type: array
+      age:
+        type: integer
+      birthDate:
+        example: "1990-04-21"
+        type: string
+      blocked:
+        type: boolean
+      blockedAt:
+        type: string
+      blockedBy:
+        type: string
+      companyId:
+        example: 3c2b1a00-7d1a-4c61-9a0e-2f8d4c1b2a10
+        type: string
+      createdAt:
+        type: string
+      customFields:
+        additionalProperties: {}
+        type: object
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      nameSource:
+        example: manual
+        type: string
+      nickname:
+        type: string
+      number:
+        type: string
+      optOutSource:
+        enum:
+        - operator
+        - lead_request
+        example: operator
+        type: string
+      optedOutAt:
+        type: string
+      owner:
+        type: string
+      phones:
+        items:
+          $ref: '#/definitions/lead.ContactPhoneResponse'
+        type: array
+      profilePictureUrl:
+        type: string
+      realName:
+        example: Maria Souza
+        type: string
+      referredCount:
+        type: integer
+      relativesCount:
+        type: integer
+      sentiment:
+        enum:
+        - positive
+        - neutral
+        - negative
+        example: negative
+        type: string
+      source:
+        example: manual
+        type: string
+      updatedAt:
+        type: string
+      version:
+        example: 3
+        type: integer
+      whatsappOptIn:
+        $ref: '#/definitions/lead.LeadConsentResponse'
+      workspaceId:
+        type: string
+    type: object
   lead.MapPeekResponse:
     properties:
       items:
         items:
-          $ref: '#/definitions/lead.LeadRecordResponse'
+          $ref: '#/definitions/lead.MapPeekLeadResponse'
         type: array
       total:
         example: 7
@@ -16119,6 +16226,13 @@ definitions:
       lng:
         example: -46.6559
         type: number
+      mood:
+        enum:
+        - positive
+        - neutral
+        - negative
+        example: negative
+        type: string
       placement:
         enum:
         - on_map
@@ -16135,6 +16249,8 @@ definitions:
         - city
         example: street
         type: string
+      sentiment:
+        $ref: '#/definitions/lead.MapSentimentResponse'
       tone:
         enum:
         - chart-1
@@ -16145,6 +16261,18 @@ definitions:
         - neutral
         example: chart-2
         type: string
+    type: object
+  lead.MapSentimentResponse:
+    properties:
+      negative:
+        example: 2
+        type: integer
+      neutral:
+        example: 0
+        type: integer
+      positive:
+        example: 1
+        type: integer
     type: object
   lead.MapSummaryResponse:
     properties:
@@ -16181,12 +16309,6 @@ definitions:
         $ref: '#/definitions/lead.MapBBoxResponse'
       city:
         $ref: '#/definitions/lead.MapCityResponse'
-      view:
-        enum:
-        - positions
-        - districts
-        example: positions
-        type: string
     type: object
   lead.NumberHolderResponse:
     properties:
@@ -18205,6 +18327,7 @@ definitions:
     type: object
   report.FailureCode:
     enum:
+    - forbidden
     - unknown_kind
     - unsupported_format
     - too_many_rows
@@ -18215,9 +18338,9 @@ definitions:
     - cancelled
     - workspace_required
     - empty_result
-    - forbidden
     type: string
     x-enum-varnames:
+    - FailureForbidden
     - FailureUnknownKind
     - FailureUnsupported
     - FailureTooManyRows
@@ -18228,7 +18351,6 @@ definitions:
     - FailureCancelled
     - FailureWorkspaceEmpty
     - FailureEmptyResult
-    - FailureForbidden
   report.Format:
     enum:
     - csv
@@ -18280,22 +18402,22 @@ definitions:
     type: object
   report.Kind:
     enum:
+    - leads
+    - whatsapp_dispatch
+    - whatsapp_form_responses
     - attendance_overview
     - conversation_entries
     - balance_transactions
     - opportunities
-    - leads
-    - whatsapp_dispatch
-    - whatsapp_form_responses
     type: string
     x-enum-varnames:
+    - KindLeads
+    - KindWhatsAppDispatch
+    - KindWhatsAppFormResponses
     - KindAttendanceOverview
     - KindConversationEntries
     - KindBalanceTransactions
     - KindOpportunities
-    - KindLeads
-    - KindWhatsAppDispatch
-    - KindWhatsAppFormResponses
   report.KindDescriptor:
     properties:
       formats:
@@ -24539,7 +24661,13 @@ definitions:
     type: object
   workflow.LintIssueCode:
     enum:
+    - NODE_INVALID_PLATFORM_EMAIL
+    - SEND_OUTSIDE_WINDOW_RISK
+    - NODE_AGENT_CALL_INPUTS_INVALID
+    - NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER
     - NODE_HTTP_URL_NOT_HTTPS
+    - DATA_REF_NEVER_SET
+    - DATA_REF_SOME_PATHS
     - GRAPH_EMPTY
     - GRAPH_TOO_MANY_NODES
     - GRAPH_TOO_MANY_EDGES
@@ -24588,16 +24716,16 @@ definitions:
     - NODE_CODE_READS_TEMPLATE
     - NODE_SECRET_IN_PLAIN_TEXT
     - NODE_PINNED_OUTPUT
-    - NODE_INVALID_PLATFORM_EMAIL
     - NODE_CONSENT_GRANT_NEEDS_REPLY
-    - SEND_OUTSIDE_WINDOW_RISK
-    - DATA_REF_NEVER_SET
-    - DATA_REF_SOME_PATHS
-    - NODE_AGENT_CALL_INPUTS_INVALID
-    - NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER
     type: string
     x-enum-varnames:
+    - LintInvalidPlatformEmail
+    - LintSendOutsideWindowRisk
+    - LintAgentCallInputsInvalid
+    - LintReplyToAgentWithoutTrigger
     - LintHTTPURLNotHTTPS
+    - LintDataRefNeverSet
+    - LintDataRefSomePaths
     - LintGraphEmpty
     - LintGraphTooManyNodes
     - LintGraphTooManyEdges
@@ -24646,13 +24774,7 @@ definitions:
     - LintCodeReadsTemplate
     - LintSecretInPlainText
     - LintPinnedOutput
-    - LintInvalidPlatformEmail
     - LintConsentGrantNeedsReply
-    - LintSendOutsideWindowRisk
-    - LintDataRefNeverSet
-    - LintDataRefSomePaths
-    - LintAgentCallInputsInvalid
-    - LintReplyToAgentWithoutTrigger
   workflow.LintSeverity:
     enum:
     - blocking
@@ -31018,9 +31140,9 @@ paths:
       description: Retorna uma seção da visão geral de atendimento (summary, trend,
         stages, backlog, team, rework ou live) para que a página carregue cada bloco
         quando ele entra na tela, com filtros opcionais por período, departamento,
-        membro, campanha e canal. As seções, exceto live, idênticas ficam em cache
-        por 60 segundos; quando o limite de consultas analíticas simultâneas está
-        ocupado, responde 503 com Retry-After.
+        membro, campanha, canal e origem da conversa. As seções, exceto live, idênticas
+        ficam em cache por 60 segundos; quando o limite de consultas analíticas simultâneas
+        está ocupado, responde 503 com Retry-After.
       parameters:
       - description: Seção
         enum:
@@ -31062,6 +31184,19 @@ paths:
       - description: Canal de atendimento
         in: query
         name: channel
+        type: string
+      - description: 'Origem da conversa, pela primeira mensagem: receptive (o contato
+          escreveu primeiro), campaign (começou por um disparo de campanha), outreach
+          (a equipe ou uma automação começou) ou unknown (remetente não registrado).
+          Vale para todas as seções exceto live; novos leads seguem o workspace inteiro.
+          Origem inválida responde 400 attendance_origin_invalid.'
+        enum:
+        - receptive
+        - campaign
+        - outreach
+        - unknown
+        in: query
+        name: origin
         type: string
       - description: Métrica de ordenação da equipe (apenas team)
         in: query
@@ -36735,7 +36870,10 @@ paths:
       description: Renderiza o quadro global do CRM do workspace, agrupado por etapa,
         etiqueta, responsável ou sem agrupamento, aplicando o filtro reutilizável,
         o pipeline e a paginação informados. Cada coluna traz suas conversas paginadas
-        e o total.
+        e o total. O predicado `origin` do filtro escolhe a origem da conversa pela
+        primeira mensagem (`receptive`, `campaign`, `outreach` ou `unknown`, com `in`,
+        `not_in`, `eq` ou `neq`); uma origem desconhecida responde 400 conversation_origin_invalid.
+        Cada conversa traz `Origin` quando a origem já está registrada.
       parameters:
       - description: ID do pipeline que escopa o quadro
         in: query
@@ -36922,7 +37060,10 @@ paths:
     get:
       description: Retorna a lista plana de conversas do CRM sobre o mesmo filtro
         reutilizável do quadro, com ordenação e paginação. A resposta traz as entradas
-        e o total.
+        e o total. O predicado `origin` do filtro escolhe a origem da conversa pela
+        primeira mensagem (`receptive`, `campaign`, `outreach` ou `unknown`, com `in`,
+        `not_in`, `eq` ou `neq`); uma origem desconhecida responde 400 conversation_origin_invalid.
+        Cada conversa traz `Origin` quando a origem já está registrada.
       parameters:
       - description: Filtro crmfilter em JSON (opcionalmente codificado em base64)
         in: query
@@ -44760,8 +44901,10 @@ paths:
         para a prévia do mapa. `placement` separa a casa localizada (`on_map`, o padrão)
         da posição aproximada no ponto de referência do CEP, bairro ou cidade (`approximate`),
         que nunca se misturam no mesmo ponto. Cada item vem projetado como em GET
-        /leads/{id} (campos sensíveis só com `leads:read_sensitive`). No máximo 50
-        itens, com `total` de pessoas na posição.
+        /leads/{id} (campos sensíveis só com `leads:read_sensitive`), mais `sentiment`
+        (`positive`, `neutral` ou `negative`) quando o lead tem uma conversa analisada;
+        sem análise o campo não vem. No máximo 50 itens, com `total` de pessoas na
+        posição.
       parameters:
       - description: Latitude do ponto
         in: query
@@ -44955,10 +45098,17 @@ paths:
         ou cidade (a contagem Aproximados); as duas classes nunca se juntam. Aceita
         os mesmos filtros de GET /leads (inclusive `area`, que só reúne `on_map`).
         `colorBy` precisa ser um campo de seleção de lead; um campo sensível exige
-        `leads:read_sensitive`. Cada tile fica em cache por 60 s por workspace, geração
-        dos leads, nível de campos de quem lê, filtro, hora da última alteração de
-        cada área, tile e `colorBy`; responde 503 com `Retry-After` quando o servidor
-        está ocupado.'
+        `leads:read_sensitive`. Todo ponto e toda célula trazem `sentiment` com quantas
+        pessoas ali têm sentimento `positive`, `neutral` ou `negative`: o sentimento
+        de um lead é o da análise mais recente da conversa mais recente analisada
+        que ainda é dele, em qualquer canal; um lead sem conversa analisada, ou cuja
+        análise mais recente traz um valor desconhecido, não entra em nenhuma das
+        três contagens. Um ponto traz também `mood`, o sentimento da maioria das pessoas
+        analisadas ali, com empate decidido para o pior (`negative`, depois `neutral`);
+        sem ninguém analisado o campo não vem. Cada tile fica em cache por 60 s por
+        workspace, geração dos leads, nível de campos de quem lê, filtro, hora da
+        última alteração de cada área, tile e `colorBy`; responde 503 com `Retry-After`
+        quando o servidor está ocupado.'
       parameters:
       - description: Zoom do tile (0 a 22)
         in: path
@@ -61947,6 +62097,7 @@ paths:
         "sort": "recent | waiting",
         "label_id": "string",
         "personal": "pinned",
+        "origin": "receptive | campaign | outreach | unknown",
         "page": 1,
         "page_size": 20
         }
@@ -61956,6 +62107,7 @@ paths:
         - `label_id`: só conversas com essa etiqueta. Um id ilegível responde `invalid_label`.
         - `is_group`: `true`, só conversas de grupo (hoje, grupos do WhatsApp não oficial); `false`, só conversas com pessoas. Num canal sem grupos, `true` não traz nada.
         - `personal`: sem valor, a sua caixa de entrada (as suas fixadas primeiro, todas as outras em seguida); `pinned`, só as que você fixou. Outro valor responde `invalid_personal`.
+        - `origin`: só conversas com essa origem, pela primeira mensagem: `receptive` (o contato escreveu primeiro), `campaign` (começou por uma mensagem de campanha), `outreach` (a equipe, a IA ou um fluxo começou) ou `unknown` (remetente não registrado). Uma conversa ainda sem origem registrada só aparece sem o filtro. Vale também para os totais e a paginação. Outro valor responde `invalid_origin`. Cada `InboxEntry` traz a sua `origin` quando ela já está registrada.
         - Em qualquer `sort`, as conversas que você fixou vêm primeiro. `request_inbox_page`, a primeira página ao conectar e `switch_view` usam a sua caixa de entrada (sem `personal`) com `sort: "recent"`. As colunas do funil (`request_funnel_column`, `request_funnel_summary`) não usam marcas pessoais.
 
         ### Marcas pessoais
@@ -61982,7 +62134,7 @@ paths:
         | `conversation:unsubscribed` | `{"entry_id": string, "entry_type": string}` |
         | `conversation:history` | `{"entry_id", "entry_type", "direction": "latest" \| "before" \| "around" \| "after", "messages": Message[], "has_more": boolean, "has_after": boolean, "total": number, "page_size": number}`. `direction` diz qual pedido a página responde: `latest` (primeira página de `subscribe`), `before` (`load_history`), `around` (`load_around`) ou `after` (`load_after`). As mensagens vêm sempre da mais antiga para a mais nova. `has_more`: há mensagens mais antigas que a página (não se aplica a `after`). `has_after`: há mensagens mais novas que a página (só em `around` e `after`). `total` vem em `latest` e `around`. |
         | `conversation:inbox` | `{"entries": InboxEntry[], "personal_marks": PersonalMark[], "page", "page_size", "total_items", "total_pages", "stage_counts"?: object, "conversation_status_counts"?: object, "available_labels"?: Label[]}`. `personal_marks` traz as suas marcas das conversas da página (lista vazia quando não há). |
-        | `conversation:search_results` | `{"query"?, "filters": object, "entries": InboxEntry[], "personal_marks": PersonalMark[], "page", "page_size", "total_items", "total_pages"}`. `filters` repete os filtros pedidos, inclusive `sort`, `label_id` e `personal`. |
+        | `conversation:search_results` | `{"query"?, "filters": object, "entries": InboxEntry[], "personal_marks": PersonalMark[], "page", "page_size", "total_items", "total_pages"}`. `filters` repete os filtros pedidos, inclusive `sort`, `label_id`, `personal` e `origin`. |
         | `conversation:personal_mark` | `{"entry_id", "entry_type", "mark": {"pinned_at"?: string, "unread_marked_at"?: string} \| null}`. Só para as suas conexões neste workspace: resposta a `pin_conversation`, `mark_unread` e `clear_unread_mark`, e também quando a sua marca muda sozinha (abrir ou ler a conversa). `mark: null`: nenhuma marca. |
         | `conversation:search_messages_results` | `{"entry_id", "entry_type", "query", "messages": Message[], "page", "page_size", "total_items", "total_pages"}` |
         | `conversation:entry_matches_results` | `{"entry_id", "entry_type", "query", "matches": MatchedMessage[], "page", "page_size", "total_items", "total_pages"}` |

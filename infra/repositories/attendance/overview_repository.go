@@ -428,25 +428,7 @@ func overviewEntrySelect(workspaceID string, f attendance.OverviewFilter) (strin
 	}
 
 	filterCampaignDeptMember := func(src channelSource) (string, []interface{}) {
-		extra := ""
-		var a []interface{}
-		if f.CampaignID != "" {
-			if f.CampaignType == "" || f.CampaignType == string(src.EntryType) {
-				extra += " AND " + src.ContainerIDColumn + " = ?"
-				a = append(a, f.CampaignID)
-			} else {
-				extra += " AND FALSE"
-			}
-		}
-		if f.DepartmentID != "" {
-			extra += " AND " + src.DepartmentColumn + " = ?"
-			a = append(a, f.DepartmentID)
-		}
-		if f.MemberID != "" {
-			extra += " AND ia.assigned_user_id = ?"
-			a = append(a, f.MemberID)
-		}
-		return extra, a
+		return scopeClause(src, f).build()
 	}
 
 	appendCreated := func(src channelSource, whereExtra string, whereArgs []interface{}) {
@@ -842,7 +824,7 @@ func aiSessionScope(prefix string, filter attendance.OverviewFilter) *sqlQuery {
 	if channel := strings.TrimSpace(filter.Channel); channel != "" {
 		query.add(" AND "+prefix+"channel = ?", channel)
 	}
-	return query
+	return query.addQuery(originClause(sqlexpr.CanonicalUUID(prefix+"entry_id"), prefix+"entry_type", filter.Origin))
 }
 
 func avgMessagesPerConversation(totalMessages, conversations int64) *float64 {

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"vozko/infra/repositories/repotest"
 
 	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
@@ -61,6 +62,7 @@ func integrationDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(&schema.WebchatWidget{}, &schema.WebchatVisitor{}, &schema.WebchatConversation{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
+	repotest.MigrateLeadSentiments(t, db)
 	for _, stmt := range []string{
 		`CREATE UNIQUE INDEX ux_wc_widget_public_key ON webchat_widgets (public_key)`,
 		`CREATE UNIQUE INDEX ux_wc_visitor_widget_external ON webchat_visitors (widget_id, external_id) WHERE external_id IS NOT NULL AND deleted_at IS NULL`,

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"vozko/domain/shared"
 
 	"vozko/domain/cache"
 	"vozko/domain/crmfilter"
@@ -27,9 +28,10 @@ type mapReader struct {
 	cells      []leadmap.Cell
 	districts  []leadmap.District
 	summary    leadmap.Summary
+	summaries  int
 	extent     *geo.BBox
 	city       *leadmap.CityPlace
-	atIDs      []string
+	atLeads    []leadmap.LeadAt
 	atTotal    int
 	leftOut    leadmap.LeftOut
 	failWith   error
@@ -41,6 +43,7 @@ func (r *mapReader) record(s leadmap.Scope) error {
 }
 
 func (r *mapReader) Summary(_ context.Context, s leadmap.Scope) (leadmap.Summary, error) {
+	r.summaries++
 	return r.summary, r.record(s)
 }
 
@@ -68,10 +71,10 @@ func (r *mapReader) TopCity(_ context.Context, s leadmap.Scope) (*leadmap.CityPl
 	return r.city, r.record(s)
 }
 
-func (r *mapReader) LeadsAt(_ context.Context, s leadmap.Scope, _ geo.Point, placement crmfilter.GeoPlacement, limit int) ([]string, int, error) {
+func (r *mapReader) LeadsAt(_ context.Context, s leadmap.Scope, _ geo.Point, placement crmfilter.GeoPlacement, limit int) ([]leadmap.LeadAt, int, error) {
 	r.limits = append(r.limits, limit)
 	r.placements = append(r.placements, placement)
-	return r.atIDs, r.atTotal, r.record(s)
+	return r.atLeads, r.atTotal, r.record(s)
 }
 
 func (r *mapReader) LeftOut(_ context.Context, s leadmap.Scope, limit int) (leadmap.LeftOut, error) {
@@ -279,29 +282,30 @@ func TestDistrictsKeepOnlyBairrosThatCanBeDrawn(t *testing.T) {
 	}
 }
 
-func TestTheViewportFollowsTheDefaultRule(t *testing.T) {
+func TestTheViewportFramesTheLeadsWithoutCountingThem(t *testing.T) {
 	f := newMapFixture()
-	f.reader.summary = leadmap.Summary{Total: 100, OnMap: 10}
 	f.reader.city = &leadmap.CityPlace{CityKey: "3550308", Name: "São Paulo", State: "SP", People: 70}
 	v, err := f.sections(t, mapViewer).Viewport(context.Background(), operator(), crmfilter.Filter{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.Basis != leadmap.BasisCountry || v.View != leadmap.ViewDistricts || v.City == nil || v.City.Name != "São Paulo" {
+	if v.Basis != leadmap.BasisCountry || v.City == nil || v.City.Name != "São Paulo" {
 		t.Fatalf("viewport = %+v", v)
 	}
+	if f.reader.summaries != 0 {
+		t.Fatalf("the viewport read the summary %d times; nothing it returns depends on it", f.reader.summaries)
+	}
 	f2 := newMapFixture()
-	f2.reader.summary = leadmap.Summary{Total: 10, OnMap: 9}
 	f2.reader.extent = &geo.BBox{South: -23.6, West: -46.7, North: -23.5, East: -46.6}
 	v, err = f2.sections(t, mapViewer).Viewport(context.Background(), operator(), crmfilter.Filter{})
-	if err != nil || v.Basis != leadmap.BasisLocated || v.View != leadmap.ViewPositions {
-		t.Fatalf("viewport = %+v %v", v, err)
+	if err != nil || v.Basis != leadmap.BasisLocated || f2.reader.summaries != 0 {
+		t.Fatalf("viewport = %+v %v, summaries %d", v, err, f2.reader.summaries)
 	}
 }
 
 func TestThePeekProjectsTheLeadsAtThePositionInTheirOrder(t *testing.T) {
 	f := newMapFixture()
-	f.reader.atIDs, f.reader.atTotal = []string{"l-2", "l-1"}, 7
+	f.reader.atLeads, f.reader.atTotal = []leadmap.LeadAt{{ID: "l-2", Sentiment: shared.SentimentNegative}, {ID: "l-1"}}, 7
 	f.leads.leads = []*lead.Lead{
 		{ID: "l-1", WorkspaceID: cmdWorkspace, Name: "Ana", CustomFields: map[string]any{"classificacao": "positivo", "cor": "azul"}},
 		{ID: "l-2", WorkspaceID: cmdWorkspace, Name: "Bia"},
@@ -315,6 +319,12 @@ func TestThePeekProjectsTheLeadsAtThePositionInTheirOrder(t *testing.T) {
 	}
 	if peek.Total != 7 || len(peek.Leads) != 2 || peek.Leads[0].ID != "l-2" || peek.Leads[1].ID != "l-1" {
 		t.Fatalf("peek = %+v", peek)
+	}
+	if peek.Sentiments["l-2"] != shared.SentimentNegative {
+		t.Fatalf("the peek carries the sentiment of each analysed lead, got %v", peek.Sentiments)
+	}
+	if _, unanalysed := peek.Sentiments["l-1"]; unanalysed {
+		t.Fatalf("a lead nobody analysed has no sentiment in the peek, got %v", peek.Sentiments)
 	}
 	if _, sensitive := peek.Leads[1].CustomFields["classificacao"]; sensitive {
 		t.Fatal("the peek is projected by VisibleFields")

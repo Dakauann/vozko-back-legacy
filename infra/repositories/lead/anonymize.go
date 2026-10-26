@@ -37,6 +37,8 @@ const (
 
 	eraseMemoriesSQL = "DELETE FROM lead_memories WHERE workspace_id = ? AND lead_id = ?"
 
+	eraseSentimentSQL = "DELETE FROM lead_sentiments WHERE workspace_id = ? AND lead_id = ?"
+
 	redactLeadEventsSQL = "UPDATE lead_events SET changes = CASE WHEN jsonb_typeof(changes) = 'array' THEN" +
 		" COALESCE((SELECT jsonb_agg(jsonb_build_object('field', item.change -> 'field', 'before', NULL, 'after', NULL, 'redacted', true) ORDER BY item.position)" +
 		" FROM jsonb_array_elements(changes) WITH ORDINALITY AS item(change, position)), '[]'::jsonb) ELSE '[]'::jsonb END" +
@@ -90,6 +92,7 @@ var leadScopedErasures = []erasureStep{
 	{lead.ErasureCallListItems, eraseCallListItemsSQL},
 	{lead.ErasureCustomerPortfolio, eraseCustomerPortfolioSQL},
 	{lead.ErasureGoogleSheetRows, eraseGoogleSheetRowsSQL},
+	{lead.ErasureSentiment, eraseSentimentSQL},
 }
 
 type maskMapping struct {

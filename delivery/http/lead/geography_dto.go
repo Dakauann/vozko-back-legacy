@@ -18,23 +18,32 @@ type MapSummaryResponse struct {
 }
 
 type MapPointResponse struct {
-	ID        string   `json:"id" example:"-23.5614,-46.6559"`
-	Lat       float64  `json:"lat" example:"-23.5614"`
-	Lng       float64  `json:"lng" example:"-46.6559"`
-	Precision string   `json:"precision" example:"street" enums:"exact,address,street,postal_code,district,city"`
-	Placement string   `json:"placement" example:"on_map" enums:"on_map,approximate"`
-	Tone      string   `json:"tone" example:"chart-2" enums:"chart-1,chart-2,chart-3,chart-4,chart-5,neutral"`
-	Count     int      `json:"count" example:"3"`
-	LeadIDs   []string `json:"leadIds"`
+	ID        string               `json:"id" example:"-23.5614,-46.6559"`
+	Lat       float64              `json:"lat" example:"-23.5614"`
+	Lng       float64              `json:"lng" example:"-46.6559"`
+	Precision string               `json:"precision" example:"street" enums:"exact,address,street,postal_code,district,city"`
+	Placement string               `json:"placement" example:"on_map" enums:"on_map,approximate"`
+	Tone      string               `json:"tone" example:"chart-2" enums:"chart-1,chart-2,chart-3,chart-4,chart-5,neutral"`
+	Count     int                  `json:"count" example:"3"`
+	LeadIDs   []string             `json:"leadIds"`
+	Sentiment MapSentimentResponse `json:"sentiment"`
+	Mood      string               `json:"mood,omitempty" example:"negative" enums:"positive,neutral,negative"`
+}
+
+type MapSentimentResponse struct {
+	Positive int `json:"positive" example:"1"`
+	Neutral  int `json:"neutral" example:"0"`
+	Negative int `json:"negative" example:"2"`
 }
 
 type MapCellResponse struct {
-	IX        int64   `json:"ix" example:"-4666"`
-	IY        int64   `json:"iy" example:"-2356"`
-	Placement string  `json:"placement" example:"on_map" enums:"on_map,approximate"`
-	Count     int     `json:"count" example:"12"`
-	Lat       float64 `json:"lat" example:"-23.555"`
-	Lng       float64 `json:"lng" example:"-46.655"`
+	IX        int64                `json:"ix" example:"-4666"`
+	IY        int64                `json:"iy" example:"-2356"`
+	Placement string               `json:"placement" example:"on_map" enums:"on_map,approximate"`
+	Count     int                  `json:"count" example:"12"`
+	Lat       float64              `json:"lat" example:"-23.555"`
+	Lng       float64              `json:"lng" example:"-46.655"`
+	Sentiment MapSentimentResponse `json:"sentiment"`
 }
 
 type MapLayerResponse struct {
@@ -87,13 +96,17 @@ type MapCityResponse struct {
 type MapViewportResponse struct {
 	BBox  MapBBoxResponse  `json:"bbox"`
 	Basis string           `json:"basis" example:"located" enums:"area,located,city,country"`
-	View  string           `json:"view" example:"positions" enums:"positions,districts"`
 	City  *MapCityResponse `json:"city,omitempty"`
 }
 
 type MapPeekResponse struct {
-	Total int                  `json:"total" example:"7"`
-	Items []LeadRecordResponse `json:"items"`
+	Total int                   `json:"total" example:"7"`
+	Items []MapPeekLeadResponse `json:"items"`
+}
+
+type MapPeekLeadResponse struct {
+	LeadRecordResponse
+	Sentiment string `json:"sentiment,omitempty" example:"negative" enums:"positive,neutral,negative"`
 }
 
 type LatLngDTO struct {
@@ -203,7 +216,7 @@ func MapLayerOf(l leadmap.Layer) MapLayerResponse {
 	if l.Kind == leadmap.LayerCells {
 		cells := make([]MapCellResponse, 0, len(l.Cells))
 		for _, c := range l.Cells {
-			cells = append(cells, MapCellResponse{IX: c.IX, IY: c.IY, Placement: string(c.Placement), Count: c.People, Lat: c.Center.Lat, Lng: c.Center.Lng})
+			cells = append(cells, MapCellResponse{IX: c.IX, IY: c.IY, Placement: string(c.Placement), Count: c.People, Lat: c.Center.Lat, Lng: c.Center.Lng, Sentiment: mapSentimentOf(c.Sentiment)})
 		}
 		size := l.CellSize
 		return MapLayerResponse{Kind: string(leadmap.LayerCells), CellSizeDegrees: &size, Cells: &cells}
@@ -216,10 +229,14 @@ func MapLayerOf(l leadmap.Layer) MapLayerResponse {
 		}
 		points = append(points, MapPointResponse{
 			ID: p.ID(), Lat: p.Position.Lat, Lng: p.Position.Lng, Precision: string(p.Precision), Placement: string(p.Placement),
-			Tone: string(p.Tone), Count: p.People, LeadIDs: ids,
+			Tone: string(p.Tone), Count: p.People, LeadIDs: ids, Sentiment: mapSentimentOf(p.Sentiment), Mood: string(p.Mood),
 		})
 	}
 	return MapLayerResponse{Kind: string(leadmap.LayerPoints), Points: &points}
+}
+
+func mapSentimentOf(c leadmap.SentimentCounts) MapSentimentResponse {
+	return MapSentimentResponse{Positive: c.Positive, Neutral: c.Neutral, Negative: c.Negative}
 }
 
 func mapDistrictResponses(districts []leadmap.District) []MapDistrictResponse {
@@ -234,7 +251,6 @@ func mapViewportResponse(v leadmap.Viewport) MapViewportResponse {
 	out := MapViewportResponse{
 		BBox:  MapBBoxOf(v.BBox),
 		Basis: string(v.Basis),
-		View:  string(v.View),
 	}
 	if v.City != nil {
 		out.City = &MapCityResponse{CityKey: v.City.CityKey, Name: v.City.Name, State: v.City.State, Count: v.City.People}

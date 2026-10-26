@@ -34,6 +34,7 @@ const (
 	FieldNumber         Field = "number"
 	FieldAge            Field = "age"
 	FieldBlocked        Field = "blocked"
+	FieldOrigin         Field = "origin"
 
 	FieldCampaignStatus Field = "campaign_status"
 	FieldCampaignCount  Field = "campaign_count"
@@ -177,6 +178,7 @@ var (
 	boolOps   = []Operator{OpIsTrue, OpIsFalse, OpEquals}
 	textOps   = []Operator{OpContains}
 	stringOps = []Operator{OpEquals, OpNotEquals, OpIn, OpNotIn, OpContains, OpIsSet, OpIsEmpty}
+	originOps = []Operator{OpIn, OpNotIn, OpEquals, OpNotEquals}
 	customOps = []Operator{OpEquals, OpNotEquals, OpIn, OpNotIn, OpContains, OpGreaterEq, OpLessEq, OpBetween, OpBefore, OpAfter, OpIsTrue, OpIsFalse, OpIsSet, OpIsEmpty}
 )
 
@@ -199,6 +201,7 @@ var registry = map[Field]FieldSpec{
 	FieldUnread:         {FieldUnread, KindBool, boolOps, false},
 	FieldWindowOpen:     {FieldWindowOpen, KindBool, boolOps, false},
 	FieldQuery:          {FieldQuery, KindText, textOps, false},
+	FieldOrigin:         {FieldOrigin, KindEnum, originOps, true},
 
 	FieldName:            {FieldName, KindString, stringOps, true},
 	FieldNumber:          {FieldNumber, KindString, stringOps, true},

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"time"
+	"vozko/infra/repositories/leadsentiment"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -117,5 +118,7 @@ func (r *contactRepository) UpdateProfile(ctx context.Context, id string, p ttdo
 }
 
 func (r *contactRepository) SetLeadID(ctx context.Context, id string, leadID *string) error {
-	return database.AffectedOne(r.model(ctx).Where("id = ?", id).Update("lead_id", leadID), ttdomain.ErrContactNotFound)
+	return leadsentiment.Relink(r.db.WithContext(ctx), &schema.TikTokContact{}, id, func(tx *gorm.DB) error {
+		return database.AffectedOne(tx.Model(&schema.TikTokContact{}).Where("id = ?", id).Update("lead_id", leadID), ttdomain.ErrContactNotFound)
+	})
 }

@@ -37,6 +37,7 @@ const (
 	FieldOptOutSource   Field = "opt_out_source"
 	FieldOptedOutAt     Field = "opted_out_at"
 	FieldCompany        Field = "company"
+	FieldSentiment      Field = "sentiment"
 
 	FieldAreaApproximate Field = "area_approximate"
 )
@@ -62,6 +63,7 @@ var (
 	areaOps      = []Operator{OpIn}
 	placementOps = []Operator{OpIn, OpNotIn, OpEquals, OpNotEquals}
 	optOutOps    = []Operator{OpIn, OpNotIn, OpEquals, OpNotEquals}
+	sentimentOps = []Operator{OpIn, OpNotIn, OpEquals, OpNotEquals}
 	leadFieldSet = []FieldSpec{
 		{FieldID, KindIDSet, exactIDOps, true},
 		{FieldPhoneAny, KindString, exactIDOps, true},
@@ -89,6 +91,7 @@ var (
 		{FieldOptOutSource, KindEnum, optOutOps, true},
 		{FieldOptedOutAt, KindDate, dateOps, false},
 		{FieldCompany, KindIDSet, idSetOps, true},
+		{FieldSentiment, KindEnum, sentimentOps, true},
 	}
 )
 
@@ -99,6 +102,7 @@ var valueRules = map[Field]func(string) error{
 	FieldArea:            uuidValue,
 	FieldAreaApproximate: uuidValue,
 	FieldGeoPlacement:    geoPlacementValue,
+	FieldSentiment:       sentimentValue,
 	FieldPhoneAny:        phoneValue,
 	FieldBirthday:        birthdayValue,
 	FieldZip:             zipValue,
@@ -281,6 +285,13 @@ func (p GeoPlacement) Valid() bool {
 		}
 	}
 	return false
+}
+
+func sentimentValue(v string) error {
+	if !shared.Sentiment(v).Valid() {
+		return ErrInvalidValue
+	}
+	return nil
 }
 
 func geoPlacementValue(v string) error {

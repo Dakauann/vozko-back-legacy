@@ -398,9 +398,8 @@ func mapBudgetSections(t *testing.T, db *gorm.DB, spot geo.Point) []mapBudgetSec
 			}},
 		mapBudgetSection{"viewport", mapBudgetWarmMS, viewportReads,
 			func(m mapQuery) []mapBudgetStatement {
-				summary, summaryArgs := m.summary()
 				extent, extentArgs := m.extent()
-				return []mapBudgetStatement{{"summary", summary, summaryArgs}, {"extent", extent, extentArgs}}
+				return []mapBudgetStatement{{"extent", extent, extentArgs}}
 			}},
 		mapBudgetSection{"point", mapBudgetWarmMS,
 			func(ctx context.Context, r *mapReader, s leadmap.Scope) error {
@@ -418,11 +417,7 @@ func mapBudgetSections(t *testing.T, db *gorm.DB, spot geo.Point) []mapBudgetSec
 }
 
 func viewportReads(ctx context.Context, r *mapReader, s leadmap.Scope) error {
-	summary, err := r.Summary(ctx, s)
-	if err != nil {
-		return err
-	}
-	if _, ok := leadmap.AreaViewport(s.Filter.BoundAreas(), summary); ok {
+	if _, ok := leadmap.AreaViewport(s.Filter.BoundAreas()); ok {
 		return nil
 	}
 	extent, err := r.Extent(ctx, s)

@@ -18,6 +18,7 @@ var Catalog = []Job{
 	{Name: "start_scheduled_wc_campaigns", Period: time.Minute},
 	{Name: "analysis_debounce", Period: time.Minute, EveryReplica: true},
 	{Name: "conversation_auto_close", Period: 5 * time.Minute},
+	{Name: "conversation_origin_backfill", Period: time.Minute},
 	{Name: "workflow_manager", Period: time.Minute},
 	{Name: "expire_subscriptions", Period: time.Hour},
 	{Name: "plan_expiry_reminders", Period: day},

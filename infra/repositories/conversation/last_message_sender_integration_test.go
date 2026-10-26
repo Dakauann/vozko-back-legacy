@@ -13,7 +13,7 @@ import (
 
 func TestLastMessageCarriesItsSenderAgainstPostgres(t *testing.T) {
 	db := repotest.IsolatedDB(t, "last_sender_test",
-		&schema.ConversationMessage{},
+		&schema.ConversationMessage{}, &schema.ConversationOrigin{},
 		&schema.UnofficialWhatsAppInstance{},
 		&schema.UnofficialWhatsAppContact{},
 		&schema.UnofficialWhatsAppConversation{},

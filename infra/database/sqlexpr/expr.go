@@ -2,6 +2,8 @@ package sqlexpr
 
 import "strings"
 
+const canonicalUUIDPrefix = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+
 func column(alias, name string) string {
 	if alias == "" {
 		return name
@@ -27,4 +29,8 @@ func stringsOf[T ~string](values []T) []string {
 		out[i] = string(v)
 	}
 	return out
+}
+
+func CanonicalUUID(text string) string {
+	return "CASE WHEN length(" + text + ") = 36 AND " + text + " ~ '" + canonicalUUIDPrefix + "' THEN (" + text + ")::uuid END"
 }

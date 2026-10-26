@@ -1,6 +1,10 @@
 package attendance
 
-import "time"
+import (
+	"time"
+
+	"vozko/domain/conversation"
+)
 
 type AttendantStats struct {
 	UserID              string  `json:"user_id"`
@@ -60,4 +64,5 @@ type StatsFilter struct {
 	DateTo       *time.Time
 	CampaignID   string
 	CampaignType string
+	Origin       conversation.Origin
 }

@@ -13,6 +13,7 @@ type searchInboxOptions struct {
 	sortOrder string
 	personal  personalinbox.View
 	labelID   string
+	origin    conversation.Origin
 }
 
 type searchRefusal struct {
@@ -35,5 +36,21 @@ func parseSearchInboxOptions(p SearchInboxPayload) (searchInboxOptions, *searchR
 			return searchInboxOptions{}, &searchRefusal{"invalid_label", "label_id must be a label id"}
 		}
 	}
-	return searchInboxOptions{sortOrder: sortOrder, personal: personal, labelID: labelID}, nil
+	origin, refusal := parseSearchOrigin(p.Origin)
+	if refusal != nil {
+		return searchInboxOptions{}, refusal
+	}
+	return searchInboxOptions{sortOrder: sortOrder, personal: personal, labelID: labelID, origin: origin}, nil
+}
+
+func parseSearchOrigin(raw string) (conversation.Origin, *searchRefusal) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	origin, err := conversation.ParseOrigin(raw)
+	if err != nil {
+		return "", &searchRefusal{"invalid_origin", "origin must be receptive, campaign, outreach or unknown"}
+	}
+	return origin, nil
 }

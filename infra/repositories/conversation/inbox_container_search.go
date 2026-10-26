@@ -207,6 +207,11 @@ func containerInboxConditions(input conversation.SearchEntriesInput, ch channelQ
 		whereArgs = append(whereArgs, args...)
 	}
 
+	if condition, args := originClause(conversation.OriginScope(input.Origin), "entries.entry_id", "'"+string(ch.EntryType)+"'::text"); condition != "" {
+		whereConditions = append(whereConditions, condition)
+		whereArgs = append(whereArgs, args...)
+	}
+
 	if input.Query != "" {
 		queryPattern := "%%" + input.Query + "%%"
 		if input.MessageSearch == "" {

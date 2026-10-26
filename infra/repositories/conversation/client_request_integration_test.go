@@ -16,7 +16,7 @@ import (
 
 func clientRequestRepo(t *testing.T) conversation.MessageRepository {
 	t.Helper()
-	db := repotest.IsolatedDB(t, "msg_client_req", &schema.ConversationMessage{})
+	db := repotest.IsolatedDB(t, "msg_client_req", &schema.ConversationMessage{}, &schema.ConversationOrigin{})
 	sql, ok := database.ConcurrentIndexSQL(database.MessageClientRequestIndex)
 	if !ok {
 		t.Fatalf("%s is not declared", database.MessageClientRequestIndex)

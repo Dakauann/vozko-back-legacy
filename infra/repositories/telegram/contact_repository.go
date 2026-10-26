@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"vozko/infra/repositories/leadsentiment"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -165,15 +166,16 @@ func (r *contactRepository) SetPhone(ctx context.Context, id, phone string, lead
 	if leadID != nil && *leadID != "" {
 		update["lead_id"] = *leadID
 	}
-	result := r.db.WithContext(ctx).Model(&schema.TelegramContact{}).
-		Where("id = ?", id).Updates(update)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return tgdomain.ErrContactNotFound
-	}
-	return nil
+	return leadsentiment.Relink(r.db.WithContext(ctx), &schema.TelegramContact{}, id, func(tx *gorm.DB) error {
+		result := tx.Model(&schema.TelegramContact{}).Where("id = ?", id).Updates(update)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return tgdomain.ErrContactNotFound
+		}
+		return nil
+	})
 }
 
 func (r *contactRepository) UpdateChatID(ctx context.Context, id string, chatID int64) error {

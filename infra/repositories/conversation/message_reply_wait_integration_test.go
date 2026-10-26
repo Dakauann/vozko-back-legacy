@@ -16,7 +16,7 @@ import (
 func replyWaitDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := repotest.IsolatedDB(t, "reply_wait_test",
-		&schema.ConversationMessage{},
+		&schema.ConversationMessage{}, &schema.ConversationOrigin{},
 		&schema.WhatsAppCampaignEntry{},
 		&schema.InstagramConversation{},
 		&schema.FacebookConversation{},

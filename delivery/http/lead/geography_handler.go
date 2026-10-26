@@ -141,7 +141,7 @@ func (h *GeographyHandler) MapSummary(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Tile do mapa de leads
-// @Description	Devolve um tile XYZ do mapa (`z` de 0 a 22, `x` e `y` dentro da grade do zoom). O tile reúne os endereços principais com posição que ele cobre: longitude de oeste (incluso) a leste (excluso) e latitude de sul (excluso) a norte (incluso), de modo que um ponto na borda pertence a um único tile e a soma dos tiles nunca conta alguém duas vezes. Até 1.000 posições distintas a resposta é `{"kind":"points","points":[...]}`: um ponto por posição e classe (`placement`), com `count` pessoas, até 5 `leadIds`, a melhor `precision` e o `tone` do valor mais comum do campo `colorBy` (`neutral` sem campo ou sem valor). Acima disso a resposta é `{"kind":"cells","cellSizeDegrees":s,"cells":[...]}`, com `s` igual a 1/32 da largura do tile, `ix = floor(lng / s)`, `iy = floor(lat / s)` e uma célula por classe; uma célula na borda de latitude de dois tiles chega em parte por cada um, e o cliente soma as partes de mesmo `ix`, `iy` e `placement`. `placement` é `on_map` quando a posição identifica a casa (a contagem No mapa) e `approximate` quando é o ponto de referência do CEP, bairro ou cidade (a contagem Aproximados); as duas classes nunca se juntam. Aceita os mesmos filtros de GET /leads (inclusive `area`, que só reúne `on_map`). `colorBy` precisa ser um campo de seleção de lead; um campo sensível exige `leads:read_sensitive`. Cada tile fica em cache por 60 s por workspace, geração dos leads, nível de campos de quem lê, filtro, hora da última alteração de cada área, tile e `colorBy`; responde 503 com `Retry-After` quando o servidor está ocupado.
+// @Description	Devolve um tile XYZ do mapa (`z` de 0 a 22, `x` e `y` dentro da grade do zoom). O tile reúne os endereços principais com posição que ele cobre: longitude de oeste (incluso) a leste (excluso) e latitude de sul (excluso) a norte (incluso), de modo que um ponto na borda pertence a um único tile e a soma dos tiles nunca conta alguém duas vezes. Até 1.000 posições distintas a resposta é `{"kind":"points","points":[...]}`: um ponto por posição e classe (`placement`), com `count` pessoas, até 5 `leadIds`, a melhor `precision` e o `tone` do valor mais comum do campo `colorBy` (`neutral` sem campo ou sem valor). Acima disso a resposta é `{"kind":"cells","cellSizeDegrees":s,"cells":[...]}`, com `s` igual a 1/32 da largura do tile, `ix = floor(lng / s)`, `iy = floor(lat / s)` e uma célula por classe; uma célula na borda de latitude de dois tiles chega em parte por cada um, e o cliente soma as partes de mesmo `ix`, `iy` e `placement`. `placement` é `on_map` quando a posição identifica a casa (a contagem No mapa) e `approximate` quando é o ponto de referência do CEP, bairro ou cidade (a contagem Aproximados); as duas classes nunca se juntam. Aceita os mesmos filtros de GET /leads (inclusive `area`, que só reúne `on_map`). `colorBy` precisa ser um campo de seleção de lead; um campo sensível exige `leads:read_sensitive`. Todo ponto e toda célula trazem `sentiment` com quantas pessoas ali têm sentimento `positive`, `neutral` ou `negative`: o sentimento de um lead é o da análise mais recente da conversa mais recente analisada que ainda é dele, em qualquer canal; um lead sem conversa analisada, ou cuja análise mais recente traz um valor desconhecido, não entra em nenhuma das três contagens. Um ponto traz também `mood`, o sentimento da maioria das pessoas analisadas ali, com empate decidido para o pior (`negative`, depois `neutral`); sem ninguém analisado o campo não vem. Cada tile fica em cache por 60 s por workspace, geração dos leads, nível de campos de quem lê, filtro, hora da última alteração de cada área, tile e `colorBy`; responde 503 com `Retry-After` quando o servidor está ocupado.
 // @Tags			Leads
 // @Produce		json
 // @Param			z		path		int		true	"Zoom do tile (0 a 22)"
@@ -238,7 +238,7 @@ func (h *GeographyHandler) MapViewport(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Leads de um ponto do mapa
-// @Description	Lista os leads do filtro cujo endereço principal está exatamente na posição de um ponto da camada (use `lat`, `lng` e `placement` do ponto), para a prévia do mapa. `placement` separa a casa localizada (`on_map`, o padrão) da posição aproximada no ponto de referência do CEP, bairro ou cidade (`approximate`), que nunca se misturam no mesmo ponto. Cada item vem projetado como em GET /leads/{id} (campos sensíveis só com `leads:read_sensitive`). No máximo 50 itens, com `total` de pessoas na posição.
+// @Description	Lista os leads do filtro cujo endereço principal está exatamente na posição de um ponto da camada (use `lat`, `lng` e `placement` do ponto), para a prévia do mapa. `placement` separa a casa localizada (`on_map`, o padrão) da posição aproximada no ponto de referência do CEP, bairro ou cidade (`approximate`), que nunca se misturam no mesmo ponto. Cada item vem projetado como em GET /leads/{id} (campos sensíveis só com `leads:read_sensitive`), mais `sentiment` (`positive`, `neutral` ou `negative`) quando o lead tem uma conversa analisada; sem análise o campo não vem. No máximo 50 itens, com `total` de pessoas na posição.
 // @Tags			Leads
 // @Produce		json
 // @Param			lat		query		number	true	"Latitude do ponto"
@@ -483,9 +483,9 @@ func (h *GeographyHandler) DeleteArea(w http.ResponseWriter, r *http.Request) {
 }
 
 func mapPeekResponse(p lead_usecase.MapPeek, now time.Time) MapPeekResponse {
-	items := make([]LeadRecordResponse, 0, len(p.Leads))
+	items := make([]MapPeekLeadResponse, 0, len(p.Leads))
 	for _, l := range p.Leads {
-		items = append(items, toLeadRecord(l, now))
+		items = append(items, MapPeekLeadResponse{LeadRecordResponse: toLeadRecord(l, now), Sentiment: string(p.Sentiments[l.ID])})
 	}
 	return MapPeekResponse{Total: p.Total, Items: items}
 }

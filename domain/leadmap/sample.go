@@ -32,7 +32,7 @@ func CheckSampleLimit(limit int) error {
 }
 
 func AreaBox(areas []crmfilter.AreaBounds) *geo.BBox {
-	v, ok := AreaViewport(areas, Summary{})
+	v, ok := AreaViewport(areas)
 	if !ok {
 		return nil
 	}

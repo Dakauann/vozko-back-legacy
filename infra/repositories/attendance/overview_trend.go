@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"vozko/domain/attendance"
+	"vozko/domain/conversation"
 	"vozko/infra/database/sqlexpr"
 )
 
@@ -145,7 +146,7 @@ func trendUnion(
 			  AND `+src.EntryAlias+`.created_at >= ?
 			  AND `+src.EntryAlias+`.created_at < ?
 		`, workspaceID, from, to)
-		created.addQuery(trendScopeClause(src, filter))
+		created.addQuery(scopeClause(src, filter))
 		branches = append(branches, created)
 
 		if src.ClosedAtColumn == "" || src.StatusColumn == "" {
@@ -164,7 +165,7 @@ func trendUnion(
 			  AND `+src.ClosedAtColumn+` >= ?
 			  AND `+src.ClosedAtColumn+` < ?
 		`, workspaceID, from, to)
-		finished.addQuery(trendScopeClause(src, filter))
+		finished.addQuery(scopeClause(src, filter))
 		branches = append(branches, finished)
 	}
 
@@ -217,7 +218,7 @@ func trendUnbucketedQuery(
 			  AND `+src.EntryAlias+`.created_at >= ?
 			  AND `+src.EntryAlias+`.created_at < ?
 		`, workspaceID, from, to)
-		branch.addQuery(trendScopeClause(src, filter))
+		branch.addQuery(scopeClause(src, filter))
 		branches = append(branches, branch)
 	}
 	if len(branches) == 0 {
@@ -249,7 +250,7 @@ func trendEngagedPredicate(src channelSource) string {
 			))`
 }
 
-func trendScopeClause(src channelSource, filter attendance.OverviewFilter) *sqlQuery {
+func scopeClause(src channelSource, filter attendance.OverviewFilter) *sqlQuery {
 	query := newSQLQuery()
 	if filter.CampaignID != "" {
 		if filter.CampaignType == "" || filter.CampaignType == string(src.EntryType) {
@@ -264,5 +265,13 @@ func trendScopeClause(src channelSource, filter attendance.OverviewFilter) *sqlQ
 	if filter.MemberID != "" {
 		query.add(" AND ia.assigned_user_id = ?", filter.MemberID)
 	}
-	return query
+	return query.addQuery(originClause(src.EntryAlias+".id", "'"+string(src.EntryType)+"'", filter.Origin))
+}
+
+func originClause(entryID, entryType string, origin conversation.Origin) *sqlQuery {
+	query := newSQLQuery()
+	if origin == "" {
+		return query
+	}
+	return query.add(" AND "+sqlexpr.ConversationOriginIs(entryID, entryType), string(origin))
 }

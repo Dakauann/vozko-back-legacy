@@ -1,18 +1,23 @@
 package attendance
 
-import "time"
+import (
+	"time"
+
+	"vozko/domain/conversation"
+)
 
 type OverviewFilter struct {
-	DateFrom     *time.Time `json:"date_from,omitempty"`
-	DateTo       *time.Time `json:"date_to,omitempty"`
-	DepartmentID string     `json:"department_id,omitempty"`
-	MemberID     string     `json:"member_id,omitempty"`
-	CampaignID   string     `json:"campaign_id,omitempty"`
-	CampaignType string     `json:"campaign_type,omitempty"`
-	Channel      string     `json:"channel,omitempty"`
-	IncludeAI    bool       `json:"include_ai"`
-	TrendBuckets int        `json:"trend_buckets,omitempty"`
-	RankMetric   string     `json:"rank_metric,omitempty"`
+	DateFrom     *time.Time          `json:"date_from,omitempty"`
+	DateTo       *time.Time          `json:"date_to,omitempty"`
+	DepartmentID string              `json:"department_id,omitempty"`
+	MemberID     string              `json:"member_id,omitempty"`
+	CampaignID   string              `json:"campaign_id,omitempty"`
+	CampaignType string              `json:"campaign_type,omitempty"`
+	Channel      string              `json:"channel,omitempty"`
+	Origin       conversation.Origin `json:"origin,omitempty"`
+	IncludeAI    bool                `json:"include_ai"`
+	TrendBuckets int                 `json:"trend_buckets,omitempty"`
+	RankMetric   string              `json:"rank_metric,omitempty"`
 
 	Quality QualityPolicy `json:"-"`
 }
@@ -203,6 +208,7 @@ type MetricDefinitions struct {
 	Messaging        string `json:"messaging"`
 	Reopen           string `json:"reopen"`
 	FinishedBySource string `json:"finished_by_source"`
+	Origin           string `json:"origin"`
 	Stages           string `json:"stages"`
 	Unassigned       string `json:"unassigned"`
 	Period           string `json:"period"`
@@ -246,6 +252,7 @@ func DefaultDefinitions() MetricDefinitions {
 		Messaging:        "avg messages per engaged entry; avg_messages_all_scoped includes shells",
 		Reopen:           "conversation_events reopened / engaged finished (KPI); finished_event_count is telemetry",
 		FinishedBySource: "engaged finished by close_source: human (incl empty/legacy), ai, system",
+		Origin:           "who sent the first message of the conversation, ignoring system notices and import seeds: receptive=the contact, campaign=a campaign send, outreach=the team or its automations, unknown=an unattributed sender (never counted as receptive); the origin filter narrows the conversation scope, FRT, AI sessions and reopens; new leads stay workspace-wide",
 		Stages:           "scoped conversations by their current stage, grouped by owning funnel; engaged is the headline and shells are reported beside it; dwell and stuck are measured over OPEN engaged rows against now",
 		Unassigned:       "engaged entries with empty assignee and status != finished",
 		Period:           "calendar month containing date_to, measured in OPEN business days from the resolved working-hours schedule (department overrides workspace); unavailable when no schedule is configured",

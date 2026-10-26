@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"vozko/domain/shared"
 
 	"github.com/lib/pq"
 	"gorm.io/gorm"
@@ -33,6 +34,10 @@ var (
 )
 
 const manyWindowRows = 10000
+
+const sentimentAlias = "ls"
+
+var sentimentJoin = infracrmfilter.LeadSentimentJoin(sentimentAlias, "a.lead_id", "a.workspace_id")
 
 type mapQuery struct {
 	leads       *listQuery
@@ -123,8 +128,8 @@ func (m mapQuery) layerCells(q leadmap.LayerRequest) (string, []interface{}) {
 	where, whereArgs := m.locatedIn(q.Claim)
 	class, classArgs := placementClass("a")
 	sql := "SELECT " + class + ", floor(a.longitude / ?::float8)::bigint AS ix, floor(a.latitude / ?::float8)::bigint AS iy," +
-		" COUNT(*) AS people, avg(a.latitude) AS lat, avg(a.longitude) AS lng" +
-		" FROM lead_addresses a WHERE " + where + " GROUP BY 1, 2, 3"
+		" COUNT(*) AS people, avg(a.latitude) AS lat, avg(a.longitude) AS lng, " + infracrmfilter.SentimentCountsSQL(sentimentAlias) +
+		" FROM lead_addresses a " + sentimentJoin + " WHERE " + where + " GROUP BY 1, 2, 3"
 	return sql, append(append(append([]interface{}{}, classArgs...), q.CellSize, q.CellSize), whereArgs...)
 }
 
@@ -140,8 +145,8 @@ func (m mapQuery) layerPoints(q leadmap.LayerRequest) (string, []interface{}) {
 	sql := "SELECT a.latitude AS lat, a.longitude AS lng, " + class + ", COUNT(*) AS people," +
 		" min(array_position(?::text[], a.geo_precision::text)) AS precision_rank," +
 		" (array_agg(a.lead_id::text))[1:" + strconv.Itoa(leadmap.MaxLeadIDsPerPoint) + "] AS lead_ids," +
-		" " + value +
-		" FROM lead_addresses a WHERE " + where +
+		" " + value + ", " + infracrmfilter.SentimentCountsSQL(sentimentAlias) +
+		" FROM lead_addresses a " + sentimentJoin + " WHERE " + where +
 		" GROUP BY 1, 2, 3"
 	return sql, append(args, whereArgs...)
 }
@@ -207,7 +212,7 @@ func (m mapQuery) leadsAt(at geo.Point, placement crmfilter.GeoPlacement, limit 
 	if err != nil {
 		return "", nil, err
 	}
-	sql := "SELECT a.lead_id::text AS lead_id, COUNT(*) OVER () AS total FROM lead_addresses a" +
+	sql := "SELECT a.lead_id::text AS lead_id, " + sentimentAlias + ".sentiment, COUNT(*) OVER () AS total FROM lead_addresses a " + sentimentJoin +
 		" WHERE a.workspace_id = ? AND a.is_primary AND (" + condition + ")" +
 		" AND a.latitude = ? AND a.longitude = ?" +
 		" AND " + m.members() +
@@ -230,11 +235,20 @@ func (r *mapReader) Summary(ctx context.Context, s leadmap.Scope) (leadmap.Summa
 	return row.Summary(), nil
 }
 
+type SentimentColumns struct {
+	Positive, Neutral, Negative int
+}
+
+func (c SentimentColumns) counts() leadmap.SentimentCounts {
+	return leadmap.SentimentCounts{Positive: c.Positive, Neutral: c.Neutral, Negative: c.Negative}
+}
+
 type cellRow struct {
 	Placement string
 	IX, IY    int64
 	People    int
 	Lat, Lng  float64
+	SentimentColumns
 }
 
 type pointRow struct {
@@ -244,6 +258,7 @@ type pointRow struct {
 	PrecisionRank *int
 	LeadIDs       pq.StringArray `gorm:"column:lead_ids;type:text[]"`
 	Value         *string
+	SentimentColumns
 }
 
 func (r *mapReader) Layer(ctx context.Context, s leadmap.Scope, q leadmap.LayerRequest) (leadmap.Layer, error) {
@@ -300,7 +315,7 @@ func cellLayer(size float64, rows []cellRow) (leadmap.Layer, error) {
 		if err != nil {
 			return leadmap.Layer{}, err
 		}
-		cells = append(cells, leadmap.Cell{IX: row.IX, IY: row.IY, Placement: placement, People: row.People, Center: geo.Point{Lat: row.Lat, Lng: row.Lng}})
+		cells = append(cells, leadmap.Cell{IX: row.IX, IY: row.IY, Placement: placement, People: row.People, Center: geo.Point{Lat: row.Lat, Lng: row.Lng}, Sentiment: row.counts()})
 	}
 	return leadmap.Layer{Kind: leadmap.LayerCells, CellSize: size, Cells: cells}, nil
 }
@@ -316,7 +331,7 @@ func pointLayer(rows []pointRow) (leadmap.Layer, error) {
 		if err != nil {
 			return leadmap.Layer{}, err
 		}
-		points = append(points, leadmap.NewPoint(geo.Point{Lat: row.Lat, Lng: row.Lng}, precisionOfRank(row.PrecisionRank), placement, row.People, row.LeadIDs, value))
+		points = append(points, leadmap.NewPoint(geo.Point{Lat: row.Lat, Lng: row.Lng}, precisionOfRank(row.PrecisionRank), placement, row.People, row.LeadIDs, value, row.counts()))
 	}
 	return leadmap.Layer{Kind: leadmap.LayerPoints, Points: points}, nil
 }
@@ -395,7 +410,7 @@ func layerPlacement(raw string) (crmfilter.GeoPlacement, error) {
 	return "", fmt.Errorf("lead map layer: %q is neither on the map nor approximate", raw)
 }
 
-func (r *mapReader) LeadsAt(ctx context.Context, s leadmap.Scope, at geo.Point, placement crmfilter.GeoPlacement, limit int) ([]string, int, error) {
+func (r *mapReader) LeadsAt(ctx context.Context, s leadmap.Scope, at geo.Point, placement crmfilter.GeoPlacement, limit int) ([]leadmap.LeadAt, int, error) {
 	m, err := r.scope(s)
 	if err != nil {
 		return nil, 0, err
@@ -405,19 +420,24 @@ func (r *mapReader) LeadsAt(ctx context.Context, s leadmap.Scope, at geo.Point, 
 		return nil, 0, err
 	}
 	var rows []struct {
-		LeadID string
-		Total  int
+		LeadID    string
+		Sentiment *string
+		Total     int
 	}
 	if err := r.scan(ctx, m, sql, args, &rows); err != nil {
 		return nil, 0, err
 	}
-	ids := make([]string, 0, len(rows))
+	leads := make([]leadmap.LeadAt, 0, len(rows))
 	total := 0
 	for _, row := range rows {
-		ids = append(ids, row.LeadID)
+		mark := shared.Sentiment("")
+		if row.Sentiment != nil {
+			mark = leadmap.SentimentMark(*row.Sentiment)
+		}
+		leads = append(leads, leadmap.LeadAt{ID: row.LeadID, Sentiment: mark})
 		total = row.Total
 	}
-	return ids, total, nil
+	return leads, total, nil
 }
 
 func (r *mapReader) LeftOut(ctx context.Context, s leadmap.Scope, limit int) (leadmap.LeftOut, error) {

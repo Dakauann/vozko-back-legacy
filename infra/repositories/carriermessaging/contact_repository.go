@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"vozko/infra/repositories/leadsentiment"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -83,14 +84,16 @@ func (r *contactRepository) FindByIDs(ctx context.Context, ids []string) ([]*car
 }
 
 func (r *contactRepository) SetLead(ctx context.Context, id, leadID string) error {
-	result := r.db.WithContext(ctx).Model(&schema.CarrierContact{}).Where("id = ?", id).Update("lead_id", optionalID(leadID))
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return carriermessaging.ErrContactNotFound
-	}
-	return nil
+	return leadsentiment.Relink(r.db.WithContext(ctx), &schema.CarrierContact{}, id, func(tx *gorm.DB) error {
+		result := tx.Model(&schema.CarrierContact{}).Where("id = ?", id).Update("lead_id", optionalID(leadID))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return carriermessaging.ErrContactNotFound
+		}
+		return nil
+	})
 }
 
 func (r *contactRepository) MarkFlooding(ctx context.Context, id string, at time.Time) (bool, error) {

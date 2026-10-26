@@ -15,7 +15,7 @@ import (
 func TestCallListItemsCannotCrossWorkspacesAndGoWithTheirListAgainstPostgres(t *testing.T) {
 	db := repotest.IsolatedDB(t, "call_list_keys")
 	db.Config.DisableForeignKeyConstraintWhenMigrating = true
-	if err := db.AutoMigrate(&schema.Lead{}, &schema.LeadPhone{}, &schema.LeadAddress{}, &schema.LeadRelation{}, &schema.Call{}, &schema.CallList{}, &schema.CallListItem{}); err != nil {
+	if err := db.AutoMigrate(&schema.Lead{}, &schema.LeadPhone{}, &schema.LeadAddress{}, &schema.LeadRelation{}, &schema.Call{}, &schema.CallList{}, &schema.CallListItem{}, &schema.LeadSentiment{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	for i := 0; i < 2; i++ {

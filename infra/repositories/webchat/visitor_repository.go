@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"time"
+	"vozko/infra/repositories/leadsentiment"
 
 	"gorm.io/gorm"
 
@@ -99,7 +100,9 @@ func (r *visitorRepository) SaveIntake(ctx context.Context, id string, intake wc
 	if leadID != nil {
 		update["lead_id"] = leadID
 	}
-	return r.updates(ctx, id, update)
+	return leadsentiment.Relink(r.db.WithContext(ctx), &schema.WebchatVisitor{}, id, func(tx *gorm.DB) error {
+		return visitorUpdates(tx, id, update)
+	})
 }
 
 func (r *visitorRepository) Touch(ctx context.Context, id string, seen wcdomain.VisitorSighting) error {
@@ -128,7 +131,11 @@ func (r *visitorRepository) SetBlocked(ctx context.Context, id string, blocked b
 }
 
 func (r *visitorRepository) updates(ctx context.Context, id string, update map[string]any) error {
-	result := r.db.WithContext(ctx).Model(&schema.WebchatVisitor{}).Where("id = ?", id).Updates(update)
+	return visitorUpdates(r.db.WithContext(ctx), id, update)
+}
+
+func visitorUpdates(db *gorm.DB, id string, update map[string]any) error {
+	result := db.Model(&schema.WebchatVisitor{}).Where("id = ?", id).Updates(update)
 	if result.Error != nil {
 		return result.Error
 	}

@@ -3,6 +3,8 @@ package audience_repository
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -13,6 +15,7 @@ import (
 	ca "vozko/domain/audience"
 	"vozko/domain/shared"
 	"vozko/infra/database/schema"
+	"vozko/infra/repositories/leadsentiment"
 )
 
 type repository struct {
@@ -131,9 +134,7 @@ func (r *repository) ClaimByIDs(ctx context.Context, ids []string, now time.Time
 }
 
 func (r *repository) Save(ctx context.Context, a *ca.Analysis) error {
-	return r.db.WithContext(ctx).Model(&schema.AudienceAnalysis{}).
-		Where("id = ?", a.ID).
-		Updates(saveColumns(a)).Error
+	return r.SaveMany(ctx, []*ca.Analysis{a})
 }
 
 func (r *repository) SaveMany(ctx context.Context, rows []*ca.Analysis) error {
@@ -146,7 +147,7 @@ func (r *repository) SaveMany(ctx context.Context, rows []*ca.Analysis) error {
 				return err
 			}
 		}
-		return nil
+		return leadsentiment.RefreshForAnalyses(tx, rows)
 	})
 }
 
@@ -847,12 +848,31 @@ func (r *repository) PurgeBefore(ctx context.Context, cutoff time.Time, limit in
 	if limit < 1 {
 		limit = 1000
 	}
-	res := r.db.WithContext(ctx).Exec(`
+	var purged []struct{ ID, WorkspaceID string }
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Raw(`
 		DELETE FROM audience_analyses
 		 WHERE id IN (
 		       SELECT id FROM audience_analyses
 		        WHERE created_at < ? AND status <> ?
 		        ORDER BY created_at ASC
-		        LIMIT ?)`, cutoff, string(ca.StatusInFlight), limit)
-	return res.RowsAffected, res.Error
+		        LIMIT ?)
+		RETURNING id::text AS id, workspace_id::text AS workspace_id`, cutoff, string(ca.StatusInFlight), limit).Scan(&purged).Error; err != nil {
+			return err
+		}
+		byWorkspace := map[string][]string{}
+		for _, p := range purged {
+			byWorkspace[p.WorkspaceID] = append(byWorkspace[p.WorkspaceID], p.ID)
+		}
+		for _, ws := range slices.Sorted(maps.Keys(byWorkspace)) {
+			if err := leadsentiment.RefreshReferencing(tx, ws, byWorkspace[ws]); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(purged)), nil
 }

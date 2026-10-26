@@ -24,12 +24,7 @@ func overviewFillExtendedTX(
 		return err
 	}
 
-	frt, err := frtStatsTX(tx, workspaceID, attendance.StatsFilter{
-		DateFrom:     filter.DateFrom,
-		DateTo:       filter.DateTo,
-		CampaignID:   filter.CampaignID,
-		CampaignType: filter.CampaignType,
-	})
+	frt, err := frtStatsTX(tx, workspaceID, frtFilterOf(filter))
 	if err != nil {
 		return err
 	}
@@ -43,6 +38,16 @@ func overviewFillExtendedTX(
 		return err
 	}
 	return nil
+}
+
+func frtFilterOf(filter attendance.OverviewFilter) attendance.StatsFilter {
+	return attendance.StatsFilter{
+		DateFrom:     filter.DateFrom,
+		DateTo:       filter.DateTo,
+		CampaignID:   filter.CampaignID,
+		CampaignType: filter.CampaignType,
+		Origin:       filter.Origin,
+	}
 }
 
 func scopeMixTX(tx *gorm.DB, msgTmp string, out *attendance.SummarySection) error {
@@ -204,10 +209,10 @@ func aiSessionsTX(tx *gorm.DB, workspaceID string, filter attendance.OverviewFil
 			COUNT(*) FILTER (WHERE outcome = 'handed_off') AS handed_off,
 			COUNT(*) FILTER (WHERE outcome = 'abandoned') AS abandoned,
 			COALESCE(AVG(ai_message_count) FILTER (WHERE ended_at IS NOT NULL), 0) AS avg_ai_messages
-		FROM ai_attendance_sessions
-		WHERE workspace_id = ?::uuid
+		FROM ai_attendance_sessions s
+		WHERE s.workspace_id = ?::uuid
 	`, workspaceID)
-	query.addQuery(aiSessionScope("", filter))
+	query.addQuery(aiSessionScope("s.", filter))
 
 	var aa struct {
 		Sessions      int64
@@ -242,19 +247,19 @@ func reopenCountsQuery(workspaceID string, filter attendance.OverviewFilter) *sq
 	finished := string(conversation_event.EventFinished)
 	query := newSQLQuery().add(`
 		SELECT
-			COUNT(*) FILTER (WHERE event_type = ?) AS reopened,
-			COUNT(*) FILTER (WHERE event_type = ?) AS finished_ev
-		FROM conversation_events
-		WHERE workspace_id = ?::uuid
-		  AND event_type IN (?, ?)
+			COUNT(*) FILTER (WHERE ce.event_type = ?) AS reopened,
+			COUNT(*) FILTER (WHERE ce.event_type = ?) AS finished_ev
+		FROM conversation_events ce
+		WHERE ce.workspace_id = ?::uuid
+		  AND ce.event_type IN (?, ?)
 	`, reopened, finished, workspaceID, reopened, finished)
 	if filter.DateFrom != nil {
-		query.add(" AND created_at >= ?", *filter.DateFrom)
+		query.add(" AND ce.created_at >= ?", *filter.DateFrom)
 	}
 	if filter.DateTo != nil {
-		query.add(" AND created_at <= ?", *filter.DateTo)
+		query.add(" AND ce.created_at <= ?", *filter.DateTo)
 	}
-	return query
+	return query.addQuery(originClause("ce.entry_id", "ce.entry_type", filter.Origin))
 }
 
 func reopenTX(
@@ -308,6 +313,7 @@ func frtSamplesQuery(workspaceID string, filter attendance.StatsFilter) *sqlQuer
 	if filter.DateTo != nil {
 		query.add(" AND ah.started_at <= ?", *filter.DateTo)
 	}
+	query.addQuery(originClause("ah.entry_id", "ah.entry_type", filter.Origin))
 	return query.add(`
 		) sub WHERE frt_secs IS NOT NULL AND frt_secs > 0`)
 }

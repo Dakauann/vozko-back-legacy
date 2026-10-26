@@ -29,6 +29,7 @@ type EntryDigest struct {
 	Labels        []string `json:"labels,omitempty"`
 	Responsible   string   `json:"responsible,omitempty"`
 	Campaign      string   `json:"campaign,omitempty"`
+	Origin        Origin   `json:"origin,omitempty"`
 	Unread        int64    `json:"unread"`
 	LastMessageAt string   `json:"last_message_at,omitempty"`
 	LastMessage   string   `json:"last_message,omitempty"`
@@ -50,6 +51,7 @@ func DigestInboxEntry(e InboxEntry) EntryDigest {
 		Status:        string(e.ConversationStatus),
 		Responsible:   responsibleName(e),
 		Campaign:      e.CampaignName,
+		Origin:        e.Origin,
 		Unread:        e.UnreadCount,
 		LastMessageAt: digestTime(e.LastMessageAt),
 		LastMessage:   clip(e.LastMessagePreview, DigestPreviewRunes),

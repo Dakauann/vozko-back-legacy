@@ -11,47 +11,26 @@ import (
 	"vozko/domain/geo"
 )
 
-func TestDefaultViewIsPorBairroWhileFewerThanAFifthPinAHouse(t *testing.T) {
-	tests := []struct {
-		name    string
-		summary Summary
-		want    View
-	}{
-		{"nobody on the map", Summary{Total: 1000, OnMap: 0}, ViewDistricts},
-		{"19.9% on the map", Summary{Total: 1000, OnMap: 199}, ViewDistricts},
-		{"exactly a fifth on the map", Summary{Total: 1000, OnMap: 200}, ViewPositions},
-		{"most on the map", Summary{Total: 1000, OnMap: 900}, ViewPositions},
-		{"an empty filter shows positions", Summary{}, ViewPositions},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.summary.DefaultView(); got != tt.want {
-				t.Fatalf("DefaultView() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestDefaultViewportPrefersLocatedLeadsThenTheCommonestCityThenBrazil(t *testing.T) {
 	extent := &geo.BBox{South: -23.60, West: -46.70, North: -23.50, East: -46.60}
 	center := geo.Point{Lat: -19.92, Lng: -43.94}
 	city := &CityPlace{CityKey: "3106200", Name: "Belo Horizonte", State: "MG", People: 40, Center: &center}
 	cityWithoutPoint := &CityPlace{CityKey: "3106200", Name: "Belo Horizonte", State: "MG", People: 40}
 
-	located := DefaultViewport(extent, city, Summary{Total: 100, OnMap: 90})
-	if located.Basis != BasisLocated || located.BBox != *extent || located.View != ViewPositions {
+	located := DefaultViewport(extent, city)
+	if located.Basis != BasisLocated || located.BBox != *extent {
 		t.Fatalf("located = %+v", located)
 	}
 
-	byCity := DefaultViewport(nil, city, Summary{Total: 100})
-	if byCity.Basis != BasisCity || byCity.City == nil || byCity.View != ViewDistricts {
+	byCity := DefaultViewport(nil, city)
+	if byCity.Basis != BasisCity || byCity.City == nil {
 		t.Fatalf("by city = %+v", byCity)
 	}
 	if !holds(byCity.BBox, center) || byCity.BBox.Validate() != nil {
 		t.Fatalf("the city box %+v must hold the city point", byCity.BBox)
 	}
 
-	country := DefaultViewport(nil, cityWithoutPoint, Summary{Total: 100})
+	country := DefaultViewport(nil, cityWithoutPoint)
 	if country.Basis != BasisCountry || country.BBox != geo.BrazilBounds() {
 		t.Fatalf("country = %+v", country)
 	}
@@ -59,7 +38,7 @@ func TestDefaultViewportPrefersLocatedLeadsThenTheCommonestCityThenBrazil(t *tes
 		t.Fatal("the commonest city is still named when it has no point yet")
 	}
 
-	empty := DefaultViewport(nil, nil, Summary{})
+	empty := DefaultViewport(nil, nil)
 	if empty.Basis != BasisCountry || empty.City != nil {
 		t.Fatalf("empty = %+v", empty)
 	}
@@ -67,7 +46,7 @@ func TestDefaultViewportPrefersLocatedLeadsThenTheCommonestCityThenBrazil(t *tes
 
 func TestDefaultViewportPadsASinglePosition(t *testing.T) {
 	one := &geo.BBox{South: -23.55, West: -46.63, North: -23.55, East: -46.63}
-	v := DefaultViewport(one, nil, Summary{Total: 1, OnMap: 1})
+	v := DefaultViewport(one, nil)
 	if v.Basis != BasisLocated || v.BBox.Validate() != nil {
 		t.Fatalf("a single position still opens a valid box: %+v", v.BBox)
 	}
@@ -75,7 +54,7 @@ func TestDefaultViewportPadsASinglePosition(t *testing.T) {
 		t.Fatalf("the padded box %+v must hold the position", v.BBox)
 	}
 	broken := &geo.BBox{South: math.NaN(), West: -46.63, North: -23.55, East: -46.63}
-	if got := DefaultViewport(broken, nil, Summary{}); got.Basis != BasisCountry {
+	if got := DefaultViewport(broken, nil); got.Basis != BasisCountry {
 		t.Fatalf("an unreadable extent falls back, got %+v", got)
 	}
 }
@@ -149,7 +128,7 @@ func TestColorByRefusals(t *testing.T) {
 
 func TestPointCarriesAtMostFiveLeadsAndAStableID(t *testing.T) {
 	ids := []string{"a", "b", "c", "d", "e", "f", "g"}
-	p := NewPoint(geo.Point{Lat: -23.5614, Lng: -46.6559}, geo.PrecisionStreet, crmfilter.PlacementOnMap, 7, ids, "Positivo")
+	p := NewPoint(geo.Point{Lat: -23.5614, Lng: -46.6559}, geo.PrecisionStreet, crmfilter.PlacementOnMap, 7, ids, "Positivo", SentimentCounts{})
 	if len(p.LeadIDs) != MaxLeadIDsPerPoint || p.People != 7 {
 		t.Fatalf("point = %+v", p)
 	}
@@ -164,8 +143,8 @@ func TestPointCarriesAtMostFiveLeadsAndAStableID(t *testing.T) {
 
 func TestAnApproximatePointNeverSharesItsIDWithAPreciseOneAtTheSamePosition(t *testing.T) {
 	at := geo.Point{Lat: -6.3104, Lng: -35.4793}
-	precise := NewPoint(at, geo.PrecisionStreet, crmfilter.PlacementOnMap, 1, []string{"a"}, "")
-	approximate := NewPoint(at, geo.PrecisionDistrict, crmfilter.PlacementApproximate, 2, []string{"b", "c"}, "")
+	precise := NewPoint(at, geo.PrecisionStreet, crmfilter.PlacementOnMap, 1, []string{"a"}, "", SentimentCounts{})
+	approximate := NewPoint(at, geo.PrecisionDistrict, crmfilter.PlacementApproximate, 2, []string{"b", "c"}, "", SentimentCounts{})
 	if precise.Placement != crmfilter.PlacementOnMap || approximate.Placement != crmfilter.PlacementApproximate {
 		t.Fatalf("placements = %q %q", precise.Placement, approximate.Placement)
 	}

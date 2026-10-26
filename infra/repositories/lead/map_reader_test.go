@@ -81,7 +81,12 @@ func TestTheLayerCountsItsPositionsOnlyUpToOnePastTheSwitch(t *testing.T) {
 	}
 }
 
-func TestTheLayerGroupsItsAddressesIntoCellsWithoutTouchingLeads(t *testing.T) {
+const (
+	sentimentCounts = "COUNT(*) FILTER (WHERE ls.sentiment = 'positive') AS positive, COUNT(*) FILTER (WHERE ls.sentiment = 'neutral') AS neutral, COUNT(*) FILTER (WHERE ls.sentiment = 'negative') AS negative"
+	sentimentJoined = "lead_addresses a LEFT JOIN lead_sentiments ls ON ls.lead_id = a.lead_id AND ls.workspace_id = a.workspace_id"
+)
+
+func TestTheLayerGroupsItsAddressesIntoCellsCountingTheirSentiments(t *testing.T) {
 	m := compiledMap(t)
 	q := layerRequest(t, "")
 	sql, args := m.layerCells(q)
@@ -90,8 +95,8 @@ func TestTheLayerGroupsItsAddressesIntoCellsWithoutTouchingLeads(t *testing.T) {
 		" AND a.lead_id IN (SELECT leads.id FROM leads WHERE " + m.leads.where + ")"
 	class := "CASE WHEN a.latitude IS NOT NULL AND a.geo_precision = ANY(?) THEN 'on_map' ELSE 'approximate' END AS placement"
 	want := "SELECT " + class + ", floor(a.longitude / ?::float8)::bigint AS ix, floor(a.latitude / ?::float8)::bigint AS iy," +
-		" COUNT(*) AS people, avg(a.latitude) AS lat, avg(a.longitude) AS lng" +
-		" FROM lead_addresses a WHERE " + where + " GROUP BY 1, 2, 3"
+		" COUNT(*) AS people, avg(a.latitude) AS lat, avg(a.longitude) AS lng, " + sentimentCounts +
+		" FROM " + sentimentJoined + " WHERE " + where + " GROUP BY 1, 2, 3"
 	if sql != want {
 		t.Fatalf("cells sql =\n%s\nwant\n%s", sql, want)
 	}
@@ -114,8 +119,8 @@ func TestTheLayerPointsAggregateTheLeadsOfEachPositionAndClass(t *testing.T) {
 	want := "SELECT a.latitude AS lat, a.longitude AS lng, " + class + ", COUNT(*) AS people," +
 		" min(array_position(?::text[], a.geo_precision::text)) AS precision_rank," +
 		" (array_agg(a.lead_id::text))[1:5] AS lead_ids," +
-		" NULL::text AS value" +
-		" FROM lead_addresses a WHERE " + where +
+		" NULL::text AS value, " + sentimentCounts +
+		" FROM " + sentimentJoined + " WHERE " + where +
 		" GROUP BY 1, 2, 3"
 	if sql != want {
 		t.Fatalf("points sql =\n%s\nwant\n%s", sql, want)
@@ -376,7 +381,8 @@ func TestExtentTopCityAndPeekStayInsideTheFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(sql, "(a.latitude IS NOT NULL AND a.geo_precision = ANY(?)) AND a.latitude = ? AND a.longitude = ?") ||
-		!strings.Contains(sql, "COUNT(*) OVER () AS total") || !strings.HasSuffix(sql, "ORDER BY a.lead_id LIMIT ?") {
+		!strings.Contains(sql, "COUNT(*) OVER () AS total") || !strings.HasSuffix(sql, "ORDER BY a.lead_id LIMIT ?") ||
+		!strings.HasPrefix(sql, "SELECT a.lead_id::text AS lead_id, ls.sentiment, ") || !strings.Contains(sql, sentimentJoined) {
 		t.Fatalf("peek sql = %s", sql)
 	}
 	if args[2] != -23.5614 || args[3] != -46.6559 {

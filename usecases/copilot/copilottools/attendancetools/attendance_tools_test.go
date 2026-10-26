@@ -9,6 +9,7 @@ import (
 
 	"vozko/domain/attendance"
 	"vozko/domain/cache"
+	"vozko/domain/conversation"
 	"vozko/domain/copilot"
 	wd "vozko/domain/workspace/workspace_department"
 	"vozko/usecases/copilot/copilottools/tooltest"
@@ -283,5 +284,41 @@ func TestAttendanceQueryFollowsTheCampaignAndAIFiltersOnScreen(t *testing.T) {
 	res := NewAttendanceMetricsTool(testDeps(sections)).Execute(context.Background(), tooltest.OwnerOn(copilot.View{}), map[string]interface{}{"campaign_id": "black friday"})
 	if res.Status != copilot.StatusError || len(sections.filters) != 2 {
 		t.Fatalf("status = %v, want an invented campaign refused before querying", res.Status)
+	}
+}
+
+func TestAttendanceQueryFollowsTheOriginOnScreenAndWidensWithAll(t *testing.T) {
+	sections := &fakeSections{}
+	view := screen
+	view.Origin = "receptive"
+	tool := NewAttendanceMetricsTool(testDeps(sections))
+
+	tool.Execute(context.Background(), tooltest.OwnerOn(view), nil)
+	if got := sections.filters[0].Origin; got != conversation.OriginReceptive {
+		t.Fatalf("origin = %q, want the receptive filter on screen", got)
+	}
+	tool.Execute(context.Background(), tooltest.OwnerOn(view), map[string]interface{}{"origin": "campaign"})
+	if got := sections.filters[1].Origin; got != conversation.OriginCampaign {
+		t.Fatalf("origin = %q, want the asked campaign origin", got)
+	}
+	tool.Execute(context.Background(), tooltest.OwnerOn(view), map[string]interface{}{"origin": "all"})
+	if got := sections.filters[2].Origin; got != "" {
+		t.Fatalf("origin = %q, want every origin", got)
+	}
+
+	res := tool.Execute(context.Background(), tooltest.OwnerOn(copilot.View{}), map[string]interface{}{"origin": "organico"})
+	if res.Status != copilot.StatusError || len(sections.filters) != 3 || !strings.Contains(res.Message, "origin") {
+		t.Fatalf("status = %v (%s), want an invented origin refused before querying", res.Status, res.Message)
+	}
+}
+
+func TestAttendanceToolsOfferTheOriginParameter(t *testing.T) {
+	param, ok := attendanceParams()["origin"]
+	if !ok {
+		t.Fatal("the attendance tools must accept the origin filter the page offers")
+	}
+	want := []string{"receptive", "campaign", "outreach", "unknown", "all"}
+	if strings.Join(param.Enum, ",") != strings.Join(want, ",") {
+		t.Fatalf("origin enum = %v, want %v", param.Enum, want)
 	}
 }

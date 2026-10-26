@@ -30,6 +30,7 @@ func TestTheCatalogKeepsEveryJobOnItsSchedule(t *testing.T) {
 		"start_scheduled_wc_campaigns":                 time.Minute,
 		"analysis_debounce":                            time.Minute,
 		"conversation_auto_close":                      5 * time.Minute,
+		"conversation_origin_backfill":                 time.Minute,
 		"workflow_manager":                             time.Minute,
 		"expire_subscriptions":                         time.Hour,
 		"plan_expiry_reminders":                        day,

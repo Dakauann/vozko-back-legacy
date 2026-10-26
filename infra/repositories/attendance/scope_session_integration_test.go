@@ -54,7 +54,7 @@ func readSections(ctx context.Context, t *testing.T, repo attendance.Repository,
 func attendanceModels() []interface{} {
 	return []interface{}{
 		&schema.AgentPresenceInterval{}, &schema.Agent{}, &schema.AIAttendanceSession{}, &schema.AssignmentHistory{}, &schema.Balance{},
-		&schema.ConversationEvent{}, &schema.ConversationMessage{}, &schema.EntryStage{}, &schema.InboxAssignment{}, &schema.LeadMessageWindow{},
+		&schema.ConversationEvent{}, &schema.ConversationMessage{}, &schema.ConversationOrigin{}, &schema.EntryStage{}, &schema.InboxAssignment{}, &schema.LeadMessageWindow{},
 		&schema.Lead{}, &schema.Opportunity{}, &schema.OpportunityConversation{}, &schema.Pipeline{}, &schema.Stage{}, &schema.User{},
 		&schema.WhatsAppBusinessPhoneNumber{}, &schema.WhatsAppCampaign{}, &schema.WhatsAppCampaignEntry{}, &schema.WhatsAppTemplateSend{},
 		&schema.WorkspacePhoneAccess{}, &schema.WorkspaceDepartment{}, &schema.WorkspaceMember{}, &schema.WorkflowSchema{},

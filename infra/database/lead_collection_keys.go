@@ -21,6 +21,7 @@ var compositeLeadKeys = []compositeLeadKey{
 	{table: "lead_relations", constraint: "fk_lead_relations_workspace_lead", column: "lead_id"},
 	{table: "lead_relations", constraint: "fk_lead_relations_workspace_other_lead", column: "other_lead_id"},
 	{table: "call_list_items", constraint: "fk_lead_call_list_items_workspace_lead", column: "lead_id"},
+	{table: "lead_sentiments", constraint: "fk_lead_sentiments_workspace_lead", column: "lead_id"},
 }
 
 func leadCollectionConstraints() []ddl {

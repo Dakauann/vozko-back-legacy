@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/mux"
 
 	attendancedomain "vozko/domain/attendance"
+	"vozko/domain/conversation"
 	"vozko/domain/cache"
 	workspace_domain "vozko/domain/workspace"
 	"vozko/infra/http/middleware"
@@ -18,11 +19,15 @@ import (
 
 type stubSections struct {
 	attendancedomain.OverviewSectionsUseCase
-	err      error
-	lastRank string
+	err        error
+	lastRank   string
+	lastOrigin conversation.Origin
+	summaries  int
 }
 
-func (s *stubSections) Summary(_ context.Context, _ string, _ attendancedomain.OverviewFilter) (*attendancedomain.SummarySection, error) {
+func (s *stubSections) Summary(_ context.Context, _ string, filter attendancedomain.OverviewFilter) (*attendancedomain.SummarySection, error) {
+	s.summaries++
+	s.lastOrigin = filter.Origin
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -142,5 +147,38 @@ func TestOnlyTheSectionRoutesServeTheOverview(t *testing.T) {
 		if rec.Code != want {
 			t.Fatalf("GET %s = %d, want %d", path, rec.Code, want)
 		}
+	}
+}
+
+func TestSectionEndpointPassesTheOriginToTheSection(t *testing.T) {
+	for raw, want := range map[string]conversation.Origin{
+		"":          "",
+		"receptive": conversation.OriginReceptive,
+		"campaign":  conversation.OriginCampaign,
+		"outreach":  conversation.OriginOutreach,
+		"unknown":   conversation.OriginUnknown,
+	} {
+		sections := &stubSections{}
+		rec := serveSection(t, sections, "/attendance/overview/summary?origin="+raw)
+		if rec.Code != http.StatusOK || sections.lastOrigin != want {
+			t.Fatalf("origin=%q: status = %d, origin = %q, want 200 and %q", raw, rec.Code, sections.lastOrigin, want)
+		}
+	}
+}
+
+func TestSectionEndpointRefusesAnUnknownOriginWithItsCode(t *testing.T) {
+	sections := &stubSections{}
+	rec := serveSection(t, sections, "/attendance/overview/summary?origin=Receptive")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.Code != CodeOriginInvalid {
+		t.Fatalf("body = %s, want code %s", rec.Body.String(), CodeOriginInvalid)
+	}
+	if sections.summaries != 0 {
+		t.Fatalf("an invalid origin must never reach the metrics")
 	}
 }

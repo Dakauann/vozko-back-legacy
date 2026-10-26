@@ -47,6 +47,7 @@ type searchConversationsArgs struct {
 	Unassigned   bool   `json:"unassigned" desc:"só as conversas sem responsável"`
 	HeldBy       string `json:"held_by" desc:"ai (agente de IA) ou workflow (automação): só as conversas que ela conduz"`
 	UnreadOnly   bool   `json:"unread_only" desc:"só as conversas com mensagens não lidas"`
+	Origin       string `json:"origin" desc:"quem começou a conversa: receptive (o contato escreveu primeiro), campaign (uma mensagem de campanha) ou outreach (a equipe, a IA ou um fluxo); omita para todas"`
 	DateFrom     string `json:"date_from" desc:"última mensagem a partir de YYYY-MM-DD"`
 	DateTo       string `json:"date_to" desc:"última mensagem até YYYY-MM-DD (inclusivo)"`
 	Page         int    `json:"page" desc:"página, começa em 1"`
@@ -64,7 +65,7 @@ func (t *searchConversationsTool) Definition() tools.Definition {
 	return copilottools.Definition("search_conversations", fmt.Sprintf(
 		"Busca conversas da caixa de entrada como o próprio usuário as vê (mesmas regras de visibilidade e departamento), "+
 			"da mais recente para a mais antiga, %d por página. Devolve contato (número mascarado), status, etapa, etiquetas, "+
-			"responsável e a última mensagem. Use read_conversation com entry_id e entry_type para ler uma conversa.", copilottools.SearchPageSize),
+			"responsável, origem e a última mensagem. Use read_conversation com entry_id e entry_type para ler uma conversa.", copilottools.SearchPageSize),
 		searchConversationsArgs{})
 }
 
@@ -143,6 +144,13 @@ func searchInput(cc copilot.Context, a searchConversationsArgs) (conversation.Se
 		if !in.ConversationStatus.Valid() {
 			return in, fmt.Errorf("%w: status deve ser new, ongoing ou finished", copilottools.ErrInvalidArgs)
 		}
+	}
+	if origin := strings.TrimSpace(a.Origin); origin != "" {
+		parsed, err := conversation.ParseOrigin(origin)
+		if err != nil {
+			return in, fmt.Errorf("%w: origin deve ser receptive, campaign ou outreach", copilottools.ErrInvalidArgs)
+		}
+		in.Origin = parsed
 	}
 	if a.HeldBy != "" {
 		in.ResponsibleKind = conversation.ParseResponsibleKind(a.HeldBy)

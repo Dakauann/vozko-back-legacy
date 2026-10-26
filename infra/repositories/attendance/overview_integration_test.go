@@ -74,6 +74,8 @@ func integrationFilters() map[string]attendance.OverviewFilter {
 		"member":         {DateFrom: &from, DateTo: &to, MemberID: emptyWorkspace},
 		"campaign":       {DateFrom: &from, DateTo: &to, CampaignID: emptyWorkspace},
 		"campaign typed": {DateFrom: &from, DateTo: &to, CampaignID: emptyWorkspace, CampaignType: "whatsapp"},
+		"receptive":      {DateFrom: &from, DateTo: &to, Origin: conversation.OriginReceptive},
+		"campaign start": {Origin: conversation.OriginCampaign, Channel: "whatsapp", IncludeAI: true},
 		"everything": {
 			DateFrom:     &from,
 			DateTo:       &to,
@@ -81,6 +83,7 @@ func integrationFilters() map[string]attendance.OverviewFilter {
 			DepartmentID: emptyWorkspace,
 			MemberID:     emptyWorkspace,
 			CampaignID:   emptyWorkspace,
+			Origin:       conversation.OriginOutreach,
 		},
 	}
 }

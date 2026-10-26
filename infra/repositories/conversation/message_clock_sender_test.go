@@ -22,7 +22,7 @@ func TestWorkflowMediaMovesTheBusinessClockNotTheCustomers(t *testing.T) {
 	db, mock, sqlDB := newStatusDB(t)
 	defer sqlDB.Close()
 
-	mock.ExpectExec(`INSERT INTO "conversation_messages"`).WillReturnResult(sqlmock.NewResult(0, 1))
+	expectStoredWithItsOrigin(mock)
 	mock.ExpectExec(`UPDATE unofficial_whatsapp_conversations SET last_message_at = .*, last_agent_message_at = .*, awaiting_reply_since = .* WHERE id = \$\d+$`).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -38,7 +38,7 @@ func TestAContactMessageMovesTheCustomerClock(t *testing.T) {
 	db, mock, sqlDB := newStatusDB(t)
 	defer sqlDB.Close()
 
-	mock.ExpectExec(`INSERT INTO "conversation_messages"`).WillReturnResult(sqlmock.NewResult(0, 1))
+	expectStoredWithItsOrigin(mock)
 	mock.ExpectExec(`UPDATE unofficial_whatsapp_conversations SET last_message_at = .*, last_customer_message_at = .*, awaiting_reply_since = .* WHERE id = \$\d+$`).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -54,7 +54,7 @@ func TestACampaignBlastMovesTheBusinessClockButNotTheWait(t *testing.T) {
 	db, mock, sqlDB := newStatusDB(t)
 	defer sqlDB.Close()
 
-	mock.ExpectExec(`INSERT INTO "conversation_messages"`).WillReturnResult(sqlmock.NewResult(0, 1))
+	expectStoredWithItsOrigin(mock)
 	mock.ExpectExec(`UPDATE unofficial_whatsapp_conversations SET last_message_at = .*, last_agent_message_at = .* WHERE id = \$\d+$`).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 

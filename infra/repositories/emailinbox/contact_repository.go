@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"vozko/infra/repositories/leadsentiment"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -88,9 +89,11 @@ func (r *contactRepository) UpdateDisplayName(ctx context.Context, id, displayNa
 }
 
 func (r *contactRepository) LinkLead(ctx context.Context, id, leadID string) error {
-	return r.db.WithContext(ctx).Model(&schema.EmailContact{}).
-		Where("id = ? AND lead_id IS NULL", id).
-		Update("lead_id", leadID).Error
+	return leadsentiment.Relink(r.db.WithContext(ctx), &schema.EmailContact{}, id, func(tx *gorm.DB) error {
+		return tx.Model(&schema.EmailContact{}).
+			Where("id = ? AND lead_id IS NULL", id).
+			Update("lead_id", leadID).Error
+	})
 }
 
 func (r *contactRepository) affected(result *gorm.DB) error {

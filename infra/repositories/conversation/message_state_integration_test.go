@@ -14,7 +14,7 @@ import (
 
 func messageStateRepo(t *testing.T) conversation.MessageRepository {
 	t.Helper()
-	return NewRepository(repotest.IsolatedDB(t, "msg_state", &schema.ConversationMessage{}))
+	return NewRepository(repotest.IsolatedDB(t, "msg_state", &schema.ConversationMessage{}, &schema.ConversationOrigin{}))
 }
 
 func storedMessage(t *testing.T, repo conversation.MessageRepository, entryID string, at time.Time, text string) *conversation.Message {
@@ -144,7 +144,7 @@ func TestTheLastMessageKnowsItWasRetractedAgainstPostgres(t *testing.T) {
 }
 
 func TestUpdateMovesTheDeliveryStatusOnlyForwardAgainstPostgres(t *testing.T) {
-	db := repotest.IsolatedDB(t, "msg_state", &schema.ConversationMessage{})
+	db := repotest.IsolatedDB(t, "msg_state", &schema.ConversationMessage{}, &schema.ConversationOrigin{})
 	repo := NewRepository(db)
 	m := storedMessage(t, repo, uuid.NewString(), time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC), "pedido enviado")
 	legacy := storedMessage(t, repo, uuid.NewString(), time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC), "linha antiga")

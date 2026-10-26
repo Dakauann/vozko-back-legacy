@@ -56,11 +56,16 @@ func TestOurSendClaimsTheEchoThatArrivedFirst(t *testing.T) {
 	db, mock, sqlDB := newStatusDB(t)
 	defer sqlDB.Close()
 
+	mock.ExpectBegin()
 	mock.ExpectExec(`INSERT INTO "conversation_messages"`).
 		WillReturnError(errors.New(`ERROR: duplicate key value violates unique constraint "ux_cm_entry_external_msgid" (SQLSTATE 23505)`))
+	mock.ExpectRollback()
+	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE "conversation_messages" SET "sender_id"=\$1,"sender_kind"=\$2,"updated_at"=\$3 WHERE .*entry_type = \$4 AND entry_id = \$5 AND external_message_id = \$6 AND sender_kind = \$7`).
 		WithArgs("workflow:wf-1", "workflow", sqlmock.AnyArg(), "unofficial_whatsapp", "entry-1", "3EB0ECHO", "external").
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO conversation_origins`).WithArgs("entry-1", "unofficial_whatsapp").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 
 	if err := NewRepository(db).Create(senderTestMessage(conversation.SentByWorkflow("wf-1"))); err != nil {
 		t.Fatalf("Create() = %v, want the echo claimed", err)
@@ -75,8 +80,12 @@ func TestADuplicateThatIsNotAnEchoStaysAnError(t *testing.T) {
 	defer sqlDB.Close()
 
 	duplicate := errors.New(`ERROR: duplicate key value violates unique constraint "ux_cm_entry_external_msgid" (SQLSTATE 23505)`)
+	mock.ExpectBegin()
 	mock.ExpectExec(`INSERT INTO "conversation_messages"`).WillReturnError(duplicate)
+	mock.ExpectRollback()
+	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE "conversation_messages" SET`).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
 
 	err := NewRepository(db).Create(senderTestMessage(conversation.SentByWorkflow("wf-1")))
 
@@ -90,12 +99,59 @@ func TestAnEchoNeverTakesOverAnAttributedMessage(t *testing.T) {
 	defer sqlDB.Close()
 
 	duplicate := errors.New(`ERROR: duplicate key value violates unique constraint "ux_cm_entry_external_msgid" (SQLSTATE 23505)`)
+	mock.ExpectBegin()
 	mock.ExpectExec(`INSERT INTO "conversation_messages"`).WillReturnError(duplicate)
+	mock.ExpectRollback()
 
 	err := NewRepository(db).Create(senderTestMessage(conversation.SentExternally()))
 
 	if !errors.Is(err, duplicate) {
 		t.Fatalf("Create() = %v, want the duplicate error", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func expectStoredWithItsOrigin(mock sqlmock.Sqlmock) {
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO "conversation_messages"`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO conversation_origins .* WHERE NOT EXISTS`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+}
+
+func TestAStoredMessageRecordsTheOriginInItsOwnTransaction(t *testing.T) {
+	db, mock, sqlDB := newStatusDB(t)
+	defer sqlDB.Close()
+	mock.MatchExpectationsInOrder(true)
+	message := clockMessage(conversation.SentByContact("5511"))
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO "conversation_messages"`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO conversation_origins .* WHERE NOT EXISTS`).
+		WithArgs("entry-1", "unofficial_whatsapp", "entry-1", "unofficial_whatsapp", message.CreatedAt).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	mock.ExpectExec(`UPDATE unofficial_whatsapp_conversations SET last_message_at`).WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := NewRepository(db).Create(message); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAMessageIsNotStoredWhenItsOriginCannotBe(t *testing.T) {
+	db, mock, sqlDB := newStatusDB(t)
+	defer sqlDB.Close()
+	failure := errors.New("origin write failed")
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO "conversation_messages"`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO conversation_origins`).WillReturnError(failure)
+	mock.ExpectRollback()
+
+	if err := NewRepository(db).Create(clockMessage(conversation.SentByContact("5511"))); !errors.Is(err, failure) {
+		t.Fatalf("Create = %v, want the origin failure so the message and its origin never disagree", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

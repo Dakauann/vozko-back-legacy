@@ -99,7 +99,7 @@ func e2eDB(t testing.TB) *gorm.DB {
 		&schema.MercadoLivreAccount{}, &schema.MercadoLivreContact{}, &schema.MercadoLivreConversation{},
 		&schema.MercadoLivreListing{}, &schema.MercadoLivreListingSync{}, &schema.MercadoLivreQuestion{},
 		&schema.CommentRule{}, &schema.CommentRuleExecution{}, &schema.CommentPrivateReply{}, &schema.WebhookProcessedEvent{},
-		&schema.ConversationMessage{}, &schema.ConversationMedia{}, &schema.ConversationEvent{}, &schema.ConversationNote{},
+		&schema.ConversationMessage{}, &schema.ConversationOrigin{}, &schema.ConversationMedia{}, &schema.ConversationEvent{}, &schema.ConversationNote{},
 		&schema.ConversationPersonalMark{}, &schema.ConversationDelegation{}, &schema.ConversationAdOrigin{},
 		&schema.ConversationLiveRead{}, &schema.LiveDecisionRecord{}, &schema.AIAttendanceSession{}, &schema.AssignmentHistory{},
 		&schema.InboxAssignment{}, &schema.EntryLabel{}, &schema.EntryStage{}, &schema.OpportunityConversation{},

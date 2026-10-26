@@ -13,6 +13,7 @@ import (
 	"vozko/delivery/http/response"
 	"vozko/domain/agent_presence"
 	attendancedomain "vozko/domain/attendance"
+	"vozko/domain/conversation"
 	"vozko/domain/queue_event"
 	"vozko/domain/shared/deps"
 	"vozko/infra/http/middleware"
@@ -291,8 +292,17 @@ func (h *AttendanceHandler) GetOccupancy(w http.ResponseWriter, r *http.Request)
 	response.WriteSuccess(w, http.StatusOK, map[string]interface{}{"occupancy": rows})
 }
 
-func parseOverviewFilter(r *http.Request) attendancedomain.OverviewFilter {
+const CodeOriginInvalid = "attendance_origin_invalid"
+
+func parseOverviewFilter(r *http.Request) (attendancedomain.OverviewFilter, error) {
 	filter := attendancedomain.OverviewFilter{}
+	if raw := r.URL.Query().Get("origin"); raw != "" {
+		origin, err := conversation.ParseOrigin(raw)
+		if err != nil {
+			return attendancedomain.OverviewFilter{}, err
+		}
+		filter.Origin = origin
+	}
 	filter.DateFrom, filter.DateTo = parseDayRange(r)
 	filter.DepartmentID = r.URL.Query().Get("department_id")
 	filter.MemberID = r.URL.Query().Get("member_id")
@@ -309,11 +319,11 @@ func parseOverviewFilter(r *http.Request) attendancedomain.OverviewFilter {
 	if ia == "" || ia == "1" || ia == "true" || ia == "yes" {
 		filter.IncludeAI = true
 	}
-	return filter
+	return filter, nil
 }
 
 // @Summary		Seção da visão geral de atendimento
-// @Description	Retorna uma seção da visão geral de atendimento (summary, trend, stages, backlog, team, rework ou live) para que a página carregue cada bloco quando ele entra na tela, com filtros opcionais por período, departamento, membro, campanha e canal. As seções, exceto live, idênticas ficam em cache por 60 segundos; quando o limite de consultas analíticas simultâneas está ocupado, responde 503 com Retry-After.
+// @Description	Retorna uma seção da visão geral de atendimento (summary, trend, stages, backlog, team, rework ou live) para que a página carregue cada bloco quando ele entra na tela, com filtros opcionais por período, departamento, membro, campanha, canal e origem da conversa. As seções, exceto live, idênticas ficam em cache por 60 segundos; quando o limite de consultas analíticas simultâneas está ocupado, responde 503 com Retry-After.
 // @Tags			Atendimento
 // @Produce		json
 // @Param			section			path	string	true	"Seção"	Enums(summary, trend, stages, backlog, team, rework, live)
@@ -324,6 +334,7 @@ func parseOverviewFilter(r *http.Request) attendancedomain.OverviewFilter {
 // @Param			campaign_id		query	string	false	"ID da campanha"
 // @Param			campaign_type	query	string	false	"Tipo da campanha"
 // @Param			channel			query	string	false	"Canal de atendimento"
+// @Param			origin			query	string	false	"Origem da conversa, pela primeira mensagem: receptive (o contato escreveu primeiro), campaign (começou por um disparo de campanha), outreach (a equipe ou uma automação começou) ou unknown (remetente não registrado). Vale para todas as seções exceto live; novos leads seguem o workspace inteiro. Origem inválida responde 400 attendance_origin_invalid."	Enums(receptive, campaign, outreach, unknown)
 // @Param			rank_metric		query	string	false	"Métrica de ordenação da equipe (apenas team)"
 // @Param			trend_buckets	query	int		false	"Meses da série histórica (apenas trend)"
 // @Param			include_ai		query	string	false	"Incluir agentes de IA (apenas team)"
@@ -346,7 +357,12 @@ func (h *AttendanceHandler) GetOverviewSection(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	out, err := h.readSection(r.Context(), section, wsID, parseOverviewFilter(r))
+	filter, err := parseOverviewFilter(r)
+	if err != nil {
+		response.WriteErrorWithCode(w, http.StatusBadRequest, CodeOriginInvalid, "Origem inválida: use receptive, campaign, outreach ou unknown", nil)
+		return
+	}
+	out, err := h.readSection(r.Context(), section, wsID, filter)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return

@@ -145,7 +145,7 @@ func e2eDB(t *testing.T) *gorm.DB {
 	models := append(append(append([]any{}, schema.EmailSendingModels()...), schema.EmailCampaignModels()...), schema.EmailInboxModels()...)
 	models = append(models,
 		&schema.Workspace{}, &schema.Balance{}, &schema.BalanceTransaction{}, &schema.PricingItem{}, &schema.EmailAPISend{},
-		&schema.Lead{}, &schema.LeadCompany{}, &schema.ConversationMessage{}, &schema.WebhookProcessedEvent{},
+		&schema.Lead{}, &schema.LeadCompany{}, &schema.ConversationMessage{}, &schema.ConversationOrigin{}, &schema.WebhookProcessedEvent{},
 		&schema.ConversationMedia{},
 	)
 	models = append(models, schema.CampaignAudienceModels()...)

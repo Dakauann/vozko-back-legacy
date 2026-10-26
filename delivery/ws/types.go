@@ -188,6 +188,7 @@ type SearchInboxPayload struct {
 	Sort               string `json:"sort,omitempty"`
 	LabelID            string `json:"label_id,omitempty"`
 	Personal           string `json:"personal,omitempty"`
+	Origin             string `json:"origin,omitempty"`
 
 	ResponsibleUserID     string `json:"responsible_user_id,omitempty"`
 	ResponsibleUnassigned bool   `json:"responsible_unassigned,omitempty"`

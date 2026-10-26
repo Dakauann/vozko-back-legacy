@@ -37,7 +37,7 @@ func (f *fakePlaces) Sample(_ context.Context, scope selection.Scope, s selectio
 func TestTheMapSamplesTheCountedSelectionForTheCaller(t *testing.T) {
 	w := newWorld(t)
 	w.places.sample = leadmap.Sample{
-		Points:    []leadmap.Point{leadmap.NewPoint(geo.Point{Lat: -23.56, Lng: -46.65}, geo.PrecisionStreet, "on_map", 2, []string{"lead-1", "lead-2"}, "")},
+		Points:    []leadmap.Point{leadmap.NewPoint(geo.Point{Lat: -23.56, Lng: -46.65}, geo.PrecisionStreet, "on_map", 2, []string{"lead-1", "lead-2"}, "", leadmap.SentimentCounts{})},
 		Located:   2,
 		Positions: 1,
 		Bounds:    &geo.BBox{South: -23.6, West: -46.7, North: -23.5, East: -46.6},

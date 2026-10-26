@@ -34,8 +34,13 @@ func mapDB(t *testing.T) *gorm.DB {
 func mapTables(t *testing.T, db *gorm.DB) {
 	t.Helper()
 	migrateLeadTables(t, db)
-	if err := db.AutoMigrate(&schema.LeadArea{}, &schema.GeoCity{}, &schema.GeoDistrictPoint{}); err != nil {
-		t.Fatalf("migrate areas and reference points: %v", err)
+	if err := db.AutoMigrate(&schema.LeadArea{}, &schema.GeoCity{}, &schema.GeoDistrictPoint{}, &schema.LeadSentiment{}); err != nil {
+		t.Fatalf("migrate areas, reference points and sentiments: %v", err)
+	}
+	for _, sql := range database.LeadSentimentIndexStatements() {
+		if err := db.Exec(sql).Error; err != nil {
+			t.Fatalf("sentiment index: %v", err)
+		}
 	}
 	for _, name := range []string{database.LeadAddressWindowIndex, "idx_lead_addresses_workspace_place"} {
 		sql, ok := database.ConcurrentIndexSQL(name)
@@ -118,7 +123,7 @@ func TestAPositionIsReadAsLatitudeAndLongitudeAndFoundOnlyWhereItIsAgainstPostgr
 		t.Fatalf("a window with the axes swapped finds nothing: %+v", none)
 	}
 	ids, total, err := reader.LeadsAt(ctx, leadmap.Scope{WorkspaceID: ws}, geo.Point{Lat: -23.5614, Lng: -46.6559}, crmfilter.PlacementOnMap, leadmap.MaxPeekLeads)
-	if err != nil || total != 1 || len(ids) != 1 || ids[0] != id {
+	if err != nil || total != 1 || len(ids) != 1 || ids[0].ID != id {
 		t.Fatalf("peek = %v %d %v", ids, total, err)
 	}
 }
@@ -170,11 +175,11 @@ func TestTheLayerDrawsApproximateLeadsAtTheirReferencePointApartFromThePreciseOn
 	}
 
 	pinned, total, err := reader.LeadsAt(ctx, leadmap.Scope{WorkspaceID: ws}, geo.Point{Lat: -23.5614, Lng: -46.6559}, crmfilter.PlacementOnMap, leadmap.MaxPeekLeads)
-	if err != nil || total != 1 || pinned[0] != street {
+	if err != nil || total != 1 || pinned[0].ID != street {
 		t.Fatalf("precise peek = %v %d %v", pinned, total, err)
 	}
 	near, total, err := reader.LeadsAt(ctx, leadmap.Scope{WorkspaceID: ws}, geo.Point{Lat: -23.5614, Lng: -46.6559}, crmfilter.PlacementApproximate, leadmap.MaxPeekLeads)
-	if err != nil || total != 2 || !sameIDs(near, []string{bairro, cep}) {
+	if err != nil || total != 2 || !sameIDs(idsOf(near), []string{bairro, cep}) {
 		t.Fatalf("approximate peek = %v %d %v", near, total, err)
 	}
 
@@ -189,6 +194,14 @@ func TestTheLayerDrawsApproximateLeadsAtTheirReferencePointApartFromThePreciseOn
 	if inCells[crmfilter.PlacementOnMap] != summary.OnMap || inCells[crmfilter.PlacementApproximate] != summary.Approximate {
 		t.Fatalf("cells hold %v, the summary counts %d on the map and %d approximate", inCells, summary.OnMap, summary.Approximate)
 	}
+}
+
+func idsOf(leads []leadmap.LeadAt) []string {
+	ids := make([]string, 0, len(leads))
+	for _, l := range leads {
+		ids = append(ids, l.ID)
+	}
+	return ids
 }
 
 func sameIDs(got, want []string) bool {
@@ -778,7 +791,7 @@ func TestBairrosTakeTheReferencePointAndAppearWithoutLocatedLeadsAgainstPostgres
 	if err != nil || top == nil || top.CityKey != "sp:sao paulo" || top.Center == nil || *top.Center != (geo.Point{Lat: -23.5329, Lng: -46.6395}) {
 		t.Fatalf("top city = %+v %v, want São Paulo at its IBGE point", top, err)
 	}
-	if viewport := leadmap.DefaultViewport(nil, top, leadmap.Summary{Total: 6}); viewport.Basis != leadmap.BasisCity {
+	if viewport := leadmap.DefaultViewport(nil, top); viewport.Basis != leadmap.BasisCity {
 		t.Fatalf("viewport = %+v, want the city fallback to fire", viewport)
 	}
 

@@ -17,6 +17,7 @@ import (
 	"vozko/domain/shared"
 	businessphone "vozko/domain/whatsapp/business_phone"
 	cronPackage "vozko/infra/cron"
+	conversation_repository "vozko/infra/repositories/conversation"
 	ia_repo "vozko/infra/repositories/inbox_assignment"
 	workspace_config_repository "vozko/infra/repositories/workspace_config"
 	conversation_usecase "vozko/usecases/conversation"
@@ -106,6 +107,11 @@ func (c *Container) initJobRunner() {
 		log.Fatalf("[assignment-rescue] %v", err)
 	}
 
+	originBackfill, err := conversation_repository.NewOriginBackfill(c.db)
+	if err != nil {
+		log.Fatalf("[conversation-origin] %v", err)
+	}
+
 	messageStatuses := messagestatus_usecase.NewPipeline(c.repositories.messageStatusLedger)
 	reportService := c.services.reportService
 	reconcileTemplateSends := c.useCases.reconcileTemplateSends
@@ -140,14 +146,15 @@ func (c *Container) initJobRunner() {
 		"start_scheduled_wc_campaigns": cronPackage.Method(startScheduledWhatsappCampaignsJob, func(context.Context) error {
 			return startScheduledWhatsappCampaignsJob.StartScheduledWhatsappCampaigns()
 		}),
-		"analysis_debounce":       cronPackage.Method(analysisDebounceJob, func(context.Context) error { return analysisDebounceJob.ProcessPendingAnalyses() }),
-		"conversation_auto_close": cronPackage.Method(autoCloseJob, func(context.Context) error { return autoCloseJob.ProcessIdleCloses() }),
-		"workflow_manager":        cronPackage.Method(workflowManager, func(context.Context) error { workflowManager.Tick(); return nil }),
-		"expire_subscriptions":    cronPackage.Method(expire, cronPackage.Counted("expire_subscriptions: expired %d subscription(s)", func() (int64, error) { return expire.Execute() })),
-		"plan_expiry_reminders":   cronPackage.Method(remind, cronPackage.Counted("plan_expiry_reminders: sent %d reminder(s)", func() (int, error) { return remind.RemindExpiring() })),
-		"monitor_low_balance":     cronPackage.Method(lowBalance, cronPackage.Counted("monitor_low_balance: %d low wallet(s) found", func() (int, error) { return lowBalance.Run() })),
-		"renew_calendar_channels": cronPackage.Method(calendarRenewals, cronPackage.Counted("renew_calendar_channels: renewed %d channel(s)", func() (int, error) { return calendarRenewals.Execute() })),
-		"shortlink_retention":     cronPackage.Executes(c.useCases.purgeShortLinkClicks),
+		"analysis_debounce":            cronPackage.Method(analysisDebounceJob, func(context.Context) error { return analysisDebounceJob.ProcessPendingAnalyses() }),
+		"conversation_auto_close":      cronPackage.Method(autoCloseJob, func(context.Context) error { return autoCloseJob.ProcessIdleCloses() }),
+		"conversation_origin_backfill": cronPackage.Method(originBackfill, originBackfill.Run),
+		"workflow_manager":             cronPackage.Method(workflowManager, func(context.Context) error { workflowManager.Tick(); return nil }),
+		"expire_subscriptions":         cronPackage.Method(expire, cronPackage.Counted("expire_subscriptions: expired %d subscription(s)", func() (int64, error) { return expire.Execute() })),
+		"plan_expiry_reminders":        cronPackage.Method(remind, cronPackage.Counted("plan_expiry_reminders: sent %d reminder(s)", func() (int, error) { return remind.RemindExpiring() })),
+		"monitor_low_balance":          cronPackage.Method(lowBalance, cronPackage.Counted("monitor_low_balance: %d low wallet(s) found", func() (int, error) { return lowBalance.Run() })),
+		"renew_calendar_channels":      cronPackage.Method(calendarRenewals, cronPackage.Counted("renew_calendar_channels: renewed %d channel(s)", func() (int, error) { return calendarRenewals.Execute() })),
+		"shortlink_retention":          cronPackage.Executes(c.useCases.purgeShortLinkClicks),
 
 		"scheduled_message_sweep":   cronPackage.Executes(c.useCases.sweepScheduledMessages),
 		"scheduled_message_purge":   cronPackage.Executes(c.useCases.purgeScheduledMessages),

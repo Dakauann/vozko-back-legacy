@@ -3,6 +3,9 @@ package crmfilter
 import (
 	"fmt"
 
+	"github.com/lib/pq"
+
+	"vozko/domain/conversation"
 	"vozko/domain/crmfilter"
 	"vozko/infra/database/sqlexpr"
 )
@@ -173,6 +176,9 @@ func (d ConversationDescriptor) Field(field crmfilter.Field) (FieldMapping, erro
 			FalseExpr: entryID + " NOT IN " + windowOpenSubquery,
 		}, nil
 
+	case crmfilter.FieldOrigin:
+		return FieldMapping{Style: StyleCompiled, Kind: crmfilter.KindEnum, Compile: originPredicate(entryID, entryType)}, nil
+
 	case crmfilter.FieldQuery:
 		tmpl := "(LOWER(COALESCE(l.name, '')) LIKE LOWER(?) OR COALESCE(l.number, '') LIKE ? OR " +
 			entryID + " IN (SELECT DISTINCT cm_q.entry_id FROM conversation_messages cm_q WHERE cm_q.entry_id = " +
@@ -182,6 +188,20 @@ func (d ConversationDescriptor) Field(field crmfilter.Field) (FieldMapping, erro
 
 	default:
 		return FieldMapping{}, fmt.Errorf("%w: %q on %s", ErrUnsupportedField, field, d.Object())
+	}
+}
+
+func originPredicate(entryID, entryType string) func(crmfilter.Predicate) (string, []interface{}, error) {
+	return func(p crmfilter.Predicate) (string, []interface{}, error) {
+		allowed, err := conversation.OriginsAllowedBy(p)
+		if err != nil {
+			return "", nil, err
+		}
+		values := make([]string, len(allowed))
+		for i, origin := range allowed {
+			values[i] = string(origin)
+		}
+		return sqlexpr.ConversationOriginIn(entryID, entryType), []interface{}{pq.Array(values)}, nil
 	}
 }
 

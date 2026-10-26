@@ -79,6 +79,7 @@ type SearchEntriesInput struct {
 	DateFrom *time.Time
 	DateTo   *time.Time
 	LabelID  string
+	Origin   Origin
 
 	ConversationStatus ConversationStatus
 
@@ -137,6 +138,7 @@ type EntryWithLastMessage struct {
 	EntryType             shared.EntryType
 	CampaignID            string
 	CampaignName          string
+	Origin                Origin
 	LeadID                string
 	LeadName              string
 	LeadNumber            string

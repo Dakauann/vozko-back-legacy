@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"vozko/infra/repositories/leadsentiment"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -261,7 +262,9 @@ func (r *contactRepository) SetBlocked(ctx context.Context, id string, blocked b
 }
 
 func (r *contactRepository) LinkLead(ctx context.Context, id, leadID string) error {
-	return r.db.WithContext(ctx).Model(&schema.UnofficialWhatsAppContact{}).
-		Where("id = ? AND lead_id IS NULL", id).
-		Update("lead_id", leadID).Error
+	return leadsentiment.Relink(r.db.WithContext(ctx), &schema.UnofficialWhatsAppContact{}, id, func(tx *gorm.DB) error {
+		return tx.Model(&schema.UnofficialWhatsAppContact{}).
+			Where("id = ? AND lead_id IS NULL", id).
+			Update("lead_id", leadID).Error
+	})
 }

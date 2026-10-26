@@ -25,7 +25,9 @@ const racers = 12
 
 func integrationDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	return repotest.IsolatedDB(t, "rcs_test", schema.CarrierMessagingModels()...)
+	db := repotest.IsolatedDB(t, "rcs_test", schema.CarrierMessagingModels()...)
+	repotest.MigrateLeadSentiments(t, db)
+	return db
 }
 
 func newReference() string {

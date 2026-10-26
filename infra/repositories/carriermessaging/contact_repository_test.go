@@ -78,8 +78,19 @@ func TestContactSetLead(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			db, mock := newMockDB(t)
+			link := func() *sqlmock.Rows { return sqlmock.NewRows([]string{"workspace_id", "lead_id"}).AddRow("ws1", "l0") }
+			mock.ExpectBegin()
+			mock.ExpectQuery(`SELECT workspace_id::text AS workspace_id, lead_id::text AS lead_id FROM "carrier_contacts" WHERE id = \$1 .*FOR UPDATE`).
+				WithArgs("ct1", 1).WillReturnRows(link())
 			mock.ExpectExec(`UPDATE "carrier_contacts" SET "lead_id"=\$1,"updated_at"=\$2 WHERE id = \$3`).
 				WithArgs(tc.arg, sqlmock.AnyArg(), "ct1").WillReturnResult(sqlmock.NewResult(0, tc.affected))
+			if tc.want == nil {
+				mock.ExpectQuery(`SELECT workspace_id::text AS workspace_id, lead_id::text AS lead_id FROM "carrier_contacts" WHERE id = \$1`).
+					WithArgs("ct1", 1).WillReturnRows(link())
+				mock.ExpectCommit()
+			} else {
+				mock.ExpectRollback()
+			}
 			if err := NewContactRepository(db).SetLead(context.Background(), "ct1", tc.leadID); !errors.Is(err, tc.want) {
 				t.Fatalf("got %v", err)
 			}

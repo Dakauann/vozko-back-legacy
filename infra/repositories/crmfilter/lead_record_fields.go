@@ -85,6 +85,8 @@ func (d LeadDescriptor) recordField(field crmfilter.Field) (FieldMapping, error)
 		return compiled(crmfilter.KindEnum, d.compileGeoPlacement)
 	case crmfilter.FieldAreaApproximate:
 		return d.areaField()
+	case crmfilter.FieldSentiment:
+		return compiled(crmfilter.KindEnum, d.compileSentiment)
 	}
 	return FieldMapping{}, fmt.Errorf("%w: %q on %s", ErrUnsupportedField, field, d.Object())
 }

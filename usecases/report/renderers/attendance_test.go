@@ -3,11 +3,13 @@ package report_renderers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"vozko/domain/attendance"
+	"vozko/domain/conversation"
 	"vozko/domain/report"
 )
 
@@ -172,6 +174,38 @@ func TestAttendanceCSVRecordsTheAppliedFilter(t *testing.T) {
 		"filters.workspace;Vozko",
 		"filters.generatedAt;2026-08-17T12:00:00.000Z",
 	)
+}
+
+func TestAttendanceCSVRecordsTheOriginOnlyWhenNarrowed(t *testing.T) {
+	mustNotContain(t, buildBase(t, decodeOverview(t, baseOverviewJSON)), "filters.origin")
+
+	params := baseParams
+	params.Origin = "campaign"
+	params.OriginLabel = "Campanhas"
+	csv := string(renderCSV(t, decodeOverview(t, baseOverviewJSON), params, identityLabels{},
+		time.Date(2026, time.August, 17, 12, 0, 0, 0, time.UTC)).Data)
+	mustContain(t, csv, "filters.origin;Campanhas")
+}
+
+func TestAttendanceRendererRefusesAnUnknownOrigin(t *testing.T) {
+	params := baseParams
+	params.Origin = "everyone"
+	encoded, err := json.Marshal(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := &overviewStub{overview: decodeOverview(t, baseOverviewJSON)}
+	_, err = NewAttendanceRenderer(source, identityLabels{}).Render(
+		context.Background(),
+		report.Job{WorkspaceID: "ws-9", Format: report.FormatCSV, Locale: "pt", Params: encoded},
+		func(int) {},
+	)
+	if !errors.Is(err, conversation.ErrOriginInvalid) {
+		t.Fatalf("render err = %v, want ErrOriginInvalid", err)
+	}
+	if source.workspaceID != "" {
+		t.Fatal("an unknown origin must never reach the overview")
+	}
 }
 
 func TestAttendanceCSVNamesTheFileAfterTheRange(t *testing.T) {
@@ -472,6 +506,7 @@ func TestAttendanceRendererPassesTheFilterThrough(t *testing.T) {
 	params.Channel = "whatsapp"
 	params.RankMetric = "resolved"
 	params.TrendBuckets = 6
+	params.Origin = "receptive"
 
 	encoded, err := json.Marshal(params)
 	if err != nil {
@@ -499,6 +534,9 @@ func TestAttendanceRendererPassesTheFilterThrough(t *testing.T) {
 	}
 	if source.filter.TrendBuckets != 6 {
 		t.Fatalf("trend buckets = %d, want 6", source.filter.TrendBuckets)
+	}
+	if source.filter.Origin != conversation.OriginReceptive {
+		t.Fatalf("origin = %q, want receptive", source.filter.Origin)
 	}
 	if !source.filter.IncludeAI {
 		t.Fatal("IncludeAI should default to true when the caller omits it")

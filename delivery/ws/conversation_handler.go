@@ -151,6 +151,7 @@ func resolveConnectionDepartmentID(r *http.Request) string {
 // @Description	  "sort": "recent | waiting",
 // @Description	  "label_id": "string",
 // @Description	  "personal": "pinned",
+// @Description	  "origin": "receptive | campaign | outreach | unknown",
 // @Description	  "page": 1,
 // @Description	  "page_size": 20
 // @Description	}
@@ -160,6 +161,7 @@ func resolveConnectionDepartmentID(r *http.Request) string {
 // @Description	- `label_id`: só conversas com essa etiqueta. Um id ilegível responde `invalid_label`.
 // @Description	- `is_group`: `true`, só conversas de grupo (hoje, grupos do WhatsApp não oficial); `false`, só conversas com pessoas. Num canal sem grupos, `true` não traz nada.
 // @Description	- `personal`: sem valor, a sua caixa de entrada (as suas fixadas primeiro, todas as outras em seguida); `pinned`, só as que você fixou. Outro valor responde `invalid_personal`.
+// @Description	- `origin`: só conversas com essa origem, pela primeira mensagem: `receptive` (o contato escreveu primeiro), `campaign` (começou por uma mensagem de campanha), `outreach` (a equipe, a IA ou um fluxo começou) ou `unknown` (remetente não registrado). Uma conversa ainda sem origem registrada só aparece sem o filtro. Vale também para os totais e a paginação. Outro valor responde `invalid_origin`. Cada `InboxEntry` traz a sua `origin` quando ela já está registrada.
 // @Description	- Em qualquer `sort`, as conversas que você fixou vêm primeiro. `request_inbox_page`, a primeira página ao conectar e `switch_view` usam a sua caixa de entrada (sem `personal`) com `sort: "recent"`. As colunas do funil (`request_funnel_column`, `request_funnel_summary`) não usam marcas pessoais.
 // @Description
 // @Description	### Marcas pessoais
@@ -186,7 +188,7 @@ func resolveConnectionDepartmentID(r *http.Request) string {
 // @Description	| `conversation:unsubscribed` | `{"entry_id": string, "entry_type": string}` |
 // @Description	| `conversation:history` | `{"entry_id", "entry_type", "direction": "latest" \| "before" \| "around" \| "after", "messages": Message[], "has_more": boolean, "has_after": boolean, "total": number, "page_size": number}`. `direction` diz qual pedido a página responde: `latest` (primeira página de `subscribe`), `before` (`load_history`), `around` (`load_around`) ou `after` (`load_after`). As mensagens vêm sempre da mais antiga para a mais nova. `has_more`: há mensagens mais antigas que a página (não se aplica a `after`). `has_after`: há mensagens mais novas que a página (só em `around` e `after`). `total` vem em `latest` e `around`. |
 // @Description	| `conversation:inbox` | `{"entries": InboxEntry[], "personal_marks": PersonalMark[], "page", "page_size", "total_items", "total_pages", "stage_counts"?: object, "conversation_status_counts"?: object, "available_labels"?: Label[]}`. `personal_marks` traz as suas marcas das conversas da página (lista vazia quando não há). |
-// @Description	| `conversation:search_results` | `{"query"?, "filters": object, "entries": InboxEntry[], "personal_marks": PersonalMark[], "page", "page_size", "total_items", "total_pages"}`. `filters` repete os filtros pedidos, inclusive `sort`, `label_id` e `personal`. |
+// @Description	| `conversation:search_results` | `{"query"?, "filters": object, "entries": InboxEntry[], "personal_marks": PersonalMark[], "page", "page_size", "total_items", "total_pages"}`. `filters` repete os filtros pedidos, inclusive `sort`, `label_id`, `personal` e `origin`. |
 // @Description	| `conversation:personal_mark` | `{"entry_id", "entry_type", "mark": {"pinned_at"?: string, "unread_marked_at"?: string} \| null}`. Só para as suas conexões neste workspace: resposta a `pin_conversation`, `mark_unread` e `clear_unread_mark`, e também quando a sua marca muda sozinha (abrir ou ler a conversa). `mark: null`: nenhuma marca. |
 // @Description	| `conversation:search_messages_results` | `{"entry_id", "entry_type", "query", "messages": Message[], "page", "page_size", "total_items", "total_pages"}` |
 // @Description	| `conversation:entry_matches_results` | `{"entry_id", "entry_type", "query", "matches": MatchedMessage[], "page", "page_size", "total_items", "total_pages"}` |

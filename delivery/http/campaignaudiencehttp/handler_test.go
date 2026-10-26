@@ -387,7 +387,7 @@ func (f *fakeAPI) Map(_ context.Context, a campaignaudience_usecase.Actor, ch ca
 
 func TestTheMapReadsTheCountedSpecUnderTheChannelGuard(t *testing.T) {
 	api := &fakeAPI{places: leadmap.Sample{
-		Points:    []leadmap.Point{leadmap.NewPoint(geo.Point{Lat: -23.56, Lng: -46.65}, geo.PrecisionStreet, "on_map", 2, []string{"lead-1", "lead-2"}, "")},
+		Points:    []leadmap.Point{leadmap.NewPoint(geo.Point{Lat: -23.56, Lng: -46.65}, geo.PrecisionStreet, "on_map", 2, []string{"lead-1", "lead-2"}, "", leadmap.SentimentCounts{})},
 		Located:   2,
 		Positions: 3,
 		Bounds:    &geo.BBox{South: -23.6, West: -46.7, North: -23.5, East: -46.6},

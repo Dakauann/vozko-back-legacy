@@ -11,6 +11,7 @@ import (
 	"vozko/domain/customfield"
 	"vozko/domain/geo"
 	"vozko/domain/lead"
+	"vozko/domain/shared"
 )
 
 const (
@@ -21,7 +22,6 @@ const (
 	MaxPeekLeads        = 50
 	MaxLeftOutDistricts = lead.MaxPlaceDistricts
 
-	districtViewShare  = 0.2
 	minimumSpanDegrees = 0.01
 	cityHalfSpan       = 0.15
 )
@@ -41,13 +41,6 @@ const (
 	SectionDistricts Section = "districts"
 	SectionViewport  Section = "viewport"
 	SectionLeftOut   Section = "left_out"
-)
-
-type View string
-
-const (
-	ViewPositions View = "positions"
-	ViewDistricts View = "districts"
 )
 
 type Basis string
@@ -73,13 +66,6 @@ type Summary struct {
 	WithoutAddress int64
 	NotFound       int64
 	Pending        int64
-}
-
-func (s Summary) DefaultView() View {
-	if s.Total > 0 && float64(s.OnMap) < districtViewShare*float64(s.Total) {
-		return ViewDistricts
-	}
-	return ViewPositions
 }
 
 func DistrictPointPrecisions() []geo.Precision {
@@ -110,11 +96,13 @@ type Point struct {
 	LeadIDs   []string
 	Value     string
 	Tone      customfield.Tone
+	Sentiment SentimentCounts
+	Mood      shared.Sentiment
 }
 
-func NewPoint(at geo.Point, precision geo.Precision, placement crmfilter.GeoPlacement, people int, leadIDs []string, value string) Point {
+func NewPoint(at geo.Point, precision geo.Precision, placement crmfilter.GeoPlacement, people int, leadIDs []string, value string, sentiment SentimentCounts) Point {
 	ids := append([]string(nil), leadIDs[:min(len(leadIDs), MaxLeadIDsPerPoint)]...)
-	return Point{Position: at, Precision: precision, Placement: placement, People: people, LeadIDs: ids, Value: value, Tone: customfield.ToneNeutral}
+	return Point{Position: at, Precision: precision, Placement: placement, People: people, LeadIDs: ids, Value: value, Tone: customfield.ToneNeutral, Sentiment: sentiment, Mood: MoodOf(sentiment)}
 }
 
 func (p Point) ID() string {
@@ -130,6 +118,7 @@ type Cell struct {
 	Placement crmfilter.GeoPlacement
 	People    int
 	Center    geo.Point
+	Sentiment SentimentCounts
 }
 
 type Layer struct {
@@ -201,22 +190,20 @@ type Viewport struct {
 	BBox  geo.BBox
 	Basis Basis
 	City  *CityPlace
-	View  View
 }
 
-func DefaultViewport(extent *geo.BBox, city *CityPlace, s Summary) Viewport {
-	view := s.DefaultView()
+func DefaultViewport(extent *geo.BBox, city *CityPlace) Viewport {
 	if box, ok := padded(extent); ok {
-		return Viewport{BBox: box, Basis: BasisLocated, City: city, View: view}
+		return Viewport{BBox: box, Basis: BasisLocated, City: city}
 	}
 	if city != nil && city.Center != nil && city.Center.Validate() == nil {
 		c := *city.Center
 		box := geo.BBox{South: c.Lat - cityHalfSpan, West: c.Lng - cityHalfSpan, North: c.Lat + cityHalfSpan, East: c.Lng + cityHalfSpan}
 		if box.Validate() == nil {
-			return Viewport{BBox: box, Basis: BasisCity, City: city, View: view}
+			return Viewport{BBox: box, Basis: BasisCity, City: city}
 		}
 	}
-	return Viewport{BBox: geo.BrazilBounds(), Basis: BasisCountry, City: city, View: view}
+	return Viewport{BBox: geo.BrazilBounds(), Basis: BasisCountry, City: city}
 }
 
 func padded(extent *geo.BBox) (geo.BBox, bool) {
@@ -299,7 +286,7 @@ type Reader interface {
 	Districts(ctx context.Context, s Scope, limit int) ([]District, error)
 	Extent(ctx context.Context, s Scope) (*geo.BBox, error)
 	TopCity(ctx context.Context, s Scope) (*CityPlace, error)
-	LeadsAt(ctx context.Context, s Scope, at geo.Point, placement crmfilter.GeoPlacement, limit int) ([]string, int, error)
+	LeadsAt(ctx context.Context, s Scope, at geo.Point, placement crmfilter.GeoPlacement, limit int) ([]LeadAt, int, error)
 	LeftOut(ctx context.Context, s Scope, limit int) (LeftOut, error)
 }
 

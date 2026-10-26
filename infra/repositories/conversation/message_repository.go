@@ -118,7 +118,13 @@ func (r *repository) Create(message *conversation.Message) error {
 	}
 
 	dbMessage := mapDomainToSchema(message)
-	if err := r.db.Create(dbMessage).Error; err != nil {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(dbMessage).Error; err != nil {
+			return err
+		}
+		return recordOriginFrom(tx, dbMessage)
+	})
+	if err != nil {
 		if database.IsUniqueViolation(err) {
 			if claimed, claimErr := r.ClaimExternalEcho(message); claimErr == nil && claimed {
 				return nil
@@ -130,15 +136,32 @@ func (r *repository) Create(message *conversation.Message) error {
 	return nil
 }
 
+func recordOriginFrom(tx *gorm.DB, stored *schema.ConversationMessage) error {
+	return tx.Exec(recordOriginsSQL(unsettledEntrySQL()),
+		stored.EntryID, stored.EntryType, stored.EntryID, stored.EntryType, stored.CreatedAt).Error
+}
+
+func recordOriginOf(tx *gorm.DB, entryID, entryType string) error {
+	return tx.Exec(recordOriginsSQL(oneEntrySQL()), entryID, entryType).Error
+}
+
 func (r *repository) ClaimExternalEcho(message *conversation.Message) (bool, error) {
 	if message == nil || message.ExternalMessageID == nil || !message.SentBy.Claims(conversation.SentExternally()) {
 		return false, nil
 	}
-	result := r.db.Model(&schema.ConversationMessage{}).
-		Where("entry_type = ? AND entry_id = ? AND external_message_id = ? AND sender_kind = ?",
-			string(message.EntryType), message.EntryID, *message.ExternalMessageID, string(conversation.SenderExternal)).
-		Updates(map[string]interface{}{"sender_kind": string(message.SentBy.Kind()), "sender_id": message.SentBy.ID()})
-	return result.RowsAffected > 0, result.Error
+	claimed := false
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&schema.ConversationMessage{}).
+			Where("entry_type = ? AND entry_id = ? AND external_message_id = ? AND sender_kind = ?",
+				string(message.EntryType), message.EntryID, *message.ExternalMessageID, string(conversation.SenderExternal)).
+			Updates(map[string]interface{}{"sender_kind": string(message.SentBy.Kind()), "sender_id": message.SentBy.ID()})
+		if result.Error != nil || result.RowsAffected == 0 {
+			return result.Error
+		}
+		claimed = true
+		return recordOriginOf(tx, message.EntryID, string(message.EntryType))
+	})
+	return claimed && err == nil, err
 }
 
 func (r *repository) Update(messageID string, message *conversation.Message) error {
@@ -652,6 +675,7 @@ func (r *repository) getEntriesWithMessages(campaignID string, containerKind con
 		CustomerClock   *time.Time `gorm:"column:last_customer_message_at"`
 		AgentClock      *time.Time `gorm:"column:last_agent_message_at"`
 		AwaitingSince   *time.Time `gorm:"column:awaiting_reply_since"`
+		Origin          string     `gorm:"column:origin"`
 	}
 
 	query := fmt.Sprintf(`
@@ -700,13 +724,16 @@ func (r *repository) getEntriesWithMessages(campaignID string, containerKind con
 		       COALESCE(uc.cnt, 0) AS unread_count,
 		       te.last_message_text, te.last_message_retracted, te.last_message_type, te.last_message_at,
 		       te.last_message_from, te.last_message_sender_kind, te.last_message_sender_id,
-		       te.has_media, te.media_type
+		       te.has_media, te.media_type,
+		       COALESCE(co.origin, '') AS origin
 		FROM top_entries te
 		LEFT JOIN unread_counts uc ON uc.entry_id = te.entry_id
+		%s
 		ORDER BY te.last_message_at DESC
-	`, entryCTE, leadField, bphoneField, campaignIDField, campaignNameField, aiFields, entryJoin, sqlexpr.SentByContact("cm2"))
+	`, entryCTE, leadField, bphoneField, campaignIDField, campaignNameField, aiFields, entryJoin, sqlexpr.SentByContact("cm2"),
+		sqlexpr.ConversationOriginJoin("co", "te.entry_id", "?"))
 
-	queryArgs := append(append([]interface{}{}, cteArgs...), et, pageSize, offset, et, et)
+	queryArgs := append(append([]interface{}{}, cteArgs...), et, pageSize, offset, et, et, et)
 
 	var results []msgResult
 	if err := r.db.Raw(query, queryArgs...).Scan(&results).Error; err != nil {
@@ -751,6 +778,7 @@ func (r *repository) getEntriesWithMessages(campaignID string, containerKind con
 			LastCustomerMessageAt: r.CustomerClock,
 			LastAgentMessageAt:    r.AgentClock,
 			AwaitingReplySince:    r.AwaitingSince,
+			Origin:                conversation.Origin(r.Origin),
 		})
 	}
 
@@ -854,6 +882,7 @@ func (r *repository) GetEntryLastMessage(entryID string, entryType shared.EntryT
 		SenderID        string    `gorm:"column:last_message_sender_id"`
 		HasMedia        bool      `gorm:"column:has_media"`
 		MediaType       string    `gorm:"column:media_type"`
+		Origin          string    `gorm:"column:origin"`
 	}
 
 	var result msgResult
@@ -874,12 +903,14 @@ func (r *repository) GetEntryLastMessage(entryID string, entryType shared.EntryT
 			m.sender_kind AS last_message_sender_kind,
 			m.sender_id AS last_message_sender_id,
 			(m.media_id IS NOT NULL) AS has_media,
-			COALESCE(m.media_type, '') AS media_type
+			COALESCE(m.media_type, '') AS media_type,
+			COALESCE(co.origin, '') AS origin
 		FROM conversation_messages m
+		%s
 		WHERE m.entry_id = ?::uuid AND m.entry_type = ? AND m.deleted_at IS NULL
 		ORDER BY m.created_at DESC, m.id DESC
 		LIMIT 1
-	`, sqlexpr.SentByContact("cm2"))
+	`, sqlexpr.SentByContact("cm2"), sqlexpr.ConversationOriginJoin("co", "m.entry_id", "m.entry_type"))
 
 	err := r.db.Raw(query, entryID, string(entryType)).Scan(&result).Error
 
@@ -923,6 +954,7 @@ func (r *repository) GetEntryLastMessage(entryID string, entryType shared.EntryT
 		LastCustomerMessageAt: info.CustomerClock,
 		LastAgentMessageAt:    info.AgentClock,
 		AwaitingReplySince:    info.AwaitingSince,
+		Origin:                conversation.Origin(result.Origin),
 	}, nil
 }
 

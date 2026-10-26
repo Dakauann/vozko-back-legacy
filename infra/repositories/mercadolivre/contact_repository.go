@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"time"
+	"vozko/infra/repositories/leadsentiment"
 
 	"github.com/lib/pq"
 	"gorm.io/gorm"
@@ -99,7 +100,9 @@ func (r *contactRepository) UpdateNickname(ctx context.Context, id, nickname str
 }
 
 func (r *contactRepository) SetLeadID(ctx context.Context, id string, leadID *string) error {
-	return database.AffectedOne(r.model(ctx).Where("id = ?", id).Update("lead_id", leadID), mldomain.ErrContactNotFound)
+	return leadsentiment.Relink(r.db.WithContext(ctx), &schema.MercadoLivreContact{}, id, func(tx *gorm.DB) error {
+		return database.AffectedOne(tx.Model(&schema.MercadoLivreContact{}).Where("id = ?", id).Update("lead_id", leadID), mldomain.ErrContactNotFound)
+	})
 }
 
 func (r *contactRepository) SetQuestionsBlocked(ctx context.Context, id string, at *time.Time) error {

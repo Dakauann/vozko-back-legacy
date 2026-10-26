@@ -47,6 +47,7 @@ func workspaceInboxSet(input conversation.SearchEntriesInput) (inboxSet, bool) {
 		WhatsAppCampaignType:   input.WhatsAppCampaignType,
 		ConversationStatus:     string(input.ConversationStatus),
 		ExcludeFinished:        true,
+		Origins:                conversation.OriginScope(input.Origin),
 		DepartmentIDs:          input.DepartmentIDs,
 		RestrictDepartments:    input.RestrictDepartments,
 		AssigneeOverrideUserID: input.AssigneeOverrideUserID,

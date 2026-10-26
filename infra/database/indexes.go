@@ -951,5 +951,5 @@ func schemaConstraints() []ddl {
 }
 
 func createSchemaConstraints(tx *gorm.DB) error {
-	return execDDL(tx, slices.Concat(schemaConstraints(), tiktokSchemaConstraints(), googleSchemaConstraints(), leadCollectionConstraints(), callListConstraints()))
+	return execDDL(tx, slices.Concat(schemaConstraints(), tiktokSchemaConstraints(), googleSchemaConstraints(), leadCollectionConstraints(), callListConstraints(), leadSentimentIndexes()))
 }

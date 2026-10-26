@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,6 +165,7 @@ func TestATileAnswersItsPointsInTheLayerContract(t *testing.T) {
 	m := &stubMap{layer: leadmap.Layer{Kind: leadmap.LayerPoints, Points: []leadmap.Point{{
 		Position: geo.Point{Lat: -23.5614, Lng: -46.6559}, Precision: geo.PrecisionStreet, Placement: crmfilter.PlacementOnMap, People: 3,
 		LeadIDs: []string{"a", "b", "c"}, Tone: customfield.ToneChart2, Value: "alto",
+		Sentiment: leadmap.SentimentCounts{Positive: 1, Negative: 2}, Mood: shared.SentimentNegative,
 	}, {
 		Position: geo.Point{Lat: -23.5614, Lng: -46.6559}, Precision: geo.PrecisionDistrict, Placement: crmfilter.PlacementApproximate, People: 2,
 		LeadIDs: []string{"d", "e"}, Tone: customfield.ToneNeutral,
@@ -173,7 +175,7 @@ func TestATileAnswersItsPointsInTheLayerContract(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
 	}
-	want := `{"kind":"points","points":[{"count":3,"id":"-23.5614,-46.6559","lat":-23.5614,"leadIds":["a","b","c"],"lng":-46.6559,"placement":"on_map","precision":"street","tone":"chart-2"},{"count":2,"id":"approximate:-23.5614,-46.6559","lat":-23.5614,"leadIds":["d","e"],"lng":-46.6559,"placement":"approximate","precision":"district","tone":"neutral"}]}`
+	want := `{"kind":"points","points":[{"count":3,"id":"-23.5614,-46.6559","lat":-23.5614,"leadIds":["a","b","c"],"lng":-46.6559,"mood":"negative","placement":"on_map","precision":"street","sentiment":{"negative":2,"neutral":0,"positive":1},"tone":"chart-2"},{"count":2,"id":"approximate:-23.5614,-46.6559","lat":-23.5614,"leadIds":["d","e"],"lng":-46.6559,"placement":"approximate","precision":"district","sentiment":{"negative":0,"neutral":0,"positive":0},"tone":"neutral"}]}`
 	var raw map[string]any
 	_ = json.Unmarshal(rec.Body.Bytes(), &raw)
 	if got, _ := json.Marshal(raw); string(got) != want {
@@ -195,11 +197,11 @@ func TestATileAnswersItsPointsInTheLayerContract(t *testing.T) {
 
 func TestATileAnswersCellsInTheLayerContract(t *testing.T) {
 	m := &stubMap{layer: leadmap.Layer{Kind: leadmap.LayerCells, CellSize: 0.01, Cells: []leadmap.Cell{
-		{IX: -4666, IY: -2356, Placement: crmfilter.PlacementOnMap, People: 12, Center: geo.Point{Lat: -23.555, Lng: -46.655}},
+		{IX: -4666, IY: -2356, Placement: crmfilter.PlacementOnMap, People: 12, Center: geo.Point{Lat: -23.555, Lng: -46.655}, Sentiment: leadmap.SentimentCounts{Positive: 3, Neutral: 1, Negative: 5}},
 		{IX: -4666, IY: -2356, Placement: crmfilter.PlacementApproximate, People: 4, Center: geo.Point{Lat: -23.556, Lng: -46.656}},
 	}}}
 	rec := send(t, geographyRouter(m, &stubAreas{}), http.MethodGet, "/leads/map/tiles/9/189/290", nil, nil)
-	want := `{"cellSizeDegrees":0.01,"cells":[{"count":12,"ix":-4666,"iy":-2356,"lat":-23.555,"lng":-46.655,"placement":"on_map"},{"count":4,"ix":-4666,"iy":-2356,"lat":-23.556,"lng":-46.656,"placement":"approximate"}],"kind":"cells"}`
+	want := `{"cellSizeDegrees":0.01,"cells":[{"count":12,"ix":-4666,"iy":-2356,"lat":-23.555,"lng":-46.655,"placement":"on_map","sentiment":{"negative":5,"neutral":1,"positive":3}},{"count":4,"ix":-4666,"iy":-2356,"lat":-23.556,"lng":-46.656,"placement":"approximate","sentiment":{"negative":0,"neutral":0,"positive":0}}],"kind":"cells"}`
 	var raw map[string]any
 	_ = json.Unmarshal(rec.Body.Bytes(), &raw)
 	if got, _ := json.Marshal(raw); rec.Code != http.StatusOK || string(got) != want {
@@ -226,14 +228,14 @@ func TestSummaryDistrictsAndViewportAnswerTheContract(t *testing.T) {
 	m := &stubMap{
 		summary:   leadmap.Summary{Total: 1200, OnMap: 800, Approximate: 200, WithoutAddress: 150, NotFound: 30, Pending: 15},
 		districts: []leadmap.District{{CityKey: "3550308", DistrictKey: "jardim paulista", Name: "Jardim Paulista", Position: geo.Point{Lat: -23.57, Lng: -46.66}, People: 42}},
-		viewport: leadmap.Viewport{BBox: geo.BBox{South: -23.6, West: -46.7, North: -23.5, East: -46.6}, Basis: leadmap.BasisLocated, View: leadmap.ViewDistricts,
+		viewport: leadmap.Viewport{BBox: geo.BBox{South: -23.6, West: -46.7, North: -23.5, East: -46.6}, Basis: leadmap.BasisLocated,
 			City: &leadmap.CityPlace{CityKey: "3550308", Name: "São Paulo", State: "SP", People: 70}},
 	}
 	router := geographyRouter(m, &stubAreas{})
 	cases := map[string]string{
 		"/leads/map/summary":   `{"approximate":200,"notFound":30,"onMap":800,"pending":15,"total":1200,"withoutAddress":150}`,
 		"/leads/map/districts": `[{"cityKey":"3550308","count":42,"districtKey":"jardim paulista","lat":-23.57,"lng":-46.66,"name":"Jardim Paulista","pair":"3550308/jardim paulista"}]`,
-		"/leads/map/viewport":  `{"basis":"located","bbox":{"east":-46.6,"north":-23.5,"south":-23.6,"west":-46.7},"city":{"cityKey":"3550308","count":70,"name":"São Paulo","state":"SP"},"view":"districts"}`,
+		"/leads/map/viewport":  `{"basis":"located","bbox":{"east":-46.6,"north":-23.5,"south":-23.6,"west":-46.7},"city":{"cityKey":"3550308","count":70,"name":"São Paulo","state":"SP"}}`,
 	}
 	for path, want := range cases {
 		rec := send(t, router, http.MethodGet, path, nil, nil)
@@ -251,14 +253,19 @@ func TestSummaryDistrictsAndViewportAnswerTheContract(t *testing.T) {
 }
 
 func TestThePeekAnswersTheLeadsAtThePosition(t *testing.T) {
-	m := &stubMap{peek: lead_usecase.MapPeek{Total: 9, Leads: []*leaddomain.Lead{{ID: routeLeadID, Name: "Ana", Version: 2}}}}
+	quiet := "0b7c3f1e-2d4a-4c5b-9e8f-1a2b3c4d5e6f"
+	m := &stubMap{peek: lead_usecase.MapPeek{Total: 9, Leads: []*leaddomain.Lead{{ID: routeLeadID, Name: "Ana", Version: 2}, {ID: quiet, Name: "Bia", Version: 1}},
+		Sentiments: map[string]shared.Sentiment{routeLeadID: shared.SentimentNegative}}}
 	rec := send(t, geographyRouter(m, &stubAreas{}), http.MethodGet, "/leads/map/point?lat=-23.5614&lng=-46.6559", nil, nil)
 	var out MapPeekResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || rec.Code != http.StatusOK {
 		t.Fatalf("peek = %d %s", rec.Code, rec.Body.String())
 	}
-	if out.Total != 9 || len(out.Items) != 1 || out.Items[0].ID != routeLeadID || out.Items[0].Version != 2 {
+	if out.Total != 9 || len(out.Items) != 2 || out.Items[0].ID != routeLeadID || out.Items[0].Version != 2 {
 		t.Fatalf("peek = %+v", out)
+	}
+	if out.Items[0].Sentiment != "negative" || out.Items[1].Sentiment != "" || strings.Count(rec.Body.String(), `"sentiment"`) != 1 {
+		t.Fatalf("only the analysed lead carries a sentiment: %s", rec.Body.String())
 	}
 	if m.at != (geo.Point{Lat: -23.5614, Lng: -46.6559}) || m.placement != crmfilter.PlacementOnMap {
 		t.Fatalf("position = %+v %q, want the precise point when no placement is sent", m.at, m.placement)

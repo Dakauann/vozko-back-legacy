@@ -116,7 +116,7 @@ func TestTrendAndBacklogSQLOnlyReferenceRealColumns(t *testing.T) {
 		assertColumnsExist(t, channel+" trend joins", trendJoins(src))
 		assertColumnsExist(t, channel+" trend engaged", trendEngagedPredicate(src))
 
-		clause, _ := trendScopeClause(src, overviewFilterForTest()).build()
+		clause, _ := scopeClause(src, overviewFilterForTest()).build()
 		assertColumnsExist(t, channel+" trend scope", clause)
 	}
 

@@ -19,6 +19,7 @@ import (
 func emailDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := repotest.IsolatedDB(t, "email_inbox", schema.EmailInboxModels()...)
+	repotest.MigrateLeadSentiments(t, db)
 	for _, ddl := range []string{
 		`CREATE UNIQUE INDEX ux_email_contact_workspace_address ON email_contacts (workspace_id, address) WHERE deleted_at IS NULL`,
 		`CREATE UNIQUE INDEX ux_email_conversation_workspace_contact ON email_conversations (workspace_id, contact_id) WHERE deleted_at IS NULL`,

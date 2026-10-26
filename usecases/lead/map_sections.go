@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"vozko/domain/shared"
 
 	"vozko/domain/cache"
 	"vozko/domain/crmfilter"
@@ -53,8 +54,9 @@ type TileQuery struct {
 }
 
 type MapPeek struct {
-	Total int
-	Leads []*lead.Lead
+	Total      int
+	Leads      []*lead.Lead
+	Sentiments map[string]shared.Sentiment
 }
 
 type mapScope struct {
@@ -153,11 +155,7 @@ func (s *MapSections) Viewport(ctx context.Context, a Actor, f crmfilter.Filter)
 		return leadmap.Viewport{}, err
 	}
 	return remember(ctx, s, m, leadmap.SectionViewport, nil, func(ctx context.Context) (leadmap.Viewport, error) {
-		summary, err := s.deps.Reader.Summary(ctx, m.scope)
-		if err != nil {
-			return leadmap.Viewport{}, err
-		}
-		if area, ok := leadmap.AreaViewport(m.scope.Filter.BoundAreas(), summary); ok {
+		if area, ok := leadmap.AreaViewport(m.scope.Filter.BoundAreas()); ok {
 			return area, nil
 		}
 		extent, err := s.deps.Reader.Extent(ctx, m.scope)
@@ -170,7 +168,7 @@ func (s *MapSections) Viewport(ctx context.Context, a Actor, f crmfilter.Filter)
 				return leadmap.Viewport{}, err
 			}
 		}
-		return leadmap.DefaultViewport(extent, city, summary), nil
+		return leadmap.DefaultViewport(extent, city), nil
 	})
 }
 
@@ -210,18 +208,26 @@ func (s *MapSections) PointLeads(ctx context.Context, a Actor, f crmfilter.Filte
 	if placement != crmfilter.PlacementOnMap && placement != crmfilter.PlacementApproximate {
 		return MapPeek{}, leadmap.ErrInvalidPlacement
 	}
-	var ids []string
+	var placed []leadmap.LeadAt
 	var total int
 	err = cache.Gated(ctx, s.deps.Caching.Gate, func(ctx context.Context) error {
 		var err error
-		ids, total, err = s.deps.Reader.LeadsAt(ctx, m.scope, at, placement, leadmap.MaxPeekLeads)
+		placed, total, err = s.deps.Reader.LeadsAt(ctx, m.scope, at, placement, leadmap.MaxPeekLeads)
 		return err
 	})
 	if err != nil {
 		return MapPeek{}, err
 	}
-	if len(ids) == 0 {
-		return MapPeek{Total: total, Leads: []*lead.Lead{}}, nil
+	if len(placed) == 0 {
+		return MapPeek{Total: total, Leads: []*lead.Lead{}, Sentiments: map[string]shared.Sentiment{}}, nil
+	}
+	ids := make([]string, 0, len(placed))
+	sentiments := map[string]shared.Sentiment{}
+	for _, l := range placed {
+		ids = append(ids, l.ID)
+		if l.Sentiment.Valid() {
+			sentiments[l.ID] = l.Sentiment
+		}
 	}
 	found, err := s.deps.Leads.FindByIDs(a.WorkspaceID, ids)
 	if err != nil {
@@ -242,7 +248,7 @@ func (s *MapSections) PointLeads(ctx context.Context, a Actor, f crmfilter.Filte
 			leads = append(leads, lead.VisibleFields(l, m.viewer))
 		}
 	}
-	return MapPeek{Total: total, Leads: leads}, nil
+	return MapPeek{Total: total, Leads: leads, Sentiments: sentiments}, nil
 }
 
 func (s *MapSections) prepare(ctx context.Context, a Actor, f crmfilter.Filter) (mapScope, error) {

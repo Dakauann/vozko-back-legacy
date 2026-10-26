@@ -10,6 +10,7 @@ import (
 	"vozko/domain/actor"
 	"vozko/domain/attendance"
 	"vozko/domain/cache"
+	"vozko/domain/conversation"
 	"vozko/domain/copilot"
 	"vozko/domain/shared"
 	"vozko/domain/tools"
@@ -27,6 +28,7 @@ func attendanceParams() map[string]tools.Parameter {
 		"member_id":     {Type: "string", Description: "id de um membro (de attendance_team); omita para usar o da tela; \"all\" para todos"},
 		"channel":       {Type: "string", Description: "canal; omita para usar o da tela; \"all\" para todos", Enum: channelOptions()},
 		"campaign_id":   {Type: "string", Description: "id de uma campanha de disparo (de campaign_dispatch); omita para usar a da tela; \"all\" para todas"},
+		"origin":        {Type: "string", Description: "origem da conversa pela primeira mensagem: receptive (o contato chamou primeiro), campaign (começou por um disparo), outreach (a equipe ou uma automação começou), unknown (remetente não registrado); omita para usar a da tela; \"all\" para todas", Enum: originOptions()},
 	}
 }
 
@@ -58,6 +60,7 @@ var (
 	errUnknownMember     = errors.New("member_id inválido: use o member_id devolvido por attendance_team, nunca invente")
 	errUnknownChannel    = errors.New("canal inválido: use um dos canais listados no parâmetro channel")
 	errUnknownCampaign   = errors.New("campaign_id inválido: use o id devolvido por campaign_dispatch, nunca invente")
+	errUnknownOrigin     = errors.New("origin inválida: use receptive, campaign, outreach, unknown ou all")
 )
 
 type attendanceQuery struct {
@@ -95,16 +98,41 @@ func (d AttendanceDeps) resolve(ctx context.Context, cc copilot.Context, args ma
 			return attendanceQuery{}, errUnknownCampaign
 		}
 	}
+	origin, err := originOf(onScreen(copilottools.ArgString(args, "origin"), cc.View.Origin))
+	if err != nil {
+		return attendanceQuery{}, err
+	}
 	filter := attendance.OverviewFilter{
 		DepartmentID: department,
 		MemberID:     member,
 		Channel:      channel,
+		Origin:       origin,
 		CampaignID:   campaign,
 		CampaignType: campaignTypeFor(campaign, cc.View),
 		IncludeAI:    includeAI(args, cc.View),
 	}
 	window.Apply(&filter)
 	return attendanceQuery{window: window, filter: filter}, nil
+}
+
+func originOf(raw string) (conversation.Origin, error) {
+	if raw == "" {
+		return "", nil
+	}
+	origin, err := conversation.ParseOrigin(raw)
+	if err != nil {
+		return "", errUnknownOrigin
+	}
+	return origin, nil
+}
+
+func originOptions() []string {
+	origins := conversation.Origins()
+	out := make([]string, 0, len(origins)+1)
+	for _, origin := range origins {
+		out = append(out, string(origin))
+	}
+	return append(out, allScope)
 }
 
 func (d AttendanceDeps) checkDepartment(workspaceID, departmentID string) error {
@@ -154,6 +182,7 @@ func (q attendanceQuery) describe() map[string]interface{} {
 	scope["department_id"] = orAll(q.filter.DepartmentID)
 	scope["member_id"] = orAll(q.filter.MemberID)
 	scope["channel"] = orAll(q.filter.Channel)
+	scope["origin"] = orAll(string(q.filter.Origin))
 	return scope
 }
 
@@ -170,7 +199,7 @@ func analyticsFailure(tool string, err error) copilot.Result {
 	}
 	switch {
 	case errors.Is(err, attendance.ErrInvalidWindow), errors.Is(err, attendance.ErrUnknownMetric), errors.Is(err, attendance.ErrUnknownBlock),
-		errors.Is(err, errUnknownDepartment), errors.Is(err, errUnknownMember), errors.Is(err, errUnknownChannel), errors.Is(err, errUnknownCampaign):
+		errors.Is(err, errUnknownDepartment), errors.Is(err, errUnknownMember), errors.Is(err, errUnknownChannel), errors.Is(err, errUnknownCampaign), errors.Is(err, errUnknownOrigin):
 		return copilot.Result{Status: copilot.StatusError, Message: err.Error()}
 	case errors.Is(err, cache.ErrGateBusy):
 		return copilot.Result{Status: copilot.StatusError, Message: "as análises estão ocupadas agora; tente novamente em alguns segundos ou responda com o que já tem"}

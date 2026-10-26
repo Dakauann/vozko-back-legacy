@@ -95,6 +95,7 @@ func (f OverviewFilter) Fingerprint(section Section) string {
 		f.CampaignID,
 		f.CampaignType,
 		f.Channel,
+		string(f.Origin),
 	}
 	switch section {
 	case SectionTeam:

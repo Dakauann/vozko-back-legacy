@@ -16,6 +16,7 @@ import (
 	ca "vozko/domain/audience"
 	"vozko/domain/shared"
 	"vozko/infra/database/schema"
+	"vozko/infra/repositories/repotest"
 	"vozko/infra/testenv"
 )
 
@@ -60,6 +61,7 @@ func integrationDB(t *testing.T) *gorm.DB {
 			t.Fatalf("index: %v", err)
 		}
 	}
+	repotest.MigrateLeadSentiments(t, db)
 	return db
 }
 

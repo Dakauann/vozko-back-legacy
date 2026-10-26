@@ -12,7 +12,7 @@ import (
 func TestCompositeLeadKeysWaitForTheLeadIndexThenStayValidAgainstPostgres(t *testing.T) {
 	db := repotest.IsolatedDB(t, "lead_keys")
 	db.Config.DisableForeignKeyConstraintWhenMigrating = true
-	if err := db.AutoMigrate(&schema.Lead{}, &schema.LeadPhone{}, &schema.LeadAddress{}, &schema.LeadRelation{}, &schema.CallList{}, &schema.CallListItem{}); err != nil {
+	if err := db.AutoMigrate(&schema.Lead{}, &schema.LeadPhone{}, &schema.LeadAddress{}, &schema.LeadRelation{}, &schema.CallList{}, &schema.CallListItem{}, &schema.LeadSentiment{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	if err := db.Transaction(func(tx *gorm.DB) error {

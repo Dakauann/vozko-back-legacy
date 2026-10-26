@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"vozko/infra/repositories/leadsentiment"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -174,15 +175,30 @@ func (r *repository) Delete(id string) error {
 	if id == "" {
 		return wce.ErrEntryNotFound
 	}
-	return r.db.Where("id = ?", id).Delete(&schema.WhatsAppCampaignEntry{}).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("id = ?", id).Delete(&schema.WhatsAppCampaignEntry{}).Error; err != nil {
+			return err
+		}
+		return leadsentiment.RefreshLeadsReadingEntries(tx, shared.EntryTypeWhatsApp, entryByIDSQL, id)
+	})
 }
+
+const (
+	entryByIDSQL         = "SELECT id FROM whatsapp_campaign_entries WHERE id = ?"
+	entriesOfCampaignSQL = "SELECT id FROM whatsapp_campaign_entries WHERE campaign_id = ?"
+)
 
 func (r *repository) DeleteByCampaignID(campaignID string) error {
 	campaignID = strings.TrimSpace(campaignID)
 	if campaignID == "" {
 		return wce.ErrEntryCampaignRequired
 	}
-	return r.db.Where("campaign_id = ?", campaignID).Delete(&schema.WhatsAppCampaignEntry{}).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("campaign_id = ?", campaignID).Delete(&schema.WhatsAppCampaignEntry{}).Error; err != nil {
+			return err
+		}
+		return leadsentiment.RefreshLeadsReadingEntries(tx, shared.EntryTypeWhatsApp, entriesOfCampaignSQL, campaignID)
+	})
 }
 
 func (r *repository) List(input wce.ListEntriesInput) (*shared.PaginatedResult[*wce.WhatsAppCampaignEntry], error) {
@@ -623,6 +639,9 @@ func (r *repository) ReplaceCampaignEntries(campaignID string, entries []wce.Wha
 
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("campaign_id = ?", campaignID).Delete(&schema.WhatsAppCampaignEntry{}).Error; err != nil {
+			return err
+		}
+		if err := leadsentiment.RefreshLeadsReadingEntries(tx, shared.EntryTypeWhatsApp, entriesOfCampaignSQL, campaignID); err != nil {
 			return err
 		}
 

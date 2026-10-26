@@ -13,7 +13,7 @@ import (
 )
 
 func TestTheCustomerSpokeAfterARunOnlyWhenTheyWroteLaterAgainstPostgres(t *testing.T) {
-	db := repotest.IsolatedTx(t, "spoke_after_test", &schema.ConversationMessage{})
+	db := repotest.IsolatedTx(t, "spoke_after_test", &schema.ConversationMessage{}, &schema.ConversationOrigin{})
 	repo := &repository{db: db}
 	entryID, otherEntryID := uuid.NewString(), uuid.NewString()
 	runEnded := time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC)

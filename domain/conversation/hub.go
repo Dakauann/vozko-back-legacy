@@ -30,6 +30,7 @@ type InboxEntry struct {
 	EntryType               string                     `json:"entry_type"`
 	CampaignID              string                     `json:"campaign_id,omitempty"`
 	CampaignName            string                     `json:"campaign_name,omitempty"`
+	Origin                  Origin                     `json:"origin,omitempty"`
 	LeadID                  string                     `json:"lead_id,omitempty"`
 	LeadName                string                     `json:"lead_name,omitempty"`
 	LeadNumber              string                     `json:"lead_number,omitempty"`
@@ -130,6 +131,7 @@ type SearchFilters struct {
 	Sort               string `json:"sort,omitempty"`
 	LabelID            string `json:"label_id,omitempty"`
 	Personal           string `json:"personal,omitempty"`
+	Origin             string `json:"origin,omitempty"`
 }
 
 type SearchInboxInput struct {
@@ -159,6 +161,7 @@ type SearchInboxInput struct {
 	DateFrom         *time.Time
 	DateTo           *time.Time
 	LabelID          string
+	Origin           Origin
 
 	ConversationStatus ConversationStatus
 
