@@ -256,7 +256,7 @@ func (uc *HandleWebhookUseCase) handleInbound(ctx context.Context, instance *uw.
 	}
 	uc.watchGroupMessage(ctx, instance, sub, ev)
 
-	if !ev.RunsAutomation() || !sub.conversation.InScope(instance.HandleGroups) {
+	if !attended(instance, sub, ev) {
 		uc.broadcastEntryUpdate(sub.conversation.ID)
 		return nil
 	}
@@ -268,7 +268,6 @@ func (uc *HandleWebhookUseCase) handleInbound(ctx context.Context, instance *uw.
 	}
 	auto := uc.automationFor(sub.conversation.ID)
 
-	uc.ensureAssignment(sub.conversation, instance)
 	automation, mayAct := uc.gate.Admit(ctx, conversation_usecase.AutomationAdmission{
 		WorkspaceID: instance.WorkspaceID,
 		EntryID:     sub.conversation.ID,
@@ -791,6 +790,10 @@ func (uc *HandleWebhookUseCase) handleCall(ctx context.Context, instance *uw.Ins
 	}
 	uc.broadcastEntryUpdate(conv.ID)
 	return nil
+}
+
+func attended(instance *uw.Instance, sub *chatContext, ev *uw.Event) bool {
+	return ev.RunsAutomation() && sub.conversation.InScope(instance.HandleGroups)
 }
 
 func (uc *HandleWebhookUseCase) ensureAssignment(conv *uw.Conversation, instance *uw.Instance) {

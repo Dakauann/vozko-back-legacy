@@ -236,6 +236,9 @@ func (uc *HandleWebhookUseCase) storeMessage(ctx context.Context, instance *uw.I
 	if err != nil {
 		return nil, err
 	}
+	if attended(instance, sub, ev) {
+		uc.ensureAssignment(sub.conversation, instance)
+	}
 	if err := uc.recordMessage(ctx, instance, sub, ev, senderFor(ev, sub)); err != nil {
 		return nil, err
 	}

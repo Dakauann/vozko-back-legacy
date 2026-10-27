@@ -111,7 +111,7 @@ func (s *VisitorService) Send(ctx context.Context, session *Session, in SendInpu
 		return message, nil
 	}
 
-	if err := s.Transcript.Record(ctx, conversation.MessageHistoryRecord{
+	if err := s.recordVisitorMessage(ctx, w, conversation.MessageHistoryRecord{
 		SentBy:            conversation.SentByContact(v.ID),
 		EntryID:           conv.ID,
 		EntryType:         shared.EntryTypeWebchat,
@@ -130,6 +130,11 @@ func (s *VisitorService) Send(ctx context.Context, session *Session, in SendInpu
 	}
 	s.afterInbound(ctx, session, conv, message, text, selection)
 	return message, nil
+}
+
+func (s *VisitorService) recordVisitorMessage(ctx context.Context, w *wcdomain.Widget, record conversation.MessageHistoryRecord) error {
+	s.Assignments.EnsureAssignment(record.EntryID, string(shared.EntryTypeWebchat), w.ID)
+	return s.Transcript.Record(ctx, record)
 }
 
 func (s *VisitorService) allowMessage(session *Session) error {
@@ -188,7 +193,6 @@ func (s *VisitorService) afterInbound(
 	if err := s.Conversations.RecordInbound(ctx, conv.ID, message.CreatedAt); err != nil {
 		log.Printf("[webchat] record inbound conversation=%s: %v", conv.ID, err)
 	}
-	s.Assignments.EnsureAssignment(conv.ID, string(shared.EntryTypeWebchat), w.ID)
 	s.publish(ctx, wcdomain.VisitorEvent{VisitorID: v.ID, Kind: wcdomain.EventMessage, Message: message})
 
 	input := conversation_usecase.InboundAutomationInput{
@@ -338,7 +342,7 @@ func (s *VisitorService) Upload(ctx context.Context, session *Session, in Upload
 	}
 
 	now := s.Now()
-	if err := s.Transcript.Record(ctx, conversation.MessageHistoryRecord{
+	if err := s.recordVisitorMessage(ctx, w, conversation.MessageHistoryRecord{
 		SentBy:            conversation.SentByContact(v.ID),
 		EntryID:           conv.ID,
 		EntryType:         shared.EntryTypeWebchat,

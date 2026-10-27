@@ -109,11 +109,11 @@ func (s *Service) HandleInbound(ctx context.Context, in carriermessaging.Inbound
 	if err := s.conversations(party.channel).RecordInbound(ctx, conv.ID, at); err != nil {
 		return err
 	}
-	s.chargeInbound(ctx, party, *conv, phone, in.ProviderMessageID, at)
-	s.recordInbound(ctx, party.channel, conv.ID, phone, in.ContactName, in.ProviderMessageID, in.Text, in.Media, at)
 	if err := s.Inbox.EnsureAssignment(ctx, party.workspaceID, party.channel, conv.ID, party.senderID); err != nil {
 		log.Printf("[carrier] assignment of conversation %s: %v", conv.ID, err)
 	}
+	s.chargeInbound(ctx, party, *conv, phone, in.ProviderMessageID, at)
+	s.recordInbound(ctx, party.channel, conv.ID, phone, in.ContactName, in.ProviderMessageID, in.Text, in.Media, at)
 
 	if carriermessaging.IsOptOutKeyword(in.Text) {
 		return s.suppress(ctx, party.workspaceID, phone, carriermessaging.SuppressionKeyword, messageIDOf(answered), at)
