@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"vozko/domain/conversation"
 )
 
 var (
@@ -439,4 +441,13 @@ func UserJID(phone string) string {
 		return ""
 	}
 	return digits + "@" + DomainUser
+}
+
+func (i *Instance) Automation() conversation.ChannelAutomation {
+	return conversation.ChannelAutomation{
+		AgentID:              i.AgentID,
+		EnableAgentResponses: i.EnableAgentResponses,
+		WorkflowID:           i.WorkflowID,
+		EnableWorkflow:       i.EnableWorkflow,
+	}
 }

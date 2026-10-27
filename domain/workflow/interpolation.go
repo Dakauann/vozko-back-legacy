@@ -449,13 +449,24 @@ func ExtractCampaignVars(g Graph) []string {
 	return keys
 }
 
-var campvarsPattern = regexp.MustCompile(`\{\{(?:var\.)?campvars\.([\w]+)\}\}`)
+func CampaignVarOf(ref string) (string, bool) {
+	inner := normalizeIndexing(strings.TrimSpace(ref))
+	inner = strings.TrimPrefix(inner, "var.")
+	rest, ok := strings.CutPrefix(inner, DataKeyCampaignVars+".")
+	if !ok {
+		return "", false
+	}
+	name, _, _ := strings.Cut(rest, ".")
+	return name, name != ""
+}
 
 func extractCampvarsFromValue(v interface{}, seen map[string]bool) {
 	switch val := v.(type) {
 	case string:
-		for _, m := range campvarsPattern.FindAllStringSubmatch(val, -1) {
-			seen[m[1]] = true
+		for _, m := range interpolationPattern.FindAllStringSubmatch(val, -1) {
+			if name, ok := CampaignVarOf(m[1]); ok {
+				seen[name] = true
+			}
 		}
 	case map[string]interface{}:
 		for _, vv := range val {

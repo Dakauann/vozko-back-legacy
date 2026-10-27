@@ -279,8 +279,9 @@ func (c *Container) initTikTokRuntime(history conversation_domain.MessageHistory
 			Pipelines:   c.repositories.pipeline,
 			Departments: c.repositories.workspaceDepartment,
 		},
-		Alerts:  b.Alerts,
-		Metrics: b.Metrics,
+		Alerts:    b.Alerts,
+		Metrics:   b.Metrics,
+		Receptive: c.automationNeeds().receptive,
 	})
 	b.Handler = tiktokhttp.NewHandler(tiktokhttp.HandlerDeps{
 		Connect:         connect,

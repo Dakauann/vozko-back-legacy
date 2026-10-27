@@ -69,12 +69,20 @@ func (t *listGoogleSheetsTool) Execute(ctx context.Context, cc copilot.Context, 
 			if c.Archived {
 				continue
 			}
-			columns = append(columns, map[string]interface{}{
+			column := map[string]interface{}{
 				"key": c.Key, "header": c.Header, "type": c.Type, "options": c.Options, "required": c.Required, "filled_by": c.Source,
-			})
+			}
+			if len(c.Colors) > 0 {
+				column["colors"] = c.Colors
+			}
+			if c.LinkSheetID != "" {
+				column["link_sheet_id"], column["link_label"] = c.LinkSheetID, c.LinkLabel
+			}
+			columns = append(columns, column)
 		}
 		sheets = append(sheets, map[string]interface{}{
 			"id": s.ID, "title": s.Title, "status": s.Status, "reason": s.Reason, "url": s.URL(), "columns": columns,
+			"spreadsheet_id": s.SpreadsheetID, "tab_name": s.TabName, "tab_period": s.TabPeriod, "style": s.Style, "takes_input": s.TakesInput(),
 		})
 	}
 	return copilot.Result{Status: copilot.StatusOK, Data: map[string]interface{}{"sheets": sheets, "total": page.TotalItems}}

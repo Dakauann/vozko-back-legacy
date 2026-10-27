@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"vozko/domain/conversation"
 )
 
 var (
@@ -92,5 +94,18 @@ func (s ReceptiveSettings) Answerer() Answerer {
 		return AnsweredByAgent
 	default:
 		return AnsweredByNobody
+	}
+}
+
+func (s ReceptiveSettings) ChannelAutomation() conversation.ChannelAutomation {
+	agentID, workflowID := strings.TrimSpace(s.AgentID), strings.TrimSpace(s.WorkflowID)
+	return conversation.ChannelAutomation{
+		AgentID:              &agentID,
+		WorkflowID:           &workflowID,
+		EnableAgentResponses: s.EnableAgentResponses,
+		EnableWorkflow:       s.EnableWorkflow,
+		EnableAnalysis:       s.EnableAnalysis,
+		EnableAutoStaging:    s.EnableAutoStaging,
+		EnableAutoMemory:     s.EnableAutoMemory,
 	}
 }

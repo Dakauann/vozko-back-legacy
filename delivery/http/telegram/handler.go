@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"vozko/delivery/http/automationneedsx"
 
 	"github.com/gorilla/mux"
 
@@ -330,6 +331,9 @@ func toAccountDTO(a *tgdomain.Account) accountDTO {
 }
 
 func writeDomainError(w http.ResponseWriter, err error) {
+	if automationneedsx.WriteRefusal(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, tgdomain.ErrAccountNotFound),
 		errors.Is(err, tgdomain.ErrDeepLinkNotFound):

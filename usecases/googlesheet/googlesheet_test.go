@@ -37,6 +37,7 @@ type world struct {
 	alerts   *fakeAlerts
 	nudger   *recordingNudger
 	resolver *fakeResolver
+	exports  *memoryExports
 	writer   *Writer
 	intake   *Intake
 	manager  *Manager
@@ -55,6 +56,7 @@ func newWorld(t *testing.T) *world {
 		alerts:   &fakeAlerts{},
 		nudger:   &recordingNudger{},
 		resolver: &fakeResolver{values: googlesheet.SystemValues{googlesheet.SourceLeadPhone: "+5511999990000"}},
+		exports:  newMemoryExports(),
 		now:      time.Date(2026, 10, 21, 15, 0, 0, 0, time.UTC),
 	}
 	sheet, err := googlesheet.NewSheet(googlesheet.NewSheetInput{
@@ -82,7 +84,7 @@ func newWorld(t *testing.T) *world {
 	})
 	w.writer.now = func() time.Time { return w.now }
 	w.writer.jitter = func() time.Duration { return 0 }
-	w.intake = NewIntake(w.sheets, w.rows, w.resolver, w.nudger)
+	w.intake = NewIntake(w.sheets, w.rows, w.resolver, w.exports, w.nudger)
 	w.intake.now = func() time.Time { return w.now }
 	w.manager = NewManager(ManagerDeps{
 		Sheets: w.sheets, Rows: w.rows, API: w.api, Errors: fakeClassifier{}, Access: w.access, Limiter: w.limiter,

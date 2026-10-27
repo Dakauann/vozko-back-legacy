@@ -13,12 +13,12 @@ func (c *Container) automationDirectory() ia_usecase.AutomationDirectory {
 }
 
 func (c *Container) automationToggle() *ia_usecase.OperatorAutomationToggle {
-	return ia_usecase.NewOperatorAutomationToggle(c.services.conversationAutomation, c.services.assignmentService, c.services.conversationAuth)
+	return ia_usecase.NewOperatorAutomationToggle(c.services.conversationAutomation, c.services.assignmentService, c.services.conversationAuth, c.automationNeeds().service)
 }
 
 func (c *Container) automationDelegation(toggle *ia_usecase.OperatorAutomationToggle) *ia_usecase.AutomationDelegation {
 	runs := workflow_usecase.NewConversationRunSwitch(workflow_repository.NewConversationRunCanceller(c.db), c.tapWorkflows(), c.repositories.workflowRunLog)
-	return ia_usecase.NewAutomationDelegation(c.services.delegations, toggle, c.automationDirectory(), runs)
+	return ia_usecase.NewAutomationDelegation(c.services.delegations, toggle, c.automationDirectory(), runs, c.automationNeeds().service)
 }
 
 func (c *Container) buttonDelegations() *ia_usecase.AutomationDelegation {

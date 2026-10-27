@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"vozko/usecases/automationneeds/receptivetest"
 
 	"github.com/google/uuid"
 
@@ -73,7 +74,7 @@ func TestEmailE2E_AReplyOnAConfiguredInboxReachesAnalysisStagingAndMemory(t *tes
 	}
 
 	pipeline := uuid.NewString()
-	inboxes := emuc.NewInboxes(w.inbox.Inboxes, w.senders, w.domains, workspaceRefs{})
+	inboxes := emuc.NewInboxes(w.inbox.Inboxes, w.senders, w.domains, workspaceRefs{}, receptivetest.Allow())
 	_, err = inboxes.Update(w.ctx, ws.ID, conv.SenderID, em.InboxSettings{
 		PipelineID: &pipeline, EnableAnalysis: true, EnableAutoStaging: true, EnableAutoMemory: true,
 	})

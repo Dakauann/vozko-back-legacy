@@ -11,6 +11,7 @@ import (
 
 	"vozko/domain/agent"
 	domainmcp "vozko/domain/agent/mcp"
+	"vozko/domain/automationneeds"
 	"vozko/domain/callrouting"
 	"vozko/domain/conversation"
 	"vozko/domain/customfield"
@@ -25,6 +26,7 @@ import (
 	"vozko/domain/workflow"
 	workspace_domain "vozko/domain/workspace"
 	dept_domain "vozko/domain/workspace/workspace_department"
+	automationneeds_usecase "vozko/usecases/automationneeds"
 	opportunity_usecase "vozko/usecases/opportunity"
 )
 
@@ -60,6 +62,15 @@ type StageLookup interface {
 	FindByID(id string) (*stage_domain.Stage, error)
 }
 
+type WorkflowSwitchingPublisher interface {
+	PublishVersionSwitchingOff(in workflow.PublishVersion, workspaceID string, offs []automationneeds.SwitchOff) (*workflow.WorkflowVersion, []string, error)
+}
+
+type WorkflowPublishPlanner interface {
+	PlanWorkflow(ctx context.Context, draft *workflow.Workflow) (automationneeds_usecase.Plan, error)
+	Done(ctx context.Context, plan automationneeds_usecase.Plan, containers []string)
+}
+
 type DealFunnels interface {
 	PipelineStages(workspaceID, pipelineID string) ([]*stage_domain.Stage, error)
 }
@@ -84,6 +95,8 @@ type ActivateWorkflowDeps struct {
 	ModelCatalog   ModelCatalog
 	InboundTrunks  InboundTrunkLookup
 	CallQueues     CallQueueLookup
+	Switching      WorkflowSwitchingPublisher
+	Planner        WorkflowPublishPlanner
 }
 
 type activateWorkflowUseCase struct {
@@ -108,6 +121,9 @@ type activateWorkflowUseCase struct {
 
 	inboundTrunks InboundTrunkLookup
 	callQueues    CallQueueLookup
+
+	switching WorkflowSwitchingPublisher
+	planner   WorkflowPublishPlanner
 }
 
 func NewActivateWorkflowUseCase(d ActivateWorkflowDeps) (workflow.ActivateWorkflowUseCase, error) {
@@ -131,6 +147,8 @@ func NewActivateWorkflowUseCase(d ActivateWorkflowDeps) (workflow.ActivateWorkfl
 		"model catalog":   d.ModelCatalog,
 		"inbound trunks":  d.InboundTrunks,
 		"call queues":     d.CallQueues,
+		"switching":       d.Switching,
+		"publish planner": d.Planner,
 	}); err != nil {
 		return nil, err
 	}
@@ -154,6 +172,8 @@ func NewActivateWorkflowUseCase(d ActivateWorkflowDeps) (workflow.ActivateWorkfl
 		modelCatalog:      d.ModelCatalog,
 		inboundTrunks:     d.InboundTrunks,
 		callQueues:        d.CallQueues,
+		switching:         d.Switching,
+		planner:           d.Planner,
 	}, nil
 }
 
@@ -226,10 +246,18 @@ func (uc *activateWorkflowUseCase) publish(ctx context.Context, w *workflow.Work
 		slog.Info("workflow.publish.unchanged", append(attrs, slog.Int("version", *w.PublishedVersion))...)
 		return findWithPublication(uc.repo, w.ID)
 	}
-	v, err := uc.repo.PublishVersion(workflow.PublishVersionOf(w, workflow.PublisherFrom(ctx), hash != storedHash || storedType != w.Type))
+	if uc.planner == nil || uc.switching == nil {
+		return nil, automationneeds.ErrUnreadable
+	}
+	plan, err := uc.planner.PlanWorkflow(ctx, w)
 	if err != nil {
 		return nil, err
 	}
+	v, containers, err := uc.switching.PublishVersionSwitchingOff(workflow.PublishVersionOf(w, workflow.PublisherFrom(ctx), hash != storedHash || storedType != w.Type), plan.WorkspaceID, plan.Offs)
+	if err != nil {
+		return nil, err
+	}
+	uc.planner.Done(ctx, plan, containers)
 	slog.Info("workflow.published", append(attrs, slog.Int("version", v.Version))...)
 	return findWithPublication(uc.repo, w.ID)
 }

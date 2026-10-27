@@ -7,6 +7,7 @@ import (
 	"vozko/delivery/http/agentrunhttp"
 	"vozko/delivery/http/agentscenariohttp"
 	"vozko/delivery/http/agenttoolhttp"
+	"vozko/delivery/http/automationneedshttp"
 )
 
 type AgentRoutes struct {
@@ -14,6 +15,7 @@ type AgentRoutes struct {
 	Publishing *agentpublishhttp.Handler
 	Runs       *agentrunhttp.Handler
 	Scenarios  *agentscenariohttp.Handler
+	Needs      *automationneedshttp.Handler
 }
 
 func (r *router) setupAgentToolRoutes(protected *mux.Router) {
@@ -28,5 +30,8 @@ func (r *router) setupAgentToolRoutes(protected *mux.Router) {
 	}
 	if r.agentRoutes.Scenarios != nil {
 		agentscenariohttp.RegisterRoutes(protected, r.agentRoutes.Scenarios, r.ac)
+	}
+	if r.agentRoutes.Needs != nil {
+		automationneedshttp.RegisterRoutes(protected, r.agentRoutes.Needs, r.ac)
 	}
 }

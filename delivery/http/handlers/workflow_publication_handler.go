@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	automationneeds_usecase "vozko/usecases/automationneeds"
 
 	"vozko/delivery/http/response"
 	"vozko/domain/shared"
@@ -22,10 +23,16 @@ import (
 // @Failure 404 {object} response.ErrorResponse "Workflow não encontrado"
 // @Failure 409 {object} response.ErrorResponse "Workflow arquivado ou publicação simultânea"
 // @Failure 422 {object} response.ErrorResponse{details=workflowNotPublishableDetails} "workflow_not_publishable: details.issues lista todos os problemas que bloqueiam, cada um com code, severity, nodeId, path e message"
+// @Param confirmSwitchOff query bool false "true confirma desligar os canais receptivos listados em GET /automation-needs/workflow/{id}/publish-impact"
+// @Failure 409 {object} response.ErrorResponse{details=automationneedsx.RefusalDetails} "automation_publish_switches_off: a nova versão exige variáveis e desligaria canais receptivos; details.impact lista os canais. Confirme com confirmSwitchOff=true. automation_voice_variables (422): um fluxo de voz não pode exigir variáveis"
 // @Router /workflows/{id}/publish [post]
 func (h *WorkflowHandler) Publish(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
-	wf, err := h.workflows.Publish(r.Context(), workflowScope(r), id)
+	ctx := r.Context()
+	if r.URL.Query().Get("confirmSwitchOff") == "true" {
+		ctx = automationneeds_usecase.WithSwitchOffConfirmed(ctx)
+	}
+	wf, err := h.workflows.Publish(ctx, workflowScope(r), id)
 	if err != nil {
 		h.handleDomainError(w, err)
 		return

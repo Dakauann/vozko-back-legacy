@@ -97,7 +97,7 @@ func newDelegation(f *aiFixture) (*AutomationDelegation, *profileBackedDelegatio
 			"draft": {ID: "draft", WorkspaceID: "ws-1", Status: workflow.WorkflowStatusDraft},
 			"ivr":   {ID: "ivr", WorkspaceID: "ws-1", Status: workflow.WorkflowStatusActive, Type: workflow.WorkflowTypeVoice, PublishedVersion: &publishedVersion},
 		},
-	}, &delegationRuns{}), store, access
+	}, &delegationRuns{}, &scriptedVariablesCheck{}), store, access
 }
 
 var publishedVersion = 1

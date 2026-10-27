@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"vozko/usecases/automationneeds/receptivetest"
 
 	"github.com/gorilla/mux"
 
@@ -87,7 +88,7 @@ type stubRefs struct{ err error }
 func (s stubRefs) OwnedBy(context.Context, string, automationrefs.Refs) error { return s.err }
 
 func router(refsErr error) *mux.Router {
-	uc := usecase.NewInboxes(&stubInboxes{byID: map[string]*domain.Inbox{}}, stubSenders{}, stubDomains{}, stubRefs{err: refsErr})
+	uc := usecase.NewInboxes(&stubInboxes{byID: map[string]*domain.Inbox{}}, stubSenders{}, stubDomains{}, stubRefs{err: refsErr}, receptivetest.Allow())
 	r := mux.NewRouter()
 	pass := func(_ workspace_domain.Resource, _ workspace_domain.Action, next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, req *http.Request) {

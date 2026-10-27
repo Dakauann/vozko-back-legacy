@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 	"time"
+	"vozko/usecases/automationneeds/receptivetest"
 
 	"vozko/domain/agent"
 	mldomain "vozko/domain/mercadolivre"
@@ -70,7 +71,7 @@ func newAccountsFixture() accountsFixture {
 	accounts := newFakeAccounts()
 	oauth := &fakeOAuth{}
 	alerts := &fakeAlerts{}
-	uc := NewAccounts(AccountsDeps{Accounts: accounts, OAuth: oauth, References: refs(), Alerts: alerts, Metrics: newFakeMetrics()})
+	uc := NewAccounts(AccountsDeps{Accounts: accounts, OAuth: oauth, References: refs(), Alerts: alerts, Metrics: newFakeMetrics(), Receptive: receptivetest.Allow()})
 	uc.now = fixedClock
 	return accountsFixture{uc: uc, accounts: accounts, oauth: oauth, alerts: alerts}
 }

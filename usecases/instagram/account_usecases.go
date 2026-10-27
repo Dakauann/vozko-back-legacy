@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"strings"
+	"vozko/domain/automationneeds"
 
 	igdomain "vozko/domain/instagram"
 	"vozko/domain/shared"
@@ -60,10 +61,11 @@ type UpdateAccountConfigInput struct {
 
 type UpdateAccountConfigUseCase struct {
 	accounts igdomain.AccountRepository
+	guard    automationneeds.ReceptiveGuard
 }
 
-func NewUpdateAccountConfigUseCase(accounts igdomain.AccountRepository) *UpdateAccountConfigUseCase {
-	return &UpdateAccountConfigUseCase{accounts: accounts}
+func NewUpdateAccountConfigUseCase(accounts igdomain.AccountRepository, guard automationneeds.ReceptiveGuard) *UpdateAccountConfigUseCase {
+	return &UpdateAccountConfigUseCase{accounts: accounts, guard: guard}
 }
 
 func (uc *UpdateAccountConfigUseCase) Execute(ctx context.Context, in UpdateAccountConfigInput) (*igdomain.Account, error) {
@@ -108,9 +110,16 @@ func (uc *UpdateAccountConfigUseCase) Execute(ctx context.Context, in UpdateAcco
 		return nil, err
 	}
 	account.AccessToken = ""
+	if uc.guard == nil {
+		return nil, automationneeds.ErrUnreadable
+	}
+	if err := uc.guard.Admit(account.WorkspaceID, account.Automation()); err != nil {
+		return nil, err
+	}
 	if err := uc.accounts.Update(ctx, account); err != nil {
 		return nil, err
 	}
+	uc.guard.Saved(ctx, account.WorkspaceID, automationneeds.SlotInstagram, account.ID, account.Automation())
 	return uc.accounts.FindByID(ctx, in.ID)
 }
 

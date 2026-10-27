@@ -1001,12 +1001,7 @@ func adReferralOf(reply *uw.AdReply) *conversation.AdReferral {
 
 func channelAutomation(instance *uw.Instance, conv *uw.Conversation, auto *CampaignAutomation) conversation.ChannelAutomation {
 	if auto == nil {
-		return conversation.ChannelAutomation{
-			AgentID:              instance.AgentID,
-			EnableAgentResponses: instance.EnableAgentResponses,
-			WorkflowID:           instance.WorkflowID,
-			EnableWorkflow:       instance.EnableWorkflow,
-		}
+		return instance.Automation()
 	}
 	agentID, workflowID := auto.Automation.AgentID, auto.Automation.WorkflowID
 	return conversation.ChannelAutomation{

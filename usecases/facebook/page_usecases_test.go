@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"vozko/domain/automationneeds"
+	"vozko/usecases/automationneeds/receptivetest"
 
 	fbdomain "vozko/domain/facebook"
 )
@@ -17,7 +19,7 @@ func connectedPage(id, workspaceID string) *fbdomain.Page {
 
 func TestGetPageIsWorkspaceScoped(t *testing.T) {
 	pages := newFakePages(connectedPage("p1", "ws-1"))
-	uc := NewPageUseCases(pages, newFakeGrants(), &fakeSubscription{})
+	uc := NewPageUseCases(pages, newFakeGrants(), &fakeSubscription{}, receptivetest.Allow())
 	if _, err := uc.Get(context.Background(), "ws-2", "p1"); !errors.Is(err, fbdomain.ErrPageNotFound) {
 		t.Fatalf("cross-workspace read allowed: %v", err)
 	}
@@ -28,7 +30,7 @@ func TestGetPageIsWorkspaceScoped(t *testing.T) {
 
 func TestUpdateConfigWritesOnlyAutomationFields(t *testing.T) {
 	pages := newFakePages(connectedPage("p1", "ws-1"))
-	uc := NewPageUseCases(pages, newFakeGrants(), &fakeSubscription{})
+	uc := NewPageUseCases(pages, newFakeGrants(), &fakeSubscription{}, receptivetest.Allow())
 	agent := "agent-1"
 	updated, err := uc.UpdateConfig(context.Background(), UpdatePageConfigInput{
 		WorkspaceID: "ws-1", ID: "p1", AgentID: &agent, EnableAgentResponses: true, AutomationDisclosure: "  Sou um assistente.  ",
@@ -42,7 +44,7 @@ func TestUpdateConfigWritesOnlyAutomationFields(t *testing.T) {
 }
 
 func TestUpdateConfigRejectsForeignWorkspace(t *testing.T) {
-	uc := NewPageUseCases(newFakePages(connectedPage("p1", "ws-1")), newFakeGrants(), &fakeSubscription{})
+	uc := NewPageUseCases(newFakePages(connectedPage("p1", "ws-1")), newFakeGrants(), &fakeSubscription{}, receptivetest.Allow())
 	if _, err := uc.UpdateConfig(context.Background(), UpdatePageConfigInput{WorkspaceID: "ws-2", ID: "p1"}); !errors.Is(err, fbdomain.ErrPageNotFound) {
 		t.Fatalf("got %v", err)
 	}
@@ -53,7 +55,7 @@ func TestDisconnectUnsubscribesMarksAndDeletes(t *testing.T) {
 	sub := &fakeSubscription{}
 	grants := newFakeGrants()
 	grants.byID["grant-1"] = &fbdomain.Grant{ID: "grant-1", Status: fbdomain.GrantActive}
-	uc := NewPageUseCases(pages, grants, sub)
+	uc := NewPageUseCases(pages, grants, sub, receptivetest.Allow())
 
 	warning, err := uc.Disconnect(context.Background(), "ws-1", "p1")
 	if err != nil || warning != "" {
@@ -69,7 +71,7 @@ func TestDisconnectUnsubscribesMarksAndDeletes(t *testing.T) {
 
 func TestDisconnectStillCompletesWhenUnsubscribeFails(t *testing.T) {
 	pages := newFakePages(connectedPage("p1", "ws-1"))
-	uc := NewPageUseCases(pages, newFakeGrants(), &fakeSubscription{err: errors.New("token revoked")})
+	uc := NewPageUseCases(pages, newFakeGrants(), &fakeSubscription{err: errors.New("token revoked")}, receptivetest.Allow())
 	warning, err := uc.Disconnect(context.Background(), "ws-1", "p1")
 	if err != nil {
 		t.Fatal(err)
@@ -83,7 +85,7 @@ func TestDisconnectKeepsAGrantThatStillServesPages(t *testing.T) {
 	pages := newFakePages(connectedPage("p1", "ws-1"), connectedPage("p2", "ws-1"))
 	grants := newFakeGrants()
 	grants.byID["grant-1"] = &fbdomain.Grant{ID: "grant-1", Status: fbdomain.GrantActive}
-	uc := NewPageUseCases(pages, grants, &fakeSubscription{})
+	uc := NewPageUseCases(pages, grants, &fakeSubscription{}, receptivetest.Allow())
 	if _, err := uc.Disconnect(context.Background(), "ws-1", "p1"); err != nil {
 		t.Fatal(err)
 	}
@@ -131,5 +133,25 @@ func TestPictureStoreRejectsNonImages(t *testing.T) {
 	store := NewPictureStore(fakeFetcher{data: []byte("<html>"), contentType: "text/html"}, &fakeStorage{uploaded: map[string][]byte{}})
 	if _, err := store.StorePagePicture(context.Background(), "p1", "https://x"); err == nil {
 		t.Fatal("non image stored")
+	}
+}
+
+func TestThePageRefusesAnAgentItsReceptiveCannotFeed(t *testing.T) {
+	pages := newFakePages(connectedPage("p1", "ws-1"))
+	guard := receptivetest.Refuse(&automationneeds.Refusal{Cause: automationneeds.ErrReceptiveUnmet})
+	agentID := "agent-1"
+	_, err := NewPageUseCases(pages, newFakeGrants(), &fakeSubscription{}, guard).UpdateConfig(context.Background(), UpdatePageConfigInput{WorkspaceID: "ws-1", ID: "p1", AgentID: &agentID, EnableAgentResponses: true})
+	if !errors.Is(err, automationneeds.ErrReceptiveUnmet) {
+		t.Fatalf("err = %v", err)
+	}
+	if len(guard.Admitted) != 1 || !guard.Admitted[0].EnableAgentResponses {
+		t.Fatalf("admitted = %+v", guard.Admitted)
+	}
+	ok := receptivetest.Allow()
+	if _, err := NewPageUseCases(pages, newFakeGrants(), &fakeSubscription{}, ok).UpdateConfig(context.Background(), UpdatePageConfigInput{WorkspaceID: "ws-1", ID: "p1"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(ok.Settled) != 1 || ok.Settled[0] != "facebook:p1" {
+		t.Fatalf("settled = %v", ok.Settled)
 	}
 }

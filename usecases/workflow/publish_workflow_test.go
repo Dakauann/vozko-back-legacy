@@ -45,6 +45,7 @@ func activation(repo *MockWorkflowRepository) *activateWorkflowUseCase {
 	uc := &activateWorkflowUseCase{repo: repo, catalogFn: func() []workflow.NodeDefinition {
 		return append(workflow.BuiltinDefinitions(), node_executors.NewWaitDurationExecutor().Definition())
 	}}
+	uc.switching, uc.planner = repo, &scriptedWorkflowPlanner{}
 	return uc
 }
 

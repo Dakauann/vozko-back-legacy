@@ -174,15 +174,26 @@ func (s *Service) Recipients(ctx context.Context, a Actor, ch campaignaudience.C
 	}
 	var recipients []Recipient
 	err := cache.Gated(ctx, s.deps.Gate, func(ctx context.Context) error {
-		recipients = nil
+		type judged struct {
+			c campaignaudience.Candidate
+			d campaignaudience.Decision
+		}
+		var all []judged
 		tally, _, err := s.walk(ctx, walk{actor: a, channel: ch, params: params, spec: spec, confirm: true}, func(c campaignaudience.Candidate, d campaignaudience.Decision) error {
-			recipients = append(recipients, recipientOf(spec.Source, c, d))
+			all = append(all, judged{c: c, d: d})
 			return nil
 		})
 		if err != nil {
 			return err
 		}
-		return tally.Creatable()
+		if err := tally.Creatable(); err != nil {
+			return err
+		}
+		recipients = make([]Recipient, 0, len(all))
+		for _, j := range all {
+			recipients = append(recipients, recipientOf(spec.Source, tally, j.c, j.d))
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -190,7 +201,7 @@ func (s *Service) Recipients(ctx context.Context, a Actor, ch campaignaudience.C
 	return recipients, nil
 }
 
-func recipientOf(source campaignaudience.Source, c campaignaudience.Candidate, d campaignaudience.Decision) Recipient {
+func recipientOf(source campaignaudience.Source, tally *campaignaudience.Tally, c campaignaudience.Candidate, d campaignaudience.Decision) Recipient {
 	if source == campaignaudience.SourceList {
 		values := d.Values
 		if values == nil {
@@ -201,7 +212,7 @@ func recipientOf(source campaignaudience.Source, c campaignaudience.Candidate, d
 	r := Recipient{LeadID: c.LeadID}
 	switch d.Outcome {
 	case campaignaudience.OutcomeSend:
-		r.Variables = d.Values
+		r.Variables, r.Metadata = tally.Split(d.Values)
 	case campaignaudience.OutcomeOut:
 		r.Skip, r.Missing = campaign.SkipReason(d.Reason), d.Missing
 	}
@@ -227,7 +238,11 @@ func (s *Service) walk(ctx context.Context, w walk, visit visitor) (*campaignaud
 	if err != nil {
 		return nil, campaignaudience.Count{}, err
 	}
-	bound, err := campaignaudience.Bind(prepared.Slots, w.spec.Variables)
+	slots, rule, err := s.audienceSlots(w, prepared)
+	if err != nil {
+		return nil, campaignaudience.Count{}, err
+	}
+	bound, err := campaignaudience.Bind(slots, campaignaudience.KnownVariables(w.spec.Variables, slots, prepared.Needs))
 	if err != nil {
 		return nil, campaignaudience.Count{}, err
 	}
@@ -238,7 +253,7 @@ func (s *Service) walk(ctx context.Context, w walk, visit visitor) (*campaignaud
 	if err != nil {
 		return nil, campaignaudience.Count{}, err
 	}
-	tally := campaignaudience.NewTally(w.channel, w.spec.Source, bound).Requiring(prepared.Metadata).Awaiting(prepared.Awaits)
+	tally := campaignaudience.NewTally(w.channel, w.spec.Source, bound).Requiring(rule).Awaiting(prepared.Awaits)
 	add := func(c campaignaudience.Candidate) error {
 		d := tally.Add(c)
 		if visit == nil {
@@ -417,4 +432,29 @@ func (s *Service) readable(ctx context.Context, a Actor, ch campaignaudience.Cha
 		return nil, err
 	}
 	return list, nil
+}
+
+func (s *Service) audienceSlots(w walk, prepared Prepared) ([]campaignaudience.Slot, campaignaudience.MetadataRule, error) {
+	rule := campaignaudience.WithoutTemplateKeys(prepared.Metadata, prepared.Slots)
+	if w.spec.Source != campaignaudience.SourceLeads || len(prepared.Needs) == 0 {
+		return prepared.Slots, rule, nil
+	}
+	defs, err := s.definitions(w.actor.WorkspaceID)
+	if err != nil {
+		return nil, nil, err
+	}
+	keys := make(map[string]bool, len(defs))
+	for _, def := range defs {
+		if def != nil {
+			keys[def.Key] = true
+		}
+	}
+	suggest := func(name string) campaign.BindingSource {
+		if keys[name] {
+			return campaign.CustomBinding(name)
+		}
+		return ""
+	}
+	slots := append(append([]campaignaudience.Slot(nil), prepared.Slots...), campaignaudience.AutomationSlots(prepared.Needs, prepared.Slots, suggest)...)
+	return slots, nil, nil
 }

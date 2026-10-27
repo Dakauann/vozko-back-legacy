@@ -46,9 +46,9 @@ func TestTallyCountsEachLeadOnceAndEachMissingVariableForEveryLeadThatLacksIt(t 
 		t.Fatalf("out = %+v", count.Out)
 	}
 	wantVariables := []VariableCount{
-		{Key: "1", Source: campaign.BindFirstName, Missing: 1, Policy: MissingText, Text: "cliente", Suggested: true},
-		{Key: "2", Source: campaign.BindDistrict, Missing: 1, Policy: MissingExclude},
-		{Key: "3", Source: campaign.CustomBinding("serie"), Missing: 2, ChoiceRequired: true},
+		{Key: "1", Source: campaign.BindFirstName, Missing: 1, Policy: MissingText, Text: "cliente", Suggested: true, Kind: SlotTemplate},
+		{Key: "2", Source: campaign.BindDistrict, Missing: 1, Policy: MissingExclude, Kind: SlotTemplate},
+		{Key: "3", Source: campaign.CustomBinding("serie"), Missing: 2, ChoiceRequired: true, Kind: SlotTemplate},
 	}
 	if !reflect.DeepEqual(count.Variables, wantVariables) {
 		t.Fatalf("variables = %+v\nwant %+v", count.Variables, wantVariables)

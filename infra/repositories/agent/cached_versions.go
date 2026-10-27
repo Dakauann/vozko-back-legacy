@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"vozko/domain/agent"
+	"vozko/domain/automationneeds"
 	"vozko/domain/testinput"
 )
 
@@ -62,6 +63,22 @@ func (r *CachedRepository) PublishVersion(ctx context.Context, agentID string, s
 		r.invalidate(agentID)
 	}
 	return version, err
+}
+
+type switchingPublisher interface {
+	PublishVersionSwitchingOff(ctx context.Context, agentID string, snapshot agent.Snapshot, publishedBy, workspaceID string, offs []automationneeds.SwitchOff) (agent.Version, []string, error)
+}
+
+func (r *CachedRepository) PublishVersionSwitchingOff(ctx context.Context, agentID string, snapshot agent.Snapshot, publishedBy, workspaceID string, offs []automationneeds.SwitchOff) (agent.Version, []string, error) {
+	inner, ok := r.inner.(switchingPublisher)
+	if !ok {
+		return agent.Version{}, nil, errVersionsUnsupported
+	}
+	version, containers, err := inner.PublishVersionSwitchingOff(ctx, agentID, snapshot, publishedBy, workspaceID, offs)
+	if err == nil {
+		r.invalidate(agentID)
+	}
+	return version, containers, err
 }
 
 func (r *CachedRepository) CurrentVersion(ctx context.Context, agentID string) (*agent.Version, error) {

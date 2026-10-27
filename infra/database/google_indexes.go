@@ -38,6 +38,12 @@ func googleAccountSchemaConstraints() []ddl {
 func googleSheetPerformanceIndexes() []ddl {
 	return []ddl{
 		{
+			name: "idx_google_sheet_spreadsheet",
+			sql: `CREATE INDEX IF NOT EXISTS idx_google_sheet_spreadsheet
+				ON google_sheets (workspace_id, spreadsheet_id)
+				WHERE deleted_at IS NULL`,
+		},
+		{
 			name: "idx_google_sheet_ws_created",
 			sql: `CREATE INDEX IF NOT EXISTS idx_google_sheet_ws_created
 				ON google_sheets (workspace_id, created_at DESC, id)

@@ -172,7 +172,7 @@ type StoredEntry struct {
 }
 
 func (e StoredEntry) AutomationMetadata() campaign.EntryMetadata {
-	return campaign.EntryMetadataOf(e.LeadID, "", e.Metadata)
+	return campaign.EntryMetadataOf(e.LeadID, "", e.Metadata).WithVariables(e.Variables)
 }
 
 func (e StoredEntry) AwaitsSending() bool {

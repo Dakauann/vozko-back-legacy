@@ -123,7 +123,7 @@ func (c *Container) initFacebook() {
 		oauth, subscription, bundle.Grants, bundle.Pages, bundle.Pictures,
 		c.mustOAuthStateIssuer("fb:oauth", c.cfg.MetaAppSecret, "/dashboard/facebook-pages"),
 	)
-	bundle.PagesUC = fbuc.NewPageUseCases(bundle.Pages, bundle.Grants, subscription)
+	bundle.PagesUC = fbuc.NewPageUseCases(bundle.Pages, bundle.Grants, subscription, c.automationNeeds().receptive)
 	if c.services.conversationAuth == nil {
 		log.Fatalf("[facebook] the conversation authorizer must exist before the facebook channel")
 	}

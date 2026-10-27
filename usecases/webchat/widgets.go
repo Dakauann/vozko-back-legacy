@@ -3,6 +3,7 @@ package webchat
 import (
 	"context"
 	"strings"
+	"vozko/domain/automationneeds"
 
 	"vozko/domain/shared"
 	wcdomain "vozko/domain/webchat"
@@ -48,10 +49,11 @@ type References = automationrefs.Finders
 type Widgets struct {
 	widgets wcdomain.WidgetRepository
 	refs    References
+	guard   automationneeds.ReceptiveGuard
 }
 
-func NewWidgets(widgets wcdomain.WidgetRepository, refs References) *Widgets {
-	return &Widgets{widgets: widgets, refs: refs}
+func NewWidgets(widgets wcdomain.WidgetRepository, refs References, guard automationneeds.ReceptiveGuard) *Widgets {
+	return &Widgets{widgets: widgets, refs: refs, guard: guard}
 }
 
 func (uc *Widgets) List(ctx context.Context, in wcdomain.ListWidgetsInput) (*shared.PaginatedResult[*wcdomain.Widget], error) {
@@ -104,6 +106,7 @@ func (uc *Widgets) Update(ctx context.Context, workspaceID, id string, in Widget
 	if err := uc.widgets.Update(ctx, w); err != nil {
 		return nil, err
 	}
+	uc.guard.Saved(ctx, w.WorkspaceID, automationneeds.SlotWebchat, w.ID, w.Automation())
 	return w, nil
 }
 
@@ -184,7 +187,10 @@ func (uc *Widgets) apply(ctx context.Context, w *wcdomain.Widget, in WidgetInput
 	}); err != nil {
 		return wcdomain.ErrReferenceNotInWorkspace
 	}
-	return nil
+	if uc.guard == nil {
+		return automationneeds.ErrUnreadable
+	}
+	return uc.guard.Admit(w.WorkspaceID, w.Automation())
 }
 
 func setValue[T any](dst *T, src *T) {

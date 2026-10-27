@@ -36,7 +36,7 @@ func toggleInput(enabled *bool) OperatorAutomationInput {
 
 func newToggle(f *aiFixture) (*OperatorAutomationToggle, *stubAccess) {
 	access := &stubAccess{allowed: true}
-	return NewOperatorAutomationToggle(f.pauser, f.svc, access), access
+	return NewOperatorAutomationToggle(f.pauser, f.svc, access, &scriptedVariablesCheck{}), access
 }
 
 func TestOperatorToggle_RefusesAConversationTheCallerCannotAccess(t *testing.T) {
@@ -55,7 +55,7 @@ func TestOperatorToggle_RefusesAConversationTheCallerCannotAccess(t *testing.T) 
 
 func TestOperatorToggle_WithoutAnAccessCheckRefusesEverything(t *testing.T) {
 	f := newAIFixture(agentGoverned)
-	toggle := NewOperatorAutomationToggle(f.pauser, f.svc, nil)
+	toggle := NewOperatorAutomationToggle(f.pauser, f.svc, nil, &scriptedVariablesCheck{})
 
 	_, err := toggle.SetAutomation(context.Background(), toggleInput(pauseOn()))
 

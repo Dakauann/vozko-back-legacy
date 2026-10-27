@@ -185,6 +185,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 // @Failure		404		{object}	response.CodedErrorResponse
 // @Failure		422		{object}	response.CodedErrorResponse
 // @Security		BearerAuth
+// @Failure		409	{object}	response.ErrorResponse{details=automationneedsx.RefusalDetails}	"automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis"
 // @Router			/webchat/widgets/{id} [put]
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	var req WidgetRequest

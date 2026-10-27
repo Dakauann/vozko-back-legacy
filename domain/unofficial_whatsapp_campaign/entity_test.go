@@ -252,23 +252,6 @@ func TestValidateTargetVariables(t *testing.T) {
 	}
 }
 
-func TestValidateWorkflowVars(t *testing.T) {
-	c := validCampaign()
-	c.Targets = []TargetInput{{Number: "5584999990001", Metadata: map[string]interface{}{"cpf": "123"}}}
-	c.Normalize()
-
-	if err := c.ValidateWorkflowVars([]string{"cpf"}); err != nil {
-		t.Errorf("present key rejected: %v", err)
-	}
-	if err := c.ValidateWorkflowVars([]string{"valor"}); !errors.Is(err, ErrCampaignWorkflowVarsMissing) {
-		t.Errorf("missing key: got %v", err)
-	}
-	c.Targets[0].Metadata["valor"] = "   "
-	if err := c.ValidateWorkflowVars([]string{"valor"}); !errors.Is(err, ErrCampaignWorkflowVarsMissing) {
-		t.Errorf("blank key: got %v", err)
-	}
-}
-
 func TestEmptyStatusNormalizesToStopped(t *testing.T) {
 	c := validCampaign()
 	c.Normalize()

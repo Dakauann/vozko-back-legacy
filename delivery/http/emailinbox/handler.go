@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"vozko/delivery/http/automationneedsx"
 
 	"github.com/gorilla/mux"
 
@@ -121,6 +122,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 // @Failure		404			{object}	response.CodedErrorResponse
 // @Failure		422			{object}	response.CodedErrorResponse
 // @Security		BearerAuth
+// @Failure		409	{object}	response.ErrorResponse{details=automationneedsx.RefusalDetails}	"automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis"
 // @Router			/email/inboxes/{senderId} [put]
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	var req InboxSettingsRequest
@@ -142,6 +144,9 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeError(w http.ResponseWriter, err error) {
+	if automationneedsx.WriteRefusal(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, domain.ErrInboxNotFound):
 		response.WriteCodedError(w, http.StatusNotFound, "inbox_not_found", "email inbox not found")

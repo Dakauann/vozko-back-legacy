@@ -40,6 +40,7 @@ const (
 	CodeValidationOffline     = "agent_tool_validation_unavailable"
 	CodeWorkflowNotCallable   = "tool_workflow_not_callable"
 	CodeSheetInvalid          = "tool_sheet_invalid"
+	CodeSheetNoInputColumns   = "tool_sheet_no_input_columns"
 	CodeDepartmentInvalid     = "tool_department_invalid"
 	CodeKnowledgeBaseInvalid  = "tool_knowledge_base_invalid"
 	CodeMCPSourceInvalid      = "tool_mcp_source_invalid"

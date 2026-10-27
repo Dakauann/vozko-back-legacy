@@ -3,6 +3,7 @@ package carriermessaging_usecase
 import (
 	"context"
 	"errors"
+	"vozko/domain/automationneeds"
 
 	"vozko/domain/conversation"
 	"vozko/domain/rcs"
@@ -27,9 +28,12 @@ func (s *Service) checkInbox(ctx context.Context, workspaceID string, in InboxSe
 	if (a.EnableAgentResponses && a.AgentID == nil) || (a.EnableWorkflow && a.WorkflowID == nil) {
 		return ErrAutomationIncomplete
 	}
-	return s.AutomationRefs.OwnedBy(ctx, workspaceID, automationrefs.Refs{
+	if err := s.AutomationRefs.OwnedBy(ctx, workspaceID, automationrefs.Refs{
 		AgentID: a.AgentID, WorkflowID: a.WorkflowID, PipelineID: in.PipelineID, DepartmentID: in.DepartmentID,
-	})
+	}); err != nil {
+		return err
+	}
+	return s.Receptive.Admit(workspaceID, a)
 }
 
 func (s *Service) SetSenderInbox(ctx context.Context, workspaceID, id string, in InboxSettings) (*rcs.Sender, error) {
@@ -45,6 +49,7 @@ func (s *Service) SetSenderInbox(ctx context.Context, workspaceID, id string, in
 	if err := s.Repos.Senders.Update(ctx, sender); err != nil {
 		return nil, err
 	}
+	s.Receptive.Saved(ctx, workspaceID, automationneeds.SlotRCS, sender.ID, sender.Automation)
 	return sender, nil
 }
 
@@ -57,5 +62,10 @@ func (s *Service) SetRouteInbox(ctx context.Context, workspaceID, id string, in 
 		return nil, err
 	}
 	route.DepartmentID, route.PipelineID, route.Automation = in.DepartmentID, in.PipelineID, in.Automation
-	return s.saveRoute(ctx, *route)
+	saved, err := s.saveRoute(ctx, *route)
+	if err != nil {
+		return nil, err
+	}
+	s.Receptive.Saved(ctx, workspaceID, automationneeds.SlotSMS, saved.ID, saved.Automation)
+	return saved, nil
 }

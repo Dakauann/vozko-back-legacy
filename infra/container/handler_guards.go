@@ -25,5 +25,5 @@ func (c *Container) officialCampaignLaunch() handlers.CampaignLaunchDeps {
 }
 
 func (c *Container) numberReceptive() *wc_usecase.NumberReceptive {
-	return wc_usecase.NewNumberReceptive(c.repositories.businessPhone, c.repositories.wcCampaign, c.useCases.ensureReceptiveContainer)
+	return wc_usecase.NewNumberReceptive(c.repositories.businessPhone, c.repositories.wcCampaign, c.useCases.ensureReceptiveContainer, c.automationNeeds().receptive)
 }

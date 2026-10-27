@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"log/slog"
+	"vozko/delivery/http/automationneedshttp"
 
 	deliveryHttp "vozko/delivery/http"
 	"vozko/delivery/http/agentpublishhttp"
@@ -80,6 +81,7 @@ func agentRoutes(c *Container) deliveryHttp.AgentRoutes {
 		Publishing: agentpublishhttp.NewHandler(c.agentPublishing(), c.useCases.getAgent, c.services.toolRegistry),
 		Runs:       agentrunhttp.NewHandler(c.agentRuns(), c.useCases.getAgent),
 		Scenarios:  agentscenariohttp.NewHandler(c.agentScenarios(), c.useCases.getAgent),
+		Needs:      automationneedshttp.NewHandler(c.automationQueries()),
 	}
 }
 
@@ -115,6 +117,8 @@ func (c *Container) agentPublishing() agent_usecase.AgentPublishing {
 		c.agentPublishingService = agent_usecase.NewPublishAgentUseCase(agent_usecase.PublishDeps{
 			Agents:    c.repositories.agent,
 			Versions:  c.agentVersions(),
+			Switching: c.agentSwitchingPublisher(),
+			Planner:   c.automationPublishGuard(),
 			Published: c.publishedReader(),
 			Update:    c.useCases.updateAgent,
 			Validator: c.agentToolValidator(),
@@ -136,4 +140,12 @@ func (c *Container) publishExistingAgents() {
 		return
 	}
 	slog.Info("agent.publish_existing.done", slog.String("repair", "ag_publish_existing_agents"), slog.Int("published", published))
+}
+
+func (c *Container) agentSwitchingPublisher() agent_usecase.SwitchingPublisher {
+	switching, ok := c.repositories.agent.(agent_usecase.SwitchingPublisher)
+	if !ok {
+		log.Fatalf("[agents] the agent repository cannot publish and switch receptive channels off in one write")
+	}
+	return switching
 }

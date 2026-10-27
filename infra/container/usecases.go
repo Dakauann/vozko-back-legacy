@@ -598,6 +598,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		WorkflowNames:   c.actorNames(),
 		FormReplies:     lateFormReplies{handle: c.formRepliesHandle()},
 		ExitStep:        lateLeadExit{handle: c.leadExitHandle()},
+		Variables:       c.automationNeeds().runtime,
 	})
 	if err != nil {
 		log.Fatalf("Failed to build the WhatsApp message handler: %v", err)
@@ -1192,7 +1193,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		Statuses:     runStatuses,
 		AgentRunEnds: workflow_infra.NewAgentRunFinishedQueue(c.services.workflowWakePub),
 		Alerts:       c.runtimeAlertStore(),
-		Steps:        workflow_domain.PassThroughStepGate{},
+		Steps:        c.automationNeeds().runtime,
 		Choices:      c.choiceStatsRecorder(),
 	})
 	if err != nil {
@@ -1313,6 +1314,8 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		ModelCatalog:   c.services.ai,
 		InboundTrunks:  sip_trunk_usecase.NewInboundTrunks(c.sipTrunks.Repository),
 		CallQueues:     c.callRouting.Queues,
+		Switching:      c.workflowSwitchingPublisher(),
+		Planner:        c.automationPublishGuard(),
 	})
 	if err != nil {
 		log.Fatalf("[workflows] %v", err)

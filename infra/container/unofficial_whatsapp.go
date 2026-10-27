@@ -112,7 +112,7 @@ func (c *Container) initUnofficialWhatsApp() {
 		Connect:     bundle.Connect,
 		List:        uwuc.NewListInstancesUseCase(bundle.Instances),
 		Get:         uwuc.NewGetInstanceUseCase(bundle.Instances),
-		UpdateCfg:   uwuc.NewUpdateInstanceConfigUseCase(bundle.Instances),
+		UpdateCfg:   uwuc.NewUpdateInstanceConfigUseCase(bundle.Instances, c.automationNeeds().receptive),
 		RotateToken: uwuc.NewRotateDeliveryTokenUseCase(bundle.Instances, bundle.Servers, provision),
 		Remove:      uwuc.NewDeleteInstanceUseCase(bundle.Instances, bundle.Servers, provider),
 		StartConv:   bundle.StartConv,

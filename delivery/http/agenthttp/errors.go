@@ -3,6 +3,7 @@ package agenthttp
 import (
 	"errors"
 	"net/http"
+	"vozko/delivery/http/automationneedsx"
 
 	"vozko/delivery/http/httpx"
 	"vozko/delivery/http/response"
@@ -80,6 +81,9 @@ var Refusals = []response.ErrorRefusal{
 }
 
 func WriteError(w http.ResponseWriter, err error) {
+	if automationneedsx.WriteRefusal(w, err) {
+		return
+	}
 	if httpx.WriteConsentGrantRefusal(w, err) || httpx.WriteSheetBindingRefusal(w, err) {
 		return
 	}

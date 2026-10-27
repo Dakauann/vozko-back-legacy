@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"vozko/delivery/http/automationneedsx"
 
 	"github.com/gorilla/mux"
 
@@ -381,6 +382,9 @@ func (h *Handler) RotateWebhookToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeDomainError(w http.ResponseWriter, err error) {
+	if automationneedsx.WriteRefusal(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, uw.ErrInstanceNotFound), errors.Is(err, uw.ErrServerNotFound),
 		errors.Is(err, uw.ErrContactNotFound), errors.Is(err, uw.ErrConversationNotFound),

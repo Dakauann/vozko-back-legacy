@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand/v2"
 
 	"vozko/domain/googleaccount"
 	"vozko/domain/googlesheet"
@@ -14,11 +15,19 @@ import (
 const healthProblemRows = 50
 
 func (m *Manager) ListRows(ctx context.Context, workspaceID, id string, pagination shared.Pagination) (*shared.PaginatedResult[*googlesheet.Row], error) {
-	if _, err := m.sheets.FindInWorkspace(ctx, workspaceID, id); err != nil {
+	sheet, err := m.sheets.FindInWorkspace(ctx, workspaceID, id)
+	if err != nil {
 		return nil, err
 	}
 	pagination = shared.NormalizePagination(pagination)
-	return m.rows.ListRows(ctx, workspaceID, id, pagination)
+	page, err := m.rows.ListRows(ctx, workspaceID, id, pagination)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range page.Items {
+		row.Cells = sheet.DisplayCells(row.Cells)
+	}
+	return page, nil
 }
 
 type ManagerDeps struct {
@@ -35,6 +44,7 @@ type ManagerDeps struct {
 
 type Manager struct {
 	now     Clock
+	seed    func() int64
 	sheets  googlesheet.SheetRepository
 	rows    googlesheet.RowRepository
 	api     googlesheet.SheetsAPI
@@ -52,18 +62,22 @@ func NewManager(d ManagerDeps) *Manager {
 	}
 	return &Manager{
 		sheets: d.Sheets, rows: d.Rows, api: d.API, errs: d.Errors, access: d.Access,
-		limiter: d.Limiter, marks: d.Marks, alerts: d.Alerts, nudger: d.Nudger, now: utcNow,
+		limiter: d.Limiter, marks: d.Marks, alerts: d.Alerts, nudger: d.Nudger, now: utcNow, seed: rand.Int64,
 	}
 }
 
 type CreateInput struct {
-	WorkspaceID string
-	UserID      string
-	Title       string
-	TabName     string
-	Description string
-	TimeZone    string
-	Columns     []googlesheet.ColumnInput
+	WorkspaceID   string
+	UserID        string
+	SpreadsheetID string
+	Title         string
+	TabName       string
+	TabPeriod     googlesheet.TabPeriod
+	TabPattern    string
+	Style         googlesheet.StylePreset
+	Description   string
+	TimeZone      string
+	Columns       []googlesheet.ColumnInput
 }
 
 func (m *Manager) Create(ctx context.Context, in CreateInput) (*googlesheet.Sheet, error) {
@@ -71,17 +85,55 @@ func (m *Manager) Create(ctx context.Context, in CreateInput) (*googlesheet.Shee
 	if err != nil {
 		return nil, err
 	}
+	sheet, _, err := m.create(ctx, access, in)
+	return sheet, err
+}
+
+type undo func(ctx context.Context)
+
+func (m *Manager) create(ctx context.Context, access googleaccount.Access, in CreateInput) (*googlesheet.Sheet, undo, error) {
 	sheet, err := googlesheet.NewSheet(googlesheet.NewSheetInput{
 		WorkspaceID: in.WorkspaceID,
 		AccountID:   access.AccountID,
 		Title:       in.Title,
 		TabName:     in.TabName,
+		TabPeriod:   in.TabPeriod,
+		TabPattern:  in.TabPattern,
+		Style:       in.Style,
 		Description: in.Description,
 		TimeZone:    in.TimeZone,
 		CreatedBy:   in.UserID,
 		Columns:     in.Columns,
 	})
 	if err != nil {
+		return nil, nil, err
+	}
+	if err := sheet.OpenPeriod(m.now()); err != nil {
+		return nil, nil, err
+	}
+	var google undo
+	if in.SpreadsheetID == "" {
+		google, err = m.newSpreadsheet(ctx, access, sheet)
+	} else {
+		google, err = m.newTab(ctx, access, sheet, in.SpreadsheetID)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := m.sheets.Create(ctx, sheet); err != nil {
+		google(ctx)
+		return nil, nil, err
+	}
+	return sheet, func(ctx context.Context) {
+		if err := m.sheets.Delete(ctx, sheet.WorkspaceID, sheet.ID); err != nil {
+			log.Printf("[googlesheet] sheet %s could not be removed while undoing a workbook: %v", sheet.ID, err)
+		}
+		google(ctx)
+	}, nil
+}
+
+func (m *Manager) newSpreadsheet(ctx context.Context, access googleaccount.Access, sheet *googlesheet.Sheet) (undo, error) {
+	if err := m.checkLinks(ctx, sheet); err != nil {
 		return nil, err
 	}
 	if err := m.takeWrite(ctx, access); err != nil {
@@ -95,11 +147,69 @@ func (m *Manager) Create(ctx context.Context, in CreateInput) (*googlesheet.Shee
 		return nil, m.googleRefusal(err)
 	}
 	sheet.SpreadsheetID, sheet.TabID = created.SpreadsheetID, created.TabID
-	if err := m.sheets.Create(ctx, sheet); err != nil {
-		m.trash(ctx, access, created.SpreadsheetID)
+	return func(ctx context.Context) { m.trash(ctx, access, created.SpreadsheetID) }, nil
+}
+
+func (m *Manager) newTab(ctx context.Context, access googleaccount.Access, sheet *googlesheet.Sheet, spreadsheetID string) (undo, error) {
+	hosts, err := m.sheets.InSpreadsheet(ctx, sheet.WorkspaceID, spreadsheetID)
+	if err != nil {
 		return nil, err
 	}
-	return sheet, nil
+	if len(hosts) == 0 {
+		return nil, googlesheet.ErrSpreadsheetNotFound
+	}
+	if hosts[0].AccountID != access.AccountID {
+		return nil, googlesheet.ErrAccountChanged
+	}
+	sheet.SpreadsheetID = spreadsheetID
+	if err := m.checkLinks(ctx, sheet); err != nil {
+		return nil, err
+	}
+	if err := m.takeRead(ctx, access); err != nil {
+		return nil, err
+	}
+	workbook, err := m.api.Workbook(ctx, access.Token, spreadsheetID)
+	if err != nil {
+		return nil, m.googleRefusal(err)
+	}
+	if _, taken := workbook.Titled(sheet.TabName); taken {
+		return nil, fmt.Errorf("%w: %q", googlesheet.ErrTabNameTaken, sheet.TabName)
+	}
+	if workbook.NearlyFull(googlesheet.NewTabRows * (len(sheet.Columns) + 1)) {
+		return nil, fmt.Errorf("%w: %s", googlesheet.ErrSheetNotActive, googlesheet.ReasonSheetFull)
+	}
+	if err := m.takeWrite(ctx, access); err != nil {
+		return nil, err
+	}
+	tabID := workbook.FreeTabID(m.seed())
+	if err := m.api.AddTab(ctx, access.Token, spreadsheetID, googlesheet.TabSpec{ID: tabID, Title: sheet.TabName, Layout: sheet.Layout(0)}); err != nil {
+		return nil, m.googleRefusal(err)
+	}
+	sheet.TabID = tabID
+	return func(ctx context.Context) {
+		if err := m.api.DeleteTab(ctx, access.Token, spreadsheetID, tabID); err != nil {
+			log.Printf("[googlesheet] tab %d of %s was created but not recorded and could not be removed: %v", tabID, spreadsheetID, err)
+		}
+	}, nil
+}
+
+func (m *Manager) checkLinks(ctx context.Context, sheet *googlesheet.Sheet, only ...googlesheet.Column) error {
+	columns := only
+	if len(columns) == 0 {
+		columns = sheet.LinkColumns()
+	}
+	for _, col := range columns {
+		target, err := m.sheets.FindInWorkspace(ctx, sheet.WorkspaceID, col.LinkSheetID)
+		if errors.Is(err, googlesheet.ErrSheetNotFound) {
+			target = nil
+		} else if err != nil {
+			return err
+		}
+		if err := googlesheet.CheckLinkTarget(sheet, col, target); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *Manager) trash(ctx context.Context, access googleaccount.Access, spreadsheetID string) {
@@ -156,9 +266,47 @@ func (m *Manager) EditColumns(ctx context.Context, in ColumnsInput) (*googleshee
 	if in.Version != sheet.Version {
 		return nil, googlesheet.ErrStaleSheet
 	}
+	before := len(sheet.Columns)
 	if err := sheet.EditColumns(in.Edit); err != nil {
 		return nil, err
 	}
+	var added []googlesheet.Column
+	for _, col := range sheet.Columns[before:] {
+		if col.Source == googlesheet.SourceExportLink {
+			added = append(added, col)
+		}
+	}
+	if len(added) > 0 {
+		if err := m.checkLinks(ctx, sheet, added...); err != nil {
+			return nil, err
+		}
+	}
+	return m.saveLayout(ctx, sheet, in.Version, before)
+}
+
+type LayoutInput struct {
+	WorkspaceID string
+	ID          string
+	Version     int
+	Style       *googlesheet.StylePreset
+	TabPattern  *string
+}
+
+func (m *Manager) UpdateLayout(ctx context.Context, in LayoutInput) (*googlesheet.Sheet, error) {
+	sheet, err := m.sheets.FindInWorkspace(ctx, in.WorkspaceID, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	if in.Version != sheet.Version {
+		return nil, googlesheet.ErrStaleSheet
+	}
+	if err := sheet.ChangeLayout(in.Style, in.TabPattern); err != nil {
+		return nil, err
+	}
+	return m.saveLayout(ctx, sheet, in.Version, len(sheet.Columns))
+}
+
+func (m *Manager) saveLayout(ctx context.Context, sheet *googlesheet.Sheet, version, sizeFrom int) (*googlesheet.Sheet, error) {
 	access, err := m.sheetAccess(ctx, sheet)
 	if err != nil {
 		return nil, err
@@ -166,10 +314,10 @@ func (m *Manager) EditColumns(ctx context.Context, in ColumnsInput) (*googleshee
 	if err := m.takeWrite(ctx, access); err != nil {
 		return nil, err
 	}
-	if err := m.api.ApplyColumns(ctx, access.Token, sheet.Target(), sheet.Columns); err != nil {
+	if err := m.api.ApplyLayout(ctx, access.Token, sheet.Target(), sheet.Layout(sizeFrom)); err != nil {
 		return nil, m.googleRefusal(err)
 	}
-	if err := m.sheets.Update(ctx, sheet, in.Version); err != nil {
+	if err := m.sheets.Update(ctx, sheet, version); err != nil {
 		return nil, err
 	}
 	m.forgetHeaderCheck(sheet.ID)
@@ -236,20 +384,24 @@ func (m *Manager) Reactivate(ctx context.Context, in ReactivateInput) (*googlesh
 	if err := m.takeRead(ctx, access); err != nil {
 		return nil, err
 	}
-	info, err := m.api.TabInfo(ctx, access.Token, sheet.Target())
+	workbook, err := m.api.Workbook(ctx, access.Token, sheet.SpreadsheetID)
 	if err != nil {
 		return nil, m.googleRefusal(err)
 	}
-	renamed := info.Title != sheet.TabName
-	sheet.TabName = info.Title
-	if info.NearlyFull(0, len(sheet.Columns)+1) {
+	tab, ok := workbook.Tab(sheet.TabID)
+	if !ok {
+		return nil, &GoogleRefusal{Failure: googlesheet.Failure{Kind: googlesheet.FailureNotFound, Detail: tabGoneDetail}, Err: fmt.Errorf("googlesheet: tab %d of %s is gone", sheet.TabID, sheet.SpreadsheetID)}
+	}
+	renamed := tab.Title != sheet.TabName
+	sheet.TabName = tab.Title
+	if workbook.NearlyFull(0) {
 		return nil, fmt.Errorf("%w: %s", googlesheet.ErrSheetNotActive, googlesheet.ReasonSheetFull)
 	}
 	if in.RepairHeader {
 		if err := m.takeWrite(ctx, access); err != nil {
 			return nil, err
 		}
-		if err := m.api.ApplyColumns(ctx, access.Token, sheet.Target(), sheet.Columns); err != nil {
+		if err := m.api.ApplyLayout(ctx, access.Token, sheet.Target(), sheet.Layout(len(sheet.Columns))); err != nil {
 			return nil, m.googleRefusal(err)
 		}
 	} else if err := m.confirmHeader(ctx, access, sheet); err != nil {
@@ -271,6 +423,8 @@ func (m *Manager) Reactivate(ctx context.Context, in ReactivateInput) (*googlesh
 	m.nudger.Nudge(sheet.ID)
 	return sheet, nil
 }
+
+const tabGoneDetail = "a aba da planilha foi removida no Google"
 
 func (m *Manager) confirmHeader(ctx context.Context, access googleaccount.Access, sheet *googlesheet.Sheet) error {
 	if err := m.takeRead(ctx, access); err != nil {

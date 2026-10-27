@@ -171,6 +171,13 @@ func validateVariables(vars []Variable) error {
 	return nil
 }
 
+type SlotKind string
+
+const (
+	SlotTemplate   SlotKind = "template"
+	SlotAutomation SlotKind = "automation"
+)
+
 type Slot struct {
 	Key       string
 	Name      string
@@ -178,6 +185,8 @@ type Slot struct {
 	Suggested campaign.BindingSource
 	Fallback  string
 	Example   string
+	Kind      SlotKind
+	NeededBy  string
 }
 
 type Bound struct {
@@ -186,6 +195,12 @@ type Bound struct {
 	Header    bool
 	Suggested bool
 	Fallback  string
+	Kind      SlotKind
+	NeededBy  string
+}
+
+func (b Bound) Automation() bool {
+	return b.Kind == SlotAutomation
 }
 
 func Bind(slots []Slot, vars []Variable) ([]Bound, error) {
@@ -202,7 +217,7 @@ func Bind(slots []Slot, vars []Variable) ([]Bound, error) {
 		if !given {
 			v = Variable{Key: slot.Key}
 		}
-		b := Bound{Variable: v, Name: slot.Name, Header: slot.Header, Fallback: slot.Fallback}
+		b := Bound{Variable: v, Name: slot.Name, Header: slot.Header, Fallback: slot.Fallback, Kind: slot.Kind, NeededBy: slot.NeededBy}
 		if b.Source == "" && slot.Suggested != "" {
 			b.Source, b.Suggested = slot.Suggested, true
 		}

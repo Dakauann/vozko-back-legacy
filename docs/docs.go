@@ -4643,6 +4643,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "true confirma desligar os canais receptivos listados em GET /automation-needs/agent/{id}/publish-impact",
+                        "name": "confirmSwitchOff",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -4656,6 +4662,24 @@ const docTemplate = `{
                         "description": "agent_forbidden",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "automation_publish_switches_off: a nova versão exige variáveis e desligaria canais receptivos; details.impact lista os canais. Confirme com confirmSwitchOff=true",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedsx.RefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "422": {
@@ -8039,6 +8063,168 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/automation-needs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Para cada agente e fluxo pedido, lista as variáveis que a automação precisa em cada conversa, já seguindo o agente que um nó de IA usa, os subfluxos e os fluxos que o agente chama. lead_name, lead_number e campaign_name nunca aparecem: a plataforma sempre preenche. receptiveEligible diz se a automação pode atender conversas receptivas (que o cliente começa, sem dados de campanha): só quando não exige nenhuma variável e pôde ser lida. Os seletores de automação dos canais usam este retorno para marcar as opções que não podem ser ligadas; a regra é só do backend.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Automações"
+                ],
+                "summary": "Variáveis que agentes e fluxos exigem",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "IDs de agentes separados por vírgula",
+                        "name": "agents",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "IDs de fluxos separados por vírgula",
+                        "name": "workflows",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/automationneedshttp.EligibilityListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "automation_needs_too_many: no máximo 100 automações por pedido",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/automation-needs/{kind}/{id}/publish-impact": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lê o rascunho salvo do agente ou do fluxo como se fosse publicado agora e lista os canais receptivos (números do WhatsApp, contas e páginas, chat do site, caixas de email, RCS e SMS) que passariam a rodar uma automação com variáveis que conversas receptivas não trazem. Inclui os canais que rodam outra automação que depende desta (um fluxo cujo nó de IA usa o agente, um fluxo que chama este como subfluxo, um agente que chama este fluxo). Publicar sem confirmar quando a lista não está vazia é recusado com 409 automation_publish_switches_off; com POST /agents/{id}/publish?confirmSwitchOff=true ou POST /workflows/{id}/publish?confirmSwitchOff=true esses canais são desligados na mesma gravação da nova versão.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Automações"
+                ],
+                "summary": "Canais que publicar a automação desligaria",
+                "parameters": [
+                    {
+                        "enum": [
+                            "agent",
+                            "workflow"
+                        ],
+                        "type": "string",
+                        "description": "agent ou workflow",
+                        "name": "kind",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID do agente ou do fluxo",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/automationneedshttp.ImpactResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "automation_needs_not_found: a automação não existe neste workspace",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "automation_needs_unreadable",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/automation-switch-offs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Quando uma automação foi desligada num canal receptivo porque passou a exigir variáveis, devolve o aviso aberto: qual automação, quais variáveis, quando, e eligibleNow, que diz se a versão publicada hoje já pode ser ligada de novo. Ligar de novo é o mesmo salvamento da automação do canal; um salvamento que liga uma automação aceita ou escolhe outra fecha o aviso. Nunca religa sozinho. notice vem nulo quando não há aviso.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Automações"
+                ],
+                "summary": "Aviso de automação desligada no canal",
+                "parameters": [
+                    {
+                        "enum": [
+                            "whatsapp_number",
+                            "unofficial_whatsapp",
+                            "instagram",
+                            "facebook",
+                            "telegram",
+                            "webchat",
+                            "tiktok",
+                            "mercadolivre",
+                            "email",
+                            "rcs",
+                            "sms"
+                        ],
+                        "type": "string",
+                        "description": "Tipo do canal",
+                        "name": "channel",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID do canal (para o WhatsApp oficial, o ID do número)",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/automationneedshttp.SwitchOffResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "automation_needs_not_found: tipo de canal desconhecido",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -13963,9 +14149,21 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Conflict",
+                        "description": "automation_variables_missing: a conversa não tem valor para variáveis que a automação exige; preencha com PUT /conversations/{entryType}/{entryId}/variables e tente de novo",
                         "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedsx.RefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -14164,9 +14362,21 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Conflict",
+                        "description": "automation_variables_missing: a conversa não tem valor para variáveis que a automação exige; preencha com PUT /conversations/{entryType}/{entryId}/variables e tente de novo",
                         "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedsx.RefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "422": {
@@ -14905,6 +15115,74 @@ const docTemplate = `{
                         "description": "O horário escolhido está fora dos limites, ou o template não pode ser enviado a este contato",
                         "schema": {
                             "$ref": "#/definitions/scheduledmessage.WindowErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/conversations/{entryType}/{entryId}/variables": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Guarda valores de variáveis só para esta conversa, para que o agente ou o fluxo escolhido possa atendê-la. É o formulário que aparece quando passar a conversa para uma automação (ou religar a automação dela) é recusado com 409 automation_variables_missing. Só aceita variáveis que a automação informada exige; lead_name, lead_number e campaign_name são da plataforma e não podem ser gravadas. Os valores valem mais que os da campanha e são lidos por agentes e fluxos pelo mesmo caminho. Exige acesso à conversa.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Conversas"
+                ],
+                "summary": "Preencher variáveis da conversa",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tipo da entrada",
+                        "name": "entryType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID da entrada",
+                        "name": "entryId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Automação e valores",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/automationneedshttp.ConversationVariablesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "conversation_variable_invalid ou conversation_variable_not_needed",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "automation_needs_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -18130,6 +18408,24 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.CodedErrorResponse"
                         }
                     },
+                    "409": {
+                        "description": "automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedsx.RefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
                     "422": {
                         "description": "Unprocessable Entity",
                         "schema": {
@@ -19946,6 +20242,12 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "boolean",
+                        "description": "Só planilhas com colunas preenchidas por agentes ou fluxos",
+                        "name": "takesInput",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "Página",
                         "name": "page",
@@ -19973,7 +20275,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Cria a planilha no Google Drive da conta conectada ao Google Planilhas, com o cabeçalho, os formatos e as validações das colunas, e a registra no workspace.",
+                "description": "Cria a planilha no Google Drive da conta conectada ao Google Planilhas, com o cabeçalho, os formatos, as validações, o estilo e as cores das opções, e a registra no workspace. Com spreadsheetId, cria uma aba nova num arquivo que já tem planilhas deste workspace. Com tabPeriod=month, cada mês ganha a sua aba, nomeada pelo tabPattern. Definições recusadas devolvem um código próprio com field, column, header, option e limit em details.",
                 "consumes": [
                     "application/json"
                 ],
@@ -20049,6 +20351,164 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/googlesheet.CatalogResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/google-sheets/presets": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Modelos prontos com colunas, fontes, tipos, opções, cores, estilo e abas por período. Os textos (nome, cabeçalhos, opções) vêm dos catálogos do painel pela chave de cada item.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Google Planilhas"
+                ],
+                "summary": "Modelos de planilha",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.PresetListResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/google-sheets/spreadsheets": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Os arquivos do Google em que o workspace tem planilhas, com as planilhas de cada um e as abas por período já criadas. usable diz se a conta conectada pode criar abas novas no arquivo.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Google Planilhas"
+                ],
+                "summary": "Arquivos de planilhas do workspace",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.SpreadsheetListResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/google-sheets/tab-name-preview": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mostra o nome que a aba do período atual terá com o padrão informado, ou recusa o padrão com o código do problema.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Google Planilhas"
+                ],
+                "summary": "Prévia do nome da aba por período",
+                "parameters": [
+                    {
+                        "description": "Padrão",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.TabNamePreviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.TabNamePreviewResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/google-sheets/workbook": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cria uma ou mais planilhas como abas de um só arquivo do Google, na ordem pedida. Sem spreadsheetId, a primeira cria o arquivo e as outras viram abas dele. Uma coluna de link pode apontar para uma planilha anterior do pedido por linkSheetRef. Se uma falhar, as que já foram criadas são desfeitas; details.sheet diz qual falhou.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Google Planilhas"
+                ],
+                "summary": "Criar planilhas num mesmo arquivo",
+                "parameters": [
+                    {
+                        "description": "Planilhas",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.WorkbookRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.WorkbookResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "412": {
+                        "description": "Precondition Failed",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -20278,6 +20738,70 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/google-sheets/{id}/layout": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Troca o estilo da tabela e o padrão do nome das abas por período. O estilo é aplicado na aba atual na mesma operação; abas de meses anteriores ficam como estão.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Google Planilhas"
+                ],
+                "summary": "Mudar estilo e nome das abas por período",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Planilha",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Alterações",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.LayoutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.SheetEnvelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -20830,6 +21354,24 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/instagram.AccountResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedsx.RefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -27389,6 +27931,24 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
+                    "409": {
+                        "description": "automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedsx.RefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
                     "422": {
                         "description": "Unprocessable Entity",
                         "schema": {
@@ -31840,6 +32400,24 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/carriermessaging.SenderDTO"
                         }
+                    },
+                    "409": {
+                        "description": "automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedsx.RefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
                     }
                 }
             }
@@ -33632,6 +34210,24 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/carriermessaging.RouteDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedsx.RefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -36343,6 +36939,24 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/tiktok.AccountResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedsx.RefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "422": {
@@ -41138,6 +41752,24 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.CodedErrorResponse"
                         }
                     },
+                    "409": {
+                        "description": "automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedsx.RefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
                     "422": {
                         "description": "Unprocessable Entity",
                         "schema": {
@@ -41925,6 +42557,24 @@ const docTemplate = `{
                         "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedsx.RefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "500": {
@@ -47352,6 +48002,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "true confirma desligar os canais receptivos listados em GET /automation-needs/workflow/{id}/publish-impact",
+                        "name": "confirmSwitchOff",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -47368,9 +48024,21 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Workflow arquivado ou publicação simultânea",
+                        "description": "automation_publish_switches_off: a nova versão exige variáveis e desligaria canais receptivos; details.impact lista os canais. Confirme com confirmSwitchOff=true. automation_voice_variables (422): um fluxo de voz não pode exigir variáveis",
                         "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedsx.RefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "422": {
@@ -51393,26 +52061,26 @@ const docTemplate = `{
         "advertising.Destination": {
             "type": "string",
             "enum": [
+                "WHATSAPP",
+                "MESSENGER",
+                "INSTAGRAM_DIRECT",
                 "WEBSITE",
                 "ON_AD",
                 "APP",
                 "ON_POST",
                 "NONE",
-                "CATALOG",
-                "WHATSAPP",
-                "MESSENGER",
-                "INSTAGRAM_DIRECT"
+                "CATALOG"
             ],
             "x-enum-varnames": [
+                "DestinationWhatsApp",
+                "DestinationMessenger",
+                "DestinationInstagramDirect",
                 "DestinationWebsite",
                 "DestinationInstantForm",
                 "DestinationApp",
                 "DestinationOnPost",
                 "DestinationNone",
-                "DestinationCatalog",
-                "DestinationWhatsApp",
-                "DestinationMessenger",
-                "DestinationInstagramDirect"
+                "DestinationCatalog"
             ]
         },
         "advertising.ExportLabels": {
@@ -51831,6 +52499,7 @@ const docTemplate = `{
         "advertising.OptimizationGoal": {
             "type": "string",
             "enum": [
+                "CONVERSATIONS",
                 "REACH",
                 "IMPRESSIONS",
                 "AD_RECALL_LIFT",
@@ -51843,10 +52512,10 @@ const docTemplate = `{
                 "QUALITY_LEAD",
                 "OFFSITE_CONVERSIONS",
                 "VALUE",
-                "APP_INSTALLS",
-                "CONVERSATIONS"
+                "APP_INSTALLS"
             ],
             "x-enum-varnames": [
+                "GoalConversations",
                 "GoalReach",
                 "GoalImpressions",
                 "GoalAdRecallLift",
@@ -51859,8 +52528,7 @@ const docTemplate = `{
                 "GoalQualityLead",
                 "GoalOffsiteConversion",
                 "GoalValue",
-                "GoalAppInstalls",
-                "GoalConversations"
+                "GoalAppInstalls"
             ]
         },
         "advertising.Pixel": {
@@ -56898,24 +57566,24 @@ const docTemplate = `{
         "attendance.Section": {
             "type": "string",
             "enum": [
-                "service_messages",
                 "summary",
                 "trend",
                 "stages",
                 "backlog",
                 "team",
                 "rework",
-                "live"
+                "live",
+                "service_messages"
             ],
             "x-enum-varnames": [
-                "SectionServiceMessages",
                 "SectionSummary",
                 "SectionTrend",
                 "SectionStages",
                 "SectionBacklog",
                 "SectionTeam",
                 "SectionRework",
-                "SectionLive"
+                "SectionLive",
+                "SectionServiceMessages"
             ]
         },
         "attendance.ServiceMessageBucket": {
@@ -58954,6 +59622,233 @@ const docTemplate = `{
                 "token": {
                     "type": "string",
                     "example": "123456"
+                }
+            }
+        },
+        "automationneedshttp.AutomationRequest": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "5b1f0c9e-2a4d-4c55-9d3e-1f2a3b4c5d6e"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "agent",
+                        "workflow"
+                    ],
+                    "example": "agent"
+                }
+            }
+        },
+        "automationneedshttp.ConversationVariablesRequest": {
+            "type": "object",
+            "properties": {
+                "automation": {
+                    "$ref": "#/definitions/automationneedshttp.AutomationRequest"
+                },
+                "values": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "automationneedshttp.EligibilityListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/automationneedshttp.EligibilityResponse"
+                    }
+                }
+            }
+        },
+        "automationneedshttp.EligibilityResponse": {
+            "type": "object",
+            "properties": {
+                "automation": {
+                    "$ref": "#/definitions/automationneedsx.LinkResponse"
+                },
+                "readable": {
+                    "type": "boolean"
+                },
+                "receptiveEligible": {
+                    "type": "boolean"
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/automationneedsx.NeedResponse"
+                    }
+                }
+            }
+        },
+        "automationneedshttp.ImpactResponse": {
+            "type": "object",
+            "properties": {
+                "impact": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/automationneedsx.SwitchOffResponse"
+                    }
+                }
+            }
+        },
+        "automationneedshttp.SwitchOffNoticeResponse": {
+            "type": "object",
+            "properties": {
+                "automation": {
+                    "$ref": "#/definitions/automationneedsx.LinkResponse"
+                },
+                "channel": {
+                    "$ref": "#/definitions/automationneedsx.SlotResponse"
+                },
+                "eligibleNow": {
+                    "type": "boolean"
+                },
+                "stillNeeded": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/automationneedsx.NeedResponse"
+                    }
+                },
+                "switchedOffAt": {
+                    "type": "string"
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "automationneedshttp.SwitchOffResponse": {
+            "type": "object",
+            "properties": {
+                "notice": {
+                    "$ref": "#/definitions/automationneedshttp.SwitchOffNoticeResponse"
+                }
+            }
+        },
+        "automationneedsx.LinkResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "5b1f0c9e-2a4d-4c55-9d3e-1f2a3b4c5d6e"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "agent",
+                        "workflow"
+                    ],
+                    "example": "workflow"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Cobrança"
+                }
+            }
+        },
+        "automationneedsx.NeedResponse": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Nome do cliente na planilha"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "nome_cliente"
+                },
+                "via": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/automationneedsx.LinkResponse"
+                    }
+                }
+            }
+        },
+        "automationneedsx.RefusalDetails": {
+            "type": "object",
+            "properties": {
+                "automation": {
+                    "$ref": "#/definitions/automationneedsx.LinkResponse"
+                },
+                "impact": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/automationneedsx.SwitchOffResponse"
+                    }
+                },
+                "values": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/automationneedsx.NeedResponse"
+                    }
+                }
+            }
+        },
+        "automationneedsx.SlotResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "whatsapp_number",
+                        "unofficial_whatsapp",
+                        "instagram",
+                        "facebook",
+                        "telegram",
+                        "webchat",
+                        "tiktok",
+                        "mercadolivre",
+                        "email",
+                        "rcs",
+                        "sms"
+                    ],
+                    "example": "instagram"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "@loja"
+                },
+                "path": {
+                    "type": "string",
+                    "example": "/dashboard/instagram-accounts/3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f"
+                }
+            }
+        },
+        "automationneedsx.SwitchOffResponse": {
+            "type": "object",
+            "properties": {
+                "automation": {
+                    "$ref": "#/definitions/automationneedsx.LinkResponse"
+                },
+                "channel": {
+                    "$ref": "#/definitions/automationneedsx.SlotResponse"
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/automationneedsx.NeedResponse"
+                    }
                 }
             }
         },
@@ -61905,6 +62800,17 @@ const docTemplate = `{
                 }
             }
         },
+        "campaignaudience.SlotKind": {
+            "type": "string",
+            "enum": [
+                "template",
+                "automation"
+            ],
+            "x-enum-varnames": [
+                "SlotTemplate",
+                "SlotAutomation"
+            ]
+        },
         "campaignaudience.Source": {
             "type": "string",
             "enum": [
@@ -61942,10 +62848,24 @@ const docTemplate = `{
                 "key": {
                     "type": "string"
                 },
+                "kind": {
+                    "enum": [
+                        "template",
+                        "automation"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/campaignaudience.SlotKind"
+                        }
+                    ]
+                },
                 "missing": {
                     "type": "integer"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "neededBy": {
                     "type": "string"
                 },
                 "policy": {
@@ -65694,32 +66614,6 @@ const docTemplate = `{
         "crmfilter.Field": {
             "type": "string",
             "enum": [
-                "id",
-                "phone_any",
-                "email",
-                "nickname",
-                "birthday",
-                "birth_date",
-                "zip",
-                "state",
-                "city",
-                "district",
-                "geo_precision",
-                "geo_status",
-                "has_address",
-                "has_identity",
-                "opted_out",
-                "whatsapp_opt_in",
-                "relation_kind",
-                "relatives_count",
-                "referred_count",
-                "referred_by",
-                "geo_placement",
-                "opt_out_source",
-                "opted_out_at",
-                "company",
-                "sentiment",
-                "area_approximate",
                 "owner",
                 "carteira",
                 "pipeline",
@@ -65751,35 +66645,35 @@ const docTemplate = `{
                 "memory_count",
                 "memory_updated_at",
                 "custom",
-                "area"
+                "area",
+                "id",
+                "phone_any",
+                "email",
+                "nickname",
+                "birthday",
+                "birth_date",
+                "zip",
+                "state",
+                "city",
+                "district",
+                "geo_precision",
+                "geo_status",
+                "has_address",
+                "has_identity",
+                "opted_out",
+                "whatsapp_opt_in",
+                "relation_kind",
+                "relatives_count",
+                "referred_count",
+                "referred_by",
+                "geo_placement",
+                "opt_out_source",
+                "opted_out_at",
+                "company",
+                "sentiment",
+                "area_approximate"
             ],
             "x-enum-varnames": [
-                "FieldID",
-                "FieldPhoneAny",
-                "FieldEmail",
-                "FieldNickname",
-                "FieldBirthday",
-                "FieldBirthDate",
-                "FieldZip",
-                "FieldState",
-                "FieldCity",
-                "FieldDistrict",
-                "FieldGeoPrecision",
-                "FieldGeoStatus",
-                "FieldHasAddress",
-                "FieldHasIdentity",
-                "FieldOptedOut",
-                "FieldWhatsAppOptIn",
-                "FieldRelationKind",
-                "FieldRelativesCount",
-                "FieldReferredCount",
-                "FieldReferredBy",
-                "FieldGeoPlacement",
-                "FieldOptOutSource",
-                "FieldOptedOutAt",
-                "FieldCompany",
-                "FieldSentiment",
-                "FieldAreaApproximate",
                 "FieldOwner",
                 "FieldCarteira",
                 "FieldPipeline",
@@ -65811,7 +66705,33 @@ const docTemplate = `{
                 "FieldMemoryCount",
                 "FieldMemoryUpdatedAt",
                 "FieldCustom",
-                "FieldArea"
+                "FieldArea",
+                "FieldID",
+                "FieldPhoneAny",
+                "FieldEmail",
+                "FieldNickname",
+                "FieldBirthday",
+                "FieldBirthDate",
+                "FieldZip",
+                "FieldState",
+                "FieldCity",
+                "FieldDistrict",
+                "FieldGeoPrecision",
+                "FieldGeoStatus",
+                "FieldHasAddress",
+                "FieldHasIdentity",
+                "FieldOptedOut",
+                "FieldWhatsAppOptIn",
+                "FieldRelationKind",
+                "FieldRelativesCount",
+                "FieldReferredCount",
+                "FieldReferredBy",
+                "FieldGeoPlacement",
+                "FieldOptOutSource",
+                "FieldOptedOutAt",
+                "FieldCompany",
+                "FieldSentiment",
+                "FieldAreaApproximate"
             ]
         },
         "crmfilter.Filter": {
@@ -69775,6 +70695,12 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "defaultLinkLabel": {
+                    "type": "string"
+                },
+                "defaultStyle": {
+                    "type": "string"
+                },
                 "defaultTimeZone": {
                     "type": "string"
                 },
@@ -69784,8 +70710,23 @@ const docTemplate = `{
                 "maxInstruction": {
                     "type": "integer"
                 },
+                "maxLinkLabel": {
+                    "type": "integer"
+                },
                 "maxOption": {
                     "type": "integer"
+                },
+                "maxTabName": {
+                    "type": "integer"
+                },
+                "maxTitle": {
+                    "type": "integer"
+                },
+                "optionColors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.OptionColorResponse"
+                    }
                 },
                 "rowErrorCodes": {
                     "type": "array",
@@ -69797,6 +70738,24 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/googlesheet.SourceResponse"
+                    }
+                },
+                "styles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.StyleResponse"
+                    }
+                },
+                "tabPeriods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tabTokens": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 },
                 "types": {
@@ -69813,6 +70772,12 @@ const docTemplate = `{
         "googlesheet.ColumnRequest": {
             "type": "object",
             "properties": {
+                "colors": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "header": {
                     "type": "string",
                     "example": "Nome do cliente"
@@ -69820,6 +70785,18 @@ const docTemplate = `{
                 "instruction": {
                     "type": "string",
                     "example": "Nome completo como o cliente informou"
+                },
+                "linkLabel": {
+                    "type": "string",
+                    "example": "Ver negociação"
+                },
+                "linkSheetId": {
+                    "type": "string",
+                    "example": "8f8e5f7a-3c1d-4a77-9a55-0d6f0f3b2a11"
+                },
+                "linkSheetRef": {
+                    "type": "string",
+                    "example": "negociacoes"
                 },
                 "options": {
                     "type": "array",
@@ -69844,7 +70821,8 @@ const docTemplate = `{
                         "message_sender",
                         "message_direction",
                         "message_text",
-                        "message_media_url"
+                        "message_media_url",
+                        "export_link"
                     ],
                     "example": "input"
                 },
@@ -69861,7 +70839,8 @@ const docTemplate = `{
                         "choice",
                         "email",
                         "phone",
-                        "url"
+                        "url",
+                        "link"
                     ],
                     "example": "text"
                 }
@@ -69873,6 +70852,12 @@ const docTemplate = `{
                 "archived": {
                     "type": "boolean"
                 },
+                "colors": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "header": {
                     "type": "string",
                     "example": "Nome do cliente"
@@ -69883,6 +70868,12 @@ const docTemplate = `{
                 "key": {
                     "type": "string",
                     "example": "nome_do_cliente"
+                },
+                "linkLabel": {
+                    "type": "string"
+                },
+                "linkSheetId": {
+                    "type": "string"
                 },
                 "options": {
                     "type": "array",
@@ -69909,6 +70900,12 @@ const docTemplate = `{
                 "archived": {
                     "type": "boolean"
                 },
+                "colors": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "header": {
                     "type": "string"
                 },
@@ -69918,6 +70915,9 @@ const docTemplate = `{
                 "key": {
                     "type": "string",
                     "example": "valor"
+                },
+                "linkLabel": {
+                    "type": "string"
                 },
                 "options": {
                     "type": "array",
@@ -69943,9 +70943,36 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Pedidos registrados pelo agente de vendas"
                 },
+                "spreadsheetId": {
+                    "type": "string",
+                    "example": "1AbC"
+                },
+                "style": {
+                    "type": "string",
+                    "enum": [
+                        "plain",
+                        "graphite",
+                        "blue",
+                        "green",
+                        "purple"
+                    ],
+                    "example": "graphite"
+                },
                 "tabName": {
                     "type": "string",
                     "example": "Pedidos"
+                },
+                "tabPattern": {
+                    "type": "string",
+                    "example": "Pagamentos · {mes} {ano}"
+                },
+                "tabPeriod": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "month"
+                    ],
+                    "example": "none"
                 },
                 "timeZone": {
                     "type": "string",
@@ -70019,6 +71046,148 @@ const docTemplate = `{
                 },
                 "writtenCapped": {
                     "type": "boolean"
+                }
+            }
+        },
+        "googlesheet.LayoutRequest": {
+            "type": "object",
+            "properties": {
+                "style": {
+                    "type": "string",
+                    "enum": [
+                        "plain",
+                        "graphite",
+                        "blue",
+                        "green",
+                        "purple"
+                    ],
+                    "example": "green"
+                },
+                "tabPattern": {
+                    "type": "string",
+                    "example": "Pagamentos · {mes} {ano}"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 3
+                }
+            }
+        },
+        "googlesheet.OptionColorResponse": {
+            "type": "object",
+            "properties": {
+                "fill": {
+                    "type": "string",
+                    "example": "#1E8E3E"
+                },
+                "key": {
+                    "type": "string",
+                    "example": "green"
+                },
+                "text": {
+                    "type": "string",
+                    "example": "#FFFFFF"
+                }
+            }
+        },
+        "googlesheet.PresetColumnResponse": {
+            "type": "object",
+            "properties": {
+                "colors": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "instruction": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string",
+                    "example": "baixa"
+                },
+                "linkRef": {
+                    "type": "string",
+                    "example": "negociacoes"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "source": {
+                    "type": "string",
+                    "example": "input"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "choice"
+                }
+            }
+        },
+        "googlesheet.PresetListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.PresetResponse"
+                    }
+                }
+            }
+        },
+        "googlesheet.PresetResponse": {
+            "type": "object",
+            "properties": {
+                "icon": {
+                    "type": "string",
+                    "example": "Receipt"
+                },
+                "key": {
+                    "type": "string",
+                    "example": "cobranca"
+                },
+                "sheets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.PresetSheetResponse"
+                    }
+                }
+            }
+        },
+        "googlesheet.PresetSheetResponse": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.PresetColumnResponse"
+                    }
+                },
+                "ref": {
+                    "type": "string",
+                    "example": "pagamentos"
+                },
+                "style": {
+                    "type": "string",
+                    "enum": [
+                        "plain",
+                        "graphite",
+                        "blue",
+                        "green",
+                        "purple"
+                    ]
+                },
+                "tabPeriod": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "month"
+                    ]
                 }
             }
         },
@@ -70135,6 +71304,9 @@ const docTemplate = `{
                 "reasonDetail": {
                     "type": "string"
                 },
+                "spreadsheetId": {
+                    "type": "string"
+                },
                 "status": {
                     "type": "string",
                     "enum": [
@@ -70143,8 +71315,35 @@ const docTemplate = `{
                     ],
                     "example": "active"
                 },
+                "style": {
+                    "type": "string",
+                    "enum": [
+                        "plain",
+                        "graphite",
+                        "blue",
+                        "green",
+                        "purple"
+                    ]
+                },
                 "tabName": {
                     "type": "string"
+                },
+                "tabPattern": {
+                    "type": "string"
+                },
+                "tabPeriod": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "month"
+                    ]
+                },
+                "tabPeriodKey": {
+                    "type": "string",
+                    "example": "2026-11"
+                },
+                "takesInput": {
+                    "type": "boolean"
                 },
                 "takesMessages": {
                     "type": "boolean"
@@ -70180,6 +71379,137 @@ const docTemplate = `{
                 }
             }
         },
+        "googlesheet.SpreadsheetListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.SpreadsheetResponse"
+                    }
+                }
+            }
+        },
+        "googlesheet.SpreadsheetResponse": {
+            "type": "object",
+            "properties": {
+                "sheets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.SpreadsheetSheetResponse"
+                    }
+                },
+                "spreadsheetId": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "usable": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "googlesheet.SpreadsheetSheetResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "needs_attention"
+                    ]
+                },
+                "tabName": {
+                    "type": "string"
+                },
+                "tabPeriod": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "month"
+                    ]
+                },
+                "tabs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.TabResponse"
+                    }
+                },
+                "takesMessages": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "googlesheet.StyleResponse": {
+            "type": "object",
+            "properties": {
+                "band": {
+                    "type": "string",
+                    "example": "#F2F8F4"
+                },
+                "header": {
+                    "type": "string",
+                    "example": "#1E7A4C"
+                },
+                "headerText": {
+                    "type": "string",
+                    "example": "#FFFFFF"
+                },
+                "key": {
+                    "type": "string",
+                    "example": "green"
+                }
+            }
+        },
+        "googlesheet.TabNamePreviewRequest": {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "example": "Pagamentos · {mes} {ano}"
+                },
+                "timeZone": {
+                    "type": "string",
+                    "example": "America/Sao_Paulo"
+                }
+            }
+        },
+        "googlesheet.TabNamePreviewResponse": {
+            "type": "object",
+            "properties": {
+                "period": {
+                    "type": "string",
+                    "example": "2026-11"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Pagamentos · novembro 2026"
+                }
+            }
+        },
+        "googlesheet.TabResponse": {
+            "type": "object",
+            "properties": {
+                "period": {
+                    "type": "string",
+                    "example": "2026-11"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Pagamentos · novembro 2026"
+                }
+            }
+        },
         "googlesheet.UpdateDetailsRequest": {
             "type": "object",
             "properties": {
@@ -70192,6 +71522,90 @@ const docTemplate = `{
                 "version": {
                     "type": "integer",
                     "example": 3
+                }
+            }
+        },
+        "googlesheet.WorkbookRequest": {
+            "type": "object",
+            "properties": {
+                "sheets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.WorkbookSheetRequest"
+                    }
+                },
+                "spreadsheetId": {
+                    "type": "string",
+                    "example": "1AbC"
+                }
+            }
+        },
+        "googlesheet.WorkbookResponse": {
+            "type": "object",
+            "properties": {
+                "sheets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.SheetResponse"
+                    }
+                }
+            }
+        },
+        "googlesheet.WorkbookSheetRequest": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.ColumnRequest"
+                    }
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Pedidos registrados pelo agente de vendas"
+                },
+                "ref": {
+                    "type": "string",
+                    "example": "pagamentos"
+                },
+                "spreadsheetId": {
+                    "type": "string",
+                    "example": "1AbC"
+                },
+                "style": {
+                    "type": "string",
+                    "enum": [
+                        "plain",
+                        "graphite",
+                        "blue",
+                        "green",
+                        "purple"
+                    ],
+                    "example": "graphite"
+                },
+                "tabName": {
+                    "type": "string",
+                    "example": "Pedidos"
+                },
+                "tabPattern": {
+                    "type": "string",
+                    "example": "Pagamentos · {mes} {ano}"
+                },
+                "tabPeriod": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "month"
+                    ],
+                    "example": "none"
+                },
+                "timeZone": {
+                    "type": "string",
+                    "example": "America/Sao_Paulo"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Pedidos do site"
                 }
             }
         },
@@ -77365,6 +78779,7 @@ const docTemplate = `{
         "report.FailureCode": {
             "type": "string",
             "enum": [
+                "forbidden",
                 "unknown_kind",
                 "unsupported_format",
                 "too_many_rows",
@@ -77374,10 +78789,10 @@ const docTemplate = `{
                 "source_unavailable",
                 "cancelled",
                 "workspace_required",
-                "empty_result",
-                "forbidden"
+                "empty_result"
             ],
             "x-enum-varnames": [
+                "FailureForbidden",
                 "FailureUnknownKind",
                 "FailureUnsupported",
                 "FailureTooManyRows",
@@ -77387,8 +78802,7 @@ const docTemplate = `{
                 "FailureSourceFailed",
                 "FailureCancelled",
                 "FailureWorkspaceEmpty",
-                "FailureEmptyResult",
-                "FailureForbidden"
+                "FailureEmptyResult"
             ]
         },
         "report.Format": {
@@ -77466,22 +78880,22 @@ const docTemplate = `{
         "report.Kind": {
             "type": "string",
             "enum": [
+                "leads",
+                "whatsapp_dispatch",
+                "whatsapp_form_responses",
                 "attendance_overview",
                 "conversation_entries",
                 "balance_transactions",
-                "opportunities",
-                "leads",
-                "whatsapp_dispatch",
-                "whatsapp_form_responses"
+                "opportunities"
             ],
             "x-enum-varnames": [
+                "KindLeads",
+                "KindWhatsAppDispatch",
+                "KindWhatsAppFormResponses",
                 "KindAttendanceOverview",
                 "KindConversationEntries",
                 "KindBalanceTransactions",
-                "KindOpportunities",
-                "KindLeads",
-                "KindWhatsAppDispatch",
-                "KindWhatsAppFormResponses"
+                "KindOpportunities"
             ]
         },
         "report.KindDescriptor": {
@@ -86675,8 +88089,14 @@ const docTemplate = `{
         "workflow.LintIssueCode": {
             "type": "string",
             "enum": [
+                "DATA_REF_NEVER_SET",
+                "DATA_REF_SOME_PATHS",
                 "NODE_AGENT_CALL_INPUTS_INVALID",
                 "NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER",
+                "NODE_INVALID_PLATFORM_EMAIL",
+                "NODE_HTTP_URL_NOT_HTTPS",
+                "NODE_CONSENT_GRANT_NEEDS_REPLY",
+                "SEND_OUTSIDE_WINDOW_RISK",
                 "GRAPH_EMPTY",
                 "GRAPH_TOO_MANY_NODES",
                 "GRAPH_TOO_MANY_EDGES",
@@ -86724,17 +88144,17 @@ const docTemplate = `{
                 "NODE_CONFIG_SHAPE_MISMATCH",
                 "NODE_CODE_READS_TEMPLATE",
                 "NODE_SECRET_IN_PLAIN_TEXT",
-                "NODE_PINNED_OUTPUT",
-                "NODE_HTTP_URL_NOT_HTTPS",
-                "DATA_REF_NEVER_SET",
-                "DATA_REF_SOME_PATHS",
-                "SEND_OUTSIDE_WINDOW_RISK",
-                "NODE_INVALID_PLATFORM_EMAIL",
-                "NODE_CONSENT_GRANT_NEEDS_REPLY"
+                "NODE_PINNED_OUTPUT"
             ],
             "x-enum-varnames": [
+                "LintDataRefNeverSet",
+                "LintDataRefSomePaths",
                 "LintAgentCallInputsInvalid",
                 "LintReplyToAgentWithoutTrigger",
+                "LintInvalidPlatformEmail",
+                "LintHTTPURLNotHTTPS",
+                "LintConsentGrantNeedsReply",
+                "LintSendOutsideWindowRisk",
                 "LintGraphEmpty",
                 "LintGraphTooManyNodes",
                 "LintGraphTooManyEdges",
@@ -86782,13 +88202,7 @@ const docTemplate = `{
                 "LintConfigShapeMismatch",
                 "LintCodeReadsTemplate",
                 "LintSecretInPlainText",
-                "LintPinnedOutput",
-                "LintHTTPURLNotHTTPS",
-                "LintDataRefNeverSet",
-                "LintDataRefSomePaths",
-                "LintSendOutsideWindowRisk",
-                "LintInvalidPlatformEmail",
-                "LintConsentGrantNeedsReply"
+                "LintPinnedOutput"
             ]
         },
         "workflow.LintSeverity": {

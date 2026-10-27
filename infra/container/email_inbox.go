@@ -67,7 +67,7 @@ func (c *Container) initEmailInbox(history conversation_domain.MessageHistoryMan
 			Workflows:   c.repositories.workflow,
 			Pipelines:   c.repositories.pipeline,
 			Departments: c.repositories.workspaceDepartment,
-		})),
+		}, c.automationNeeds().receptive)),
 	}
 }
 

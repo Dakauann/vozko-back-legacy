@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"vozko/delivery/http/automationneedsx"
 
 	"vozko/delivery/http/response"
 	wcdomain "vozko/domain/webchat"
@@ -65,6 +66,9 @@ var errorMappings = []errorMapping{
 }
 
 func writeError(w http.ResponseWriter, err error) {
+	if automationneedsx.WriteRefusal(w, err) {
+		return
+	}
 	for _, m := range errorMappings {
 		if errors.Is(err, m.err) {
 			response.WriteCodedError(w, m.status, m.code, m.err.Error())

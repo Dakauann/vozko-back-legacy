@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"vozko/usecases/automationneeds/receptivetest"
 
 	em "vozko/domain/emailinbox"
 	"vozko/domain/emailsending"
@@ -15,7 +16,7 @@ func inboxesUnderTest(refsErr error) (*Inboxes, *fakeInboxes) {
 	senders := &fakeSenders{all: []emailsending.Sender{{ID: senderA, WorkspaceID: wsA, DomainID: "d-a", LocalPart: "vendas", DisplayName: "Loja A"}}}
 	repo := newFakeInboxes()
 	domains := &fakeDomains{byID: map[string]*emailsending.SendingDomain{"d-a": domain}}
-	return NewInboxes(repo, senders, domains, fakeRefs{err: refsErr}), repo
+	return NewInboxes(repo, senders, domains, fakeRefs{err: refsErr}, receptivetest.Allow()), repo
 }
 
 func TestInboxesListEnsuresOneInboxPerSender(t *testing.T) {

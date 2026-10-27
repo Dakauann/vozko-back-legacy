@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"vozko/delivery/http/automationneedsx"
 
 	"github.com/gorilla/mux"
 
@@ -54,6 +55,7 @@ func (h *WhatsAppBusinessPhoneHandler) GetNumberAutomation(w http.ResponseWriter
 // @Failure		404	{object}	response.ErrorResponse
 // @Failure		500	{object}	response.ErrorResponse
 // @Security		BearerAuth
+// @Failure		409	{object}	response.ErrorResponse{details=automationneedsx.RefusalDetails}	"automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis"
 // @Router			/whatsapp/business-phones/{id}/automation [put]
 func (h *WhatsAppBusinessPhoneHandler) UpdateNumberAutomation(w http.ResponseWriter, r *http.Request) {
 	var body NumberAutomationRequest
@@ -71,6 +73,9 @@ func (h *WhatsAppBusinessPhoneHandler) UpdateNumberAutomation(w http.ResponseWri
 }
 
 func writeReceptiveError(w http.ResponseWriter, err error, fallback string) {
+	if automationneedsx.WriteRefusal(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, wc.ErrReceptiveNotOwner):
 		response.WriteError(w, http.StatusForbidden, "Only the workspace that owns this number configures its automation", nil)

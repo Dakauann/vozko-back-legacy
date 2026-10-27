@@ -55,6 +55,15 @@ func (s *Sheet) Accept(values map[string]any, system SystemValues, now time.Time
 		if col.Archived {
 			continue
 		}
+		if col.Source == SourceExportLink {
+			ref, err := linkValue(col, system)
+			if err != nil {
+				return nil, err
+			}
+			cells[col.Key] = ref
+			size += cellSize(ref)
+			continue
+		}
 		raw, present := values[col.Key]
 		if col.Source.IsSystem() {
 			raw, present = s.systemValue(col.Source, system, now)
@@ -302,4 +311,16 @@ func cellSize(value any) int {
 		return len(text) + cellOverhead
 	}
 	return cellOverhead * 2
+}
+
+func linkValue(col Column, system SystemValues) (string, error) {
+	anchor, ok := system.Link(col.LinkSheetID)
+	if !ok {
+		return "", &ValueError{Column: col.Key, Header: col.Header, Reason: ErrLinkExportMissing}
+	}
+	ref := LinkRef{SheetID: col.LinkSheetID, Period: anchor.Period, RowID: anchor.RowID}
+	if _, err := ParseLinkRef(ref.String()); err != nil {
+		return "", &ValueError{Column: col.Key, Header: col.Header, Reason: ErrLinkExportMissing, Detail: err.Error()}
+	}
+	return ref.String(), nil
 }

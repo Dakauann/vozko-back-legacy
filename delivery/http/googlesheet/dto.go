@@ -9,12 +9,27 @@ import (
 )
 
 type ColumnRequest struct {
-	Header      string   `json:"header" example:"Nome do cliente"`
-	Type        string   `json:"type" example:"text" enums:"text,long_text,number,money,date,datetime,boolean,choice,email,phone,url"`
-	Options     []string `json:"options,omitempty"`
-	Required    bool     `json:"required"`
-	Instruction string   `json:"instruction,omitempty" example:"Nome completo como o cliente informou"`
-	Source      string   `json:"source,omitempty" example:"input" enums:"input,written_at,lead_name,lead_phone,lead_email,conversation_link,origin,message_sent_at,message_sender,message_direction,message_text,message_media_url"`
+	Header       string            `json:"header" example:"Nome do cliente"`
+	Type         string            `json:"type" example:"text" enums:"text,long_text,number,money,date,datetime,boolean,choice,email,phone,url,link"`
+	Options      []string          `json:"options,omitempty"`
+	Colors       map[string]string `json:"colors,omitempty" swaggertype:"object,string"`
+	Required     bool              `json:"required"`
+	Instruction  string            `json:"instruction,omitempty" example:"Nome completo como o cliente informou"`
+	Source       string            `json:"source,omitempty" example:"input" enums:"input,written_at,lead_name,lead_phone,lead_email,conversation_link,origin,message_sent_at,message_sender,message_direction,message_text,message_media_url,export_link"`
+	LinkSheetID  string            `json:"linkSheetId,omitempty" example:"8f8e5f7a-3c1d-4a77-9a55-0d6f0f3b2a11"`
+	LinkSheetRef string            `json:"linkSheetRef,omitempty" example:"negociacoes"`
+	LinkLabel    string            `json:"linkLabel,omitempty" example:"Ver negociação"`
+}
+
+func colorsOf(colors map[string]string) map[string]googlesheet.OptionColor {
+	if colors == nil {
+		return nil
+	}
+	out := make(map[string]googlesheet.OptionColor, len(colors))
+	for option, color := range colors {
+		out[option] = googlesheet.OptionColor(color)
+	}
+	return out
 }
 
 func (c ColumnRequest) input() googlesheet.ColumnInput {
@@ -22,9 +37,12 @@ func (c ColumnRequest) input() googlesheet.ColumnInput {
 		Header:      c.Header,
 		Type:        googlesheet.ColumnType(c.Type),
 		Options:     c.Options,
+		Colors:      colorsOf(c.Colors),
 		Required:    c.Required,
 		Instruction: c.Instruction,
 		Source:      googlesheet.Source(c.Source),
+		LinkSheetID: c.LinkSheetID,
+		LinkLabel:   c.LinkLabel,
 	}
 }
 
@@ -37,11 +55,23 @@ func inputs(columns []ColumnRequest) []googlesheet.ColumnInput {
 }
 
 type CreateSheetRequest struct {
-	Title       string          `json:"title" example:"Pedidos do site"`
-	TabName     string          `json:"tabName,omitempty" example:"Pedidos"`
-	Description string          `json:"description,omitempty" example:"Pedidos registrados pelo agente de vendas"`
-	TimeZone    string          `json:"timeZone,omitempty" example:"America/Sao_Paulo"`
-	Columns     []ColumnRequest `json:"columns"`
+	SpreadsheetID string          `json:"spreadsheetId,omitempty" example:"1AbC"`
+	Title         string          `json:"title" example:"Pedidos do site"`
+	TabName       string          `json:"tabName,omitempty" example:"Pedidos"`
+	TabPeriod     string          `json:"tabPeriod,omitempty" example:"none" enums:"none,month"`
+	TabPattern    string          `json:"tabPattern,omitempty" example:"Pagamentos · {mes} {ano}"`
+	Style         string          `json:"style,omitempty" example:"graphite" enums:"plain,graphite,blue,green,purple"`
+	Description   string          `json:"description,omitempty" example:"Pedidos registrados pelo agente de vendas"`
+	TimeZone      string          `json:"timeZone,omitempty" example:"America/Sao_Paulo"`
+	Columns       []ColumnRequest `json:"columns"`
+}
+
+func (r CreateSheetRequest) input(workspaceID, userID, spreadsheetID string) gsuc.CreateInput {
+	return gsuc.CreateInput{
+		WorkspaceID: workspaceID, UserID: userID, SpreadsheetID: spreadsheetID, Title: r.Title, TabName: r.TabName,
+		TabPeriod: googlesheet.TabPeriod(r.TabPeriod), TabPattern: r.TabPattern, Style: googlesheet.StylePreset(r.Style),
+		Description: r.Description, TimeZone: r.TimeZone, Columns: inputs(r.Columns),
+	}
 }
 
 type UpdateDetailsRequest struct {
@@ -51,12 +81,14 @@ type UpdateDetailsRequest struct {
 }
 
 type ColumnUpdateRequest struct {
-	Key         string   `json:"key" example:"valor"`
-	Header      *string  `json:"header,omitempty"`
-	Instruction *string  `json:"instruction,omitempty"`
-	Required    *bool    `json:"required,omitempty"`
-	Archived    *bool    `json:"archived,omitempty"`
-	Options     []string `json:"options,omitempty"`
+	Key         string            `json:"key" example:"valor"`
+	Header      *string           `json:"header,omitempty"`
+	Instruction *string           `json:"instruction,omitempty"`
+	Required    *bool             `json:"required,omitempty"`
+	Archived    *bool             `json:"archived,omitempty"`
+	Options     []string          `json:"options,omitempty"`
+	Colors      map[string]string `json:"colors,omitempty" swaggertype:"object,string"`
+	LinkLabel   *string           `json:"linkLabel,omitempty"`
 }
 
 type EditColumnsRequest struct {
@@ -70,6 +102,7 @@ func (r EditColumnsRequest) edit() googlesheet.ColumnsEdit {
 	for _, u := range r.Update {
 		edit.Update = append(edit.Update, googlesheet.ColumnUpdate{
 			Key: u.Key, Header: u.Header, Instruction: u.Instruction, Required: u.Required, Archived: u.Archived, Options: u.Options,
+			Colors: colorsOf(u.Colors), LinkLabel: u.LinkLabel,
 		})
 	}
 	return edit
@@ -95,20 +128,29 @@ type RowResponse struct {
 }
 
 type ColumnResponse struct {
-	Key         string   `json:"key" example:"nome_do_cliente"`
-	Header      string   `json:"header" example:"Nome do cliente"`
-	Type        string   `json:"type" example:"text"`
-	Options     []string `json:"options,omitempty"`
-	Required    bool     `json:"required"`
-	Instruction string   `json:"instruction,omitempty"`
-	Source      string   `json:"source" example:"input"`
-	Archived    bool     `json:"archived"`
+	Key         string            `json:"key" example:"nome_do_cliente"`
+	Header      string            `json:"header" example:"Nome do cliente"`
+	Type        string            `json:"type" example:"text"`
+	Options     []string          `json:"options,omitempty"`
+	Colors      map[string]string `json:"colors,omitempty" swaggertype:"object,string"`
+	Required    bool              `json:"required"`
+	Instruction string            `json:"instruction,omitempty"`
+	Source      string            `json:"source" example:"input"`
+	LinkSheetID string            `json:"linkSheetId,omitempty"`
+	LinkLabel   string            `json:"linkLabel,omitempty"`
+	Archived    bool              `json:"archived"`
 }
 
 type SheetResponse struct {
 	ID            string           `json:"id"`
+	SpreadsheetID string           `json:"spreadsheetId"`
 	Title         string           `json:"title"`
 	TabName       string           `json:"tabName"`
+	TabPeriod     string           `json:"tabPeriod" enums:"none,month"`
+	TabPattern    string           `json:"tabPattern,omitempty"`
+	TabPeriodKey  string           `json:"tabPeriodKey,omitempty" example:"2026-11"`
+	Style         string           `json:"style" enums:"plain,graphite,blue,green,purple"`
+	TakesInput    bool             `json:"takesInput"`
 	Description   string           `json:"description,omitempty"`
 	TimeZone      string           `json:"timeZone"`
 	URL           string           `json:"url" example:"https://docs.google.com/spreadsheets/d/abc/edit#gid=0"`
@@ -126,13 +168,22 @@ type SheetResponse struct {
 func toSheetResponse(s *googlesheet.Sheet) SheetResponse {
 	columns := make([]ColumnResponse, len(s.Columns))
 	for i, c := range s.Columns {
+		var colors map[string]string
+		if len(c.Colors) > 0 {
+			colors = make(map[string]string, len(c.Colors))
+			for option, color := range c.Colors {
+				colors[option] = string(color)
+			}
+		}
 		columns[i] = ColumnResponse{
-			Key: c.Key, Header: c.Header, Type: string(c.Type), Options: c.Options, Required: c.Required,
-			Instruction: c.Instruction, Source: string(c.Source), Archived: c.Archived,
+			Key: c.Key, Header: c.Header, Type: string(c.Type), Options: c.Options, Colors: colors, Required: c.Required,
+			Instruction: c.Instruction, Source: string(c.Source), LinkSheetID: c.LinkSheetID, LinkLabel: c.LinkLabel, Archived: c.Archived,
 		}
 	}
 	return SheetResponse{
-		ID: s.ID, Title: s.Title, TabName: s.TabName, Description: s.Description, TimeZone: s.TimeZone, URL: s.URL(),
+		ID: s.ID, SpreadsheetID: s.SpreadsheetID, Title: s.Title, TabName: s.TabName, TabPeriod: string(s.TabPeriod), TabPattern: s.TabPattern,
+		TabPeriodKey: s.TabPeriodKey, Style: string(s.Style), TakesInput: s.TakesInput(),
+		Description: s.Description, TimeZone: s.TimeZone, URL: s.URL(),
 		Status: string(s.Status), Reason: string(s.Reason), ReasonDetail: s.ReasonDetail, Version: s.Version,
 		Columns: columns, TakesMessages: s.HasMessageColumns(), CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, LastWrittenAt: s.LastWrittenAt,
 	}
@@ -213,24 +264,60 @@ type SourceResponse struct {
 	Type   string `json:"type" example:"phone"`
 }
 
+type StyleResponse struct {
+	Key        string `json:"key" example:"green"`
+	Header     string `json:"header,omitempty" example:"#1E7A4C"`
+	HeaderText string `json:"headerText,omitempty" example:"#FFFFFF"`
+	Band       string `json:"band,omitempty" example:"#F2F8F4"`
+}
+
+type OptionColorResponse struct {
+	Key  string `json:"key" example:"green"`
+	Fill string `json:"fill" example:"#1E8E3E"`
+	Text string `json:"text" example:"#FFFFFF"`
+}
+
 type CatalogResponse struct {
-	Types             []string         `json:"types"`
-	Sources           []SourceResponse `json:"sources"`
-	DefaultTimeZone   string           `json:"defaultTimeZone"`
-	MaxHeader         int              `json:"maxHeader"`
-	MaxInstruction    int              `json:"maxInstruction"`
-	MaxOption         int              `json:"maxOption"`
-	RowErrorCodes     []string         `json:"rowErrorCodes"`
-	AttentionReasons  []string         `json:"attentionReasons"`
-	WrittenRetainDays int              `json:"writtenRetainDays"`
+	Types             []string              `json:"types"`
+	Sources           []SourceResponse      `json:"sources"`
+	Styles            []StyleResponse       `json:"styles"`
+	OptionColors      []OptionColorResponse `json:"optionColors"`
+	TabPeriods        []string              `json:"tabPeriods"`
+	TabTokens         []string              `json:"tabTokens"`
+	DefaultStyle      string                `json:"defaultStyle"`
+	DefaultLinkLabel  string                `json:"defaultLinkLabel"`
+	DefaultTimeZone   string                `json:"defaultTimeZone"`
+	MaxHeader         int                   `json:"maxHeader"`
+	MaxInstruction    int                   `json:"maxInstruction"`
+	MaxOption         int                   `json:"maxOption"`
+	MaxTitle          int                   `json:"maxTitle"`
+	MaxTabName        int                   `json:"maxTabName"`
+	MaxLinkLabel      int                   `json:"maxLinkLabel"`
+	RowErrorCodes     []string              `json:"rowErrorCodes"`
+	AttentionReasons  []string              `json:"attentionReasons"`
+	WrittenRetainDays int                   `json:"writtenRetainDays"`
 }
 
 func catalog() CatalogResponse {
 	out := CatalogResponse{
 		DefaultTimeZone: googlesheet.DefaultTimeZone, MaxHeader: googlesheet.MaxHeaderRunes,
 		MaxInstruction: googlesheet.MaxInstructionRunes, MaxOption: googlesheet.MaxOptionRunes,
+		MaxTitle: googlesheet.MaxTitleRunes, MaxTabName: googlesheet.MaxTabRunes, MaxLinkLabel: googlesheet.MaxLinkLabelRunes,
+		DefaultStyle: string(googlesheet.DefaultStyle), DefaultLinkLabel: googlesheet.DefaultLinkLabel,
+		TabTokens:         googlesheet.TabTokens(),
 		RowErrorCodes:     googlesheet.RowErrorCodes(),
 		WrittenRetainDays: int(gsuc.WrittenRowRetention.Hours() / 24),
+	}
+	for _, style := range googlesheet.StylePresets() {
+		p := style.Palette()
+		out.Styles = append(out.Styles, StyleResponse{Key: string(style), Header: p.Header, HeaderText: p.HeaderText, Band: p.Band})
+	}
+	for _, color := range googlesheet.OptionColors() {
+		fill, text := color.Hex()
+		out.OptionColors = append(out.OptionColors, OptionColorResponse{Key: string(color), Fill: fill, Text: text})
+	}
+	for _, period := range googlesheet.TabPeriods() {
+		out.TabPeriods = append(out.TabPeriods, string(period))
 	}
 	for _, t := range googlesheet.ColumnTypes() {
 		out.Types = append(out.Types, string(t))

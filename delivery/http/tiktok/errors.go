@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"vozko/delivery/http/automationneedsx"
 
 	"vozko/delivery/http/oauthpopup"
 	"vozko/delivery/http/response"
@@ -15,6 +16,9 @@ import (
 type RateLimitDetector func(err error) bool
 
 func writeDomainError(w http.ResponseWriter, err error, fallback string, rateLimited RateLimitDetector) {
+	if automationneedsx.WriteRefusal(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, ttdomain.ErrAccountNotFound), errors.Is(err, ttdomain.ErrCommentNotFound),
 		errors.Is(err, ttdomain.ErrCommentNotOwned), errors.Is(err, ttdomain.ErrVideoNotFound):

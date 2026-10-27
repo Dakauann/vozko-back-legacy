@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"vozko/usecases/automationneeds/receptivetest"
 
 	"vozko/domain/carriermessaging"
 	"vozko/domain/conversation"
@@ -78,7 +79,7 @@ func newHarness(t *testing.T) *harness {
 		Provider: h.provider, SMS: h.provider, Charges: NewCharges(defaultPricer(), h.ledger),
 		Balance: h.balance, Spend: h.spend, Links: fakeLinks{}, Leads: h.leads,
 		Transcript: h.transcript, TranscriptStatus: h.tstatus, Announcer: h.announcer,
-		Timezones: fakeTimezones{}, WhatsApp: h.whatsapp, Notices: h.notices, Inbox: h.inbox, Documents: fakeDocuments{valid: true}, Library: fakeLibrary{}, RemoteMedia: fakeRemote{}, AutomationRefs: fakeRefs{},
+		Timezones: fakeTimezones{}, WhatsApp: h.whatsapp, Notices: h.notices, Inbox: h.inbox, Documents: fakeDocuments{valid: true}, Library: fakeLibrary{}, RemoteMedia: fakeRemote{}, AutomationRefs: fakeRefs{}, Receptive: receptivetest.Allow(),
 		MediaURLs:    carrierMediaURLs(carrierLibraryByURL{}, carrierUploadsByURL{}),
 		PlatformName: "Vozko", PlatformEmailDomain: "vozkoia.com", SMSSharedNumber: "29000",
 		Now:   func() time.Time { return h.now },

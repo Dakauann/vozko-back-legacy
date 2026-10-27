@@ -78,6 +78,7 @@ type Writer struct {
 	metrics metrics.GoogleSheetsMetricsRecorder
 	cfg     WriterConfig
 	now     Clock
+	seed    func() int64
 	jitter  func() time.Duration
 	slots   chan struct{}
 	nudged  sync.Map
@@ -97,6 +98,7 @@ func NewWriter(d WriterDeps) *Writer {
 		sheets: d.Sheets, rows: d.Rows, api: d.API, errs: d.Errors, access: d.Access, limiter: d.Limiter,
 		leases: d.Leases, marks: d.Marks, alerts: d.Alerts, metrics: d.Metrics, cfg: d.Config,
 		now:    utcNow,
+		seed:   rand.Int64,
 		jitter: func() time.Duration { return time.Duration(rand.Int64N(int64(maxJitter))) },
 		slots:  make(chan struct{}, d.Config.Concurrency),
 	}
@@ -198,9 +200,6 @@ func (w *Writer) WriteSheet(ctx context.Context, sheetID string) error {
 	if ok, err := s.recover(ctx); err != nil || !ok {
 		return err
 	}
-	if ok, err := s.verify(ctx); err != nil || !ok {
-		return err
-	}
 	deadline := w.now().Add(w.cfg.DrainBudget)
 	for w.now().Before(deadline) {
 		more, err := s.writeNext(ctx)
@@ -250,12 +249,41 @@ func (s *session) recover(ctx context.Context) (bool, error) {
 	if err != nil || len(stuck) == 0 {
 		return err == nil, err
 	}
-	if ok, err := s.take(ctx, false); !ok || err != nil {
-		return false, err
+	byPeriod := map[string][]*googlesheet.Row{}
+	var periods []string
+	for _, row := range stuck {
+		if _, seen := byPeriod[row.PeriodKey]; !seen {
+			periods = append(periods, row.PeriodKey)
+		}
+		byPeriod[row.PeriodKey] = append(byPeriod[row.PeriodKey], row)
 	}
-	refs, err := w.api.ReadRange(ctx, s.access.Token, s.sheet.Target(), "A:A")
+	found := 0
+	for _, period := range periods {
+		ok, n, err := s.recoverPeriod(ctx, period, byPeriod[period])
+		if err != nil || !ok {
+			return false, err
+		}
+		found += n
+	}
+	w.metrics.AddGoogleSheetsEvent("recover", fmt.Sprintf("found_%d_of_%d", found, len(stuck)))
+	return true, nil
+}
+
+func (s *session) recoverPeriod(ctx context.Context, period string, stuck []*googlesheet.Row) (bool, int, error) {
+	w := s.w
+	target, known, err := s.knownTarget(ctx, period)
 	if err != nil {
-		return false, s.readFailed(ctx, err)
+		return false, 0, err
+	}
+	if !known {
+		return true, 0, w.rows.Release(ctx, rowIDs(stuck), w.now(), "")
+	}
+	if ok, err := s.take(ctx, false); !ok || err != nil {
+		return false, 0, err
+	}
+	refs, err := w.api.ReadRange(ctx, s.access.Token, target, "A:A")
+	if err != nil {
+		return false, 0, s.readFailed(ctx, err)
 	}
 	positions := make(map[string]int, len(refs))
 	for i, row := range refs {
@@ -273,23 +301,119 @@ func (s *session) recover(ctx context.Context) (bool, error) {
 		missing = append(missing, row.ID)
 	}
 	if err := w.rows.MarkWritten(ctx, written, w.now()); err != nil {
+		return false, 0, err
+	}
+	return true, len(written), w.rows.Release(ctx, missing, w.now(), "")
+}
+
+func (s *session) knownTarget(ctx context.Context, period string) (googlesheet.Target, bool, error) {
+	if !s.sheet.Periodic() || period == s.sheet.TabPeriodKey {
+		return s.sheet.Target(), true, nil
+	}
+	tab, found, err := s.w.sheets.FindTab(ctx, s.sheet.ID, period)
+	if err != nil || !found {
+		return googlesheet.Target{}, false, err
+	}
+	return googlesheet.Target{SpreadsheetID: s.sheet.SpreadsheetID, TabID: tab.ID, TabName: tab.Title}, true, nil
+}
+
+func (s *session) target(ctx context.Context, period string) (googlesheet.Target, bool, error) {
+	target, known, err := s.knownTarget(ctx, period)
+	if err != nil || known {
+		return target, known, err
+	}
+	return s.openTab(ctx, period)
+}
+
+func (s *session) openTab(ctx context.Context, period string) (googlesheet.Target, bool, error) {
+	w := s.w
+	title, err := s.sheet.TabTitleFor(period)
+	if err != nil {
+		return googlesheet.Target{}, false, err
+	}
+	if ok, err := s.take(ctx, false); !ok || err != nil {
+		return googlesheet.Target{}, false, err
+	}
+	workbook, err := w.api.Workbook(ctx, s.access.Token, s.sheet.SpreadsheetID)
+	if err != nil {
+		return googlesheet.Target{}, false, s.readFailed(ctx, err)
+	}
+	target := googlesheet.Target{SpreadsheetID: s.sheet.SpreadsheetID, TabName: title}
+	if existing, taken := workbook.Titled(title); taken {
+		target.TabID, target.TabName = existing.ID, existing.Title
+		if ok, err := s.adopt(ctx, target); err != nil || !ok {
+			return googlesheet.Target{}, false, err
+		}
+	} else {
+		if workbook.NearlyFull(googlesheet.NewTabRows * (len(s.sheet.Columns) + 1)) {
+			return googlesheet.Target{}, false, w.attention(ctx, s.sheet, googlesheet.ReasonSheetFull, fmt.Sprintf("%d células no arquivo", workbook.Cells()))
+		}
+		if ok, err := s.take(ctx, true); !ok || err != nil {
+			return googlesheet.Target{}, false, err
+		}
+		target.TabID = workbook.FreeTabID(w.seed())
+		if err := w.api.AddTab(ctx, s.access.Token, s.sheet.SpreadsheetID, googlesheet.TabSpec{ID: target.TabID, Title: title, Layout: s.sheet.Layout(0)}); err != nil {
+			return googlesheet.Target{}, false, s.layoutFailed(ctx, err)
+		}
+		w.metrics.AddGoogleSheetsEvent("tab", "opened")
+	}
+	tab := googlesheet.Tab{Period: period, ID: target.TabID, Title: target.TabName}
+	if err := w.sheets.OpenTab(ctx, s.sheet.ID, tab); err != nil {
+		return googlesheet.Target{}, false, err
+	}
+	if period > s.sheet.TabPeriodKey {
+		s.sheet.TabID, s.sheet.TabName, s.sheet.TabPeriodKey = tab.ID, tab.Title, tab.Period
+	}
+	return target, true, nil
+}
+
+func (s *session) adopt(ctx context.Context, target googlesheet.Target) (bool, error) {
+	w := s.w
+	if ok, err := s.take(ctx, false); !ok || err != nil {
 		return false, err
 	}
-	if err := w.rows.Release(ctx, missing, w.now(), ""); err != nil {
+	header, err := w.api.ReadRange(ctx, s.access.Token, target, "1:1")
+	if err != nil {
+		return false, s.readFailed(ctx, err)
+	}
+	if !googlesheet.HeaderIsBlank(header) {
+		if difference := googlesheet.HeaderDifference(s.sheet.HeaderRow(), header); difference != "" {
+			return false, w.attention(ctx, s.sheet, googlesheet.ReasonHeaderMismatch, fmt.Sprintf("a aba %q já existe com outro conteúdo; %s", target.TabName, difference))
+		}
+		return true, nil
+	}
+	if ok, err := s.take(ctx, true); !ok || err != nil {
 		return false, err
 	}
-	w.metrics.AddGoogleSheetsEvent("recover", fmt.Sprintf("found_%d_of_%d", len(written), len(stuck)))
+	if err := w.api.ApplyLayout(ctx, s.access.Token, target, s.sheet.Layout(0)); err != nil {
+		return false, s.layoutFailed(ctx, err)
+	}
 	return true, nil
 }
 
-func (s *session) verify(ctx context.Context) (bool, error) {
+func (s *session) layoutFailed(ctx context.Context, err error) error {
+	failure := s.w.errs.Classify(err)
+	switch failure.Kind {
+	case googlesheet.FailurePermission, googlesheet.FailureNotFound:
+		return s.w.attention(ctx, s.sheet, failure.AttentionReason(), failure.Detail)
+	case googlesheet.FailureInvalid:
+		return s.w.attention(ctx, s.sheet, googlesheet.ReasonGoogleUnavailable, failure.Detail)
+	}
+	s.w.metrics.AddGoogleSheetsEvent("tab", string(failure.Kind))
+	return nil
+}
+
+func (s *session) verify(ctx context.Context, target googlesheet.Target) (bool, error) {
 	w := s.w
+	if target.TabID != s.sheet.TabID {
+		return s.checkHeaderAndRoom(ctx, target)
+	}
 	key := headerMarkKey(s.sheet.ID)
 	due, err := w.marks.SetNX(key, "1", w.cfg.HeaderCheck)
 	if err != nil || !due {
 		return err == nil, err
 	}
-	ok, err := s.checkHeaderAndRoom(ctx)
+	ok, err := s.checkHeaderAndRoom(ctx, target)
 	if !ok {
 		if delErr := w.marks.Del(key); delErr != nil {
 			log.Printf("[googlesheet] header check mark of %s not cleared: %v", s.sheet.ID, delErr)
@@ -298,12 +422,12 @@ func (s *session) verify(ctx context.Context) (bool, error) {
 	return ok, err
 }
 
-func (s *session) checkHeaderAndRoom(ctx context.Context) (bool, error) {
+func (s *session) checkHeaderAndRoom(ctx context.Context, target googlesheet.Target) (bool, error) {
 	w := s.w
 	if ok, err := s.take(ctx, false); !ok || err != nil {
 		return false, err
 	}
-	header, err := w.api.ReadRange(ctx, s.access.Token, s.sheet.Target(), "1:1")
+	header, err := w.api.ReadRange(ctx, s.access.Token, target, "1:1")
 	if err != nil {
 		return false, s.readFailed(ctx, err)
 	}
@@ -313,12 +437,15 @@ func (s *session) checkHeaderAndRoom(ctx context.Context) (bool, error) {
 	if ok, err := s.take(ctx, false); !ok || err != nil {
 		return false, err
 	}
-	info, err := w.api.TabInfo(ctx, s.access.Token, s.sheet.Target())
+	workbook, err := w.api.Workbook(ctx, s.access.Token, target.SpreadsheetID)
 	if err != nil {
 		return false, s.readFailed(ctx, err)
 	}
-	if info.NearlyFull(0, len(s.sheet.Columns)+1) {
-		return false, w.attention(ctx, s.sheet, googlesheet.ReasonSheetFull, fmt.Sprintf("%d linhas em %d colunas", info.Rows, info.Columns))
+	if _, ok := workbook.Tab(target.TabID); !ok {
+		return false, w.attention(ctx, s.sheet, googlesheet.ReasonSpreadsheetGone, tabGoneDetail)
+	}
+	if workbook.NearlyFull(0) {
+		return false, w.attention(ctx, s.sheet, googlesheet.ReasonSheetFull, fmt.Sprintf("%d células no arquivo", workbook.Cells()))
 	}
 	return true, nil
 }
@@ -342,7 +469,21 @@ func (s *session) writeNext(ctx context.Context) (bool, error) {
 	if err != nil || len(claimed) == 0 {
 		return false, err
 	}
-	batch, values, sizes := s.encode(ctx, claimed)
+	run := samePeriod(claimed)
+	if err := w.rows.Unclaim(ctx, rowIDs(claimed[len(run):])); err != nil {
+		return false, err
+	}
+	target, ok, err := s.target(ctx, run[0].PeriodKey)
+	if err == nil && ok {
+		ok, err = s.verify(ctx, target)
+	}
+	if err != nil || !ok {
+		return false, errors.Join(err, w.rows.Unclaim(ctx, rowIDs(run)))
+	}
+	batch, values, sizes, err := s.encode(ctx, run)
+	if err != nil {
+		return false, err
+	}
 	fits := googlesheet.PlanBatch(sizes, w.cfg.BatchRows, w.cfg.BatchBytes)
 	if fits < len(batch) {
 		if err := w.rows.Unclaim(ctx, rowIDs(batch[fits:])); err != nil {
@@ -353,15 +494,73 @@ func (s *session) writeNext(ctx context.Context) (bool, error) {
 	if len(batch) == 0 {
 		return true, nil
 	}
-	return s.send(ctx, batch, values)
+	return s.send(ctx, target, batch, values)
 }
 
-func (s *session) encode(ctx context.Context, claimed []*googlesheet.Row) ([]*googlesheet.Row, [][]any, []int) {
+func samePeriod(rows []*googlesheet.Row) []*googlesheet.Row {
+	for i, row := range rows {
+		if row.PeriodKey != rows[0].PeriodKey {
+			return rows[:i]
+		}
+	}
+	return rows
+}
+
+func (s *session) linkTabs(ctx context.Context, rows []*googlesheet.Row) (googlesheet.LinkTabs, map[string]bool, error) {
+	tabs := googlesheet.LinkTabs{}
+	gone := map[string]bool{}
+	seen := map[string]bool{}
+	for _, row := range rows {
+		for _, ref := range s.sheet.LinkRefs(row.Cells) {
+			key := googlesheet.LinkTabKey(ref.SheetID, ref.Period)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			target, err := s.w.sheets.Get(ctx, ref.SheetID)
+			if errors.Is(err, googlesheet.ErrSheetNotFound) || (err == nil && target.WorkspaceID != s.sheet.WorkspaceID) {
+				gone[ref.SheetID] = true
+				continue
+			}
+			if err != nil {
+				return nil, nil, err
+			}
+			if !target.Periodic() {
+				tabs[key] = googlesheet.TabRef{ID: target.TabID, Title: target.TabName}
+				continue
+			}
+			tab, found, err := s.w.sheets.FindTab(ctx, target.ID, ref.Period)
+			if err != nil {
+				return nil, nil, err
+			}
+			if found {
+				tabs[key] = googlesheet.TabRef{ID: tab.ID, Title: tab.Title}
+			}
+		}
+	}
+	return tabs, gone, nil
+}
+
+func (s *session) encode(ctx context.Context, claimed []*googlesheet.Row) ([]*googlesheet.Row, [][]any, []int, error) {
+	tabs, gone, err := s.linkTabs(ctx, claimed)
+	if err != nil {
+		return nil, nil, nil, errors.Join(err, s.w.rows.Unclaim(ctx, rowIDs(claimed)))
+	}
 	batch := make([]*googlesheet.Row, 0, len(claimed))
 	values := make([][]any, 0, len(claimed))
 	sizes := make([]int, 0, len(claimed))
-	for _, row := range claimed {
-		encoded, err := s.sheet.EncodeRow(row.ID, row.Cells)
+	for i, row := range claimed {
+		encoded, err := s.sheet.EncodeRow(row.ID, row.Cells, tabs)
+		if errors.Is(err, googlesheet.ErrLinkTargetPending) {
+			rest := claimed[i:]
+			if len(batch) == 0 {
+				if err := s.waitForLink(ctx, row, gone); err != nil {
+					return nil, nil, nil, err
+				}
+				rest = claimed[i+1:]
+			}
+			return batch, values, sizes, s.w.rows.Unclaim(ctx, rowIDs(rest))
+		}
 		if err == nil {
 			var raw []byte
 			raw, err = json.Marshal(encoded)
@@ -374,13 +573,27 @@ func (s *session) encode(ctx context.Context, claimed []*googlesheet.Row) ([]*go
 			log.Printf("[googlesheet] row %s could not be encoded and not marked failed: %v", row.ID, failErr)
 		}
 	}
-	return batch, values, sizes
+	return batch, values, sizes, nil
 }
 
-func (s *session) send(ctx context.Context, batch []*googlesheet.Row, values [][]any) (bool, error) {
+func (s *session) waitForLink(ctx context.Context, row *googlesheet.Row, gone map[string]bool) error {
+	w := s.w
+	for _, ref := range s.sheet.LinkRefs(row.Cells) {
+		if gone[ref.SheetID] {
+			return w.rows.Fail(ctx, row.ID, googlesheet.CodeWriteLinkTargetMissing, "a planilha de destino do link foi removida")
+		}
+	}
+	if row.Attempts >= googlesheet.MaxTransientAttempts {
+		return w.rows.Fail(ctx, row.ID, googlesheet.CodeWriteLinkTargetMissing, "a aba de destino do link não apareceu a tempo")
+	}
+	w.metrics.AddGoogleSheetsEvent("link", "pending")
+	return w.rows.Release(ctx, []string{row.ID}, w.now().Add(googlesheet.Backoff(row.Attempts, w.jitter())), googlesheet.CodeWriteLinkPending)
+}
+
+func (s *session) send(ctx context.Context, target googlesheet.Target, batch []*googlesheet.Row, values [][]any) (bool, error) {
 	w := s.w
 	started := time.Now()
-	result, err := w.api.AppendRows(ctx, s.access.Token, s.sheet.Target(), values)
+	result, err := w.api.AppendRows(ctx, s.access.Token, target, values)
 	w.metrics.ObserveGoogleSheetsBatch(len(batch), time.Since(started).Seconds())
 	if err == nil {
 		return true, s.written(ctx, batch, result)
@@ -403,7 +616,7 @@ func (s *session) send(ctx context.Context, batch []*googlesheet.Row, values [][
 		}
 		return false, w.attention(ctx, s.sheet, failure.AttentionReason(), failure.Detail)
 	}
-	return s.isolate(ctx, batch, values, failure)
+	return s.isolate(ctx, target, batch, values, failure)
 }
 
 func (s *session) written(ctx context.Context, batch []*googlesheet.Row, result googlesheet.AppendResult) error {
@@ -420,7 +633,7 @@ func (s *session) written(ctx context.Context, batch []*googlesheet.Row, result 
 	return w.sheets.TouchWritten(ctx, s.sheet.ID, at)
 }
 
-func (s *session) isolate(ctx context.Context, batch []*googlesheet.Row, values [][]any, failure googlesheet.Failure) (bool, error) {
+func (s *session) isolate(ctx context.Context, target googlesheet.Target, batch []*googlesheet.Row, values [][]any, failure googlesheet.Failure) (bool, error) {
 	w := s.w
 	if len(batch) == 1 {
 		return true, w.rows.Fail(ctx, batch[0].ID, failure.Code(), failure.Detail)
@@ -431,7 +644,7 @@ func (s *session) isolate(ctx context.Context, batch []*googlesheet.Row, values 
 		if ok, err := s.take(ctx, true); !ok || err != nil {
 			return false, errors.Join(err, w.rows.Unclaim(ctx, rowIDs(batch[start:])))
 		}
-		more, err := s.send(ctx, batch[start:end], values[start:end])
+		more, err := s.send(ctx, target, batch[start:end], values[start:end])
 		if err != nil || !more {
 			return false, errors.Join(err, w.rows.Unclaim(ctx, rowIDs(batch[end:])))
 		}

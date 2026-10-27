@@ -2,7 +2,7 @@ package campaign
 
 import (
 	"errors"
-	"fmt"
+	"strconv"
 	"strings"
 
 	"vozko/domain/agent"
@@ -18,8 +18,28 @@ var (
 )
 
 type EntryMetadata struct {
-	Label    string
-	Metadata map[string]any
+	Label     string
+	Metadata  map[string]any
+	Variables []string
+}
+
+func (e EntryMetadata) WithVariables(variables []string) EntryMetadata {
+	e.Variables = variables
+	return e
+}
+
+func (e EntryMetadata) Values() map[string]any {
+	if len(e.Variables) == 0 {
+		return e.Metadata
+	}
+	out := make(map[string]any, len(e.Metadata)+len(e.Variables))
+	for k, v := range e.Metadata {
+		out[k] = v
+	}
+	for i, v := range e.Variables {
+		out[strconv.Itoa(i+1)] = v
+	}
+	return out
 }
 
 func EntryMetadataOf(leadID, number string, metadata map[string]any) EntryMetadata {
@@ -34,33 +54,3 @@ func (a Automation) Configured() bool {
 	return strings.TrimSpace(a.AgentID) != "" || strings.TrimSpace(a.WorkflowID) != ""
 }
 
-func MissingWorkflowVars(keys []string, metadata map[string]any) []string {
-	var missing []string
-	for _, key := range keys {
-		if agent.MetadataValueMissing(metadata, key) {
-			missing = append(missing, key)
-		}
-	}
-	return missing
-}
-
-func RequireWorkflowVars(keys []string, entries []EntryMetadata) error {
-	for _, entry := range entries {
-		if missing := MissingWorkflowVars(keys, entry.Metadata); len(missing) > 0 {
-			return fmt.Errorf("%w: key %q is missing or empty for %s", ErrWorkflowVarsMissing, missing[0], entry.Label)
-		}
-	}
-	return nil
-}
-
-func RequireAgentVars(a *agent.Agent, entries []EntryMetadata) error {
-	if a == nil {
-		return ErrAgentNotFound
-	}
-	for _, entry := range entries {
-		if err := agent.ValidateEntryMetadata(a, entry.Metadata); err != nil {
-			return fmt.Errorf("%s: %w", entry.Label, err)
-		}
-	}
-	return nil
-}

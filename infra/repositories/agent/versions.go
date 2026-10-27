@@ -11,9 +11,11 @@ import (
 	"gorm.io/gorm/clause"
 
 	"vozko/domain/agent"
+	"vozko/domain/automationneeds"
 	"vozko/domain/testinput"
 	"vozko/infra/database/schema"
 	agenttool_repository "vozko/infra/repositories/agenttool"
+	automationneeds_repository "vozko/infra/repositories/automationneeds"
 )
 
 func (r *repository) FindPublished(agentID string) (*agent.Agent, error) {
@@ -42,11 +44,17 @@ func (r *repository) FindPublished(agentID string) (*agent.Agent, error) {
 }
 
 func (r *repository) PublishVersion(ctx context.Context, agentID string, snapshot agent.Snapshot, publishedBy string) (agent.Version, error) {
+	version, _, err := r.PublishVersionSwitchingOff(ctx, agentID, snapshot, publishedBy, "", nil)
+	return version, err
+}
+
+func (r *repository) PublishVersionSwitchingOff(ctx context.Context, agentID string, snapshot agent.Snapshot, publishedBy, workspaceID string, offs []automationneeds.SwitchOff) (agent.Version, []string, error) {
 	raw, err := json.Marshal(snapshot)
 	if err != nil {
-		return agent.Version{}, err
+		return agent.Version{}, nil, err
 	}
 	var out agent.Version
+	var containers []string
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row schema.Agent
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "workspace_id").Where("id = ?", agentID).First(&row).Error; err != nil {
@@ -68,9 +76,17 @@ func (r *repository) PublishVersion(ctx context.Context, agentID string, snapsho
 			return err
 		}
 		out = agent.Version{AgentID: agentID, Version: version.Version, Snapshot: snapshot, PublishedBy: publishedBy, PublishedAt: now}
-		return nil
+		if len(offs) == 0 {
+			return nil
+		}
+		if row.WorkspaceID != workspaceID {
+			return agent.ErrAgentNotFound
+		}
+		switched, err := automationneeds_repository.SwitchOffIn(tx, workspaceID, offs, publishedBy, now)
+		containers = switched
+		return err
 	})
-	return out, err
+	return out, containers, err
 }
 
 func (r *repository) CurrentVersion(ctx context.Context, agentID string) (*agent.Version, error) {

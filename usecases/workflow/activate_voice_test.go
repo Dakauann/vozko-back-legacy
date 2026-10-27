@@ -82,7 +82,7 @@ func voiceWorkflow(id, trunkID, mediaID string) *workflow.Workflow {
 }
 
 func voiceActivation(repo *MockWorkflowRepository, trunks InboundTrunkLookup) *activateWorkflowUseCase {
-	uc := &activateWorkflowUseCase{repo: repo, catalogFn: voiceCatalog}
+	uc := &activateWorkflowUseCase{repo: repo, catalogFn: voiceCatalog, switching: repo, planner: &scriptedWorkflowPlanner{}}
 	uc.mediaRepo = audioMediaStub{items: map[string]*media.Media{
 		"greeting": {ID: "greeting", WorkspaceID: "ws1", Type: media.MediaTypeAudio, URL: "https://files/greeting.mp3"},
 		"picture":  {ID: "picture", WorkspaceID: "ws1", Type: media.MediaTypeProductImage, URL: "https://files/picture.png"},

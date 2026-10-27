@@ -14,15 +14,25 @@ type memoryExports struct {
 	mu        sync.Mutex
 	positions map[string]googlesheet.ExportPosition
 	keys      map[string]bool
+	anchors   map[string]googlesheet.ExportAnchor
 	recorded  []googlesheet.MessageExport
 	fail      error
 }
 
 func newMemoryExports() *memoryExports {
-	return &memoryExports{positions: map[string]googlesheet.ExportPosition{}, keys: map[string]bool{}}
+	return &memoryExports{positions: map[string]googlesheet.ExportPosition{}, keys: map[string]bool{}, anchors: map[string]googlesheet.ExportAnchor{}}
 }
 
-func exportKey(sheetID, entryID, entryType string) string { return sheetID + "/" + entryType + "/" + entryID }
+func (m *memoryExports) Anchor(_ context.Context, sheetID, entryID, entryType string) (googlesheet.ExportAnchor, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	anchor, ok := m.anchors[exportKey(sheetID, entryID, entryType)]
+	return anchor, ok, nil
+}
+
+func exportKey(sheetID, entryID, entryType string) string {
+	return sheetID + "/" + entryType + "/" + entryID
+}
 
 func (m *memoryExports) Position(_ context.Context, sheetID, entryID, entryType string) (googlesheet.ExportPosition, error) {
 	m.mu.Lock()
@@ -78,7 +88,7 @@ func newExportWorld(t *testing.T) *exportWorld {
 	if err := w.sheets.Create(context.Background(), timeline); err != nil {
 		t.Fatal(err)
 	}
-	exports := newMemoryExports()
+	exports := w.exports
 	uc, err := NewExports(ExportsDeps{Intake: w.intake, Exports: exports})
 	if err != nil {
 		t.Fatal(err)

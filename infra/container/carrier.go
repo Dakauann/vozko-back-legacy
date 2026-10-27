@@ -115,6 +115,7 @@ func (c *Container) initCarrier(history conversation_domain.MessageHistoryManage
 			Agents: c.repositories.agent, Workflows: c.repositories.workflow,
 			Pipelines: c.repositories.pipeline, Departments: c.repositories.workspaceDepartment,
 		},
+		Receptive:           c.automationNeeds().receptive,
 		PlatformName:        brand.Active().Name,
 		PlatformEmailDomain: brand.Active().EmailDomain,
 		SMSSharedNumber:     cfg.SMSSharedNumber,

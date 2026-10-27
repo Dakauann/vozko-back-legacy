@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"vozko/delivery/http/automationneedsx"
 
 	"vozko/delivery/http/commentautomationhttp"
 	"vozko/delivery/http/response"
@@ -41,6 +42,9 @@ var domainErrors = []errorMapping{
 }
 
 func writeDomainError(w http.ResponseWriter, err error, fallback string) {
+	if automationneedsx.WriteRefusal(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, fbdomain.ErrInvalidPost):
 		response.WriteErrorWithCode(w, http.StatusBadRequest, "invalid_post", err.Error(), nil)

@@ -65,7 +65,7 @@ func (c *Container) initWebchatRuntime(history conversation_domain.MessageHistor
 		Workflows:   c.repositories.workflow,
 		Pipelines:   c.repositories.pipeline,
 		Departments: c.repositories.workspaceDepartment,
-	})
+	}, c.automationNeeds().receptive)
 	moderation := wcuc.NewModeration(bundle.Conversations, bundle.Visitors,
 		c.services.conversationAuthImpl, bundle.Broker, c.services.conversationHub)
 	bundle.Management = webchathttp.NewHandler(widgets, moderation, bundle.PublicBase)

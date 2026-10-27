@@ -33,6 +33,7 @@ var entryTables = []keyedTable{
 	entry("conversation_notes"),
 	entry("conversation_personal_marks"),
 	entry("conversation_delegations"),
+	entry("conversation_variables"),
 	entry("conversation_ad_origins"),
 	entry("conversation_origins"),
 	entry("conversation_live_reads"),

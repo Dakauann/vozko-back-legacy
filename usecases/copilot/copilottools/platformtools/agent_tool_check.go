@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"vozko/domain/automationneeds"
 
 	"vozko/domain/agent"
 	"vozko/domain/agenttool"
@@ -66,6 +67,9 @@ func (d AgentDeps) publishAfterSave(ctx context.Context, cc copilot.Context, arg
 		return copilot.Result{Status: copilot.StatusError, Message: "o rascunho foi salvo, mas a publicação não está disponível agora"}
 	}
 	version, err := d.Publishing.Publish(ctx, saved.ID, copilottools.RequesterOf(cc))
+	if refusal, ok := automationneeds.RefusalOf(err); ok {
+		return copilot.Result{Status: copilot.StatusError, Message: "o rascunho foi salvo, mas não foi publicado: " + refusal.Sentence()}
+	}
 	var blocked *agenttool.BlockedError
 	if errors.As(err, &blocked) {
 		return copilot.Result{Status: copilot.StatusError, Message: "o rascunho foi salvo, mas não foi publicado: " + issuesText(blocked.Report)}

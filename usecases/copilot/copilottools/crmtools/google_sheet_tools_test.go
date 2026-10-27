@@ -89,3 +89,18 @@ func TestAddGoogleSheetRowValidatesThenQueuesOncePerProposal(t *testing.T) {
 		t.Fatalf("input = %+v", in)
 	}
 }
+
+func TestListGoogleSheetsShowsTheWorkbookAndTheLook(t *testing.T) {
+	sheets := eloSheet(t)
+	sheets.sheet.SpreadsheetID, sheets.sheet.TabPeriod, sheets.sheet.Style = "sp-1", googlesheet.PeriodMonth, googlesheet.StyleGreen
+	sheets.sheet.Columns[1].Colors = map[string]googlesheet.OptionColor{"Alto": googlesheet.ColorGreen}
+	res := NewListGoogleSheetsTool(sheets).Execute(context.Background(), eloContext, map[string]interface{}{})
+	sheet := res.Data.(map[string]interface{})["sheets"].([]map[string]interface{})[0]
+	if sheet["spreadsheet_id"] != "sp-1" || sheet["tab_period"] != googlesheet.PeriodMonth || sheet["style"] != googlesheet.StyleGreen || sheet["takes_input"] != true {
+		t.Fatalf("sheet = %+v", sheet)
+	}
+	columns := sheet["columns"].([]map[string]interface{})
+	if columns[1]["colors"] == nil {
+		t.Fatalf("columns = %+v", columns)
+	}
+}

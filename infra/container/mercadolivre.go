@@ -223,8 +223,9 @@ func (c *Container) initMercadoLivreRuntime(history conversation_domain.MessageH
 			Pipelines:   c.repositories.pipeline,
 			Departments: c.repositories.workspaceDepartment,
 		},
-		Alerts:  alerts,
-		Metrics: b.Metrics,
+		Alerts:    alerts,
+		Metrics:   b.Metrics,
+		Receptive: c.automationNeeds().receptive,
 	})
 	b.Handler = mercadolivrehttp.NewHandler(mercadolivrehttp.HandlerDeps{
 		Connect: connect, Accounts: accounts, Health: b.Health, FrontendBaseURL: c.cfg.FrontendBaseURL,

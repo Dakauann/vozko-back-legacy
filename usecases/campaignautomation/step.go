@@ -1,12 +1,14 @@
 package campaignautomation
 
 import (
+	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"vozko/domain/agent"
+	"vozko/domain/automationneeds"
 	"vozko/domain/campaign"
+	"vozko/domain/conversation"
 	"vozko/domain/workflow"
 )
 
@@ -31,32 +33,34 @@ func NewStep(workflows Workflows, agents Agents) (*Step, error) {
 }
 
 type Rule struct {
-	workflowKeys []string
-	agent        *agent.Agent
+	needs automationneeds.Needs
+}
+
+func (r Rule) Needs() automationneeds.Needs {
+	return r.needs
 }
 
 func (r Rule) Check(entries []campaign.EntryMetadata) error {
-	if err := campaign.RequireWorkflowVars(r.workflowKeys, entries); err != nil {
-		return err
+	for _, entry := range entries {
+		missing := r.needs.MissingMetadata(entry.Values())
+		if len(missing) == 0 {
+			continue
+		}
+		first := missing[0]
+		if first.Owner().Kind == conversation.AutomationAgent {
+			return fmt.Errorf("%s: %w: variable %q is missing or empty", entry.Label, campaign.ErrAgentVarsMissing, first.Name)
+		}
+		return fmt.Errorf("%w: key %q is missing or empty for %s", campaign.ErrWorkflowVarsMissing, first.Name, entry.Label)
 	}
-	if r.agent == nil {
-		return nil
-	}
-	return campaign.RequireAgentVars(r.agent, entries)
+	return nil
 }
 
 func (r Rule) Requires() bool {
-	return len(r.Missing(nil)) > 0
+	return len(r.needs) > 0
 }
 
 func (r Rule) Missing(metadata map[string]any) []string {
-	missing := campaign.MissingWorkflowVars(r.workflowKeys, metadata)
-	for _, key := range agent.MissingEntryMetadata(r.agent, metadata) {
-		if !slices.Contains(missing, key) {
-			missing = append(missing, key)
-		}
-	}
-	return missing
+	return r.needs.MissingMetadata(metadata).Names()
 }
 
 func (s *Step) Check(workspaceID string, a campaign.Automation, entries []campaign.EntryMetadata) error {
@@ -71,21 +75,44 @@ func (s *Step) Rule(workspaceID string, a campaign.Automation) (Rule, error) {
 	if s == nil || s.workflows == nil || s.agents == nil {
 		return Rule{}, campaign.ErrAutomationUnavailable
 	}
-	keys, err := s.workflowKeys(workspaceID, strings.TrimSpace(a.WorkflowID))
-	if err != nil {
-		return Rule{}, err
+	var needs automationneeds.Needs
+	if id := strings.TrimSpace(a.WorkflowID); id != "" {
+		wf, err := s.ownWorkflow(workspaceID, id)
+		if err != nil {
+			return Rule{}, err
+		}
+		found, err := s.needsOf(automationneeds.OverlayWorkflow(stepSource{step: s}, wf), workspaceID, conversation.Automation{Kind: conversation.AutomationWorkflow, ID: id})
+		if err != nil {
+			return Rule{}, err
+		}
+		needs = needs.Union(found)
 	}
-	found, err := s.agent(workspaceID, strings.TrimSpace(a.AgentID))
-	if err != nil {
-		return Rule{}, err
+	if id := strings.TrimSpace(a.AgentID); id != "" {
+		owned, err := s.ownAgent(workspaceID, id)
+		if err != nil {
+			return Rule{}, err
+		}
+		found, err := s.needsOf(automationneeds.OverlayAgent(stepSource{step: s}, owned), workspaceID, conversation.Automation{Kind: conversation.AutomationAgent, ID: id})
+		if err != nil {
+			return Rule{}, err
+		}
+		needs = needs.Union(found)
 	}
-	return Rule{workflowKeys: keys, agent: found}, nil
+	return Rule{needs: needs}, nil
 }
 
-func (s *Step) workflowKeys(workspaceID, workflowID string) ([]string, error) {
-	if workflowID == "" {
-		return nil, nil
+func (s *Step) needsOf(src automationneeds.Source, workspaceID string, root conversation.Automation) (automationneeds.Needs, error) {
+	needs, err := automationneeds.Of(src, workspaceID, root)
+	switch {
+	case err == nil:
+		return needs, nil
+	case errors.Is(err, automationneeds.ErrNotFound):
+		return nil, fmt.Errorf("%w: %w", campaign.ErrAgentNotFound, err)
 	}
+	return nil, fmt.Errorf("%w: %w", campaign.ErrAutomationUnavailable, err)
+}
+
+func (s *Step) ownWorkflow(workspaceID, workflowID string) (*workflow.Workflow, error) {
 	wf, err := s.workflows.Execute(workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", campaign.ErrWorkflowNotFound, err)
@@ -96,13 +123,10 @@ func (s *Step) workflowKeys(workspaceID, workflowID string) ([]string, error) {
 	if wf.WorkspaceID != workspaceID {
 		return nil, campaign.ErrWorkflowForbidden
 	}
-	return workflow.ExtractCampaignVars(wf.Graph), nil
+	return wf, nil
 }
 
-func (s *Step) agent(workspaceID, agentID string) (*agent.Agent, error) {
-	if agentID == "" {
-		return nil, nil
-	}
+func (s *Step) ownAgent(workspaceID, agentID string) (*agent.Agent, error) {
 	found, err := s.agents.Execute(agentID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", campaign.ErrAgentNotFound, err)
@@ -111,6 +135,24 @@ func (s *Step) agent(workspaceID, agentID string) (*agent.Agent, error) {
 		return nil, campaign.ErrAgentNotFound
 	}
 	return found, nil
+}
+
+type stepSource struct{ step *Step }
+
+func (s stepSource) Agent(id string) (*agent.Agent, error) {
+	found, err := s.step.agents.Execute(id)
+	if errors.Is(err, agent.ErrAgentNotFound) {
+		return nil, nil
+	}
+	return found, err
+}
+
+func (s stepSource) Workflow(id string) (*workflow.Workflow, error) {
+	found, err := s.step.workflows.Execute(id)
+	if errors.Is(err, workflow.ErrWorkflowNotFound) {
+		return nil, nil
+	}
+	return found, err
 }
 
 type Checker interface {

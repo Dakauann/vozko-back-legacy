@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"vozko/delivery/http/automationneedsx"
 
 	"vozko/delivery/http/response"
 	cm "vozko/domain/carriermessaging"
@@ -92,6 +93,9 @@ type QuietHoursDetails struct {
 }
 
 func writeError(w http.ResponseWriter, err error, subject string) {
+	if automationneedsx.WriteRefusal(w, err) {
+		return
+	}
 	if errors.Is(err, context.Canceled) {
 		return
 	}

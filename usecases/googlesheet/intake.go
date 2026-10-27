@@ -8,19 +8,24 @@ import (
 	"vozko/domain/googlesheet"
 )
 
+type LinkAnchors interface {
+	Anchor(ctx context.Context, sheetID, entryID, entryType string) (googlesheet.ExportAnchor, bool, error)
+}
+
 type Intake struct {
 	sheets   googlesheet.SheetRepository
 	rows     googlesheet.RowRepository
 	resolver googlesheet.SystemValueResolver
+	anchors  LinkAnchors
 	nudger   Nudger
 	now      Clock
 }
 
-func NewIntake(sheets googlesheet.SheetRepository, rows googlesheet.RowRepository, resolver googlesheet.SystemValueResolver, nudger Nudger) *Intake {
-	if sheets == nil || rows == nil || resolver == nil || nudger == nil {
-		panic("googlesheet: intake requires sheets, rows, a system value resolver and a nudger")
+func NewIntake(sheets googlesheet.SheetRepository, rows googlesheet.RowRepository, resolver googlesheet.SystemValueResolver, anchors LinkAnchors, nudger Nudger) *Intake {
+	if sheets == nil || rows == nil || resolver == nil || anchors == nil || nudger == nil {
+		panic("googlesheet: intake requires sheets, rows, a system value resolver, export anchors and a nudger")
 	}
-	return &Intake{sheets: sheets, rows: rows, resolver: resolver, nudger: nudger, now: utcNow}
+	return &Intake{sheets: sheets, rows: rows, resolver: resolver, anchors: anchors, nudger: nudger, now: utcNow}
 }
 
 type EnqueueInput struct {
@@ -92,20 +97,37 @@ func (in *Intake) writableSheet(ctx context.Context, workspaceID, sheetID string
 }
 
 func (in *Intake) systemValues(ctx context.Context, sheet *googlesheet.Sheet, workspaceID string, origin googlesheet.Origin) (googlesheet.SystemValues, error) {
-	if !needsContext(sheet) {
-		return googlesheet.SystemValues{}, nil
+	system := googlesheet.SystemValues{}
+	if needsContext(sheet) {
+		resolved, err := in.resolver.Resolve(ctx, workspaceID, origin)
+		if err != nil {
+			log.Printf("[googlesheet] system values of %s unreadable: %v", sheet.ID, err)
+			return nil, err
+		}
+		system = resolved
 	}
-	system, err := in.resolver.Resolve(ctx, workspaceID, origin)
-	if err != nil {
-		log.Printf("[googlesheet] system values of %s unreadable: %v", sheet.ID, err)
-		return nil, err
+	return in.withAnchors(ctx, sheet, system, origin)
+}
+
+func (in *Intake) withAnchors(ctx context.Context, sheet *googlesheet.Sheet, system googlesheet.SystemValues, origin googlesheet.Origin) (googlesheet.SystemValues, error) {
+	if strings.TrimSpace(origin.EntryID) == "" || strings.TrimSpace(origin.EntryType) == "" {
+		return system, nil
+	}
+	for _, col := range sheet.LinkColumns() {
+		anchor, found, err := in.anchors.Anchor(ctx, col.LinkSheetID, origin.EntryID, origin.EntryType)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			system = system.WithLink(col.LinkSheetID, anchor)
+		}
 	}
 	return system, nil
 }
 
 func needsContext(sheet *googlesheet.Sheet) bool {
 	for _, col := range sheet.Columns {
-		if !col.Archived && col.Source.IsSystem() && col.Source != googlesheet.SourceWrittenAt && !col.Source.PerMessage() {
+		if !col.Archived && col.Source.IsSystem() && col.Source != googlesheet.SourceWrittenAt && col.Source != googlesheet.SourceExportLink && !col.Source.PerMessage() {
 			return true
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 	"time"
+	"vozko/domain/automationneeds"
 
 	"vozko/domain/agent"
 	"vozko/domain/agenttool"
@@ -12,6 +13,7 @@ import (
 )
 
 type versionBook struct {
+	switched []automationneeds.SwitchOff
 	versions []agent.Version
 	pinned   map[agent.ToolPin]agent.ToolBinding
 	unpub    []string
@@ -64,7 +66,7 @@ func publishFixture(v ToolValidator) (AgentPublishing, *versionBook, *agentStore
 	_, update, store := sealingFixture(&vault{values: map[string]string{}})
 	update.(ToolValidated).ValidateToolsWith(greenValidator{}, nil)
 	book := &versionBook{pinned: map[agent.ToolPin]agent.ToolBinding{}}
-	return NewPublishAgentUseCase(PublishDeps{Agents: store, Versions: book, Published: publishedAgents{}, Update: update, Validator: v}), book, store
+	return NewPublishAgentUseCase(PublishDeps{Agents: store, Versions: book, Switching: book, Planner: &scriptedPlanner{}, Published: publishedAgents{}, Update: update, Validator: v}), book, store
 }
 
 var publisher = workspace.Requester{UserID: "u-9"}

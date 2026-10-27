@@ -13,6 +13,7 @@ const (
 	replySkipEmptyReply          = conversation.ReplySkipEmptyReply
 	replySkipWindowClosed        = conversation.ReplySkipWindowClosed
 	replySkipWithheld            = conversation.ReplySkipWithheld
+	replySkipVariablesMissing    = conversation.ReplySkipVariablesMissing
 )
 
 func skippedReply(reason string) error {

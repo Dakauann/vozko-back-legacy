@@ -3,10 +3,12 @@ package googlesheet_repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"vozko/domain/googlesheet"
 	"vozko/domain/shared"
@@ -26,11 +28,93 @@ func (r *sheetRepository) Create(ctx context.Context, s *googlesheet.Sheet) erro
 	if err != nil {
 		return err
 	}
-	if err := r.db.WithContext(ctx).Create(record).Error; err != nil {
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(record).Error; err != nil {
+			return err
+		}
+		if !s.Periodic() {
+			return nil
+		}
+		return saveTab(tx, record.ID, record.WorkspaceID, googlesheet.Tab{Period: s.TabPeriodKey, ID: s.TabID, Title: s.TabName})
+	})
+	if err != nil {
 		return err
 	}
 	s.ID, s.CreatedAt, s.UpdatedAt = record.ID, record.CreatedAt, record.UpdatedAt
 	return nil
+}
+
+func saveTab(tx *gorm.DB, sheetID, workspaceID string, tab googlesheet.Tab) error {
+	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&schema.GoogleSheetTab{
+		SheetID: sheetID, PeriodKey: tab.Period, WorkspaceID: workspaceID, TabID: tab.ID, TabName: tab.Title, CreatedAt: time.Now().UTC(),
+	}).Error
+}
+
+func (r *sheetRepository) OpenTab(ctx context.Context, id string, tab googlesheet.Tab) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var record schema.GoogleSheet
+		if err := tx.Where("id = ?", id).Take(&record).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return googlesheet.ErrSheetNotFound
+			}
+			return err
+		}
+		if err := saveTab(tx, id, record.WorkspaceID, tab); err != nil {
+			return err
+		}
+		return tx.Model(&schema.GoogleSheet{}).Where("id = ? AND tab_period_key < ?", id, tab.Period).
+			Updates(map[string]any{"tab_id": tab.ID, "tab_name": tab.Title, "tab_period_key": tab.Period, "updated_at": time.Now().UTC()}).Error
+	})
+}
+
+func (r *sheetRepository) FindTab(ctx context.Context, sheetID, period string) (googlesheet.Tab, bool, error) {
+	var record schema.GoogleSheetTab
+	err := r.db.WithContext(ctx).Where("sheet_id = ? AND period_key = ?", sheetID, period).Take(&record).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return googlesheet.Tab{}, false, nil
+	}
+	if err != nil {
+		return googlesheet.Tab{}, false, err
+	}
+	return googlesheet.Tab{Period: record.PeriodKey, ID: record.TabID, Title: record.TabName}, true, nil
+}
+
+func (r *sheetRepository) Tabs(ctx context.Context, sheetID string) ([]googlesheet.Tab, error) {
+	var records []schema.GoogleSheetTab
+	if err := r.db.WithContext(ctx).Where("sheet_id = ?", sheetID).Order("period_key").Find(&records).Error; err != nil {
+		return nil, err
+	}
+	out := make([]googlesheet.Tab, len(records))
+	for i, record := range records {
+		out[i] = googlesheet.Tab{Period: record.PeriodKey, ID: record.TabID, Title: record.TabName}
+	}
+	return out, nil
+}
+
+func (r *sheetRepository) InSpreadsheet(ctx context.Context, workspaceID, spreadsheetID string) ([]*googlesheet.Sheet, error) {
+	return r.findAll(r.db.WithContext(ctx).Where("workspace_id = ? AND spreadsheet_id = ?", workspaceID, spreadsheetID))
+}
+
+const listAllCap = 1000
+
+func (r *sheetRepository) ListAll(ctx context.Context, workspaceID string) ([]*googlesheet.Sheet, error) {
+	return r.findAll(r.db.WithContext(ctx).Where("workspace_id = ?", workspaceID).Limit(listAllCap))
+}
+
+func (r *sheetRepository) findAll(query *gorm.DB) ([]*googlesheet.Sheet, error) {
+	var records []schema.GoogleSheet
+	if err := query.Order("created_at").Order("id").Find(&records).Error; err != nil {
+		return nil, err
+	}
+	out := make([]*googlesheet.Sheet, 0, len(records))
+	for i := range records {
+		s, err := toSheetDomain(&records[i])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, nil
 }
 
 func (r *sheetRepository) Update(ctx context.Context, s *googlesheet.Sheet, expectedVersion int) error {
@@ -43,6 +127,8 @@ func (r *sheetRepository) Update(ctx context.Context, s *googlesheet.Sheet, expe
 		Updates(map[string]any{
 			"title":         s.Title,
 			"description":   s.Description,
+			"style":         string(s.Style),
+			"tab_pattern":   s.TabPattern,
 			"columns":       columns,
 			"status":        string(s.Status),
 			"reason":        string(s.Reason),
@@ -76,8 +162,14 @@ func (r *sheetRepository) SaveStatus(ctx context.Context, s *googlesheet.Sheet) 
 }
 
 func (r *sheetRepository) UpdateTabName(ctx context.Context, id, tabName string) error {
-	return r.db.WithContext(ctx).Model(&schema.GoogleSheet{}).Where("id = ?", id).
-		Updates(map[string]any{"tab_name": tabName, "updated_at": time.Now().UTC()}).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&schema.GoogleSheet{}).Where("id = ?", id).
+			Updates(map[string]any{"tab_name": tabName, "updated_at": time.Now().UTC()}).Error; err != nil {
+			return err
+		}
+		return tx.Exec(`UPDATE google_sheet_tabs t SET tab_name = ? FROM google_sheets s
+			WHERE s.id = ? AND t.sheet_id = s.id AND t.tab_id = s.tab_id`, tabName, id).Error
+	})
 }
 
 func (r *sheetRepository) Get(ctx context.Context, id string) (*googlesheet.Sheet, error) {
@@ -104,6 +196,9 @@ func (r *sheetRepository) List(ctx context.Context, in googlesheet.ListInput) (*
 	query := r.db.WithContext(ctx).Model(&schema.GoogleSheet{}).Where("workspace_id = ?", in.WorkspaceID)
 	if search := strings.TrimSpace(in.Search); search != "" {
 		query = query.Where("title ILIKE ?", "%"+escapeLike(search)+"%")
+	}
+	if in.TakesInput {
+		query = query.Where("columns @> ?::jsonb", `[{"source":"input","archived":false}]`)
 	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
@@ -152,6 +247,10 @@ func toSheetSchema(s *googlesheet.Sheet) (*schema.GoogleSheet, error) {
 		SpreadsheetID: s.SpreadsheetID,
 		TabID:         s.TabID,
 		TabName:       s.TabName,
+		TabPeriod:     string(s.TabPeriod),
+		TabPattern:    s.TabPattern,
+		TabPeriodKey:  s.TabPeriodKey,
+		Style:         string(s.Style),
 		Title:         s.Title,
 		Description:   s.Description,
 		TimeZone:      s.TimeZone,
@@ -180,6 +279,10 @@ func toSheetDomain(record *schema.GoogleSheet) (*googlesheet.Sheet, error) {
 		SpreadsheetID: record.SpreadsheetID,
 		TabID:         record.TabID,
 		TabName:       record.TabName,
+		TabPeriod:     googlesheet.TabPeriod(record.TabPeriod),
+		TabPattern:    record.TabPattern,
+		TabPeriodKey:  record.TabPeriodKey,
+		Style:         googlesheet.StylePreset(record.Style),
 		Title:         record.Title,
 		Description:   record.Description,
 		TimeZone:      record.TimeZone,

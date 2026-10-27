@@ -94,6 +94,7 @@ type handleWhatsAppMessageUseCase struct {
 	analysis       *AnalysisScheduler
 	receptive      wc.EnsureReceptiveContainerUseCase
 	exitStep       leadexit.Step
+	agentVariables AgentVariables
 }
 
 const failedStatusRefundTTL = 30 * 24 * time.Hour
@@ -188,24 +189,6 @@ func (uc *handleWhatsAppMessageUseCase) messageEvent(agentCtx *agentContext, ent
 		trigger.CampaignID, _ = agentCtx.getCampaignInfo()
 		if agentCtx.wcCampaign != nil {
 			trigger.WorkflowID = agentCtx.automation.WorkflowRef()
-		}
-
-		if agentCtx.wcEntry != nil {
-			campvars := map[string]interface{}{}
-			for i, v := range agentCtx.wcEntry.Variables {
-				campvars[fmt.Sprintf("%d", i+1)] = v
-			}
-			for k, v := range agentCtx.wcEntry.Metadata {
-				campvars[k] = v
-			}
-			if agentCtx.wcLeadRecord != nil {
-				campvars["lead_name"] = agentCtx.wcLeadRecord.RealName()
-				campvars["lead_number"] = agentCtx.wcLeadRecord.Number
-			}
-			if agentCtx.wcCampaign != nil {
-				campvars["campaign_name"] = agentCtx.wcCampaign.Name
-			}
-			trigger.CampaignVars = campvars
 		}
 	}
 
@@ -459,6 +442,7 @@ type HandleWhatsAppMessageDeps struct {
 	WorkflowNames   ActorNameResolver
 	FormReplies     FormReplyReceiver
 	ExitStep        leadexit.Step
+	Variables       AgentVariables
 }
 
 func NewHandleWhatsAppMessageUseCase(d HandleWhatsAppMessageDeps) (conversation.HandleWhatsAppMessageUseCase, error) {
@@ -493,6 +477,7 @@ func NewHandleWhatsAppMessageUseCase(d HandleWhatsAppMessageDeps) (conversation.
 		"workflow names":   d.WorkflowNames,
 		"form replies":     d.FormReplies,
 		"exit step":        d.ExitStep,
+		"agent variables":  d.Variables,
 	}); err != nil {
 		return nil, err
 	}
@@ -536,6 +521,7 @@ func NewHandleWhatsAppMessageUseCase(d HandleWhatsAppMessageDeps) (conversation.
 		workflowNames:           d.WorkflowNames,
 		formReplies:             d.FormReplies,
 		exitStep:                d.ExitStep,
+		agentVariables:          d.Variables,
 	}, nil
 }
 

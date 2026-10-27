@@ -68,7 +68,7 @@ func (c *Container) initTelegram() {
 		Reregister: tguc.NewReregisterWebhookUseCase(bundle.Accounts, api, c.cfg.TelegramWebhookBaseURL),
 		List:       bundle.List,
 		Get:        tguc.NewGetAccountUseCase(bundle.Accounts),
-		UpdateCfg:  tguc.NewUpdateAccountConfigUseCase(bundle.Accounts),
+		UpdateCfg:  tguc.NewUpdateAccountConfigUseCase(bundle.Accounts, c.automationNeeds().receptive),
 		Disconnect: tguc.NewDisconnectAccountUseCase(bundle.Accounts, api),
 		CreateLink: tguc.NewCreateDeepLinkUseCase(bundle.Accounts, bundle.DeepLinks),
 		ListLinks:  tguc.NewListDeepLinksUseCase(bundle.Accounts, bundle.DeepLinks),

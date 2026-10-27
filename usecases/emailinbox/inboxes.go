@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"vozko/domain/automationneeds"
 
 	em "vozko/domain/emailinbox"
 	"vozko/domain/emailsending"
@@ -20,13 +21,14 @@ type Inboxes struct {
 	senders Senders
 	domains SendingDomains
 	refs    ReferenceChecker
+	guard   automationneeds.ReceptiveGuard
 }
 
-func NewInboxes(inboxes em.InboxRepository, senders Senders, domains SendingDomains, refs ReferenceChecker) *Inboxes {
-	if inboxes == nil || senders == nil || domains == nil || refs == nil {
+func NewInboxes(inboxes em.InboxRepository, senders Senders, domains SendingDomains, refs ReferenceChecker, guard automationneeds.ReceptiveGuard) *Inboxes {
+	if inboxes == nil || senders == nil || domains == nil || refs == nil || guard == nil {
 		panic("emailinbox: the inbox settings are missing a dependency")
 	}
-	return &Inboxes{inboxes: inboxes, senders: senders, domains: domains, refs: refs}
+	return &Inboxes{inboxes: inboxes, senders: senders, domains: domains, refs: refs, guard: guard}
 }
 
 func (u *Inboxes) List(ctx context.Context, workspaceID string) ([]*em.Inbox, error) {
@@ -68,9 +70,13 @@ func (u *Inboxes) Update(ctx context.Context, workspaceID, senderID string, sett
 	}); err != nil {
 		return nil, fmt.Errorf("%w: %v", em.ErrInvalidReference, err)
 	}
+	if err := u.guard.Admit(workspaceID, inbox.Automation()); err != nil {
+		return nil, err
+	}
 	if err := u.inboxes.Update(ctx, inbox); err != nil {
 		return nil, err
 	}
+	u.guard.Saved(ctx, workspaceID, automationneeds.SlotEmail, inbox.ID, inbox.Automation())
 	return u.inboxes.FindByID(ctx, workspaceID, senderID)
 }
 

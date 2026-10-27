@@ -8,6 +8,7 @@ const (
 	ReplySkipEmptyReply          = "empty_reply"
 	ReplySkipWindowClosed        = "window_closed"
 	ReplySkipWithheld            = "withheld"
+	ReplySkipVariablesMissing    = "variables_missing"
 )
 
 type ReplySkipped struct {

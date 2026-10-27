@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+	"vozko/domain/automationneeds"
 
 	"vozko/domain/shared"
 	ttdomain "vozko/domain/tiktok"
@@ -25,6 +26,7 @@ type AccountsDeps struct {
 	References automationrefs.Finders
 	Alerts     AccountAlerts
 	Metrics    Metrics
+	Receptive  automationneeds.ReceptiveGuard
 }
 
 type Accounts struct {
@@ -33,9 +35,9 @@ type Accounts struct {
 }
 
 func NewAccounts(d AccountsDeps) *Accounts {
-	if d.Accounts == nil || d.OAuth == nil || d.Alerts == nil || d.Metrics == nil ||
+	if d.Accounts == nil || d.OAuth == nil || d.Alerts == nil || d.Metrics == nil || d.Receptive == nil ||
 		d.References.Agents == nil || d.References.Workflows == nil || d.References.Pipelines == nil || d.References.Departments == nil {
-		panic("tiktok: accounts require the repository, oauth, every reference finder, alerts and metrics")
+		panic("tiktok: accounts require the repository, oauth, every reference finder, alerts, metrics and the receptive guard")
 	}
 	return &Accounts{d: d, now: utcNow}
 }
@@ -93,9 +95,13 @@ func (uc *Accounts) Update(ctx context.Context, in UpdateAccountInput) (*ttdomai
 	}); err != nil {
 		return nil, err
 	}
+	if err := uc.d.Receptive.Admit(account.WorkspaceID, account.Automation()); err != nil {
+		return nil, err
+	}
 	if err := uc.d.Accounts.Update(ctx, account); err != nil {
 		return nil, err
 	}
+	uc.d.Receptive.Saved(ctx, account.WorkspaceID, automationneeds.SlotTikTok, account.ID, account.Automation())
 	return uc.d.Accounts.FindByIDInWorkspace(ctx, in.WorkspaceID, in.ID)
 }
 

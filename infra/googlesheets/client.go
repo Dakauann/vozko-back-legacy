@@ -57,6 +57,12 @@ type sheetProperties struct {
 	GridProperties gridProperties `json:"gridProperties"`
 }
 
+type sheetBody struct {
+	Properties         sheetProperties        `json:"properties"`
+	ConditionalFormats []conditionalRuleState `json:"conditionalFormats,omitempty"`
+	BandedRanges       []bandedRangeState     `json:"bandedRanges,omitempty"`
+}
+
 type spreadsheetBody struct {
 	SpreadsheetID string `json:"spreadsheetId,omitempty"`
 	Properties    struct {
@@ -64,9 +70,17 @@ type spreadsheetBody struct {
 		Locale   string `json:"locale,omitempty"`
 		TimeZone string `json:"timeZone,omitempty"`
 	} `json:"properties"`
-	Sheets []struct {
-		Properties sheetProperties `json:"properties"`
-	} `json:"sheets"`
+	Sheets []sheetBody `json:"sheets"`
+}
+
+func newTabProperties(id int64, title string, layout googlesheet.Layout) sheetProperties {
+	return sheetProperties{SheetID: id, Title: title, GridProperties: gridProperties{
+		RowCount: googlesheet.NewTabRows, ColumnCount: len(layout.Columns) + refColumns, FrozenRowCount: 1,
+	}}
+}
+
+func freshTab(id int64, layout googlesheet.Layout) tabState {
+	return tabState{tabID: id, rows: googlesheet.NewTabRows, columns: len(layout.Columns) + refColumns}
 }
 
 func (c *Client) CreateSpreadsheet(ctx context.Context, token string, spec googlesheet.SpreadsheetSpec) (googlesheet.CreatedSpreadsheet, error) {
@@ -74,11 +88,8 @@ func (c *Client) CreateSpreadsheet(ctx context.Context, token string, spec googl
 	body.Properties.Title = spec.Title
 	body.Properties.Locale = spec.Locale
 	body.Properties.TimeZone = spec.TimeZone
-	body.Sheets = []struct {
-		Properties sheetProperties `json:"properties"`
-	}{{Properties: sheetProperties{Title: spec.TabName, GridProperties: gridProperties{
-		RowCount: 1000, ColumnCount: len(spec.Columns) + 1, FrozenRowCount: 1,
-	}}}}
+	props := newTabProperties(0, spec.TabName, spec.Layout)
+	body.Sheets = []sheetBody{{Properties: sheetProperties{Title: props.Title, GridProperties: props.GridProperties}}}
 	var created spreadsheetBody
 	if err := c.do(ctx, http.MethodPost, c.endpoints.Sheets, token, body, &created); err != nil {
 		return googlesheet.CreatedSpreadsheet{}, err
@@ -87,9 +98,8 @@ func (c *Client) CreateSpreadsheet(ctx context.Context, token string, spec googl
 		return googlesheet.CreatedSpreadsheet{}, fmt.Errorf("googlesheets: create returned no spreadsheet")
 	}
 	out := googlesheet.CreatedSpreadsheet{SpreadsheetID: created.SpreadsheetID, TabID: created.Sheets[0].Properties.SheetID}
-	target := googlesheet.Target{SpreadsheetID: out.SpreadsheetID, TabID: out.TabID, TabName: spec.TabName}
-	requests := append(columnRequests(target.TabID, spec.Columns), protectHeader(target.TabID))
-	if err := c.batchUpdate(ctx, token, target.SpreadsheetID, requests); err != nil {
+	requests := append(layoutRequests(freshTab(out.TabID, spec.Layout), spec.Layout), protectHeader(out.TabID))
+	if err := c.batchUpdate(ctx, token, out.SpreadsheetID, requests); err != nil {
 		return out, err
 	}
 	return out, nil
@@ -99,18 +109,58 @@ func (c *Client) TrashSpreadsheet(ctx context.Context, token, spreadsheetID stri
 	return c.do(ctx, http.MethodPatch, c.endpoints.Drive+"/"+url.PathEscape(spreadsheetID), token, map[string]any{"trashed": true}, nil)
 }
 
-func (c *Client) ApplyColumns(ctx context.Context, token string, target googlesheet.Target, columns []googlesheet.Column) error {
-	info, err := c.TabInfo(ctx, token, target)
+func (c *Client) AddTab(ctx context.Context, token, spreadsheetID string, tab googlesheet.TabSpec) error {
+	requests := []map[string]any{{"addSheet": map[string]any{"properties": newTabProperties(tab.ID, tab.Title, tab.Layout)}}}
+	requests = append(requests, layoutRequests(freshTab(tab.ID, tab.Layout), tab.Layout)...)
+	return c.batchUpdate(ctx, token, spreadsheetID, append(requests, protectHeader(tab.ID)))
+}
+
+func (c *Client) DeleteTab(ctx context.Context, token, spreadsheetID string, tabID int64) error {
+	return c.batchUpdate(ctx, token, spreadsheetID, []map[string]any{{"deleteSheet": map[string]any{"sheetId": tabID}}})
+}
+
+func (c *Client) ApplyLayout(ctx context.Context, token string, target googlesheet.Target, layout googlesheet.Layout) error {
+	sheets, err := c.sheets(ctx, token, target.SpreadsheetID, "sheets(properties(sheetId,title,gridProperties),conditionalFormats,bandedRanges)")
 	if err != nil {
 		return err
 	}
-	var requests []map[string]any
-	if missing := len(columns) + 1 - info.Columns; missing > 0 {
-		requests = append(requests, map[string]any{"appendDimension": map[string]any{
-			"sheetId": target.TabID, "dimension": "COLUMNS", "length": missing,
-		}})
+	for _, sheet := range sheets {
+		if sheet.Properties.SheetID != target.TabID {
+			continue
+		}
+		state := tabState{
+			tabID: target.TabID, rows: sheet.Properties.GridProperties.RowCount, columns: sheet.Properties.GridProperties.ColumnCount,
+			rules: sheet.ConditionalFormats, bandings: sheet.BandedRanges,
+		}
+		return c.batchUpdate(ctx, token, target.SpreadsheetID, layoutRequests(state, layout))
 	}
-	return c.batchUpdate(ctx, token, target.SpreadsheetID, append(requests, columnRequests(target.TabID, columns)...))
+	return tabMissing()
+}
+
+func (c *Client) Workbook(ctx context.Context, token, spreadsheetID string) (googlesheet.Workbook, error) {
+	sheets, err := c.sheets(ctx, token, spreadsheetID, "sheets.properties(sheetId,title,gridProperties)")
+	if err != nil {
+		return googlesheet.Workbook{}, err
+	}
+	wb := googlesheet.Workbook{Tabs: make([]googlesheet.TabInfo, 0, len(sheets))}
+	for _, sheet := range sheets {
+		p := sheet.Properties
+		wb.Tabs = append(wb.Tabs, googlesheet.TabInfo{ID: p.SheetID, Title: p.Title, Rows: p.GridProperties.RowCount, Columns: p.GridProperties.ColumnCount})
+	}
+	return wb, nil
+}
+
+func (c *Client) sheets(ctx context.Context, token, spreadsheetID, fields string) ([]sheetBody, error) {
+	endpoint := c.endpoints.Sheets + "/" + url.PathEscape(spreadsheetID) + "?" + url.Values{"fields": {fields}}.Encode()
+	var out spreadsheetBody
+	if err := c.do(ctx, http.MethodGet, endpoint, token, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Sheets, nil
+}
+
+func tabMissing() error {
+	return &APIError{Status: http.StatusNotFound, Reason: "tab_missing", Message: "a aba da planilha foi removida"}
 }
 
 type appendResponse struct {
@@ -122,16 +172,39 @@ type appendResponse struct {
 
 var firstRowPattern = regexp.MustCompile(`![A-Z]+(\d+)`)
 
+func enteredValues(rows [][]any) [][]any {
+	out := make([][]any, len(rows))
+	for i, row := range rows {
+		cells := make([]any, len(row))
+		for j, cell := range row {
+			switch v := cell.(type) {
+			case googlesheet.Formula:
+				cells[j] = string(v)
+			case string:
+				if v == "" {
+					cells[j] = ""
+					continue
+				}
+				cells[j] = "'" + v
+			default:
+				cells[j] = v
+			}
+		}
+		out[i] = cells
+	}
+	return out
+}
+
 func (c *Client) AppendRows(ctx context.Context, token string, target googlesheet.Target, rows [][]any) (googlesheet.AppendResult, error) {
 	a1 := quotedTab(target.TabName) + "!A1"
 	query := url.Values{
-		"valueInputOption":        {"RAW"},
+		"valueInputOption":        {"USER_ENTERED"},
 		"insertDataOption":        {"INSERT_ROWS"},
 		"includeValuesInResponse": {"false"},
 	}
 	endpoint := c.endpoints.Sheets + "/" + url.PathEscape(target.SpreadsheetID) + "/values/" + url.PathEscape(a1) + ":append?" + query.Encode()
 	var out appendResponse
-	if err := c.do(ctx, http.MethodPost, endpoint, token, map[string]any{"range": a1, "majorDimension": "ROWS", "values": rows}, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, endpoint, token, map[string]any{"range": a1, "majorDimension": "ROWS", "values": enteredValues(rows)}, &out); err != nil {
 		return googlesheet.AppendResult{}, err
 	}
 	match := firstRowPattern.FindStringSubmatch(out.Updates.UpdatedRange)
@@ -154,24 +227,6 @@ func (c *Client) ReadRange(ctx context.Context, token string, target googlesheet
 	return out.Values, nil
 }
 
-func (c *Client) TabInfo(ctx context.Context, token string, target googlesheet.Target) (googlesheet.TabInfo, error) {
-	endpoint := c.endpoints.Sheets + "/" + url.PathEscape(target.SpreadsheetID) + "?" + url.Values{"fields": {"sheets.properties(sheetId,title,gridProperties)"}}.Encode()
-	var out spreadsheetBody
-	if err := c.do(ctx, http.MethodGet, endpoint, token, nil, &out); err != nil {
-		return googlesheet.TabInfo{}, err
-	}
-	for _, sheet := range out.Sheets {
-		if sheet.Properties.SheetID == target.TabID {
-			return googlesheet.TabInfo{
-				Title:   sheet.Properties.Title,
-				Rows:    sheet.Properties.GridProperties.RowCount,
-				Columns: sheet.Properties.GridProperties.ColumnCount,
-			}, nil
-		}
-	}
-	return googlesheet.TabInfo{}, &APIError{Status: http.StatusNotFound, Reason: "tab_missing", Message: "a aba da planilha foi removida"}
-}
-
 func (c *Client) batchUpdate(ctx context.Context, token, spreadsheetID string, requests []map[string]any) error {
 	if len(requests) == 0 {
 		return nil
@@ -181,7 +236,7 @@ func (c *Client) batchUpdate(ctx context.Context, token, spreadsheetID string, r
 }
 
 func quotedTab(name string) string {
-	return "'" + name + "'"
+	return "'" + strings.ReplaceAll(name, "'", "''") + "'"
 }
 
 func (c *Client) do(ctx context.Context, method, endpoint, token string, body, out any) error {

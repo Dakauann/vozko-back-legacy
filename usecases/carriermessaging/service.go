@@ -3,6 +3,7 @@ package carriermessaging_usecase
 import (
 	"errors"
 	"time"
+	"vozko/domain/automationneeds"
 
 	"github.com/google/uuid"
 
@@ -33,6 +34,7 @@ type Deps struct {
 	RemoteMedia         RemoteMedia
 	MediaURLs           *conversation.MediaURLResolver
 	AutomationRefs      AutomationRefs
+	Receptive           automationneeds.ReceptiveGuard
 	PlatformName        string
 	PlatformEmailDomain string
 	SMSSharedNumber     string
@@ -49,7 +51,7 @@ func NewService(d Deps) (*Service, error) {
 	required := []any{
 		d.Repos.Senders, d.Repos.Messages, d.Repos.Events, d.Repos.Suppressions, d.Repos.Settings,
 		d.Repos.Contacts, d.Repos.RCSConversations, d.Repos.SMSConversations, d.Repos.Routes, d.Provider, d.SMS, d.Charges, d.Balance, d.Spend,
-		d.Links, d.Leads, d.Transcript, d.TranscriptStatus, d.Announcer, d.Timezones, d.WhatsApp, d.Notices, d.Inbox, d.Documents, d.Library, d.RemoteMedia, d.AutomationRefs, d.MediaURLs,
+		d.Links, d.Leads, d.Transcript, d.TranscriptStatus, d.Announcer, d.Timezones, d.WhatsApp, d.Notices, d.Inbox, d.Documents, d.Library, d.RemoteMedia, d.AutomationRefs, d.Receptive, d.MediaURLs,
 	}
 	for _, dep := range required {
 		if isNil(dep) {

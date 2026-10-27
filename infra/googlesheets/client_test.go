@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -52,89 +51,6 @@ func columns() []googlesheet.Column {
 		{Key: "valor", Header: "Valor", Type: googlesheet.TypeMoney, Source: googlesheet.SourceInput},
 		{Key: "status", Header: "Status", Type: googlesheet.TypeChoice, Options: []string{"Novo", "Pago"}, Source: googlesheet.SourceInput},
 		{Key: "aceitou", Header: "Aceitou", Type: googlesheet.TypeBoolean, Source: googlesheet.SourceInput},
-	}
-}
-
-func TestCreateSpreadsheetBuildsTheHeaderFormatsAndProtection(t *testing.T) {
-	client, calls := fakeGoogle(t, func(r *http.Request) (int, string) {
-		if strings.HasSuffix(r.URL.Path, ":batchUpdate") {
-			return 200, `{}`
-		}
-		return 200, `{"spreadsheetId":"sp-1","sheets":[{"properties":{"sheetId":77,"title":"Pedidos"}}]}`
-	})
-	created, err := client.CreateSpreadsheet(context.Background(), "token", googlesheet.SpreadsheetSpec{
-		Title: "Pedidos", TabName: "Pedidos", Locale: "pt_BR", TimeZone: "America/Sao_Paulo", Columns: columns(),
-	})
-	if err != nil {
-		t.Fatalf("CreateSpreadsheet: %v", err)
-	}
-	if created.SpreadsheetID != "sp-1" || created.TabID != 77 {
-		t.Fatalf("created = %+v", created)
-	}
-	if len(*calls) != 2 {
-		t.Fatalf("calls = %d, want create plus one batch update", len(*calls))
-	}
-	create := (*calls)[0]
-	props := create.body["properties"].(map[string]any)
-	if props["locale"] != "pt_BR" || props["timeZone"] != "America/Sao_Paulo" {
-		t.Fatalf("properties = %v", props)
-	}
-	batch, _ := json.Marshal((*calls)[1].body)
-	text := string(batch)
-	for _, want := range []string{`"stringValue":"ref"`, `"stringValue":"Nome"`, `"hiddenByUser":true`, `"CURRENCY"`, `"ONE_OF_LIST"`, `"BOOLEAN"`, `"warningOnly":true`} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("batch update misses %s: %s", want, text)
-		}
-	}
-}
-
-func TestAppendRowsWritesRawValuesAndReturnsTheFirstRow(t *testing.T) {
-	client, calls := fakeGoogle(t, func(*http.Request) (int, string) {
-		return 200, `{"updates":{"updatedRange":"'Pedidos'!A5:E7","updatedRows":3}}`
-	})
-	result, err := client.AppendRows(context.Background(), "token", googlesheet.Target{SpreadsheetID: "sp-1", TabName: "Pedidos"}, [][]any{{"r1", "=1+1"}})
-	if err != nil {
-		t.Fatalf("AppendRows: %v", err)
-	}
-	if result.FirstRow != 5 || result.Rows != 3 {
-		t.Fatalf("result = %+v", result)
-	}
-	call := (*calls)[0]
-	if !strings.Contains(call.query, "valueInputOption=RAW") || !strings.Contains(call.query, "insertDataOption=INSERT_ROWS") {
-		t.Fatalf("query = %s; values must be written raw so text never becomes a formula", call.query)
-	}
-	if !strings.HasSuffix(call.path, ":append") || !strings.Contains(call.path, "%27Pedidos%27%21A1") {
-		t.Fatalf("path = %s", call.path)
-	}
-}
-
-func TestTabInfoFindsTheTabByID(t *testing.T) {
-	client, _ := fakeGoogle(t, func(*http.Request) (int, string) {
-		return 200, `{"sheets":[{"properties":{"sheetId":1,"title":"Outra"}},{"properties":{"sheetId":77,"title":"Renomeada","gridProperties":{"rowCount":1200,"columnCount":6}}}]}`
-	})
-	info, err := client.TabInfo(context.Background(), "token", googlesheet.Target{SpreadsheetID: "sp-1", TabID: 77})
-	if err != nil || info.Title != "Renomeada" || info.Rows != 1200 || info.Columns != 6 {
-		t.Fatalf("TabInfo = %+v, %v", info, err)
-	}
-	_, err = client.TabInfo(context.Background(), "token", googlesheet.Target{SpreadsheetID: "sp-1", TabID: 99})
-	if got := (Classifier{}).Classify(err); got.Kind != googlesheet.FailureNotFound {
-		t.Fatalf("a removed tab classified as %s", got.Kind)
-	}
-}
-
-func TestApplyColumnsGrowsTheGridBeforeWritingNewHeaders(t *testing.T) {
-	client, calls := fakeGoogle(t, func(r *http.Request) (int, string) {
-		if r.Method == http.MethodGet {
-			return 200, `{"sheets":[{"properties":{"sheetId":77,"title":"Pedidos","gridProperties":{"rowCount":1000,"columnCount":3}}}]}`
-		}
-		return 200, `{}`
-	})
-	if err := client.ApplyColumns(context.Background(), "token", googlesheet.Target{SpreadsheetID: "sp-1", TabID: 77, TabName: "Pedidos"}, columns()); err != nil {
-		t.Fatalf("ApplyColumns: %v", err)
-	}
-	batch, _ := json.Marshal((*calls)[1].body)
-	if !strings.Contains(string(batch), `"appendDimension"`) || !strings.Contains(string(batch), `"length":2`) {
-		t.Fatalf("grid not grown: %s", batch)
 	}
 }
 

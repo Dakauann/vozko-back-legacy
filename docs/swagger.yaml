@@ -496,26 +496,26 @@ definitions:
     type: object
   advertising.Destination:
     enum:
+    - WHATSAPP
+    - MESSENGER
+    - INSTAGRAM_DIRECT
     - WEBSITE
     - ON_AD
     - APP
     - ON_POST
     - NONE
     - CATALOG
-    - WHATSAPP
-    - MESSENGER
-    - INSTAGRAM_DIRECT
     type: string
     x-enum-varnames:
+    - DestinationWhatsApp
+    - DestinationMessenger
+    - DestinationInstagramDirect
     - DestinationWebsite
     - DestinationInstantForm
     - DestinationApp
     - DestinationOnPost
     - DestinationNone
     - DestinationCatalog
-    - DestinationWhatsApp
-    - DestinationMessenger
-    - DestinationInstagramDirect
   advertising.ExportLabels:
     properties:
       breakdowns:
@@ -806,6 +806,7 @@ definitions:
     - ObjectiveAppPromotion
   advertising.OptimizationGoal:
     enum:
+    - CONVERSATIONS
     - REACH
     - IMPRESSIONS
     - AD_RECALL_LIFT
@@ -819,9 +820,9 @@ definitions:
     - OFFSITE_CONVERSIONS
     - VALUE
     - APP_INSTALLS
-    - CONVERSATIONS
     type: string
     x-enum-varnames:
+    - GoalConversations
     - GoalReach
     - GoalImpressions
     - GoalAdRecallLift
@@ -835,7 +836,6 @@ definitions:
     - GoalOffsiteConversion
     - GoalValue
     - GoalAppInstalls
-    - GoalConversations
   advertising.Pixel:
     properties:
       creationTime:
@@ -4236,7 +4236,6 @@ definitions:
     type: object
   attendance.Section:
     enum:
-    - service_messages
     - summary
     - trend
     - stages
@@ -4244,9 +4243,9 @@ definitions:
     - team
     - rework
     - live
+    - service_messages
     type: string
     x-enum-varnames:
-    - SectionServiceMessages
     - SectionSummary
     - SectionTrend
     - SectionStages
@@ -4254,6 +4253,7 @@ definitions:
     - SectionTeam
     - SectionRework
     - SectionLive
+    - SectionServiceMessages
   attendance.ServiceMessageBucket:
     properties:
       bucket:
@@ -5628,6 +5628,161 @@ definitions:
         type: string
     required:
     - token
+    type: object
+  automationneedshttp.AutomationRequest:
+    properties:
+      id:
+        example: 5b1f0c9e-2a4d-4c55-9d3e-1f2a3b4c5d6e
+        type: string
+      kind:
+        enum:
+        - agent
+        - workflow
+        example: agent
+        type: string
+    type: object
+  automationneedshttp.ConversationVariablesRequest:
+    properties:
+      automation:
+        $ref: '#/definitions/automationneedshttp.AutomationRequest'
+      values:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  automationneedshttp.EligibilityListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/automationneedshttp.EligibilityResponse'
+        type: array
+    type: object
+  automationneedshttp.EligibilityResponse:
+    properties:
+      automation:
+        $ref: '#/definitions/automationneedsx.LinkResponse'
+      readable:
+        type: boolean
+      receptiveEligible:
+        type: boolean
+      variables:
+        items:
+          $ref: '#/definitions/automationneedsx.NeedResponse'
+        type: array
+    type: object
+  automationneedshttp.ImpactResponse:
+    properties:
+      impact:
+        items:
+          $ref: '#/definitions/automationneedsx.SwitchOffResponse'
+        type: array
+    type: object
+  automationneedshttp.SwitchOffNoticeResponse:
+    properties:
+      automation:
+        $ref: '#/definitions/automationneedsx.LinkResponse'
+      channel:
+        $ref: '#/definitions/automationneedsx.SlotResponse'
+      eligibleNow:
+        type: boolean
+      stillNeeded:
+        items:
+          $ref: '#/definitions/automationneedsx.NeedResponse'
+        type: array
+      switchedOffAt:
+        type: string
+      variables:
+        items:
+          type: string
+        type: array
+    type: object
+  automationneedshttp.SwitchOffResponse:
+    properties:
+      notice:
+        $ref: '#/definitions/automationneedshttp.SwitchOffNoticeResponse'
+    type: object
+  automationneedsx.LinkResponse:
+    properties:
+      id:
+        example: 5b1f0c9e-2a4d-4c55-9d3e-1f2a3b4c5d6e
+        type: string
+      kind:
+        enum:
+        - agent
+        - workflow
+        example: workflow
+        type: string
+      name:
+        example: Cobrança
+        type: string
+    type: object
+  automationneedsx.NeedResponse:
+    properties:
+      description:
+        example: Nome do cliente na planilha
+        type: string
+      name:
+        example: nome_cliente
+        type: string
+      via:
+        items:
+          $ref: '#/definitions/automationneedsx.LinkResponse'
+        type: array
+    type: object
+  automationneedsx.RefusalDetails:
+    properties:
+      automation:
+        $ref: '#/definitions/automationneedsx.LinkResponse'
+      impact:
+        items:
+          $ref: '#/definitions/automationneedsx.SwitchOffResponse'
+        type: array
+      values:
+        additionalProperties:
+          type: string
+        type: object
+      variables:
+        items:
+          $ref: '#/definitions/automationneedsx.NeedResponse'
+        type: array
+    type: object
+  automationneedsx.SlotResponse:
+    properties:
+      id:
+        example: 3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f
+        type: string
+      kind:
+        enum:
+        - whatsapp_number
+        - unofficial_whatsapp
+        - instagram
+        - facebook
+        - telegram
+        - webchat
+        - tiktok
+        - mercadolivre
+        - email
+        - rcs
+        - sms
+        example: instagram
+        type: string
+      name:
+        example: '@loja'
+        type: string
+      path:
+        example: /dashboard/instagram-accounts/3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f
+        type: string
+    type: object
+  automationneedsx.SwitchOffResponse:
+    properties:
+      automation:
+        $ref: '#/definitions/automationneedsx.LinkResponse'
+      channel:
+        $ref: '#/definitions/automationneedsx.SlotResponse'
+      variables:
+        items:
+          $ref: '#/definitions/automationneedsx.NeedResponse'
+        type: array
     type: object
   balance.FullBalanceSummaryResponse:
     properties:
@@ -7719,6 +7874,14 @@ definitions:
       selected:
         type: integer
     type: object
+  campaignaudience.SlotKind:
+    enum:
+    - template
+    - automation
+    type: string
+    x-enum-varnames:
+    - SlotTemplate
+    - SlotAutomation
   campaignaudience.Source:
     enum:
     - leads
@@ -7744,9 +7907,17 @@ definitions:
         type: boolean
       key:
         type: string
+      kind:
+        allOf:
+        - $ref: '#/definitions/campaignaudience.SlotKind'
+        enum:
+        - template
+        - automation
       missing:
         type: integer
       name:
+        type: string
+      neededBy:
         type: string
       policy:
         $ref: '#/definitions/campaignaudience.MissingPolicy'
@@ -10329,32 +10500,6 @@ definitions:
     - Or
   crmfilter.Field:
     enum:
-    - id
-    - phone_any
-    - email
-    - nickname
-    - birthday
-    - birth_date
-    - zip
-    - state
-    - city
-    - district
-    - geo_precision
-    - geo_status
-    - has_address
-    - has_identity
-    - opted_out
-    - whatsapp_opt_in
-    - relation_kind
-    - relatives_count
-    - referred_count
-    - referred_by
-    - geo_placement
-    - opt_out_source
-    - opted_out_at
-    - company
-    - sentiment
-    - area_approximate
     - owner
     - carteira
     - pipeline
@@ -10387,34 +10532,34 @@ definitions:
     - memory_updated_at
     - custom
     - area
+    - id
+    - phone_any
+    - email
+    - nickname
+    - birthday
+    - birth_date
+    - zip
+    - state
+    - city
+    - district
+    - geo_precision
+    - geo_status
+    - has_address
+    - has_identity
+    - opted_out
+    - whatsapp_opt_in
+    - relation_kind
+    - relatives_count
+    - referred_count
+    - referred_by
+    - geo_placement
+    - opt_out_source
+    - opted_out_at
+    - company
+    - sentiment
+    - area_approximate
     type: string
     x-enum-varnames:
-    - FieldID
-    - FieldPhoneAny
-    - FieldEmail
-    - FieldNickname
-    - FieldBirthday
-    - FieldBirthDate
-    - FieldZip
-    - FieldState
-    - FieldCity
-    - FieldDistrict
-    - FieldGeoPrecision
-    - FieldGeoStatus
-    - FieldHasAddress
-    - FieldHasIdentity
-    - FieldOptedOut
-    - FieldWhatsAppOptIn
-    - FieldRelationKind
-    - FieldRelativesCount
-    - FieldReferredCount
-    - FieldReferredBy
-    - FieldGeoPlacement
-    - FieldOptOutSource
-    - FieldOptedOutAt
-    - FieldCompany
-    - FieldSentiment
-    - FieldAreaApproximate
     - FieldOwner
     - FieldCarteira
     - FieldPipeline
@@ -10447,6 +10592,32 @@ definitions:
     - FieldMemoryUpdatedAt
     - FieldCustom
     - FieldArea
+    - FieldID
+    - FieldPhoneAny
+    - FieldEmail
+    - FieldNickname
+    - FieldBirthday
+    - FieldBirthDate
+    - FieldZip
+    - FieldState
+    - FieldCity
+    - FieldDistrict
+    - FieldGeoPrecision
+    - FieldGeoStatus
+    - FieldHasAddress
+    - FieldHasIdentity
+    - FieldOptedOut
+    - FieldWhatsAppOptIn
+    - FieldRelationKind
+    - FieldRelativesCount
+    - FieldReferredCount
+    - FieldReferredBy
+    - FieldGeoPlacement
+    - FieldOptOutSource
+    - FieldOptedOutAt
+    - FieldCompany
+    - FieldSentiment
+    - FieldAreaApproximate
   crmfilter.Filter:
     properties:
       groups:
@@ -13162,14 +13333,28 @@ definitions:
         items:
           type: string
         type: array
+      defaultLinkLabel:
+        type: string
+      defaultStyle:
+        type: string
       defaultTimeZone:
         type: string
       maxHeader:
         type: integer
       maxInstruction:
         type: integer
+      maxLinkLabel:
+        type: integer
       maxOption:
         type: integer
+      maxTabName:
+        type: integer
+      maxTitle:
+        type: integer
+      optionColors:
+        items:
+          $ref: '#/definitions/googlesheet.OptionColorResponse'
+        type: array
       rowErrorCodes:
         items:
           type: string
@@ -13177,6 +13362,18 @@ definitions:
       sources:
         items:
           $ref: '#/definitions/googlesheet.SourceResponse'
+        type: array
+      styles:
+        items:
+          $ref: '#/definitions/googlesheet.StyleResponse'
+        type: array
+      tabPeriods:
+        items:
+          type: string
+        type: array
+      tabTokens:
+        items:
+          type: string
         type: array
       types:
         items:
@@ -13187,11 +13384,24 @@ definitions:
     type: object
   googlesheet.ColumnRequest:
     properties:
+      colors:
+        additionalProperties:
+          type: string
+        type: object
       header:
         example: Nome do cliente
         type: string
       instruction:
         example: Nome completo como o cliente informou
+        type: string
+      linkLabel:
+        example: Ver negociação
+        type: string
+      linkSheetId:
+        example: 8f8e5f7a-3c1d-4a77-9a55-0d6f0f3b2a11
+        type: string
+      linkSheetRef:
+        example: negociacoes
         type: string
       options:
         items:
@@ -13213,6 +13423,7 @@ definitions:
         - message_direction
         - message_text
         - message_media_url
+        - export_link
         example: input
         type: string
       type:
@@ -13228,6 +13439,7 @@ definitions:
         - email
         - phone
         - url
+        - link
         example: text
         type: string
     type: object
@@ -13235,6 +13447,10 @@ definitions:
     properties:
       archived:
         type: boolean
+      colors:
+        additionalProperties:
+          type: string
+        type: object
       header:
         example: Nome do cliente
         type: string
@@ -13242,6 +13458,10 @@ definitions:
         type: string
       key:
         example: nome_do_cliente
+        type: string
+      linkLabel:
+        type: string
+      linkSheetId:
         type: string
       options:
         items:
@@ -13260,12 +13480,18 @@ definitions:
     properties:
       archived:
         type: boolean
+      colors:
+        additionalProperties:
+          type: string
+        type: object
       header:
         type: string
       instruction:
         type: string
       key:
         example: valor
+        type: string
+      linkLabel:
         type: string
       options:
         items:
@@ -13283,8 +13509,29 @@ definitions:
       description:
         example: Pedidos registrados pelo agente de vendas
         type: string
+      spreadsheetId:
+        example: 1AbC
+        type: string
+      style:
+        enum:
+        - plain
+        - graphite
+        - blue
+        - green
+        - purple
+        example: graphite
+        type: string
       tabName:
         example: Pedidos
+        type: string
+      tabPattern:
+        example: Pagamentos · {mes} {ano}
+        type: string
+      tabPeriod:
+        enum:
+        - none
+        - month
+        example: none
         type: string
       timeZone:
         example: America/Sao_Paulo
@@ -13335,6 +13582,106 @@ definitions:
         type: integer
       writtenCapped:
         type: boolean
+    type: object
+  googlesheet.LayoutRequest:
+    properties:
+      style:
+        enum:
+        - plain
+        - graphite
+        - blue
+        - green
+        - purple
+        example: green
+        type: string
+      tabPattern:
+        example: Pagamentos · {mes} {ano}
+        type: string
+      version:
+        example: 3
+        type: integer
+    type: object
+  googlesheet.OptionColorResponse:
+    properties:
+      fill:
+        example: '#1E8E3E'
+        type: string
+      key:
+        example: green
+        type: string
+      text:
+        example: '#FFFFFF'
+        type: string
+    type: object
+  googlesheet.PresetColumnResponse:
+    properties:
+      colors:
+        additionalProperties:
+          type: string
+        type: object
+      instruction:
+        type: boolean
+      key:
+        example: baixa
+        type: string
+      linkRef:
+        example: negociacoes
+        type: string
+      options:
+        items:
+          type: string
+        type: array
+      required:
+        type: boolean
+      source:
+        example: input
+        type: string
+      type:
+        example: choice
+        type: string
+    type: object
+  googlesheet.PresetListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/googlesheet.PresetResponse'
+        type: array
+    type: object
+  googlesheet.PresetResponse:
+    properties:
+      icon:
+        example: Receipt
+        type: string
+      key:
+        example: cobranca
+        type: string
+      sheets:
+        items:
+          $ref: '#/definitions/googlesheet.PresetSheetResponse'
+        type: array
+    type: object
+  googlesheet.PresetSheetResponse:
+    properties:
+      columns:
+        items:
+          $ref: '#/definitions/googlesheet.PresetColumnResponse'
+        type: array
+      ref:
+        example: pagamentos
+        type: string
+      style:
+        enum:
+        - plain
+        - graphite
+        - blue
+        - green
+        - purple
+        type: string
+      tabPeriod:
+        enum:
+        - none
+        - month
+        type: string
     type: object
   googlesheet.ProblemRowResponse:
     properties:
@@ -13412,14 +13759,36 @@ definitions:
         type: string
       reasonDetail:
         type: string
+      spreadsheetId:
+        type: string
       status:
         enum:
         - active
         - needs_attention
         example: active
         type: string
+      style:
+        enum:
+        - plain
+        - graphite
+        - blue
+        - green
+        - purple
+        type: string
       tabName:
         type: string
+      tabPattern:
+        type: string
+      tabPeriod:
+        enum:
+        - none
+        - month
+        type: string
+      tabPeriodKey:
+        example: 2026-11
+        type: string
+      takesInput:
+        type: boolean
       takesMessages:
         type: boolean
       timeZone:
@@ -13443,6 +13812,95 @@ definitions:
         example: phone
         type: string
     type: object
+  googlesheet.SpreadsheetListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/googlesheet.SpreadsheetResponse'
+        type: array
+    type: object
+  googlesheet.SpreadsheetResponse:
+    properties:
+      sheets:
+        items:
+          $ref: '#/definitions/googlesheet.SpreadsheetSheetResponse'
+        type: array
+      spreadsheetId:
+        type: string
+      title:
+        type: string
+      url:
+        type: string
+      usable:
+        type: boolean
+    type: object
+  googlesheet.SpreadsheetSheetResponse:
+    properties:
+      id:
+        type: string
+      status:
+        enum:
+        - active
+        - needs_attention
+        type: string
+      tabName:
+        type: string
+      tabPeriod:
+        enum:
+        - none
+        - month
+        type: string
+      tabs:
+        items:
+          $ref: '#/definitions/googlesheet.TabResponse'
+        type: array
+      takesMessages:
+        type: boolean
+      title:
+        type: string
+    type: object
+  googlesheet.StyleResponse:
+    properties:
+      band:
+        example: '#F2F8F4'
+        type: string
+      header:
+        example: '#1E7A4C'
+        type: string
+      headerText:
+        example: '#FFFFFF'
+        type: string
+      key:
+        example: green
+        type: string
+    type: object
+  googlesheet.TabNamePreviewRequest:
+    properties:
+      pattern:
+        example: Pagamentos · {mes} {ano}
+        type: string
+      timeZone:
+        example: America/Sao_Paulo
+        type: string
+    type: object
+  googlesheet.TabNamePreviewResponse:
+    properties:
+      period:
+        example: 2026-11
+        type: string
+      title:
+        example: Pagamentos · novembro 2026
+        type: string
+    type: object
+  googlesheet.TabResponse:
+    properties:
+      period:
+        example: 2026-11
+        type: string
+      title:
+        example: Pagamentos · novembro 2026
+        type: string
+    type: object
   googlesheet.UpdateDetailsRequest:
     properties:
       description:
@@ -13452,6 +13910,66 @@ definitions:
       version:
         example: 3
         type: integer
+    type: object
+  googlesheet.WorkbookRequest:
+    properties:
+      sheets:
+        items:
+          $ref: '#/definitions/googlesheet.WorkbookSheetRequest'
+        type: array
+      spreadsheetId:
+        example: 1AbC
+        type: string
+    type: object
+  googlesheet.WorkbookResponse:
+    properties:
+      sheets:
+        items:
+          $ref: '#/definitions/googlesheet.SheetResponse'
+        type: array
+    type: object
+  googlesheet.WorkbookSheetRequest:
+    properties:
+      columns:
+        items:
+          $ref: '#/definitions/googlesheet.ColumnRequest'
+        type: array
+      description:
+        example: Pedidos registrados pelo agente de vendas
+        type: string
+      ref:
+        example: pagamentos
+        type: string
+      spreadsheetId:
+        example: 1AbC
+        type: string
+      style:
+        enum:
+        - plain
+        - graphite
+        - blue
+        - green
+        - purple
+        example: graphite
+        type: string
+      tabName:
+        example: Pedidos
+        type: string
+      tabPattern:
+        example: Pagamentos · {mes} {ano}
+        type: string
+      tabPeriod:
+        enum:
+        - none
+        - month
+        example: none
+        type: string
+      timeZone:
+        example: America/Sao_Paulo
+        type: string
+      title:
+        example: Pedidos do site
+        type: string
     type: object
   handlers.SimulateAgentHistoryMessage:
     properties:
@@ -18426,6 +18944,7 @@ definitions:
     type: object
   report.FailureCode:
     enum:
+    - forbidden
     - unknown_kind
     - unsupported_format
     - too_many_rows
@@ -18436,9 +18955,9 @@ definitions:
     - cancelled
     - workspace_required
     - empty_result
-    - forbidden
     type: string
     x-enum-varnames:
+    - FailureForbidden
     - FailureUnknownKind
     - FailureUnsupported
     - FailureTooManyRows
@@ -18449,7 +18968,6 @@ definitions:
     - FailureCancelled
     - FailureWorkspaceEmpty
     - FailureEmptyResult
-    - FailureForbidden
   report.Format:
     enum:
     - csv
@@ -18501,22 +19019,22 @@ definitions:
     type: object
   report.Kind:
     enum:
+    - leads
+    - whatsapp_dispatch
+    - whatsapp_form_responses
     - attendance_overview
     - conversation_entries
     - balance_transactions
     - opportunities
-    - leads
-    - whatsapp_dispatch
-    - whatsapp_form_responses
     type: string
     x-enum-varnames:
+    - KindLeads
+    - KindWhatsAppDispatch
+    - KindWhatsAppFormResponses
     - KindAttendanceOverview
     - KindConversationEntries
     - KindBalanceTransactions
     - KindOpportunities
-    - KindLeads
-    - KindWhatsAppDispatch
-    - KindWhatsAppFormResponses
   report.KindDescriptor:
     properties:
       formats:
@@ -24806,8 +25324,14 @@ definitions:
     type: object
   workflow.LintIssueCode:
     enum:
+    - DATA_REF_NEVER_SET
+    - DATA_REF_SOME_PATHS
     - NODE_AGENT_CALL_INPUTS_INVALID
     - NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER
+    - NODE_INVALID_PLATFORM_EMAIL
+    - NODE_HTTP_URL_NOT_HTTPS
+    - NODE_CONSENT_GRANT_NEEDS_REPLY
+    - SEND_OUTSIDE_WINDOW_RISK
     - GRAPH_EMPTY
     - GRAPH_TOO_MANY_NODES
     - GRAPH_TOO_MANY_EDGES
@@ -24856,16 +25380,16 @@ definitions:
     - NODE_CODE_READS_TEMPLATE
     - NODE_SECRET_IN_PLAIN_TEXT
     - NODE_PINNED_OUTPUT
-    - NODE_HTTP_URL_NOT_HTTPS
-    - DATA_REF_NEVER_SET
-    - DATA_REF_SOME_PATHS
-    - SEND_OUTSIDE_WINDOW_RISK
-    - NODE_INVALID_PLATFORM_EMAIL
-    - NODE_CONSENT_GRANT_NEEDS_REPLY
     type: string
     x-enum-varnames:
+    - LintDataRefNeverSet
+    - LintDataRefSomePaths
     - LintAgentCallInputsInvalid
     - LintReplyToAgentWithoutTrigger
+    - LintInvalidPlatformEmail
+    - LintHTTPURLNotHTTPS
+    - LintConsentGrantNeedsReply
+    - LintSendOutsideWindowRisk
     - LintGraphEmpty
     - LintGraphTooManyNodes
     - LintGraphTooManyEdges
@@ -24914,12 +25438,6 @@ definitions:
     - LintCodeReadsTemplate
     - LintSecretInPlainText
     - LintPinnedOutput
-    - LintHTTPURLNotHTTPS
-    - LintDataRefNeverSet
-    - LintDataRefSomePaths
-    - LintSendOutsideWindowRisk
-    - LintInvalidPlatformEmail
-    - LintConsentGrantNeedsReply
   workflow.LintSeverity:
     enum:
     - blocking
@@ -29901,6 +30419,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: true confirma desligar os canais receptivos listados em GET /automation-needs/agent/{id}/publish-impact
+        in: query
+        name: confirmSwitchOff
+        type: boolean
       produces:
       - application/json
       responses:
@@ -29912,6 +30434,17 @@ paths:
           description: agent_forbidden
           schema:
             $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: 'automation_publish_switches_off: a nova versão exige variáveis
+            e desligaria canais receptivos; details.impact lista os canais. Confirme
+            com confirmSwitchOff=true'
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/automationneedsx.RefusalDetails'
+              type: object
         "422":
           description: agent_not_publishable
           schema:
@@ -32321,6 +32854,133 @@ paths:
       summary: Verificar um email com um token
       tags:
       - Autenticação
+  /automation-needs:
+    get:
+      description: 'Para cada agente e fluxo pedido, lista as variáveis que a automação
+        precisa em cada conversa, já seguindo o agente que um nó de IA usa, os subfluxos
+        e os fluxos que o agente chama. lead_name, lead_number e campaign_name nunca
+        aparecem: a plataforma sempre preenche. receptiveEligible diz se a automação
+        pode atender conversas receptivas (que o cliente começa, sem dados de campanha):
+        só quando não exige nenhuma variável e pôde ser lida. Os seletores de automação
+        dos canais usam este retorno para marcar as opções que não podem ser ligadas;
+        a regra é só do backend.'
+      parameters:
+      - description: IDs de agentes separados por vírgula
+        in: query
+        name: agents
+        type: string
+      - description: IDs de fluxos separados por vírgula
+        in: query
+        name: workflows
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/automationneedshttp.EligibilityListResponse'
+        "400":
+          description: 'automation_needs_too_many: no máximo 100 automações por pedido'
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Variáveis que agentes e fluxos exigem
+      tags:
+      - Automações
+  /automation-needs/{kind}/{id}/publish-impact:
+    get:
+      description: Lê o rascunho salvo do agente ou do fluxo como se fosse publicado
+        agora e lista os canais receptivos (números do WhatsApp, contas e páginas,
+        chat do site, caixas de email, RCS e SMS) que passariam a rodar uma automação
+        com variáveis que conversas receptivas não trazem. Inclui os canais que rodam
+        outra automação que depende desta (um fluxo cujo nó de IA usa o agente, um
+        fluxo que chama este como subfluxo, um agente que chama este fluxo). Publicar
+        sem confirmar quando a lista não está vazia é recusado com 409 automation_publish_switches_off;
+        com POST /agents/{id}/publish?confirmSwitchOff=true ou POST /workflows/{id}/publish?confirmSwitchOff=true
+        esses canais são desligados na mesma gravação da nova versão.
+      parameters:
+      - description: agent ou workflow
+        enum:
+        - agent
+        - workflow
+        in: path
+        name: kind
+        required: true
+        type: string
+      - description: ID do agente ou do fluxo
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/automationneedshttp.ImpactResponse'
+        "422":
+          description: 'automation_needs_not_found: a automação não existe neste workspace'
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: automation_needs_unreadable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Canais que publicar a automação desligaria
+      tags:
+      - Automações
+  /automation-switch-offs:
+    get:
+      description: 'Quando uma automação foi desligada num canal receptivo porque
+        passou a exigir variáveis, devolve o aviso aberto: qual automação, quais variáveis,
+        quando, e eligibleNow, que diz se a versão publicada hoje já pode ser ligada
+        de novo. Ligar de novo é o mesmo salvamento da automação do canal; um salvamento
+        que liga uma automação aceita ou escolhe outra fecha o aviso. Nunca religa
+        sozinho. notice vem nulo quando não há aviso.'
+      parameters:
+      - description: Tipo do canal
+        enum:
+        - whatsapp_number
+        - unofficial_whatsapp
+        - instagram
+        - facebook
+        - telegram
+        - webchat
+        - tiktok
+        - mercadolivre
+        - email
+        - rcs
+        - sms
+        in: query
+        name: channel
+        required: true
+        type: string
+      - description: ID do canal (para o WhatsApp oficial, o ID do número)
+        in: query
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/automationneedshttp.SwitchOffResponse'
+        "422":
+          description: 'automation_needs_not_found: tipo de canal desconhecido'
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Aviso de automação desligada no canal
+      tags:
+      - Automações
   /builder-sessions:
     get:
       description: Retorna as conversas mais recentes com o copiloto de IA em todo
@@ -36471,9 +37131,16 @@ paths:
             additionalProperties: true
             type: object
         "409":
-          description: Conflict
+          description: 'automation_variables_missing: a conversa não tem valor para
+            variáveis que a automação exige; preencha com PUT /conversations/{entryType}/{entryId}/variables
+            e tente de novo'
           schema:
-            $ref: '#/definitions/response.ErrorResponse'
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/automationneedsx.RefusalDetails'
+              type: object
       summary: Ativar/desativar automação de uma conversa
       tags:
       - Conversas
@@ -36610,9 +37277,16 @@ paths:
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "409":
-          description: Conflict
+          description: 'automation_variables_missing: a conversa não tem valor para
+            variáveis que a automação exige; preencha com PUT /conversations/{entryType}/{entryId}/variables
+            e tente de novo'
           schema:
-            $ref: '#/definitions/response.ErrorResponse'
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/automationneedsx.RefusalDetails'
+              type: object
         "422":
           description: Unprocessable Entity
           schema:
@@ -37170,6 +37844,56 @@ paths:
       summary: Agendar uma mensagem
       tags:
       - Mensagens Agendadas
+  /conversations/{entryType}/{entryId}/variables:
+    put:
+      consumes:
+      - application/json
+      description: Guarda valores de variáveis só para esta conversa, para que o agente
+        ou o fluxo escolhido possa atendê-la. É o formulário que aparece quando passar
+        a conversa para uma automação (ou religar a automação dela) é recusado com
+        409 automation_variables_missing. Só aceita variáveis que a automação informada
+        exige; lead_name, lead_number e campaign_name são da plataforma e não podem
+        ser gravadas. Os valores valem mais que os da campanha e são lidos por agentes
+        e fluxos pelo mesmo caminho. Exige acesso à conversa.
+      parameters:
+      - description: Tipo da entrada
+        in: path
+        name: entryType
+        required: true
+        type: string
+      - description: ID da entrada
+        in: path
+        name: entryId
+        required: true
+        type: string
+      - description: Automação e valores
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/automationneedshttp.ConversationVariablesRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: conversation_variable_invalid ou conversation_variable_not_needed
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: automation_needs_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Preencher variáveis da conversa
+      tags:
+      - Conversas
   /conversations/{entryType}/{entryId}/workflow-runs:
     get:
       description: 'Lista as execuções de todos os fluxos nesta conversa, da mais
@@ -39499,6 +40223,16 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/response.CodedErrorResponse'
+        "409":
+          description: 'automation_variables_unmet: a automação escolhida exige variáveis
+            que conversas receptivas não trazem; details lista a automação e as variáveis'
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/automationneedsx.RefusalDetails'
+              type: object
         "422":
           description: Unprocessable Entity
           schema:
@@ -40784,6 +41518,10 @@ paths:
         in: query
         name: search
         type: string
+      - description: Só planilhas com colunas preenchidas por agentes ou fluxos
+        in: query
+        name: takesInput
+        type: boolean
       - description: Página
         in: query
         name: page
@@ -40808,8 +41546,11 @@ paths:
       consumes:
       - application/json
       description: Cria a planilha no Google Drive da conta conectada ao Google Planilhas,
-        com o cabeçalho, os formatos e as validações das colunas, e a registra no
-        workspace.
+        com o cabeçalho, os formatos, as validações, o estilo e as cores das opções,
+        e a registra no workspace. Com spreadsheetId, cria uma aba nova num arquivo
+        que já tem planilhas deste workspace. Com tabPeriod=month, cada mês ganha
+        a sua aba, nomeada pelo tabPattern. Definições recusadas devolvem um código
+        próprio com field, column, header, option e limit em details.
       parameters:
       - description: Planilha
         in: body
@@ -40996,6 +41737,49 @@ paths:
       summary: Saúde da planilha
       tags:
       - Google Planilhas
+  /google-sheets/{id}/layout:
+    patch:
+      consumes:
+      - application/json
+      description: Troca o estilo da tabela e o padrão do nome das abas por período.
+        O estilo é aplicado na aba atual na mesma operação; abas de meses anteriores
+        ficam como estão.
+      parameters:
+      - description: Planilha
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Alterações
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/googlesheet.LayoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.SheetEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Mudar estilo e nome das abas por período
+      tags:
+      - Google Planilhas
   /google-sheets/{id}/reactivate:
     post:
       consumes:
@@ -41119,6 +41903,113 @@ paths:
       security:
       - BearerAuth: []
       summary: Catálogo das colunas de planilha
+      tags:
+      - Google Planilhas
+  /google-sheets/presets:
+    get:
+      description: Modelos prontos com colunas, fontes, tipos, opções, cores, estilo
+        e abas por período. Os textos (nome, cabeçalhos, opções) vêm dos catálogos
+        do painel pela chave de cada item.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.PresetListResponse'
+      security:
+      - BearerAuth: []
+      summary: Modelos de planilha
+      tags:
+      - Google Planilhas
+  /google-sheets/spreadsheets:
+    get:
+      description: Os arquivos do Google em que o workspace tem planilhas, com as
+        planilhas de cada um e as abas por período já criadas. usable diz se a conta
+        conectada pode criar abas novas no arquivo.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.SpreadsheetListResponse'
+      security:
+      - BearerAuth: []
+      summary: Arquivos de planilhas do workspace
+      tags:
+      - Google Planilhas
+  /google-sheets/tab-name-preview:
+    post:
+      consumes:
+      - application/json
+      description: Mostra o nome que a aba do período atual terá com o padrão informado,
+        ou recusa o padrão com o código do problema.
+      parameters:
+      - description: Padrão
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/googlesheet.TabNamePreviewRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.TabNamePreviewResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Prévia do nome da aba por período
+      tags:
+      - Google Planilhas
+  /google-sheets/workbook:
+    post:
+      consumes:
+      - application/json
+      description: Cria uma ou mais planilhas como abas de um só arquivo do Google,
+        na ordem pedida. Sem spreadsheetId, a primeira cria o arquivo e as outras
+        viram abas dele. Uma coluna de link pode apontar para uma planilha anterior
+        do pedido por linkSheetRef. Se uma falhar, as que já foram criadas são desfeitas;
+        details.sheet diz qual falhou.
+      parameters:
+      - description: Planilhas
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/googlesheet.WorkbookRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/googlesheet.WorkbookResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "412":
+          description: Precondition Failed
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Criar planilhas num mesmo arquivo
       tags:
       - Google Planilhas
   /google/accounts/calendar:
@@ -41395,6 +42286,16 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/instagram.AccountResponse'
+        "409":
+          description: 'automation_variables_unmet: a automação escolhida exige variáveis
+            que conversas receptivas não trazem; details lista a automação e as variáveis'
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/automationneedsx.RefusalDetails'
+              type: object
       security:
       - BearerAuth: []
       summary: Atualizar configuração da conta do Instagram
@@ -46423,6 +47324,16 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: 'automation_variables_unmet: a automação escolhida exige variáveis
+            que conversas receptivas não trazem; details lista a automação e as variáveis'
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/automationneedsx.RefusalDetails'
+              type: object
         "422":
           description: Unprocessable Entity
           schema:
@@ -49443,6 +50354,16 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/carriermessaging.SenderDTO'
+        "409":
+          description: 'automation_variables_unmet: a automação escolhida exige variáveis
+            que conversas receptivas não trazem; details lista a automação e as variáveis'
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/automationneedsx.RefusalDetails'
+              type: object
       summary: Caixa de entrada do remetente RCS
       tags:
       - RCS e SMS
@@ -50678,6 +51599,16 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/carriermessaging.RouteDTO'
+        "409":
+          description: 'automation_variables_unmet: a automação escolhida exige variáveis
+            que conversas receptivas não trazem; details lista a automação e as variáveis'
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/automationneedsx.RefusalDetails'
+              type: object
       summary: Caixa de entrada do remetente de SMS
       tags:
       - RCS e SMS
@@ -52548,6 +53479,16 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/tiktok.AccountResponse'
+        "409":
+          description: 'automation_variables_unmet: a automação escolhida exige variáveis
+            que conversas receptivas não trazem; details lista a automação e as variáveis'
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/automationneedsx.RefusalDetails'
+              type: object
         "422":
           description: Unprocessable Entity
           schema:
@@ -55781,6 +56722,16 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/response.CodedErrorResponse'
+        "409":
+          description: 'automation_variables_unmet: a automação escolhida exige variáveis
+            que conversas receptivas não trazem; details lista a automação e as variáveis'
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/automationneedsx.RefusalDetails'
+              type: object
         "422":
           description: Unprocessable Entity
           schema:
@@ -56311,6 +57262,16 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: 'automation_variables_unmet: a automação escolhida exige variáveis
+            que conversas receptivas não trazem; details lista a automação e as variáveis'
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/automationneedsx.RefusalDetails'
+              type: object
         "500":
           description: Internal Server Error
           schema:
@@ -60282,6 +61243,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: true confirma desligar os canais receptivos listados em GET /automation-needs/workflow/{id}/publish-impact
+        in: query
+        name: confirmSwitchOff
+        type: boolean
       produces:
       - application/json
       responses:
@@ -60294,9 +61259,17 @@ paths:
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "409":
-          description: Workflow arquivado ou publicação simultânea
+          description: 'automation_publish_switches_off: a nova versão exige variáveis
+            e desligaria canais receptivos; details.impact lista os canais. Confirme
+            com confirmSwitchOff=true. automation_voice_variables (422): um fluxo
+            de voz não pode exigir variáveis'
           schema:
-            $ref: '#/definitions/response.ErrorResponse'
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/automationneedsx.RefusalDetails'
+              type: object
         "422":
           description: 'workflow_not_publishable: details.issues lista todos os problemas
             que bloqueiam, cada um com code, severity, nodeId, path e message'

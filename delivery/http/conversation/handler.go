@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"vozko/delivery/http/automationneedsx"
 
 	"github.com/gorilla/mux"
 
@@ -389,6 +390,7 @@ type SetAutomationRequest struct {
 // @Param			request		body		SetAutomationRequest	true	"Novo estado"
 // @Success		200			{object}	map[string]interface{}
 // @Failure		409			{object}	response.ErrorResponse
+// @Failure		409	{object}	response.ErrorResponse{details=automationneedsx.RefusalDetails}	"automation_variables_missing: a conversa não tem valor para variáveis que a automação exige; preencha com PUT /conversations/{entryType}/{entryId}/variables e tente de novo"
 // @Router			/conversations/{entryType}/{entryId}/automation [patch]
 func (h *ConversationHandler) SetAutomation(w http.ResponseWriter, r *http.Request) {
 	claims := middleware.GetClaims(r)
@@ -438,6 +440,9 @@ func (h *ConversationHandler) SetAutomation(w http.ResponseWriter, r *http.Reque
 }
 
 func writeAutomationError(w http.ResponseWriter, err error) {
+	if automationneedsx.WriteRefusal(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, ia_usecase.ErrAutomationForbidden):
 		response.WriteError(w, http.StatusForbidden, "You don't have access to this conversation", nil)
@@ -472,6 +477,7 @@ type DelegateRequest struct {
 // @Failure		422			{object}	response.ErrorResponse
 // @Failure		409			{object}	response.ErrorResponse
 // @Security		BearerAuth
+// @Failure		409	{object}	response.ErrorResponse{details=automationneedsx.RefusalDetails}	"automation_variables_missing: a conversa não tem valor para variáveis que a automação exige; preencha com PUT /conversations/{entryType}/{entryId}/variables e tente de novo"
 // @Router			/conversations/{entryType}/{entryId}/delegation [put]
 func (h *ConversationHandler) Delegate(w http.ResponseWriter, r *http.Request) {
 	claims := middleware.GetClaims(r)

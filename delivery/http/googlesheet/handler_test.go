@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -17,8 +18,33 @@ import (
 )
 
 type stubSheets struct {
-	err   error
-	sheet *googlesheet.Sheet
+	err      error
+	sheet    *googlesheet.Sheet
+	list     googlesheet.ListInput
+	workbook gsuc.WorkbookInput
+	layout   gsuc.LayoutInput
+	books    []gsuc.WorkbookView
+}
+
+func (s *stubSheets) CreateWorkbook(_ context.Context, in gsuc.WorkbookInput) ([]*googlesheet.Sheet, error) {
+	s.workbook = in
+	if s.err != nil {
+		return nil, s.err
+	}
+	return []*googlesheet.Sheet{s.sheet}, nil
+}
+
+func (s *stubSheets) UpdateLayout(_ context.Context, in gsuc.LayoutInput) (*googlesheet.Sheet, error) {
+	s.layout = in
+	return s.sheet, s.err
+}
+
+func (s *stubSheets) Workbooks(context.Context, string) ([]gsuc.WorkbookView, error) {
+	return s.books, s.err
+}
+
+func (s *stubSheets) PreviewTabName(pattern, timeZone string) (string, string, error) {
+	return googlesheet.PreviewTabTitle(pattern, timeZone, time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC))
 }
 
 func (s *stubSheets) ListRows(context.Context, string, string, shared.Pagination) (*shared.PaginatedResult[*googlesheet.Row], error) {
@@ -31,7 +57,8 @@ func (s *stubSheets) Create(context.Context, gsuc.CreateInput) (*googlesheet.She
 func (s *stubSheets) Get(context.Context, string, string) (*googlesheet.Sheet, error) {
 	return s.sheet, s.err
 }
-func (s *stubSheets) List(context.Context, googlesheet.ListInput) (*shared.PaginatedResult[*googlesheet.Sheet], error) {
+func (s *stubSheets) List(_ context.Context, in googlesheet.ListInput) (*shared.PaginatedResult[*googlesheet.Sheet], error) {
+	s.list = in
 	return &shared.PaginatedResult[*googlesheet.Sheet]{Items: []*googlesheet.Sheet{s.sheet}, Page: 1, PageSize: 20, TotalItems: 1, TotalPages: 1}, s.err
 }
 func (s *stubSheets) UpdateDetails(context.Context, gsuc.DetailsInput) (*googlesheet.Sheet, error) {
@@ -65,7 +92,14 @@ func (s *stubRows) Enqueue(_ context.Context, in gsuc.EnqueueInput) (*gsuc.Enque
 func serve(h *Handler, method, path, body string, headers map[string]string) *httptest.ResponseRecorder {
 	router := mux.NewRouter()
 	router.HandleFunc("/google-sheets", h.Create).Methods(http.MethodPost)
+	router.HandleFunc("/google-sheets", h.List).Methods(http.MethodGet)
+	router.HandleFunc("/google-sheets/catalog", h.Catalog).Methods(http.MethodGet)
+	router.HandleFunc("/google-sheets/presets", h.Presets).Methods(http.MethodGet)
+	router.HandleFunc("/google-sheets/spreadsheets", h.Spreadsheets).Methods(http.MethodGet)
+	router.HandleFunc("/google-sheets/workbook", h.CreateWorkbook).Methods(http.MethodPost)
+	router.HandleFunc("/google-sheets/tab-name-preview", h.PreviewTabName).Methods(http.MethodPost)
 	router.HandleFunc("/google-sheets/{id}", h.Get).Methods(http.MethodGet)
+	router.HandleFunc("/google-sheets/{id}/layout", h.UpdateLayout).Methods(http.MethodPatch)
 	router.HandleFunc("/google-sheets/{id}/rows", h.AddRow).Methods(http.MethodPost)
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	for k, v := range headers {
@@ -140,6 +174,9 @@ func TestEveryDomainCodeCanReachTheFrontend(t *testing.T) {
 	for _, code := range RefusalCodes() {
 		listed[code] = true
 	}
+	for _, code := range googlesheet.DefinitionCodes() {
+		listed[code] = true
+	}
 	for _, code := range googlesheet.Codes() {
 		if !listed[code] && !valueCodes[code] {
 			t.Errorf("code %s is neither a refusal nor a value refusal; the frontend cannot translate it", code)
@@ -151,5 +188,5 @@ var valueCodes = map[string]bool{
 	googlesheet.CodeUnknownColumn: true, googlesheet.CodeColumnArchived: true, googlesheet.CodeSystemColumn: true,
 	googlesheet.CodeRequiredColumnMissing: true, googlesheet.CodeInvalidValue: true, googlesheet.CodeValueNotInOptions: true,
 	googlesheet.CodeValueTooLong: true, googlesheet.CodeUnresolvedVariable: true, googlesheet.CodeOriginRequired: true,
-	googlesheet.CodeRowNotFound: true,
+	googlesheet.CodeRowNotFound: true, googlesheet.CodeLinkExportMissing: true,
 }

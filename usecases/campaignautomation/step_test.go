@@ -267,3 +267,51 @@ func TestRuleMissingNamesEveryKeyTheAutomationNeedsOnce(t *testing.T) {
 		t.Fatalf("no automation requires nothing: %v", none.Missing(nil))
 	}
 }
+
+func TestTheCampaignCheckUsesTheSharedRule(t *testing.T) {
+	school := needsSchoolAgent("ws-1")
+	spaced := &workflow.Workflow{ID: "wf-spaced", WorkspaceID: "ws-1", Graph: workflow.Graph{Nodes: []workflow.Node{
+		{ID: "n1", Type: workflow.NodeTypeActionSendText, Config: map[string]interface{}{"text": "Oi {{ campvars.nome_cliente }} de {{campvars.campaign_name}} para {{campvars.lead_name}}"}},
+	}}}
+	withAI := &workflow.Workflow{ID: "wf-ai", WorkspaceID: "ws-1", Graph: workflow.Graph{Nodes: []workflow.Node{
+		{ID: "n1", Type: workflow.NodeTypeActionAIAgent, Config: map[string]interface{}{"source": "agent", "agent_id": "agent-1"}},
+	}}}
+	orphan := &workflow.Workflow{ID: "wf-orphan", WorkspaceID: "ws-1", Graph: workflow.Graph{Nodes: []workflow.Node{
+		{ID: "n1", Type: workflow.NodeTypeActionAIAgent, Config: map[string]interface{}{"source": "agent", "agent_id": "agent-gone"}},
+	}}}
+	step := newStep(t,
+		fakeWorkflows{byID: map[string]*workflow.Workflow{"wf-spaced": spaced, "wf-ai": withAI, "wf-orphan": orphan}},
+		fakeAgents{byID: map[string]*agent.Agent{"agent-1": school}},
+	)
+	cases := []struct {
+		name       string
+		automation campaign.Automation
+		entries    []campaign.EntryMetadata
+		want       error
+	}{
+		{name: "campvars written with spaces are required", automation: campaign.Automation{WorkflowID: "wf-spaced"}, entries: withoutSchool(), want: campaign.ErrWorkflowVarsMissing},
+		{name: "system keys are always supplied", automation: campaign.Automation{WorkflowID: "wf-spaced"}, entries: []campaign.EntryMetadata{{Label: "lead 1", Metadata: map[string]any{"nome_cliente": "Ana"}}}},
+		{name: "the agent an AI node runs is required too", automation: campaign.Automation{WorkflowID: "wf-ai"}, entries: withoutSchool(), want: campaign.ErrAgentVarsMissing},
+		{name: "the agent an AI node runs is satisfied by the row", automation: campaign.Automation{WorkflowID: "wf-ai"}, entries: withSchool()},
+		{name: "an AI node agent that no longer exists refuses", automation: campaign.Automation{WorkflowID: "wf-orphan"}, entries: withSchool(), want: campaign.ErrAgentNotFound},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := step.Check("ws-1", tc.automation, tc.entries); !errors.Is(err, tc.want) {
+				t.Fatalf("Check = %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestTheRuleCarriesTheNeedsForTheAudienceStep(t *testing.T) {
+	step := newStep(t, fakeWorkflows{byID: map[string]*workflow.Workflow{"wf-1": needsSchoolWorkflow("ws-1")}}, fakeAgents{})
+	rule, err := step.Rule("ws-1", campaign.Automation{WorkflowID: "wf-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	needs := rule.Needs()
+	if len(needs) != 1 || needs[0].Name != "escola" || needs[0].Owner().ID != "wf-1" {
+		t.Fatalf("needs = %+v, want escola owned by the workflow", needs)
+	}
+}

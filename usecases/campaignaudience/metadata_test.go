@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"vozko/domain/automationneeds"
 
 	"vozko/domain/campaign"
 	"vozko/domain/campaignaudience"
@@ -54,22 +55,35 @@ func TestAListMissingTheMetadataTheAutomationNeedsIsReportedBeforeTheCreate(t *t
 	}
 }
 
-func TestLeadsCannotFeedAnAutomationThatNeedsMetadata(t *testing.T) {
+func TestLeadsFeedTheAutomationVariablesLikeTemplateFields(t *testing.T) {
 	w := newWorld(t)
-	w.selections.ids = []string{"a"}
+	w.selections.ids = []string{"a", "b"}
 	w.channel.slots = []campaignaudience.Slot{{Key: "1", Suggested: campaign.BindFirstName}}
-	w.channel.judge = fakeJudge{leads: map[string]campaignaudience.Candidate{"a": {HasContact: true, Values: []string{"Ana"}}}}
 	w.channel.metadata = needsClass
-	spec := campaignaudience.Spec{Source: campaignaudience.SourceLeads, Selection: confirmed(everyoneSelection(), 1)}
-	count, err := w.service.Count(ctx, testActor, campaignaudience.ChannelWhatsApp, Params{}, spec)
+	w.channel.needs = automationneeds.Needs{{Name: "turma", Via: []automationneeds.Link{{Name: "Escola"}}}}
+	w.channel.judge = fakeJudge{leads: map[string]campaignaudience.Candidate{
+		"a": {HasContact: true, Values: []string{"Ana", "B"}},
+		"b": {HasContact: true, Values: []string{"Bia", ""}},
+	}}
+	undecided := campaignaudience.Spec{Source: campaignaudience.SourceLeads, Selection: confirmed(everyoneSelection(), 2)}
+	count, err := w.service.Count(ctx, testActor, campaignaudience.ChannelWhatsApp, Params{}, undecided)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(count.Blockers, []campaignaudience.Blocker{campaignaudience.BlockerLeadsMetadataUnavailable}) {
-		t.Fatalf("blockers = %v", count.Blockers)
+	if len(count.Variables) != 2 || count.Variables[1].Key != "turma" || count.Variables[1].Kind != campaignaudience.SlotAutomation || count.Variables[1].NeededBy != "Escola" {
+		t.Fatalf("variables = %+v", count.Variables)
 	}
-	if _, err := w.service.Recipients(ctx, testActor, campaignaudience.ChannelWhatsApp, Params{}, spec); !errors.Is(err, campaignaudience.ErrLeadsMetadataUnavailable) {
-		t.Fatalf("recipients = %v", err)
+	if !reflect.DeepEqual(count.Blockers, []campaignaudience.Blocker{campaignaudience.BlockerSourceRequired}) {
+		t.Fatalf("blockers = %v, the automation variable needs a source like a template field", count.Blockers)
+	}
+	chosen := undecided
+	chosen.Variables = []campaignaudience.Variable{{Key: "turma", Source: campaign.CustomBinding("turma"), Missing: campaignaudience.MissingText, Text: "A"}}
+	recipients, err := w.service.Recipients(ctx, testActor, campaignaudience.ChannelWhatsApp, Params{}, chosen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recipients) != 2 || !reflect.DeepEqual(recipients[0].Variables, []string{"Ana"}) || recipients[0].Metadata["turma"] != "B" || recipients[1].Metadata["turma"] != "A" {
+		t.Fatalf("recipients = %+v", recipients)
 	}
 }
 

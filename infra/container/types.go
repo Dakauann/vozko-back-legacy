@@ -312,6 +312,8 @@ type Container struct {
 	teamChatService     *teamchat_usecase.Service
 
 	conversationRuns *workflow_usecase.ConversationRunStarter
+
+	automationNeedsWiring *automationNeedsWiring
 }
 
 type repositories struct {

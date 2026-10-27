@@ -8,11 +8,13 @@ import (
 
 	"gorm.io/gorm"
 
+	"vozko/domain/automationneeds"
 	"vozko/domain/shared"
 	"vozko/domain/workflow"
 	"vozko/infra/cache"
 	"vozko/infra/database"
 	"vozko/infra/database/schema"
+	automationneeds_repository "vozko/infra/repositories/automationneeds"
 )
 
 const versionGraphCacheSize = 128
@@ -37,19 +39,25 @@ func newVersionGraphs() *versionGraphs {
 }
 
 func (r *repository) PublishVersion(in workflow.PublishVersion) (*workflow.WorkflowVersion, error) {
-	v, err := r.publishOnce(in)
-	if errors.Is(err, workflow.ErrVersionNumberTaken) {
-		v, err = r.publishOnce(in)
-	}
+	v, _, err := r.PublishVersionSwitchingOff(in, "", nil)
 	return v, err
 }
 
-func (r *repository) publishOnce(in workflow.PublishVersion) (*workflow.WorkflowVersion, error) {
+func (r *repository) PublishVersionSwitchingOff(in workflow.PublishVersion, workspaceID string, offs []automationneeds.SwitchOff) (*workflow.WorkflowVersion, []string, error) {
+	v, containers, err := r.publishOnce(in, workspaceID, offs)
+	if errors.Is(err, workflow.ErrVersionNumberTaken) {
+		v, containers, err = r.publishOnce(in, workspaceID, offs)
+	}
+	return v, containers, err
+}
+
+func (r *repository) publishOnce(in workflow.PublishVersion, workspaceID string, offs []automationneeds.SwitchOff) (*workflow.WorkflowVersion, []string, error) {
 	graphJSON, err := json.Marshal(in.Graph)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var published *workflow.WorkflowVersion
+	var containers []string
 	err = r.db.Transaction(func(tx *gorm.DB) error {
 		var next int
 		if err := tx.Raw(nextWorkflowVersionSQL, in.WorkflowID).Scan(&next).Error; err != nil {
@@ -89,12 +97,17 @@ func (r *repository) publishOnce(in workflow.PublishVersion) (*workflow.Workflow
 			}
 		}
 		published = mapVersionToDomain(row, nil)
-		return nil
+		if len(offs) == 0 {
+			return nil
+		}
+		switched, err := automationneeds_repository.SwitchOffIn(tx, workspaceID, offs, in.PublishedBy, row.PublishedAt)
+		containers = switched
+		return err
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return published, nil
+	return published, containers, nil
 }
 
 func (r *repository) FindVersion(workflowID string, version int) (*workflow.WorkflowVersion, error) {

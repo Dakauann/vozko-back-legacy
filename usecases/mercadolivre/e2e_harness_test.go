@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"vozko/usecases/automationneeds/receptivetest"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -595,7 +596,7 @@ func newHarness(t testing.TB) *harness {
 	replies := conversation_usecase.NewChannelAIReplyService(conversation_usecase.ChannelAIReplyDeps{
 		Agents: agentRepo, AI: h.ai, Messages: h.messages, Sender: h.sender, Adapters: adapterRegistry{h: h}, HandOff: h.handOffs,
 		Events: events{}, Guard: loopguard.AlwaysAllow{}, Assembler: agentturn.New(nil, nil, nil, nil),
-		TurnLock: conversation_usecase.NewAgentTurnLock(redis.SharedState()), Attendance: quietAttendance{}, Leads: noContinuationLeads{}, WorkflowNames: noWorkflowNames{},
+		TurnLock: conversation_usecase.NewAgentTurnLock(redis.SharedState()), Attendance: quietAttendance{}, Leads: noContinuationLeads{}, WorkflowNames: noWorkflowNames{}, Variables: everyValue{},
 	})
 	gate := conversation_usecase.NewAutomationGate(conversation_usecase.AutomationGateDeps{
 		Owners:      inbox_assignment_repository.New(db),
@@ -652,7 +653,7 @@ func newHarness(t testing.TB) *harness {
 	accountsUC := mluc.NewAccounts(mluc.AccountsDeps{
 		Accounts: h.accounts, OAuth: oauth,
 		References: automationrefs.Finders{Agents: agentRepo, Workflows: noWorkflows{}, Pipelines: noPipelines{}, Departments: noDepartments{}},
-		Alerts:     alerts, Metrics: h.metrics,
+		Alerts:     alerts, Metrics: h.metrics, Receptive: receptivetest.Allow(),
 	})
 	health := mluc.NewHealthCheck(mluc.HealthCheckDeps{Accounts: h.accounts, Contacts: h.contacts, Services: services, Tokens: h.tokens, Alerts: alerts, Metrics: h.metrics})
 	packs := mluc.NewPacks(mluc.PacksDeps{Accounts: h.accounts, Conversations: h.conversations, Listings: listingRepo, Images: thumbnails, Refresh: publisher, Access: everyoneMayAccess{}, Metrics: h.metrics})
@@ -869,6 +870,12 @@ func runes(s string) int { return len([]rune(s)) }
 type quietAttendance struct{}
 
 func (quietAttendance) RecordAIReply(aa.StartInput, string) {}
+
+type everyValue struct{}
+
+func (everyValue) AgentValues(context.Context, string, string, shared.EntryType, string) (map[string]string, bool) {
+	return map[string]string{}, true
+}
 
 type noWorkflowNames struct{}
 

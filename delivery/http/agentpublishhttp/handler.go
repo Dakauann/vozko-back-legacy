@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	automationneeds_usecase "vozko/usecases/automationneeds"
 
 	"github.com/gorilla/mux"
 
@@ -75,13 +76,19 @@ func versionResponse(v agent.Version) VersionResponse {
 // @Failure		403	{object}	response.ErrorResponse	"agent_forbidden"
 // @Failure		422	{object}	response.ErrorResponse	"agent_not_publishable"
 // @Security		BearerAuth
+// @Param			confirmSwitchOff	query	bool	false	"true confirma desligar os canais receptivos listados em GET /automation-needs/agent/{id}/publish-impact"
+// @Failure		409	{object}	response.ErrorResponse{details=automationneedsx.RefusalDetails}	"automation_publish_switches_off: a nova versão exige variáveis e desligaria canais receptivos; details.impact lista os canais. Confirme com confirmSwitchOff=true"
 // @Router			/agents/{id}/publish [post]
 func (h *Handler) Publish(w http.ResponseWriter, r *http.Request) {
 	agentID, ok := h.authorize(w, r)
 	if !ok {
 		return
 	}
-	version, err := h.publishing.Publish(r.Context(), agentID, httpx.RequesterOf(r))
+	ctx := r.Context()
+	if r.URL.Query().Get("confirmSwitchOff") == "true" {
+		ctx = automationneeds_usecase.WithSwitchOffConfirmed(ctx)
+	}
+	version, err := h.publishing.Publish(ctx, agentID, httpx.RequesterOf(r))
 	if err != nil {
 		agenthttp.WriteError(w, err)
 		return

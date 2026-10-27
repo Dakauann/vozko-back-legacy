@@ -285,6 +285,7 @@ func toRowSchema(row *googlesheet.Row) (*schema.GoogleSheetRow, error) {
 		IdempotencyKey: row.IdempotencyKey,
 		Cells:          piigorm.NewEncrypted(string(cells)),
 		SheetVersion:   row.SheetVersion,
+		PeriodKey:      row.PeriodKey,
 		OriginKind:     string(row.Origin.Kind),
 		AgentID:        row.Origin.AgentID,
 		WorkflowID:     row.Origin.WorkflowID,
@@ -317,6 +318,7 @@ func toRowDomain(record *schema.GoogleSheetRow) (*googlesheet.Row, error) {
 		IdempotencyKey: record.IdempotencyKey,
 		Cells:          cells,
 		SheetVersion:   record.SheetVersion,
+		PeriodKey:      record.PeriodKey,
 		Origin: googlesheet.Origin{
 			Kind:       googlesheet.OriginKind(record.OriginKind),
 			AgentID:    record.AgentID,

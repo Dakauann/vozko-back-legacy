@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"vozko/domain/agent"
+	"vozko/domain/automationneeds"
 	"vozko/domain/agentrun"
 	"vozko/domain/ai"
 	aa "vozko/domain/ai_attendance"
@@ -314,10 +315,14 @@ func (e *aiAgentExecutor) Execute(ctx *workflow.NodeContext) (*workflow.NodeResu
 
 	if resolvedAgent != nil {
 		agentVars := make(map[string]string)
-		if campvars, ok := ctx.State.Get("campvars"); ok {
+		if campvars, ok := ctx.State.Get(workflow.DataKeyCampaignVars); ok {
 			if m, ok := campvars.(map[string]interface{}); ok {
 				agentVars = agent.MetadataToVars(m)
 			}
+		}
+		if missing := automationneeds.OfAgent(resolvedAgent).Missing(agentVars); len(missing) > 0 {
+			log.Printf("%s agent %s needs %v and the run has no value for them, taking the error branch", logPrefix, resolvedAgent.ID, missing.Names())
+			return &workflow.NodeResult{Error: "o agente precisa das variáveis " + strings.Join(missing.Names(), ", ") + " e a conversa não tem valor para elas"}, nil
 		}
 		interpolated := agent.InterpolateAgent(resolvedAgent, agentVars)
 		if interpolated.MessagingPrompt != "" {

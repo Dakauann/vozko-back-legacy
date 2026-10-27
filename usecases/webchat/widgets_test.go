@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"vozko/domain/automationneeds"
+	"vozko/usecases/automationneeds/receptivetest"
 
 	"vozko/domain/pipeline"
 	wcdomain "vozko/domain/webchat"
@@ -17,7 +19,7 @@ func widgetService() (*Widgets, *fakeWidgets) {
 		Pipelines:   fakePipelines{"deals": {ID: "deals", WorkspaceID: "ws-1", ObjectType: pipeline.ObjectOpportunity}},
 		Departments: fakeDepartments{"theirs": {ID: "theirs", WorkspaceID: "ws-2"}},
 	}
-	return NewWidgets(repo, refs), repo
+	return NewWidgets(repo, refs, receptivetest.Allow()), repo
 }
 
 func strp(s string) *string { return &s }
@@ -86,5 +88,20 @@ func TestWidgetFromAnotherWorkspaceIsNotFound(t *testing.T) {
 	w, _ := uc.Create(context.Background(), "ws-1", baseInput())
 	if _, err := uc.Update(context.Background(), "ws-2", w.ID, baseInput()); !errors.Is(err, wcdomain.ErrWidgetNotFound) {
 		t.Fatalf("Update from another workspace = %v", err)
+	}
+}
+
+func TestWidgetRefusesAnAgentItsReceptiveCannotFeed(t *testing.T) {
+	uc, repo := widgetService()
+	guard := receptivetest.Refuse(&automationneeds.Refusal{Cause: automationneeds.ErrReceptiveUnmet})
+	uc.guard = guard
+	in := baseInput()
+	on := true
+	in.AgentID, in.EnableAgentResponses = strp("mine"), &on
+	if _, err := uc.Create(context.Background(), "ws-1", in); !errors.Is(err, automationneeds.ErrReceptiveUnmet) {
+		t.Fatalf("err = %v", err)
+	}
+	if len(repo.byID) != 0 {
+		t.Fatal("a refused widget must not be stored")
 	}
 }

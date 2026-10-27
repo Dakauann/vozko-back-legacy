@@ -37,6 +37,7 @@ type ChannelAIReplyService struct {
 	turnLock      *AgentTurnLock
 	aiAttendance  AIAttendanceRecorder
 	entryLeads    ContinuationLeads
+	variables     AgentVariables
 }
 
 type ContinuationLeads interface {
@@ -58,6 +59,7 @@ type ChannelAIReplyDeps struct {
 	Attendance    AIAttendanceRecorder
 	Leads         ContinuationLeads
 	WorkflowNames ActorNameResolver
+	Variables     AgentVariables
 }
 
 func NewChannelAIReplyService(d ChannelAIReplyDeps) *ChannelAIReplyService {
@@ -75,6 +77,7 @@ func NewChannelAIReplyService(d ChannelAIReplyDeps) *ChannelAIReplyService {
 		"ai attendance":       d.Attendance,
 		"entry leads":         d.Leads,
 		"workflow names":      d.WorkflowNames,
+		"agent variables":     d.Variables,
 	}); err != nil {
 		panic(err.Error())
 	}
@@ -92,6 +95,7 @@ func NewChannelAIReplyService(d ChannelAIReplyDeps) *ChannelAIReplyService {
 		aiAttendance:  d.Attendance,
 		entryLeads:    d.Leads,
 		workflowNames: d.WorkflowNames,
+		variables:     d.Variables,
 	}
 }
 
@@ -218,6 +222,12 @@ func (s *ChannelAIReplyService) reply(ctx context.Context, req conversation.AIRe
 		return nil, err
 	}
 
+	vars, admitted := s.variables.AgentValues(ctx, req.WorkspaceID, req.EntryID, req.EntryType, agentRecord.ID)
+	if !admitted {
+		log.Printf("[channel-ai] entry=%s agent %s lacks a variable this conversation must supply, not replying", req.EntryID, agentRecord.ID)
+		return nil, skippedReply(replySkipVariablesMissing)
+	}
+
 	ctx = agentctx.WithAgent(ctx, agentRecord)
 	ctx = agentctx.WithToolExecutionTracker(ctx, agentctx.NewToolExecutionTracker())
 
@@ -233,7 +243,7 @@ func (s *ChannelAIReplyService) reply(ctx context.Context, req conversation.AIRe
 		return s.withholdAndHandOff(req, disclosureFillsLimit())
 	}
 
-	input := s.assembleTurn(ctx, req, agentRecord, messages, text, triggerNote)
+	input := s.assembleTurn(ctx, req, agentRecord, vars, messages, text, triggerNote)
 	input.SystemPrompt = withChannelTextRules(input.SystemPrompt, room)
 	out, err := s.aiService.Generate(ctx, input)
 	if err != nil {
@@ -368,13 +378,14 @@ func (s *ChannelAIReplyService) generateInput(
 	messages []ai.Message,
 	latest string,
 ) ai.GenerateInput {
-	return s.assembleTurn(ctx, req, agentRecord, messages, latest, "")
+	return s.assembleTurn(ctx, req, agentRecord, nil, messages, latest, "")
 }
 
 func (s *ChannelAIReplyService) assembleTurn(
 	ctx context.Context,
 	req conversation.AIReplyRequest,
 	agentRecord *agent.Agent,
+	vars map[string]string,
 	messages []ai.Message,
 	latest string,
 	triggerNote string,
@@ -402,6 +413,7 @@ func (s *ChannelAIReplyService) assembleTurn(
 	assembled := s.assembler.Assemble(ctx, agentturn.Request{
 		Agent:    agentRecord,
 		Identity: &identity,
+		Vars:     vars,
 
 		ResolveInternalTools: true,
 		Visibility:           agent.ToolVisibilityMessaging,

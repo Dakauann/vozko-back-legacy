@@ -45,7 +45,7 @@ func gateCatalog() []workflow.NodeDefinition {
 }
 
 func gate(repo *MockWorkflowRepository) *activateWorkflowUseCase {
-	uc := &activateWorkflowUseCase{repo: repo, catalogFn: gateCatalog}
+	uc := &activateWorkflowUseCase{repo: repo, catalogFn: gateCatalog, switching: repo, planner: &scriptedWorkflowPlanner{}}
 	return uc
 }
 

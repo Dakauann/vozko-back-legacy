@@ -1010,3 +1010,31 @@ func TestInterpolateStrictMatchesInterpolateWhenEverythingResolves(t *testing.T)
 		}
 	}
 }
+
+func TestExtractCampaignVarsReadsEveryFormTheRuntimeResolves(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+		want []string
+	}{
+		{"spaces inside the braces", "Oi {{ campvars.nome_cliente }}", []string{"nome_cliente"}},
+		{"spaces with the var prefix", "{{  var.campvars.valor }}", []string{"valor"}},
+		{"bracket indexing", "{{campvars[escola]}}", []string{"escola"}},
+		{"a field below the variable", "{{campvars.endereco.rua}}", []string{"endereco"}},
+		{"the whole campvars map is not a variable", "{{campvars}}", nil},
+		{"another scope that only mentions campvars", "{{node.n1.campvars.x}}", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ExtractCampaignVars(Graph{Nodes: []Node{{ID: "1", Config: map[string]interface{}{"text": tc.text}}}})
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("got %v, want %v", got, tc.want)
+				}
+			}
+		})
+	}
+}

@@ -398,3 +398,48 @@ func TestOfficialLeadsTakeNamedAndHeaderVariablesInTheSendOrder(t *testing.T) {
 		t.Fatalf("the send splits header %q body %q", header, body)
 	}
 }
+
+func TestLeadsKeepTheirNameAndNumberWhileAVariableIsUndecided(t *testing.T) {
+	w := newWhatsAppWorld(t)
+	cases := []struct {
+		name   string
+		params Params
+		vars   []campaignaudience.Variable
+	}{
+		{name: "before a template is chosen", params: Params{}},
+		{name: "a template whose variables have no source yet", params: Params{TemplateID: "tpl-1"}},
+		{name: "only fixed texts, so no lead field is read", params: Params{TemplateID: "tpl-1"}, vars: []campaignaudience.Variable{
+			{Key: "1", Source: campaign.BindLiteral, Value: "Maria"}, {Key: "2", Source: campaign.BindLiteral, Value: "1º ano"},
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			prepared, err := w.official.Prepare(ctx, testActor, tc.params)
+			if err != nil {
+				t.Fatal(err)
+			}
+			judge, err := prepared.Open(ctx, boundOf(t, prepared, tc.vars...), campaignaudience.SourceLeads)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := judge.Leads(ctx, []string{"ana", "bia"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got[0].Name != "Ana Souza" || got[0].Contact != "5511900000001" || got[1].Contact != "5511900000002" {
+				t.Fatalf("candidates = %+v, want the lead identity whatever the variables", got)
+			}
+		})
+	}
+}
+
+func TestWhatsAppChannelsHandTheAutomationNeedsToTheAudience(t *testing.T) {
+	w := newWhatsAppWorld(t)
+	prepared, err := w.official.Prepare(ctx, testActor, Params{TemplateID: "tpl-1", Automation: campaign.Automation{WorkflowID: "wf-1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(prepared.Needs.Names(), []string{"turma"}) {
+		t.Fatalf("needs = %v", prepared.Needs.Names())
+	}
+}

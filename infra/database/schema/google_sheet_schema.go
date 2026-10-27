@@ -17,6 +17,10 @@ type GoogleSheet struct {
 	SpreadsheetID string         `gorm:"size:128;not null"`
 	TabID         int64          `gorm:"not null"`
 	TabName       string         `gorm:"size:100;not null"`
+	TabPeriod     string         `gorm:"size:16;not null;default:'none'"`
+	TabPattern    string         `gorm:"size:100;not null;default:''"`
+	TabPeriodKey  string         `gorm:"size:16;not null;default:''"`
+	Style         string         `gorm:"size:16;not null;default:'plain'"`
 	Title         string         `gorm:"size:200;not null"`
 	Description   string         `gorm:"type:text;not null;default:''"`
 	TimeZone      string         `gorm:"size:64;not null"`
@@ -49,6 +53,7 @@ type GoogleSheetRow struct {
 	IdempotencyKey string                  `gorm:"size:200;not null"`
 	Cells          piigorm.EncryptedString `gorm:"type:bytea;not null" json:"-"`
 	SheetVersion   int                     `gorm:"not null"`
+	PeriodKey      string                  `gorm:"size:16;not null;default:''"`
 	OriginKind     string                  `gorm:"size:16;not null"`
 	AgentID        string                  `gorm:"size:64;not null;default:''"`
 	WorkflowID     string                  `gorm:"size:64;not null;default:''"`
@@ -85,11 +90,24 @@ type GoogleSheetExportCursor struct {
 	WorkspaceID   string    `gorm:"type:uuid;not null"`
 	LastMessageAt time.Time `gorm:"type:timestamptz;not null"`
 	LastMessageID string    `gorm:"type:text;not null"`
+	AnchorRowID   string    `gorm:"type:text;not null;default:''"`
+	AnchorPeriod  string    `gorm:"size:16;not null;default:''"`
 	UpdatedAt     time.Time `gorm:"type:timestamptz;not null"`
 }
 
 func (GoogleSheetExportCursor) TableName() string { return "google_sheet_export_cursors" }
 
+type GoogleSheetTab struct {
+	SheetID     string    `gorm:"primaryKey;type:uuid"`
+	PeriodKey   string    `gorm:"primaryKey;size:16"`
+	WorkspaceID string    `gorm:"type:uuid;not null"`
+	TabID       int64     `gorm:"not null"`
+	TabName     string    `gorm:"size:100;not null"`
+	CreatedAt   time.Time `gorm:"type:timestamptz;not null"`
+}
+
+func (GoogleSheetTab) TableName() string { return "google_sheet_tabs" }
+
 func GoogleSheetModels() []any {
-	return []any{&GoogleSheet{}, &GoogleSheetRow{}, &GoogleSheetExportCursor{}}
+	return []any{&GoogleSheet{}, &GoogleSheetRow{}, &GoogleSheetExportCursor{}, &GoogleSheetTab{}}
 }

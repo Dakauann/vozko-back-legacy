@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"vozko/delivery/http/automationneedsx"
 
 	"vozko/delivery/http/httpx"
 	"vozko/delivery/http/response"
@@ -184,6 +185,9 @@ var workflowValidationRefusals = []response.ErrorRefusal{
 }
 
 func (h *WorkflowHandler) handleDomainError(w http.ResponseWriter, err error) {
+	if automationneedsx.WriteRefusal(w, err) {
+		return
+	}
 	if httpx.WriteConsentGrantRefusal(w, err) {
 		return
 	}

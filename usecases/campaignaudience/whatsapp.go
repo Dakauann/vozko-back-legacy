@@ -79,12 +79,8 @@ func (d WhatsAppDeps) definitions(workspaceID string) ([]*customfield.Definition
 	return defs, nil
 }
 
-func (d WhatsAppDeps) metadataRule(workspaceID string, automation campaign.Automation) (campaignaudience.MetadataRule, error) {
-	rule, err := d.Automation.Rule(workspaceID, automation)
-	if err != nil {
-		return nil, err
-	}
-	return rule.Missing, nil
+func (d WhatsAppDeps) automationRule(workspaceID string, automation campaign.Automation) (campaignautomation.Rule, error) {
+	return d.Automation.Rule(workspaceID, automation)
 }
 
 type preparation struct {
@@ -98,11 +94,11 @@ func (d WhatsAppDeps) prepared(a Actor, p preparation, automation campaign.Autom
 	if err != nil {
 		return Prepared{}, err
 	}
-	metadata, err := d.metadataRule(a.WorkspaceID, automation)
+	rule, err := d.automationRule(a.WorkspaceID, automation)
 	if err != nil {
 		return Prepared{}, err
 	}
-	return Prepared{Slots: usableSuggestions(p.slots, defs), Awaits: p.awaits, Metadata: metadata, Open: func(ctx context.Context, bound []campaignaudience.Bound, source campaignaudience.Source) (Judge, error) {
+	return Prepared{Slots: usableSuggestions(p.slots, defs), Awaits: p.awaits, Metadata: rule.Missing, Needs: rule.Needs(), Open: func(ctx context.Context, bound []campaignaudience.Bound, source campaignaudience.Source) (Judge, error) {
 		return d.judge(a, p.senderID, bound, source, defs)
 	}}, nil
 }
@@ -191,7 +187,7 @@ func (j *whatsappJudge) Leads(ctx context.Context, ids []string) ([]campaignaudi
 	if err != nil {
 		return nil, err
 	}
-	subjects, err := j.deps.Subjects.Subjects(ctx, j.workspaceID, ids, j.plan)
+	subjects, err := j.deps.Subjects.Identified(ctx, j.workspaceID, ids, j.plan)
 	if err != nil {
 		return nil, err
 	}

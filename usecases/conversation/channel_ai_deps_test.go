@@ -29,6 +29,12 @@ func (channelAINoLeads) FindByID(string, string) (*lead.Lead, error) {
 	return nil, lead.ErrLeadNotFound
 }
 
+type channelAIEveryValue struct{}
+
+func (channelAIEveryValue) AgentValues(context.Context, string, string, shared.EntryType, string) (map[string]string, bool) {
+	return map[string]string{}, true
+}
+
 type channelAINoNames struct{}
 
 func (channelAINoNames) ResolveNames(...string) (map[string]string, error) { return nil, nil }
@@ -49,6 +55,9 @@ func channelAIWith(d ChannelAIReplyDeps) *ChannelAIReplyService {
 	if d.WorkflowNames == nil {
 		d.WorkflowNames = channelAINoNames{}
 	}
+	if d.Variables == nil {
+		d.Variables = channelAIEveryValue{}
+	}
 	return NewChannelAIReplyService(d)
 }
 
@@ -67,6 +76,9 @@ func channelAIDefaults(s *ChannelAIReplyService) *ChannelAIReplyService {
 	}
 	if s.workflowNames == nil {
 		s.workflowNames = channelAINoNames{}
+	}
+	if s.variables == nil {
+		s.variables = channelAIEveryValue{}
 	}
 	return s
 }
@@ -142,6 +154,9 @@ func whatsappDefaults(uc *handleWhatsAppMessageUseCase) *handleWhatsAppMessageUs
 	}
 	if uc.live == nil {
 		uc.live = whatsappLiveOff{}
+	}
+	if uc.agentVariables == nil {
+		uc.agentVariables = channelAIEveryValue{}
 	}
 	if uc.turnAssembler == nil {
 		uc.turnAssembler = agentturn.New(uc.toolRegistry, uc.ragService, nil, nil)

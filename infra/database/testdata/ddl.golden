@@ -544,6 +544,9 @@ CREATE INDEX IF NOT EXISTS idx_google_acct_refresh_due ON google_accounts (acces
 -- idx_google_acct_email
 CREATE INDEX IF NOT EXISTS idx_google_acct_email ON google_accounts (email) WHERE status <> 'disconnected';
 
+-- idx_google_sheet_spreadsheet
+CREATE INDEX IF NOT EXISTS idx_google_sheet_spreadsheet ON google_sheets (workspace_id, spreadsheet_id) WHERE deleted_at IS NULL;
+
 -- idx_google_sheet_ws_created
 CREATE INDEX IF NOT EXISTS idx_google_sheet_ws_created ON google_sheets (workspace_id, created_at DESC, id) WHERE deleted_at IS NULL;
 

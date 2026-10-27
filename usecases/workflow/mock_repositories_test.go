@@ -3,21 +3,23 @@ package workflow_usecase
 import (
 	"sync"
 	"time"
+	"vozko/domain/automationneeds"
 
 	"vozko/domain/shared"
 	"vozko/domain/workflow"
 )
 
 type MockWorkflowRepository struct {
-	mu         sync.Mutex
-	workflows  map[string]*workflow.Workflow
-	versions   map[string]map[int]*workflow.WorkflowVersion
-	CreateErr  error
-	UpdateErr  error
-	DeleteErr  error
-	FindErr    error
-	PublishErr error
-	VersionErr error
+	mu          sync.Mutex
+	SwitchedOff []automationneeds.SwitchOff
+	workflows   map[string]*workflow.Workflow
+	versions    map[string]map[int]*workflow.WorkflowVersion
+	CreateErr   error
+	UpdateErr   error
+	DeleteErr   error
+	FindErr     error
+	PublishErr  error
+	VersionErr  error
 }
 
 func NewMockWorkflowRepository() *MockWorkflowRepository {
@@ -174,6 +176,16 @@ func (m *MockWorkflowRepository) UpdateStatus(id string, status workflow.Workflo
 	}
 	w.Status = status
 	return nil
+}
+
+func (m *MockWorkflowRepository) PublishVersionSwitchingOff(in workflow.PublishVersion, _ string, offs []automationneeds.SwitchOff) (*workflow.WorkflowVersion, []string, error) {
+	v, err := m.PublishVersion(in)
+	if err == nil {
+		m.mu.Lock()
+		m.SwitchedOff = append(m.SwitchedOff, offs...)
+		m.mu.Unlock()
+	}
+	return v, nil, err
 }
 
 func (m *MockWorkflowRepository) PublishVersion(in workflow.PublishVersion) (*workflow.WorkflowVersion, error) {

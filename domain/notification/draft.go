@@ -34,6 +34,7 @@ const (
 	SourceGoogleSheet      = "google_sheet"
 	SourceEmailWebhook     = "email_webhook"
 	SourceCampaignSchedule = "campaign_schedule"
+	SourceAutomationVars   = "automation_variables"
 
 	SourceConversationNoteMention = "conversation_note_mention"
 )

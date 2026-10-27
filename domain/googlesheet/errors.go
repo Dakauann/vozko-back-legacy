@@ -26,6 +26,13 @@ var (
 	ErrGoogleBusy             = errors.New("googlesheet: the google quota for this minute is used up, try again in a minute")
 	ErrNoMessageColumns       = errors.New("googlesheet: the sheet has no column filled per message")
 	ErrNeedsConversation      = errors.New("googlesheet: exporting messages needs a conversation")
+	ErrNoInputColumns         = errors.New("googlesheet: the sheet has no column filled by agents or workflows")
+	ErrSpreadsheetNotFound    = errors.New("googlesheet: no sheet of this workspace lives in that spreadsheet")
+	ErrTabNameTaken           = errors.New("googlesheet: the spreadsheet already has a tab with that name")
+	ErrLinkTargetInvalid      = errors.New("googlesheet: the link column must point at another sheet with message columns in the same spreadsheet")
+	ErrLinkExportMissing      = errors.New("googlesheet: this conversation was not exported to the linked sheet yet")
+	ErrPresetNotFound         = errors.New("googlesheet: preset not found")
+	ErrLinkTargetPending      = errors.New("googlesheet: the tab the link points at does not exist yet")
 )
 
 const (
@@ -49,6 +56,12 @@ const (
 	CodeGoogleBusy             = "google_sheet_google_busy"
 	CodeNoMessageColumns       = "google_sheet_no_message_columns"
 	CodeNeedsConversation      = "google_sheet_needs_conversation"
+	CodeNoInputColumns         = "google_sheet_no_input_columns"
+	CodeSpreadsheetNotFound    = "google_sheet_spreadsheet_not_found"
+	CodeTabNameTaken           = "google_sheet_tab_name_taken"
+	CodeLinkTargetInvalid      = "google_sheet_link_target_invalid"
+	CodeLinkExportMissing      = "google_sheet_link_export_missing"
+	CodePresetNotFound         = "google_sheet_preset_not_found"
 	CodeInternal               = "google_sheet_failed"
 )
 
@@ -76,6 +89,12 @@ var errorCodes = []struct {
 	{ErrGoogleBusy, CodeGoogleBusy},
 	{ErrNoMessageColumns, CodeNoMessageColumns},
 	{ErrNeedsConversation, CodeNeedsConversation},
+	{ErrNoInputColumns, CodeNoInputColumns},
+	{ErrSpreadsheetNotFound, CodeSpreadsheetNotFound},
+	{ErrTabNameTaken, CodeTabNameTaken},
+	{ErrLinkTargetInvalid, CodeLinkTargetInvalid},
+	{ErrLinkExportMissing, CodeLinkExportMissing},
+	{ErrPresetNotFound, CodePresetNotFound},
 }
 
 func AllErrors() []error {
@@ -87,14 +106,18 @@ func AllErrors() []error {
 }
 
 func Codes() []string {
-	out := make([]string, len(errorCodes))
-	for i, entry := range errorCodes {
-		out[i] = entry.code
+	out := make([]string, 0, len(errorCodes)+len(definitionCodes))
+	for _, entry := range errorCodes {
+		out = append(out, entry.code)
 	}
-	return out
+	return append(out, DefinitionCodes()...)
 }
 
 func ErrorCode(err error) string {
+	var def *DefinitionError
+	if errors.As(err, &def) {
+		return def.Code
+	}
 	for _, entry := range errorCodes {
 		if errors.Is(err, entry.err) {
 			return entry.code
@@ -118,7 +141,3 @@ func (e *ValueError) Error() string {
 }
 
 func (e *ValueError) Unwrap() error { return e.Reason }
-
-func invalidSheet(format string, args ...any) error {
-	return fmt.Errorf("%w: "+format, append([]any{ErrInvalidSheet}, args...)...)
-}

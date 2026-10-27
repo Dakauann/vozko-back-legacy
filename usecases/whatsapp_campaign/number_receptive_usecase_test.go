@@ -4,6 +4,9 @@ import (
 	"errors"
 	"testing"
 
+	"vozko/domain/automationneeds"
+	"vozko/usecases/automationneeds/receptivetest"
+
 	businessphone "vozko/domain/whatsapp/business_phone"
 	wc "vozko/domain/whatsapp_campaign"
 )
@@ -46,7 +49,7 @@ func ownedPhone() *businessphone.WhatsAppBusinessPhoneNumber {
 }
 
 func newNumberReceptive(phones receptivePhonesStub, repo *receptiveRepoStub) *NumberReceptive {
-	return NewNumberReceptive(phones, repo, NewEnsureReceptiveContainerUseCase(repo))
+	return NewNumberReceptive(phones, repo, NewEnsureReceptiveContainerUseCase(repo), receptivetest.Allow())
 }
 
 func TestTheOwnerReadsTheNumbersReceptiveSettings(t *testing.T) {
@@ -122,5 +125,33 @@ func TestAFailedNumberLookupIsReported(t *testing.T) {
 	uc := newNumberReceptive(receptivePhonesStub{err: sentinel}, &receptiveRepoStub{})
 	if _, err := uc.Get("owner", "phone-1"); !errors.Is(err, sentinel) {
 		t.Fatalf("err %v", err)
+	}
+}
+
+func TestTheNumberRefusesAnAutomationItsReceptiveCannotFeed(t *testing.T) {
+	repo := &receptiveRepoStub{latest: &wc.Campaign{Type: wc.CampaignTypeOrganic}}
+	guard := receptivetest.Refuse(&automationneeds.Refusal{Cause: automationneeds.ErrReceptiveUnmet})
+	uc := NewNumberReceptive(receptivePhonesStub{phone: ownedPhone()}, repo, NewEnsureReceptiveContainerUseCase(repo), guard)
+	_, err := uc.Update("owner", "phone-1", wc.ReceptiveSettings{AgentID: "agent-1", EnableAgentResponses: true})
+	if !errors.Is(err, automationneeds.ErrReceptiveUnmet) {
+		t.Fatalf("err = %v, want the receptive refusal", err)
+	}
+	if repo.written != nil {
+		t.Fatal("a refused automation must not be written")
+	}
+	if len(guard.Admitted) != 1 || guard.Admitted[0].AgentID == nil || *guard.Admitted[0].AgentID != "agent-1" || !guard.Admitted[0].EnableAgentResponses {
+		t.Fatalf("admitted = %+v", guard.Admitted)
+	}
+}
+
+func TestASavedNumberSettlesItsSwitchOffNotice(t *testing.T) {
+	repo := &receptiveRepoStub{latest: &wc.Campaign{Type: wc.CampaignTypeOrganic}}
+	guard := receptivetest.Allow()
+	uc := NewNumberReceptive(receptivePhonesStub{phone: ownedPhone()}, repo, NewEnsureReceptiveContainerUseCase(repo), guard)
+	if _, err := uc.Update("owner", "phone-1", wc.ReceptiveSettings{AgentID: "agent-1", EnableAgentResponses: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(guard.Settled) != 1 || guard.Settled[0] != "whatsapp_number:phone-1" {
+		t.Fatalf("settled = %v", guard.Settled)
 	}
 }

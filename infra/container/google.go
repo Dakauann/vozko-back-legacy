@@ -159,8 +159,9 @@ func (c *Container) initGoogleSheets() {
 		WorkflowNames:   c.workflowName,
 		FrontendBaseURL: c.cfg.FrontendBaseURL,
 	})
-	intake := gsuc.NewIntake(sheets, rows, resolver, writer)
-	exports, err := gsuc.NewExports(gsuc.ExportsDeps{Intake: intake, Exports: googlesheet_repository.NewExportRepository(c.db)})
+	exportRepository := googlesheet_repository.NewExportRepository(c.db)
+	intake := gsuc.NewIntake(sheets, rows, resolver, exportRepository, writer)
+	exports, err := gsuc.NewExports(gsuc.ExportsDeps{Intake: intake, Exports: exportRepository})
 	if err != nil {
 		log.Fatalf("[google-sheets] message exports: %v", err)
 	}

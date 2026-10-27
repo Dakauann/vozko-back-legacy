@@ -60,36 +60,6 @@ func TestKeyFromHeaderIsUniqueAndSafe(t *testing.T) {
 	}
 }
 
-func TestNewSheetRefusesInvalidDefinitions(t *testing.T) {
-	cases := map[string]func(*NewSheetInput){
-		"no title":                 func(in *NewSheetInput) { in.Title = " " },
-		"no account":               func(in *NewSheetInput) { in.AccountID = "" },
-		"no columns":               func(in *NewSheetInput) { in.Columns = nil },
-		"only system columns":      func(in *NewSheetInput) { in.Columns = in.Columns[3:] },
-		"duplicate header":         func(in *NewSheetInput) { in.Columns[1].Header = "nome do cliente" },
-		"blank header":             func(in *NewSheetInput) { in.Columns[1].Header = "  " },
-		"choice without options":   func(in *NewSheetInput) { in.Columns[2].Options = nil },
-		"repeated option":          func(in *NewSheetInput) { in.Columns[2].Options = []string{"Novo", "novo"} },
-		"options on a text":        func(in *NewSheetInput) { in.Columns[0].Options = []string{"a"} },
-		"unknown type":             func(in *NewSheetInput) { in.Columns[0].Type = "currency" },
-		"unknown source":           func(in *NewSheetInput) { in.Columns[3].Source = "lead_cpf" },
-		"source of the wrong type": func(in *NewSheetInput) { in.Columns[4].Type = TypeNumber },
-		"instruction too long":     func(in *NewSheetInput) { in.Columns[0].Instruction = strings.Repeat("a", MaxInstructionRunes+1) },
-		"unknown time zone":        func(in *NewSheetInput) { in.TimeZone = "Mars/Olympus" },
-		"tab name with quote":      func(in *NewSheetInput) { in.TabName = "Pedidos'" },
-	}
-	for name, mutate := range cases {
-		t.Run(name, func(t *testing.T) {
-			in := validInput()
-			mutate(&in)
-			_, err := NewSheet(in)
-			if !errors.Is(err, ErrInvalidSheet) {
-				t.Fatalf("err = %v, want ErrInvalidSheet", err)
-			}
-		})
-	}
-}
-
 func TestHeaderRowStartsWithTheHiddenReference(t *testing.T) {
 	s, _ := NewSheet(validInput())
 	header := s.HeaderRow()
@@ -129,7 +99,6 @@ func TestEditColumnsRefusesBreakingChanges(t *testing.T) {
 	cases := map[string]ColumnsEdit{
 		"unknown column":          {Update: []ColumnUpdate{{Key: "nope", Header: ptr("x")}}},
 		"duplicate header":        {Update: []ColumnUpdate{{Key: "valor", Header: ptr("Status")}}},
-		"archive every input":     {Update: []ColumnUpdate{{Key: "nome_do_cliente", Archived: ptrBool(true)}, {Key: "valor", Archived: ptrBool(true)}, {Key: "status", Archived: ptrBool(true)}}},
 		"drop an option in use":   {Update: []ColumnUpdate{{Key: "status", Options: []string{"Novo"}}}},
 		"options on a non choice": {Update: []ColumnUpdate{{Key: "valor", Options: []string{"1"}}}},
 	}

@@ -61,6 +61,7 @@ type Row struct {
 	IdempotencyKey string
 	Cells          Cells
 	SheetVersion   int
+	PeriodKey      string
 	Origin         Origin
 	Status         RowStatus
 	Attempts       int
@@ -86,6 +87,7 @@ func NewRow(s *Sheet, cells Cells, idempotencyKey string, origin Origin, now tim
 		IdempotencyKey: boundKey(idempotencyKey),
 		Cells:          cells,
 		SheetVersion:   s.Version,
+		PeriodKey:      s.PeriodOf(now),
 		Origin:         origin,
 		Status:         RowPending,
 		NextAttemptAt:  now,
@@ -207,6 +209,8 @@ const (
 	CodeWriteSpreadsheetMissing = "google_sheet_write_spreadsheet_missing"
 	CodeWriteAccountRefused     = "google_sheet_write_account_refused"
 	CodeWriteRefusedByGoogle    = "google_sheet_write_refused_by_google"
+	CodeWriteLinkPending        = "google_sheet_write_link_pending"
+	CodeWriteLinkTargetMissing  = "google_sheet_write_link_target_missing"
 )
 
 var failureCodes = map[FailureKind]string{
@@ -228,7 +232,7 @@ func (f Failure) Code() string {
 func RowErrorCodes() []string {
 	return []string{
 		CodeWriteRateLimited, CodeWriteUnavailable, CodeWriteAccessLost, CodeWriteSpreadsheetMissing,
-		CodeWriteAccountRefused, CodeWriteRefusedByGoogle, CodeInvalidValue,
+		CodeWriteAccountRefused, CodeWriteRefusedByGoogle, CodeInvalidValue, CodeWriteLinkPending, CodeWriteLinkTargetMissing,
 	}
 }
 

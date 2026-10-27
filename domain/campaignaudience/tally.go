@@ -61,6 +61,8 @@ type VariableCount struct {
 	Fallback       string                 `json:"fallback,omitempty"`
 	Suggested      bool                   `json:"suggested"`
 	ChoiceRequired bool                   `json:"choiceRequired"`
+	Kind           SlotKind               `json:"kind" enums:"template,automation"`
+	NeededBy       string                 `json:"neededBy,omitempty"`
 }
 
 type SelectionCount struct {
@@ -263,14 +265,17 @@ func (t *Tally) Creatable() error {
 func (t *Tally) Count() Count {
 	count := Count{
 		Channel: t.channel, Source: t.source, Matched: t.matched, WithContact: t.contact,
-		Out: map[string]int{}, RequiredVariables: len(t.bound), Variables: []VariableCount{}, Blockers: t.blockers(), MetadataMissing: t.metadata.Gaps(),
+		Out: map[string]int{}, RequiredVariables: t.templateSlots(), Variables: []VariableCount{}, Blockers: t.blockers(), MetadataMissing: t.metadata.Gaps(),
 	}
 	for reason, n := range t.out {
 		count.Out[reason] = n
 		count.OutTotal += n
 	}
 	for i, b := range t.bound {
-		v := VariableCount{Key: b.Key, Name: b.Name, Header: b.Header, Source: b.Source, Value: b.Value, Missing: t.missing[i], Policy: b.Missing, Text: b.Text, Fallback: b.Fallback, Suggested: b.Suggested}
+		v := VariableCount{Key: b.Key, Name: b.Name, Header: b.Header, Source: b.Source, Value: b.Value, Missing: t.missing[i], Policy: b.Missing, Text: b.Text, Fallback: b.Fallback, Suggested: b.Suggested, Kind: SlotTemplate, NeededBy: b.NeededBy}
+		if b.Automation() {
+			v.Kind = SlotAutomation
+		}
 		v.ChoiceRequired = t.source == SourceLeads && t.channel.RequiresChoice() && b.Missing == "" && t.missing[i] > 0
 		count.Variables = append(count.Variables, v)
 	}

@@ -135,7 +135,7 @@ func (c *Container) initInstagram() {
 		Connect:           connect,
 		List:              iguc.NewListAccountsUseCase(bundle.Accounts),
 		Get:               iguc.NewGetAccountUseCase(bundle.Accounts),
-		UpdateCfg:         iguc.NewUpdateAccountConfigUseCase(bundle.Accounts),
+		UpdateCfg:         iguc.NewUpdateAccountConfigUseCase(bundle.Accounts, c.automationNeeds().receptive),
 		Disconnect:        iguc.NewDisconnectAccountUseCase(bundle.Accounts, bundle.Subscription),
 		ListMedia:         iguc.NewListMediaUseCase(bundle.Accounts, mediaSvc, bundle.Media),
 		GetMedia:          iguc.NewGetMediaUseCase(bundle.Accounts, mediaSvc, bundle.Media),

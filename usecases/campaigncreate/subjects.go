@@ -20,8 +20,15 @@ func (s SubjectSource) Ready() bool {
 }
 
 func (s SubjectSource) Subjects(ctx context.Context, workspaceID string, ids []string, bindings campaign.BindingPlan) (map[string]campaign.BindingSubject, error) {
+	if !bindings.NeedsLead() {
+		return make(map[string]campaign.BindingSubject, len(ids)), nil
+	}
+	return s.Identified(ctx, workspaceID, ids, bindings)
+}
+
+func (s SubjectSource) Identified(ctx context.Context, workspaceID string, ids []string, bindings campaign.BindingPlan) (map[string]campaign.BindingSubject, error) {
 	subjects := make(map[string]campaign.BindingSubject, len(ids))
-	if !bindings.NeedsLead() || len(ids) == 0 {
+	if len(ids) == 0 {
 		return subjects, nil
 	}
 	if !s.Ready() {
@@ -36,6 +43,14 @@ func (s SubjectSource) Subjects(ctx context.Context, workspaceID string, ids []s
 		if l != nil && l.WorkspaceID == workspaceID {
 			leads = append(leads, l)
 		}
+	}
+	if !bindings.NeedsLead() {
+		for _, l := range leads {
+			if l.ID != "" {
+				subjects[l.ID] = campaign.BindingSubject{Lead: l}
+			}
+		}
+		return subjects, nil
 	}
 	return s.SubjectsOf(ctx, workspaceID, leads, bindings)
 }

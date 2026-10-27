@@ -17,6 +17,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"vozko/usecases/automationneeds/receptivetest"
 
 	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
@@ -509,7 +510,7 @@ func TestTikTokEndToEnd(t *testing.T) {
 		}
 	})
 
-	accounts := ttuc.NewAccounts(ttuc.AccountsDeps{Accounts: repos.Accounts, OAuth: client, References: refsAllowingNothing(), Alerts: e2eAlerts{}, Metrics: metrics})
+	accounts := ttuc.NewAccounts(ttuc.AccountsDeps{Accounts: repos.Accounts, OAuth: client, References: refsAllowingNothing(), Alerts: e2eAlerts{}, Metrics: metrics, Receptive: receptivetest.Allow()})
 	out, err := accounts.Disconnect(ctx, e2eWorkspace, account.ID)
 	if err != nil || out.Warning != "" {
 		t.Fatalf("disconnect %+v err %v", out, err)

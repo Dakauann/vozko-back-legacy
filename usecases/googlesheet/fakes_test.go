@@ -16,12 +16,81 @@ import (
 )
 
 type memorySheets struct {
-	mu     sync.Mutex
-	sheets map[string]*googlesheet.Sheet
-	fail   error
+	mu      sync.Mutex
+	sheets  map[string]*googlesheet.Sheet
+	tabs    map[string]map[string]googlesheet.Tab
+	deleted []string
+	fail    error
 }
 
-func newMemorySheets() *memorySheets { return &memorySheets{sheets: map[string]*googlesheet.Sheet{}} }
+func newMemorySheets() *memorySheets {
+	return &memorySheets{sheets: map[string]*googlesheet.Sheet{}, tabs: map[string]map[string]googlesheet.Tab{}}
+}
+
+func (m *memorySheets) saveTab(id string, tab googlesheet.Tab) {
+	if m.tabs[id] == nil {
+		m.tabs[id] = map[string]googlesheet.Tab{}
+	}
+	if _, ok := m.tabs[id][tab.Period]; !ok {
+		m.tabs[id][tab.Period] = tab
+	}
+}
+
+func (m *memorySheets) OpenTab(_ context.Context, id string, tab googlesheet.Tab) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.sheets[id]
+	if !ok {
+		return googlesheet.ErrSheetNotFound
+	}
+	m.saveTab(id, tab)
+	if s.TabPeriodKey < tab.Period {
+		s.TabID, s.TabName, s.TabPeriodKey = tab.ID, tab.Title, tab.Period
+	}
+	return nil
+}
+
+func (m *memorySheets) FindTab(_ context.Context, sheetID, period string) (googlesheet.Tab, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	tab, ok := m.tabs[sheetID][period]
+	return tab, ok, nil
+}
+
+func (m *memorySheets) Tabs(_ context.Context, sheetID string) ([]googlesheet.Tab, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []googlesheet.Tab
+	for _, tab := range m.tabs[sheetID] {
+		out = append(out, tab)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Period < out[j].Period })
+	return out, nil
+}
+
+func (m *memorySheets) InSpreadsheet(ctx context.Context, workspaceID, spreadsheetID string) ([]*googlesheet.Sheet, error) {
+	all, _ := m.ListAll(ctx, workspaceID)
+	var out []*googlesheet.Sheet
+	for _, s := range all {
+		if s.SpreadsheetID == spreadsheetID {
+			out = append(out, s)
+		}
+	}
+	return out, nil
+}
+
+func (m *memorySheets) ListAll(_ context.Context, workspaceID string) ([]*googlesheet.Sheet, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []*googlesheet.Sheet
+	for _, s := range m.sheets {
+		if s.WorkspaceID == workspaceID {
+			out = append(out, copySheet(s))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	return out, nil
+}
 
 func copySheet(s *googlesheet.Sheet) *googlesheet.Sheet {
 	c := *s
@@ -38,7 +107,13 @@ func (m *memorySheets) Create(_ context.Context, s *googlesheet.Sheet) error {
 	if s.ID == "" {
 		s.ID = uuid.NewString()
 	}
+	if s.CreatedAt.IsZero() {
+		s.CreatedAt = time.Date(2026, 1, 1, 0, 0, len(m.sheets), 0, time.UTC)
+	}
 	m.sheets[s.ID] = copySheet(s)
+	if s.Periodic() {
+		m.saveTab(s.ID, googlesheet.Tab{Period: s.TabPeriodKey, ID: s.TabID, Title: s.TabName})
+	}
 	return nil
 }
 
@@ -97,6 +172,7 @@ func (m *memorySheets) Delete(_ context.Context, ws, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.sheets, id)
+	m.deleted = append(m.deleted, id)
 	return nil
 }
 
@@ -305,7 +381,14 @@ func (m *memoryRows) byStatus(sheetID string, status googlesheet.RowStatus) []*g
 }
 
 type appendCall struct {
+	tab  int64
 	refs []string
+	rows [][]any
+}
+
+type appliedLayout struct {
+	target googlesheet.Target
+	layout googlesheet.Layout
 }
 
 type fakeAPI struct {
@@ -316,7 +399,12 @@ type fakeAPI struct {
 	appends    []appendCall
 	appendErrs []error
 	rejectRef  map[string]bool
-	tab        googlesheet.TabInfo
+	workbook   googlesheet.Workbook
+	headers    map[int64][]any
+	layouts    []appliedLayout
+	added      []googlesheet.TabSpec
+	addErr     error
+	deleted    []int64
 	readErr    error
 	createErr  error
 	created    googlesheet.CreatedSpreadsheet
@@ -326,7 +414,10 @@ type fakeAPI struct {
 }
 
 func newFakeAPI() *fakeAPI {
-	return &fakeAPI{nextRow: 2, tab: googlesheet.TabInfo{Title: "Pedidos", Rows: 1000, Columns: 10}, rejectRef: map[string]bool{}}
+	return &fakeAPI{
+		nextRow: 2, rejectRef: map[string]bool{}, headers: map[int64][]any{},
+		workbook: googlesheet.Workbook{Tabs: []googlesheet.TabInfo{{ID: 0, Title: "Pedidos", Rows: 1000, Columns: 10}}},
+	}
 }
 
 func (f *fakeAPI) CreateSpreadsheet(context.Context, string, googlesheet.SpreadsheetSpec) (googlesheet.CreatedSpreadsheet, error) {
@@ -338,21 +429,52 @@ func (f *fakeAPI) TrashSpreadsheet(_ context.Context, _, id string) error {
 	return nil
 }
 
-func (f *fakeAPI) ApplyColumns(context.Context, string, googlesheet.Target, []googlesheet.Column) error {
+func (f *fakeAPI) ApplyLayout(_ context.Context, _ string, target googlesheet.Target, layout googlesheet.Layout) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.applied++
+	f.layouts = append(f.layouts, appliedLayout{target: target, layout: layout})
+	f.headers[target.TabID] = layoutHeader(layout)
+	return nil
+}
+
+func layoutHeader(layout googlesheet.Layout) []any {
+	header := []any{googlesheet.RefHeader}
+	for _, col := range layout.Columns {
+		header = append(header, col.Header)
+	}
+	return header
+}
+
+func (f *fakeAPI) AddTab(_ context.Context, _, _ string, tab googlesheet.TabSpec) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.addErr != nil {
+		return f.addErr
+	}
+	f.added = append(f.added, tab)
+	f.headers[tab.ID] = layoutHeader(tab.Layout)
+	f.workbook.Tabs = append(f.workbook.Tabs, googlesheet.TabInfo{ID: tab.ID, Title: tab.Title, Rows: googlesheet.NewTabRows, Columns: len(tab.Layout.Columns) + 1})
+	return nil
+}
+
+func (f *fakeAPI) DeleteTab(_ context.Context, _, _ string, tabID int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.deleted = append(f.deleted, tabID)
 	return nil
 }
 
 var errInvalidRow = errors.New("invalid row")
 
-func (f *fakeAPI) AppendRows(_ context.Context, _ string, _ googlesheet.Target, rows [][]any) (googlesheet.AppendResult, error) {
+func (f *fakeAPI) AppendRows(_ context.Context, _ string, target googlesheet.Target, rows [][]any) (googlesheet.AppendResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	refs := make([]string, len(rows))
 	for i, row := range rows {
 		refs[i] = row[0].(string)
 	}
-	f.appends = append(f.appends, appendCall{refs: refs})
+	f.appends = append(f.appends, appendCall{tab: target.TabID, refs: refs, rows: rows})
 	if len(f.appendErrs) > 0 {
 		err := f.appendErrs[0]
 		f.appendErrs = f.appendErrs[1:]
@@ -373,7 +495,7 @@ func (f *fakeAPI) AppendRows(_ context.Context, _ string, _ googlesheet.Target, 
 	return googlesheet.AppendResult{FirstRow: first, Rows: len(rows)}, nil
 }
 
-func (f *fakeAPI) ReadRange(_ context.Context, _ string, _ googlesheet.Target, a1 string) ([][]any, error) {
+func (f *fakeAPI) ReadRange(_ context.Context, _ string, target googlesheet.Target, a1 string) ([][]any, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.readCalls++
@@ -381,13 +503,18 @@ func (f *fakeAPI) ReadRange(_ context.Context, _ string, _ googlesheet.Target, a
 		return nil, f.readErr
 	}
 	if a1 == "1:1" {
+		if header, ok := f.headers[target.TabID]; ok {
+			return [][]any{header}, nil
+		}
 		return [][]any{f.header}, nil
 	}
 	return append([][]any{{"ref"}}, f.refs...), nil
 }
 
-func (f *fakeAPI) TabInfo(context.Context, string, googlesheet.Target) (googlesheet.TabInfo, error) {
-	return f.tab, f.readErr
+func (f *fakeAPI) Workbook(context.Context, string, string) (googlesheet.Workbook, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return googlesheet.Workbook{Tabs: append([]googlesheet.TabInfo(nil), f.workbook.Tabs...)}, f.readErr
 }
 
 func (f *fakeAPI) written() []string {

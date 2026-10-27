@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"vozko/delivery/http/automationneedsx"
 
 	"github.com/gorilla/mux"
 
@@ -242,6 +243,7 @@ func (h *Handler) GetAccount(w http.ResponseWriter, r *http.Request) {
 // @Failure		404		{object}	response.ErrorResponse
 // @Failure		422		{object}	response.ErrorResponse
 // @Security		BearerAuth
+// @Failure		409	{object}	response.ErrorResponse{details=automationneedsx.RefusalDetails}	"automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis"
 // @Router			/mercadolivre/accounts/{id} [patch]
 func (h *Handler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	var req UpdateAccountRequest
@@ -305,6 +307,9 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeError(w http.ResponseWriter, err error, fallback string) {
+	if automationneedsx.WriteRefusal(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, mldomain.ErrAccountNotFound), errors.Is(err, mldomain.ErrConversationNotFound):
 		response.WriteError(w, http.StatusNotFound, "Not found", nil)

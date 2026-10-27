@@ -211,6 +211,7 @@ func (h *Handler) GetAccount(w http.ResponseWriter, r *http.Request) {
 // @Success		200	{object}	AccountResponse
 // @Failure		422	{object}	response.ErrorResponse
 // @Security		BearerAuth
+// @Failure		409	{object}	response.ErrorResponse{details=automationneedsx.RefusalDetails}	"automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis"
 // @Router			/tiktok/accounts/{id} [put]
 func (h *Handler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	var req UpdateAccountRequest

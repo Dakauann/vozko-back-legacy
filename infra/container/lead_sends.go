@@ -17,7 +17,7 @@ import (
 func (c *Container) campaignAutomation() *campaignautomation.Step {
 	step, err := campaignautomation.NewStep(
 		workflow_usecase.NewGetPublishedWorkflowUseCase(c.repositories.workflow),
-		agent_usecase.NewGetAgentUseCase(c.repositories.agent),
+		agent_usecase.NewGetAgentUseCase(c.publishedAgents()),
 	)
 	if err != nil {
 		log.Fatalf("[campaigns] the workflow and agent checks cannot be built: %v", err)

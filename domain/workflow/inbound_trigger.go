@@ -32,7 +32,6 @@ type InboundTrigger struct {
 	TriggerMessageID string
 	CampaignID       string
 	WorkflowID       string
-	CampaignVars     map[string]interface{}
 }
 
 func (t *InboundTrigger) StoredAs(stored *conversation.Message) {
@@ -68,9 +67,6 @@ func (t InboundTrigger) Event() TriggerEvent {
 		} else {
 			data[DataKeyAccountWorkflowID] = workflowID
 		}
-	}
-	if len(t.CampaignVars) > 0 {
-		data[DataKeyCampaignVars] = t.CampaignVars
 	}
 	return TriggerEvent{
 		WorkspaceID: t.WorkspaceID,

@@ -302,10 +302,6 @@ func (c *Campaign) ValidateTargetVariables(required int) error {
 	return nil
 }
 
-func (c *Campaign) ValidateWorkflowVars(requiredKeys []string) error {
-	return campaign.RequireWorkflowVars(requiredKeys, c.EntryMetadata())
-}
-
 func (c *Campaign) Automation() campaign.Automation {
 	return campaign.Automation{AgentID: c.AgentID, WorkflowID: c.WorkflowID, EnableAgentResponses: c.EnableAgentResponses, EnableWorkflow: c.EnableWorkflow}
 }
@@ -320,7 +316,10 @@ func (c *Campaign) ChangesWhatIsSent(in *Campaign) bool {
 func (c *Campaign) EntryMetadata() []campaign.EntryMetadata {
 	entries := make([]campaign.EntryMetadata, 0, len(c.Targets))
 	for _, t := range c.Targets {
-		entries = append(entries, campaign.EntryMetadataOf(t.LeadID, t.Number, t.Metadata))
+		if t.Skip != "" {
+			continue
+		}
+		entries = append(entries, campaign.EntryMetadataOf(t.LeadID, t.Number, t.Metadata).WithVariables(t.Variables))
 	}
 	return entries
 }

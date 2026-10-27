@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"vozko/domain/automationneeds"
 
 	"vozko/domain/copilot"
 	"vozko/domain/tools"
@@ -89,6 +90,9 @@ func (t *workflowStatusTool) Execute(ctx context.Context, cc copilot.Context, ar
 func workflowFailure(tool string, err error) copilot.Result {
 	if res, ok := copilottools.ConsentGrantRefusal(err); ok {
 		return res
+	}
+	if refusal, ok := automationneeds.RefusalOf(err); ok {
+		return copilot.Result{Status: copilot.StatusError, Message: refusal.Sentence()}
 	}
 	if blocked, ok := workflow.NotPublishableOf(err); ok {
 		return copilot.Result{Status: copilot.StatusError, Message: "a automação tem problemas que impedem publicar; corrija todos antes de ativar: " + blocked.Error()}

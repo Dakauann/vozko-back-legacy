@@ -29,6 +29,7 @@ const (
 	addSheetRowNotActive   = "A planilha está pausada até alguém revisá-la no painel. Não prometa o registro; diga que a equipe vai verificar."
 	addSheetRowNoGoogle    = "O Google Planilhas não está conectado. Não prometa o registro; diga que a equipe vai verificar."
 	addSheetRowFailed      = "Não foi possível registrar agora. Não prometa o registro; diga que a equipe vai verificar."
+	addSheetRowNoInputs    = "Esta planilha não tem campos para o agente preencher. Não chame esta ferramenta."
 )
 
 var columnParamTypes = map[googlesheet.ColumnType]string{
@@ -99,6 +100,10 @@ func (t *addSheetRowTool) DefinitionWithContext(ctx tools.ToolContext) tools.Def
 		def.Description = addSheetRowUnavailable
 		return def
 	}
+	if !sheet.TakesInput() {
+		def.Description = addSheetRowNoInputs
+		return def
+	}
 	when := configString(ctx.Config, addSheetRowWhenKey)
 	if when == "" {
 		when = sheet.Description
@@ -135,6 +140,9 @@ func (t *addSheetRowTool) ExecuteWithConfig(ctx context.Context, config map[stri
 	if !ok {
 		return refusal(addSheetRowNoChat), nil
 	}
+	if refused, ok := t.refuseWithoutInputs(ctx, config); ok {
+		return refused, nil
+	}
 	callID := tools.CallIDFrom(ctx)
 	if callID == "" {
 		callID = uuid.NewString()
@@ -160,12 +168,28 @@ func (t *addSheetRowTool) Preview(ctx context.Context, config map[string]interfa
 	if !ok {
 		return refusal(addSheetRowNoChat), nil
 	}
+	if refused, ok := t.refuseWithoutInputs(ctx, config); ok {
+		return refused, nil
+	}
 	sheet, cells, err := t.sheets.Preview(ctx, configString(config, "__workspace_id"), configString(config, addSheetRowConfigKey), params, origin)
 	if err != nil {
 		return sheetRowRefusal(err), nil
 	}
 	shown, _ := json.Marshal(map[string]any{"simulacao": true, "planilha": sheet.Title, "linha": cells})
 	return tools.ExecutionResult{Result: string(shown)}, nil
+}
+
+func (t *addSheetRowTool) refuseWithoutInputs(ctx context.Context, config map[string]interface{}) (tools.ExecutionResult, bool) {
+	sheet, err := t.sheets.Get(ctx, configString(config, "__workspace_id"), configString(config, addSheetRowConfigKey))
+	if err != nil {
+		return sheetRowRefusal(err), true
+	}
+	if err := sheet.CheckTakesInput(); err != nil {
+		result := refusal(addSheetRowNoInputs)
+		result.ErrorCode = googlesheet.ErrorCode(err)
+		return result, true
+	}
+	return tools.ExecutionResult{}, false
 }
 
 func sheetRowOrigin(ctx context.Context, config map[string]interface{}) (googlesheet.Origin, bool) {
@@ -228,11 +252,17 @@ var (
 )
 
 func (t *addSheetRowTool) ValidateBinding(ctx context.Context, workspaceID string, config map[string]interface{}) error {
-	_, err := t.sheets.Get(ctx, workspaceID, configString(config, addSheetRowConfigKey))
+	sheet, err := t.sheets.Get(ctx, workspaceID, configString(config, addSheetRowConfigKey))
 	if errors.Is(err, googlesheet.ErrSheetNotFound) {
 		return tools.Invalid(agenttool.CodeSheetInvalid, "a planilha não existe neste workspace")
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	if !sheet.TakesInput() {
+		return tools.Invalid(agenttool.CodeSheetNoInputColumns, "a planilha não tem colunas preenchidas pelo agente")
+	}
+	return nil
 }
 
 var _ tools.BindingValidator = (*addSheetRowTool)(nil)

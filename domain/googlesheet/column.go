@@ -30,6 +30,7 @@ const (
 	TypeEmail    ColumnType = "email"
 	TypePhone    ColumnType = "phone"
 	TypeURL      ColumnType = "url"
+	TypeLink     ColumnType = "link"
 )
 
 func ColumnTypes() []ColumnType {
@@ -37,6 +38,9 @@ func ColumnTypes() []ColumnType {
 }
 
 func (t ColumnType) Valid() bool {
+	if t == TypeLink {
+		return true
+	}
 	for _, known := range ColumnTypes() {
 		if t == known {
 			return true
@@ -60,6 +64,7 @@ const (
 	SourceMessageDirection Source = "message_direction"
 	SourceMessageText      Source = "message_text"
 	SourceMessageMediaURL  Source = "message_media_url"
+	SourceExportLink       Source = "export_link"
 )
 
 var systemSourceTypes = map[Source]ColumnType{
@@ -74,12 +79,14 @@ var systemSourceTypes = map[Source]ColumnType{
 	SourceMessageDirection: TypeText,
 	SourceMessageText:      TypeLongText,
 	SourceMessageMediaURL:  TypeURL,
+	SourceExportLink:       TypeLink,
 }
 
 func SystemSources() []Source {
 	return []Source{
 		SourceWrittenAt, SourceLeadName, SourceLeadPhone, SourceLeadEmail, SourceConversationLink, SourceOrigin,
 		SourceMessageSentAt, SourceMessageSender, SourceMessageDirection, SourceMessageText, SourceMessageMediaURL,
+		SourceExportLink,
 	}
 }
 
@@ -107,14 +114,17 @@ func (s Source) ColumnType() (ColumnType, bool) {
 }
 
 type Column struct {
-	Key         string     `json:"key"`
-	Header      string     `json:"header"`
-	Type        ColumnType `json:"type"`
-	Options     []string   `json:"options,omitempty"`
-	Required    bool       `json:"required"`
-	Instruction string     `json:"instruction,omitempty"`
-	Source      Source     `json:"source"`
-	Archived    bool       `json:"archived"`
+	Key         string                 `json:"key"`
+	Header      string                 `json:"header"`
+	Type        ColumnType             `json:"type"`
+	Options     []string               `json:"options,omitempty"`
+	Colors      map[string]OptionColor `json:"colors,omitempty"`
+	Required    bool                   `json:"required"`
+	Instruction string                 `json:"instruction,omitempty"`
+	Source      Source                 `json:"source"`
+	LinkSheetID string                 `json:"link_sheet_id,omitempty"`
+	LinkLabel   string                 `json:"link_label,omitempty"`
+	Archived    bool                   `json:"archived"`
 }
 
 func (c Column) TakesInput() bool { return !c.Archived && c.Source == SourceInput }
@@ -123,9 +133,12 @@ type ColumnInput struct {
 	Header      string
 	Type        ColumnType
 	Options     []string
+	Colors      map[string]OptionColor
 	Required    bool
 	Instruction string
 	Source      Source
+	LinkSheetID string
+	LinkLabel   string
 }
 
 func newColumn(in ColumnInput, taken []string) (Column, error) {
@@ -133,12 +146,18 @@ func newColumn(in ColumnInput, taken []string) (Column, error) {
 		Header:      strings.TrimSpace(in.Header),
 		Type:        in.Type,
 		Options:     trimmedOptions(in.Options),
+		Colors:      trimmedColors(in.Colors),
 		Required:    in.Required,
 		Instruction: strings.TrimSpace(in.Instruction),
 		Source:      in.Source,
+		LinkSheetID: strings.TrimSpace(in.LinkSheetID),
+		LinkLabel:   strings.TrimSpace(in.LinkLabel),
 	}
 	if col.Source == "" {
 		col.Source = SourceInput
+	}
+	if col.Source == SourceExportLink && col.LinkLabel == "" {
+		col.LinkLabel = DefaultLinkLabel
 	}
 	if err := col.validate(); err != nil {
 		return Column{}, err
@@ -150,43 +169,93 @@ func newColumn(in ColumnInput, taken []string) (Column, error) {
 func (c Column) validate() error {
 	switch {
 	case c.Header == "":
-		return invalidSheet("every column needs a header")
+		return columnRefusal(CodeHeaderRequired, c)
 	case utf8.RuneCountInString(c.Header) > MaxHeaderRunes:
-		return invalidSheet("header %q is longer than %d characters", c.Header, MaxHeaderRunes)
-	case !c.Type.Valid():
-		return invalidSheet("column %q has unknown type %q", c.Header, c.Type)
+		return columnRefusal(CodeHeaderTooLong, c).limit(MaxHeaderRunes)
 	case !c.Source.Valid():
-		return invalidSheet("column %q has unknown source %q", c.Header, c.Source)
+		return columnRefusal(CodeSourceUnknown, c).detail("%q", c.Source)
+	case !c.Type.Valid() || (c.Type == TypeLink && c.Source != SourceExportLink):
+		return columnRefusal(CodeTypeUnknown, c).detail("%q", c.Type)
 	case utf8.RuneCountInString(c.Instruction) > MaxInstructionRunes:
-		return invalidSheet("the instruction of %q is longer than %d characters", c.Header, MaxInstructionRunes)
+		return columnRefusal(CodeInstructionTooLong, c).limit(MaxInstructionRunes)
 	}
 	if want, system := c.Source.ColumnType(); system && want != c.Type {
-		return invalidSheet("column %q filled with %s must have type %s", c.Header, c.Source, want)
+		return columnRefusal(CodeSourceTypeMismatch, c).detail("%s exige %s", c.Source, want)
 	}
 	if c.Required && c.Source.PerMessage() {
-		return invalidSheet("column %q is filled per message and cannot be required", c.Header)
+		return columnRefusal(CodePerMessageRequired, c)
 	}
+	if err := c.validateLink(); err != nil {
+		return err
+	}
+	if err := c.validateOptions(); err != nil {
+		return err
+	}
+	return c.validateColors()
+}
+
+func (c Column) validateLink() error {
+	if c.Source != SourceExportLink {
+		if c.LinkSheetID != "" || c.LinkLabel != "" {
+			return columnRefusal(CodeLinkFieldsNotLink, c)
+		}
+		return nil
+	}
+	switch {
+	case c.Required:
+		return columnRefusal(CodeLinkRequired, c)
+	case !uuidPattern.MatchString(c.LinkSheetID):
+		return columnRefusal(CodeLinkTargetRequired, c)
+	case !validLinkLabel(c.LinkLabel):
+		return columnRefusal(CodeLinkLabelInvalid, c).limit(MaxLinkLabelRunes)
+	}
+	return nil
+}
+
+func (c Column) validateOptions() error {
 	if c.Type != TypeChoice {
 		if len(c.Options) > 0 {
-			return invalidSheet("only single choice columns take options (%q)", c.Header)
+			return columnRefusal(CodeOptionsNotChoice, c)
 		}
 		return nil
 	}
 	if len(c.Options) == 0 {
-		return invalidSheet("single choice column %q needs options", c.Header)
+		return columnRefusal(CodeOptionsRequired, c)
 	}
 	seen := map[string]bool{}
 	for _, option := range c.Options {
 		folded := shared.FoldForMatch(option)
 		switch {
 		case option == "":
-			return invalidSheet("column %q has a blank option", c.Header)
+			return columnRefusal(CodeOptionBlank, c)
 		case utf8.RuneCountInString(option) > MaxOptionRunes:
-			return invalidSheet("an option of %q is longer than %d characters", c.Header, MaxOptionRunes)
+			return columnRefusal(CodeOptionTooLong, c).limit(MaxOptionRunes)
 		case seen[folded]:
-			return invalidSheet("column %q repeats the option %q", c.Header, option)
+			return columnRefusal(CodeOptionRepeated, c).option(option)
 		}
 		seen[folded] = true
+	}
+	return nil
+}
+
+func (c Column) validateColors() error {
+	if len(c.Colors) == 0 {
+		return nil
+	}
+	if c.Type != TypeChoice {
+		return columnRefusal(CodeColorsNotChoice, c)
+	}
+	for option, color := range c.Colors {
+		if !color.Valid() {
+			return columnRefusal(CodeColorUnknown, c).option(option).detail("%q", color)
+		}
+		known := false
+		for _, existing := range c.Options {
+			known = known || existing == option
+		}
+		if !known {
+			return columnRefusal(CodeColorNotOption, c).option(option)
+		}
 	}
 	return nil
 }
@@ -198,6 +267,17 @@ func trimmedOptions(options []string) []string {
 	out := make([]string, len(options))
 	for i, option := range options {
 		out[i] = strings.TrimSpace(option)
+	}
+	return out
+}
+
+func trimmedColors(colors map[string]OptionColor) map[string]OptionColor {
+	if len(colors) == 0 {
+		return nil
+	}
+	out := make(map[string]OptionColor, len(colors))
+	for option, color := range colors {
+		out[strings.TrimSpace(option)] = color
 	}
 	return out
 }

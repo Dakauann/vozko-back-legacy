@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"vozko/domain/automationneeds"
 
 	"vozko/domain/shared"
 	uw "vozko/domain/unofficial_whatsapp"
@@ -52,10 +53,11 @@ func (uc *GetInstanceUseCase) Execute(
 
 type UpdateInstanceConfigUseCase struct {
 	instances uw.InstanceRepository
+	guard     automationneeds.ReceptiveGuard
 }
 
-func NewUpdateInstanceConfigUseCase(instances uw.InstanceRepository) *UpdateInstanceConfigUseCase {
-	return &UpdateInstanceConfigUseCase{instances: instances}
+func NewUpdateInstanceConfigUseCase(instances uw.InstanceRepository, guard automationneeds.ReceptiveGuard) *UpdateInstanceConfigUseCase {
+	return &UpdateInstanceConfigUseCase{instances: instances, guard: guard}
 }
 
 type UpdateInstanceConfigInput struct {
@@ -115,9 +117,16 @@ func (uc *UpdateInstanceConfigUseCase) Execute(ctx context.Context, in UpdateIns
 	if err := instance.Validate(); err != nil {
 		return nil, err
 	}
+	if uc.guard == nil {
+		return nil, automationneeds.ErrUnreadable
+	}
+	if err := uc.guard.Admit(instance.WorkspaceID, instance.Automation()); err != nil {
+		return nil, err
+	}
 	if err := uc.instances.Update(ctx, instance); err != nil {
 		return nil, err
 	}
+	uc.guard.Saved(ctx, instance.WorkspaceID, automationneeds.SlotUnofficial, instance.ID, instance.Automation())
 	return instance, nil
 }
 

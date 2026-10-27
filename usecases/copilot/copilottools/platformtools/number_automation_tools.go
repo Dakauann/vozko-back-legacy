@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"vozko/domain/automationneeds"
 
 	"vozko/domain/agent"
 	"vozko/domain/copilot"
@@ -45,6 +46,11 @@ func numberAutomationError(err error) error {
 		return nil
 	case errors.Is(err, wc.ErrReceptiveNotOwner):
 		return errNotNumberOwner
+	case automationneeds.ErrorCode(err) != "":
+		if refusal, ok := automationneeds.RefusalOf(err); ok {
+			return fmt.Errorf("%w: %s", copilottools.ErrInvalidArgs, refusal.Sentence())
+		}
+		return fmt.Errorf("%w: não foi possível conferir as variáveis da automação agora", copilottools.ErrInvalidArgs)
 	case errors.Is(err, wc.ErrCampaignBusinessPhoneNotFound):
 		return fmt.Errorf("%w: número desconhecido; use o business_phone_id exato de list_business_phones", copilottools.ErrInvalidArgs)
 	default:

@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"vozko/domain/agent"
 	"vozko/domain/ai"
 	"vozko/domain/conversation"
 	"vozko/domain/redact"
@@ -70,6 +69,23 @@ func withoutProviderMessage(rows []*conversation.Message, providerMessageID stri
 
 func (uc *handleWhatsAppMessageUseCase) sendAgentReply(ctx context.Context, r whatsAppAgentReply) error {
 	agentCtx := r.agentCtx
+	turnEntryID, turnEntryType := "", shared.EntryType("")
+	if agentCtx != nil {
+		turnEntryID, turnEntryType = agentCtx.getEntryInfo()
+	}
+	agentID := ""
+	if agentCtx != nil && agentCtx.agent != nil {
+		agentID = agentCtx.agent.ID
+	}
+	if uc.agentVariables == nil {
+		return skippedReply(replySkipVariablesMissing)
+	}
+	vars, admitted := uc.agentVariables.AgentValues(ctx, agentCtx.getWorkspaceID(), turnEntryID, turnEntryType, agentID)
+	if !admitted {
+		log.Printf("[whatsapp-usecase] agent %s lacks a variable entry %s must supply, not replying", agentID, turnEntryID)
+		return skippedReply(replySkipVariablesMissing)
+	}
+
 	if dec := uc.guardRecordAIResponse(ctx, agentCtx.getWorkspaceID(), r.entryID); dec.Block {
 		log.Printf("[whatsapp-usecase] AI reply rate limit hit for entry=%s count=%d, skipping AI response", r.entryID, dec.Count)
 		return skippedReply(replySkipRateLimited)
@@ -102,10 +118,6 @@ func (uc *handleWhatsAppMessageUseCase) sendAgentReply(ctx context.Context, r wh
 
 	initialTypingSentAt := ensureWhatsAppTypingIndicatorFresh(ctx, outboundClient, r.incomingMessageID, "[whatsapp-usecase]", time.Time{})
 
-	turnEntryID, turnEntryType := "", shared.EntryType("")
-	if agentCtx != nil {
-		turnEntryID, turnEntryType = agentCtx.getEntryInfo()
-	}
 	generateInput := uc.assembleWhatsAppTurn(ctx, whatsAppTurn{
 		agentCtx:        agentCtx,
 		whatsappCtx:     r.whatsappCtx,
@@ -113,7 +125,7 @@ func (uc *handleWhatsAppMessageUseCase) sendAgentReply(ctx context.Context, r wh
 		BusinessPhoneID: r.outboundPhoneID,
 		EntryID:         turnEntryID,
 		EntryType:       turnEntryType,
-		Vars:            agent.MetadataToVars(r.whatsappCtx.Metadata),
+		Vars:            vars,
 		Query:           r.query,
 		Messages:        conversationMessages,
 		TriggerNote:     r.triggerNote,

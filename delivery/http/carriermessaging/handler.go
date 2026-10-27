@@ -639,6 +639,7 @@ func (h *Handler) ResolveMedia(w http.ResponseWriter, r *http.Request) {
 // @Param			id		path		string			true	"Remetente"
 // @Param			body	body		InboxRequest	true	"Caixa de entrada"
 // @Success		200		{object}	SenderDTO
+// @Failure		409	{object}	response.ErrorResponse{details=automationneedsx.RefusalDetails}	"automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis"
 // @Router			/rcs/senders/{id}/inbox [put]
 func (h *Handler) SetSenderInbox(w http.ResponseWriter, r *http.Request) {
 	ws, ok := httpx.RequireWorkspace(w, r)
@@ -665,6 +666,7 @@ func (h *Handler) SetSenderInbox(w http.ResponseWriter, r *http.Request) {
 // @Param			id		path		string			true	"Remetente de SMS"
 // @Param			body	body		InboxRequest	true	"Caixa de entrada"
 // @Success		200		{object}	RouteDTO
+// @Failure		409	{object}	response.ErrorResponse{details=automationneedsx.RefusalDetails}	"automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis"
 // @Router			/sms/routes/{id}/inbox [put]
 func (h *Handler) SetRouteInbox(w http.ResponseWriter, r *http.Request) {
 	ws, ok := httpx.RequireWorkspace(w, r)

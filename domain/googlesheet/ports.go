@@ -22,11 +22,17 @@ type SpreadsheetSpec struct {
 	TabName  string
 	Locale   string
 	TimeZone string
-	Columns  []Column
+	Layout   Layout
 }
 
 func (s *Sheet) Spec() SpreadsheetSpec {
-	return SpreadsheetSpec{Title: s.Title, TabName: s.TabName, Locale: s.Locale, TimeZone: s.TimeZone, Columns: s.Columns}
+	return SpreadsheetSpec{Title: s.Title, TabName: s.TabName, Locale: s.Locale, TimeZone: s.TimeZone, Layout: s.Layout(0)}
+}
+
+type TabSpec struct {
+	ID     int64
+	Title  string
+	Layout Layout
 }
 
 type CreatedSpreadsheet struct {
@@ -39,25 +45,15 @@ type AppendResult struct {
 	Rows     int
 }
 
-type TabInfo struct {
-	Title   string
-	Rows    int
-	Columns int
-}
-
-const MaxCellsPerSpreadsheet = 10_000_000
-
-func (t TabInfo) NearlyFull(extraRows, columns int) bool {
-	return (t.Rows+extraRows)*columns >= MaxCellsPerSpreadsheet*95/100
-}
-
 type SheetsAPI interface {
 	CreateSpreadsheet(ctx context.Context, token string, spec SpreadsheetSpec) (CreatedSpreadsheet, error)
 	TrashSpreadsheet(ctx context.Context, token, spreadsheetID string) error
-	ApplyColumns(ctx context.Context, token string, target Target, columns []Column) error
+	AddTab(ctx context.Context, token, spreadsheetID string, tab TabSpec) error
+	DeleteTab(ctx context.Context, token, spreadsheetID string, tabID int64) error
+	ApplyLayout(ctx context.Context, token string, target Target, layout Layout) error
 	AppendRows(ctx context.Context, token string, target Target, rows [][]any) (AppendResult, error)
 	ReadRange(ctx context.Context, token string, target Target, a1 string) ([][]any, error)
-	TabInfo(ctx context.Context, token string, target Target) (TabInfo, error)
+	Workbook(ctx context.Context, token, spreadsheetID string) (Workbook, error)
 }
 
 type ErrorClassifier interface {
@@ -67,6 +63,7 @@ type ErrorClassifier interface {
 type ListInput struct {
 	WorkspaceID string
 	Search      string
+	TakesInput  bool
 	Pagination  shared.Pagination
 }
 
@@ -75,6 +72,11 @@ type SheetRepository interface {
 	Update(ctx context.Context, s *Sheet, expectedVersion int) error
 	SaveStatus(ctx context.Context, s *Sheet) error
 	UpdateTabName(ctx context.Context, id, tabName string) error
+	OpenTab(ctx context.Context, id string, tab Tab) error
+	FindTab(ctx context.Context, sheetID, period string) (Tab, bool, error)
+	Tabs(ctx context.Context, sheetID string) ([]Tab, error)
+	InSpreadsheet(ctx context.Context, workspaceID, spreadsheetID string) ([]*Sheet, error)
+	ListAll(ctx context.Context, workspaceID string) ([]*Sheet, error)
 	Get(ctx context.Context, id string) (*Sheet, error)
 	FindInWorkspace(ctx context.Context, workspaceID, id string) (*Sheet, error)
 	List(ctx context.Context, in ListInput) (*shared.PaginatedResult[*Sheet], error)
@@ -135,4 +137,5 @@ type Limiter interface {
 type ExportRepository interface {
 	Position(ctx context.Context, sheetID, entryID, entryType string) (ExportPosition, error)
 	Record(ctx context.Context, export MessageExport) (inserted int, err error)
+	Anchor(ctx context.Context, sheetID, entryID, entryType string) (ExportAnchor, bool, error)
 }

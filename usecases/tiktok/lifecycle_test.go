@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"vozko/usecases/automationneeds/receptivetest"
 
 	"vozko/domain/agent"
 	ca "vozko/domain/audience"
@@ -49,7 +50,7 @@ func (departmentFinder) GetDepartmentByID(id string) (*wd.Department, error) {
 
 func newAccountsForTest(accounts *fakeAccounts, svc *fakeServices) *Accounts {
 	uc := NewAccounts(AccountsDeps{
-		Accounts: accounts, OAuth: svc, Alerts: &fakeAlerts{}, Metrics: &fakeMetrics{},
+		Accounts: accounts, OAuth: svc, Alerts: &fakeAlerts{}, Metrics: &fakeMetrics{}, Receptive: receptivetest.Allow(),
 		References: automationrefs.Finders{
 			Agents:      refFinder{workspace: map[string]string{"agent-1": "ws-1", "agent-x": "ws-other"}},
 			Workflows:   workflowFinder{workspace: map[string]string{"wf-1": "ws-1"}},

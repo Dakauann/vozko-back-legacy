@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"vozko/usecases/automationneeds/receptivetest"
 
 	"vozko/domain/shared"
 	uw "vozko/domain/unofficial_whatsapp"
@@ -127,7 +128,7 @@ func TestUpdateRefusesAnotherDepartmentsNumber(t *testing.T) {
 	instances := newFakeInstanceRepo(&uw.Instance{
 		ID: "inst-a", WorkspaceID: "ws-1", DepartmentID: deptOf("dept-a"),
 	})
-	uc := NewUpdateInstanceConfigUseCase(instances)
+	uc := NewUpdateInstanceConfigUseCase(instances, receptivetest.Allow())
 
 	stolen := deptOf("dept-b")
 	_, err := uc.Execute(context.Background(), UpdateInstanceConfigInput{

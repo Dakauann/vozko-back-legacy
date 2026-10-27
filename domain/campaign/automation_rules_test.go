@@ -1,50 +1,6 @@
 package campaign
 
-import (
-	"errors"
-	"reflect"
-	"testing"
-
-	"vozko/domain/agent"
-)
-
-func TestRequireWorkflowVars(t *testing.T) {
-	entries := []EntryMetadata{
-		{Label: "5511999990001", Metadata: map[string]any{"escola": "Prisma", "turma": "A"}},
-		{Label: "5511999990002", Metadata: map[string]any{"escola": "Prisma", "turma": " "}},
-	}
-	cases := []struct {
-		name    string
-		keys    []string
-		entries []EntryMetadata
-		want    error
-	}{
-		{name: "no variable asked", entries: entries},
-		{name: "every entry carries the key", keys: []string{"escola"}, entries: entries},
-		{name: "an entry left the key empty", keys: []string{"turma"}, entries: entries, want: ErrWorkflowVarsMissing},
-		{name: "an entry has no metadata", keys: []string{"escola"}, entries: []EntryMetadata{{Label: "x"}}, want: ErrWorkflowVarsMissing},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if err := RequireWorkflowVars(tc.keys, tc.entries); !errors.Is(err, tc.want) {
-				t.Fatalf("RequireWorkflowVars = %v, want %v", err, tc.want)
-			}
-		})
-	}
-}
-
-func TestRequireAgentVars(t *testing.T) {
-	needsSchool := &agent.Agent{Variables: []agent.AgentVariable{{Name: "escola"}}}
-	if err := RequireAgentVars(needsSchool, []EntryMetadata{{Metadata: map[string]any{"escola": "Prisma"}}}); err != nil {
-		t.Fatalf("a filled variable was refused: %v", err)
-	}
-	if err := RequireAgentVars(needsSchool, []EntryMetadata{{Metadata: map[string]any{}}}); !errors.Is(err, ErrAgentVarsMissing) {
-		t.Fatalf("a missing variable = %v", err)
-	}
-	if err := RequireAgentVars(nil, []EntryMetadata{{}}); !errors.Is(err, ErrAgentNotFound) {
-		t.Fatalf("no agent = %v", err)
-	}
-}
+import "testing"
 
 func TestAutomationConfigured(t *testing.T) {
 	cases := []struct {
@@ -72,15 +28,12 @@ func TestEntryMetadataOfNamesTheLeadOrTheNumber(t *testing.T) {
 	}
 }
 
-func TestMissingWorkflowVarsNamesTheKeysAnEntryLacks(t *testing.T) {
-	keys := []string{"escola", "turma"}
-	if got := MissingWorkflowVars(keys, map[string]any{"escola": "Prisma", "turma": " "}); !reflect.DeepEqual(got, []string{"turma"}) {
-		t.Fatalf("a blank key = %v", got)
+func TestEntryValuesNumberTheTemplateVariablesBesideTheMetadata(t *testing.T) {
+	got := EntryMetadataOf("lead-1", "", map[string]any{"turma": "A"}).WithVariables([]string{"Ana"}).Values()
+	if got["turma"] != "A" || got["1"] != "Ana" {
+		t.Fatalf("values = %v", got)
 	}
-	if got := MissingWorkflowVars(keys, nil); !reflect.DeepEqual(got, keys) {
-		t.Fatalf("no metadata = %v", got)
-	}
-	if got := MissingWorkflowVars(nil, nil); len(got) != 0 {
-		t.Fatalf("no keys = %v", got)
+	if got := EntryMetadataOf("", "5584", nil).Values(); got != nil {
+		t.Fatalf("values = %v", got)
 	}
 }

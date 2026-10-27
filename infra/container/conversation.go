@@ -373,6 +373,7 @@ func (c *Container) initConversationSenders(turnAssembler *agentturn.Assembler) 
 		Attendance:    c.services.aiAttendanceService,
 		Leads:         c.repositories.lead,
 		WorkflowNames: c.actorNames(),
+		Variables:     c.automationNeeds().runtime,
 	})
 }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"vozko/domain/automationneeds"
 
 	"vozko/domain/campaignaudience"
 	"vozko/domain/customfield"
@@ -200,6 +201,7 @@ type fakeChannel struct {
 	refuse   error
 	prepErr  error
 	metadata campaignaudience.MetadataRule
+	needs    automationneeds.Needs
 	awaits   campaignaudience.Blocker
 	params   []Params
 }
@@ -211,7 +213,7 @@ func (c *fakeChannel) Prepare(_ context.Context, _ Actor, params Params) (Prepar
 	if c.prepErr != nil {
 		return Prepared{}, c.prepErr
 	}
-	return Prepared{Slots: c.slots, Awaits: c.awaits, Metadata: c.metadata, Open: func(_ context.Context, bound []campaignaudience.Bound, source campaignaudience.Source) (Judge, error) {
+	return Prepared{Slots: c.slots, Awaits: c.awaits, Metadata: c.metadata, Needs: c.needs, Open: func(_ context.Context, bound []campaignaudience.Bound, source campaignaudience.Source) (Judge, error) {
 		if c.refuse != nil {
 			return nil, c.refuse
 		}

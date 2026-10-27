@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"vozko/delivery/http/automationneedsx"
 
 	"github.com/gorilla/mux"
 
@@ -268,6 +269,7 @@ func (h *Handler) GetAccount(w http.ResponseWriter, r *http.Request) {
 // @Produce		json
 // @Success		200	{object}	AccountResponse
 // @Security		BearerAuth
+// @Failure		409	{object}	response.ErrorResponse{details=automationneedsx.RefusalDetails}	"automation_variables_unmet: a automação escolhida exige variáveis que conversas receptivas não trazem; details lista a automação e as variáveis"
 // @Router			/instagram/accounts/{id} [put]
 func (h *Handler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	var req UpdateAccountConfigRequest
@@ -324,6 +326,9 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
 }
 
 func writeDomainError(w http.ResponseWriter, err error, fallback string) {
+	if automationneedsx.WriteRefusal(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, igdomain.ErrAccountNotFound),
 		errors.Is(err, igdomain.ErrContactNotFound),

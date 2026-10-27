@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"vozko/domain/automationneeds"
 	"vozko/domain/campaign"
 	"vozko/domain/campaignaudience"
 	"vozko/domain/conversation"
@@ -36,6 +37,7 @@ type Prepared struct {
 	Slots    []campaignaudience.Slot
 	Awaits   campaignaudience.Blocker
 	Metadata campaignaudience.MetadataRule
+	Needs    automationneeds.Needs
 	Open     func(ctx context.Context, bound []campaignaudience.Bound, source campaignaudience.Source) (Judge, error)
 }
 

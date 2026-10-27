@@ -348,10 +348,6 @@ func RequireTemplateVariables(requiredParamCount int, variables []string) error 
 	return nil
 }
 
-func (c *Campaign) ValidateWorkflowVars(requiredKeys []string) error {
-	return campaign.RequireWorkflowVars(requiredKeys, c.EntryMetadata())
-}
-
 func (c *Campaign) Automation() campaign.Automation {
 	return campaign.Automation{AgentID: c.AgentID, WorkflowID: c.WorkflowID, EnableAgentResponses: c.EnableAgentResponses, EnableWorkflow: c.EnableWorkflow}
 }
@@ -363,7 +359,10 @@ func (c *Campaign) ChangesWhatIsSent(input *Campaign) bool {
 func (c *Campaign) EntryMetadata() []campaign.EntryMetadata {
 	entries := make([]campaign.EntryMetadata, 0, len(c.PhoneInputs))
 	for _, entry := range c.PhoneInputs {
-		entries = append(entries, campaign.EntryMetadataOf(entry.LeadID, entry.Number, entry.Metadata))
+		if entry.Skip != "" {
+			continue
+		}
+		entries = append(entries, campaign.EntryMetadataOf(entry.LeadID, entry.Number, entry.Metadata).WithVariables(entry.Variables))
 	}
 	return entries
 }

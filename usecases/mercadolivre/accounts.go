@@ -5,6 +5,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"vozko/domain/automationneeds"
 
 	mldomain "vozko/domain/mercadolivre"
 	"vozko/domain/shared"
@@ -19,6 +20,7 @@ type AccountsDeps struct {
 	References automationrefs.Finders
 	Alerts     AccountAlerts
 	Metrics    Metrics
+	Receptive  automationneeds.ReceptiveGuard
 }
 
 type Accounts struct {
@@ -27,15 +29,16 @@ type Accounts struct {
 	refs     automationrefs.Finders
 	alerts   AccountAlerts
 	metrics  Metrics
+	guard    automationneeds.ReceptiveGuard
 	now      Clock
 }
 
 func NewAccounts(d AccountsDeps) *Accounts {
-	if d.Accounts == nil || d.OAuth == nil || d.Alerts == nil || d.Metrics == nil ||
+	if d.Accounts == nil || d.OAuth == nil || d.Alerts == nil || d.Metrics == nil || d.Receptive == nil ||
 		d.References.Agents == nil || d.References.Workflows == nil || d.References.Pipelines == nil || d.References.Departments == nil {
-		panic("mercadolivre: accounts require the repository, oauth, every reference finder, alerts and metrics")
+		panic("mercadolivre: accounts require the repository, oauth, every reference finder, alerts, metrics and the receptive guard")
 	}
-	return &Accounts{accounts: d.Accounts, oauth: d.OAuth, refs: d.References, alerts: d.Alerts, metrics: d.Metrics, now: utcNow}
+	return &Accounts{accounts: d.Accounts, oauth: d.OAuth, refs: d.References, alerts: d.Alerts, metrics: d.Metrics, guard: d.Receptive, now: utcNow}
 }
 
 func (uc *Accounts) List(ctx context.Context, in mldomain.ListAccountsInput) (*shared.PaginatedResult[*mldomain.Account], error) {
@@ -99,9 +102,13 @@ func (uc *Accounts) Update(ctx context.Context, in UpdateAccountInput) (*mldomai
 	}); err != nil {
 		return nil, err
 	}
+	if err := uc.guard.Admit(account.WorkspaceID, account.Automation()); err != nil {
+		return nil, err
+	}
 	if err := uc.accounts.Update(ctx, account); err != nil {
 		return nil, err
 	}
+	uc.guard.Saved(ctx, account.WorkspaceID, automationneeds.SlotMercadoLivre, account.ID, account.Automation())
 	return uc.accounts.FindByIDInWorkspace(ctx, in.WorkspaceID, in.ID)
 }
 

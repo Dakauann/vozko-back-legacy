@@ -1,8 +1,10 @@
 package whatsapp_campaign_usecase
 
 import (
+	"context"
 	"errors"
 
+	"vozko/domain/automationneeds"
 	businessphone "vozko/domain/whatsapp/business_phone"
 	wc "vozko/domain/whatsapp_campaign"
 )
@@ -15,10 +17,11 @@ type NumberReceptive struct {
 	phones     ReceptivePhones
 	containers wc.Repository
 	ensure     wc.EnsureReceptiveContainerUseCase
+	guard      automationneeds.ReceptiveGuard
 }
 
-func NewNumberReceptive(phones ReceptivePhones, containers wc.Repository, ensure wc.EnsureReceptiveContainerUseCase) *NumberReceptive {
-	return &NumberReceptive{phones: phones, containers: containers, ensure: ensure}
+func NewNumberReceptive(phones ReceptivePhones, containers wc.Repository, ensure wc.EnsureReceptiveContainerUseCase, guard automationneeds.ReceptiveGuard) *NumberReceptive {
+	return &NumberReceptive{phones: phones, containers: containers, ensure: ensure, guard: guard}
 }
 
 func (uc *NumberReceptive) Get(workspaceID, phoneID string) (wc.ReceptiveSettings, error) {
@@ -41,13 +44,20 @@ func (uc *NumberReceptive) Update(workspaceID, phoneID string, settings wc.Recep
 	if err != nil {
 		return wc.ReceptiveSettings{}, err
 	}
+	settings.Normalize()
+	if uc.guard == nil {
+		return wc.ReceptiveSettings{}, automationneeds.ErrUnreadable
+	}
+	if err := uc.guard.Admit(phone.OwnerWorkspaceID, settings.ChannelAutomation()); err != nil {
+		return wc.ReceptiveSettings{}, err
+	}
 	if _, _, err := uc.ensure.Execute(phone.OwnerWorkspaceID, phone.ID, phone.DisplayPhoneNumber); err != nil {
 		return wc.ReceptiveSettings{}, err
 	}
-	settings.Normalize()
 	if _, err := uc.containers.UpdateReceptive(phone.OwnerWorkspaceID, phone.ID, settings); err != nil {
 		return wc.ReceptiveSettings{}, err
 	}
+	uc.guard.Saved(context.Background(), phone.OwnerWorkspaceID, automationneeds.SlotWhatsAppNumber, phone.ID, settings.ChannelAutomation())
 	return settings, nil
 }
 

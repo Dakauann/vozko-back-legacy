@@ -12,7 +12,7 @@ func TestEncodeRowWritesTheReferenceThenEveryColumnInOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	row, err := s.EncodeRow("row-1", cells)
+	row, err := s.EncodeRow("row-1", cells, nil)
 	if err != nil {
 		t.Fatalf("EncodeRow: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestEncodeRowUsesCurrentColumnsForOlderRows(t *testing.T) {
 	if err := s.EditColumns(ColumnsEdit{Add: []ColumnInput{{Header: "Origem", Type: TypeText}}}); err != nil {
 		t.Fatal(err)
 	}
-	row, err := s.EncodeRow("row-1", cells)
+	row, err := s.EncodeRow("row-1", cells, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestEncodeRowUsesCurrentColumnsForOlderRows(t *testing.T) {
 
 func TestEncodeRowRefusesAStoredValueThatNoLongerFits(t *testing.T) {
 	s := typedSheet(t)
-	if _, err := s.EncodeRow("row-1", Cells{"quantidade": "not a number"}); err == nil {
+	if _, err := s.EncodeRow("row-1", Cells{"quantidade": "not a number"}, nil); err == nil {
 		t.Fatal("a corrupt stored value was encoded")
 	}
 }

@@ -7,7 +7,9 @@ import (
 
 	"vozko/domain/agent"
 	"vozko/domain/agenttool"
+	"vozko/domain/automationneeds"
 	"vozko/domain/workspace"
+	automationneeds_usecase "vozko/usecases/automationneeds"
 )
 
 const publishRepairBatch = 200
@@ -20,9 +22,20 @@ type AgentPublishing interface {
 	Restore(ctx context.Context, agentID string, version int, by workspace.Requester) (*agent.Agent, error)
 }
 
+type SwitchingPublisher interface {
+	PublishVersionSwitchingOff(ctx context.Context, agentID string, snapshot agent.Snapshot, publishedBy, workspaceID string, offs []automationneeds.SwitchOff) (agent.Version, []string, error)
+}
+
+type PublishPlanner interface {
+	PlanAgent(ctx context.Context, draft *agent.Agent) (automationneeds_usecase.Plan, error)
+	Done(ctx context.Context, plan automationneeds_usecase.Plan, containers []string)
+}
+
 type PublishDeps struct {
 	Agents    agent.Repository
 	Versions  agent.VersionRepository
+	Switching SwitchingPublisher
+	Planner   PublishPlanner
 	Published agent.PublishedReader
 	Update    agent.UpdateAgentUseCase
 	Validator ToolValidator
@@ -56,7 +69,19 @@ func (uc *publishAgentUseCase) Publish(ctx context.Context, agentID string, by w
 	if err := agenttool.BlockedBy(agenttool.ErrNotPublishable, report); err != nil {
 		return agent.Version{}, err
 	}
-	return uc.deps.Versions.PublishVersion(ctx, agentID, snapshot, by.UserID)
+	if uc.deps.Planner == nil || uc.deps.Switching == nil {
+		return agent.Version{}, automationneeds.ErrUnreadable
+	}
+	plan, err := uc.deps.Planner.PlanAgent(ctx, draft)
+	if err != nil {
+		return agent.Version{}, err
+	}
+	version, containers, err := uc.deps.Switching.PublishVersionSwitchingOff(ctx, agentID, snapshot, by.UserID, plan.WorkspaceID, plan.Offs)
+	if err != nil {
+		return agent.Version{}, err
+	}
+	uc.deps.Planner.Done(ctx, plan, containers)
+	return version, nil
 }
 
 func (uc *publishAgentUseCase) Publication(ctx context.Context, agentID string) (agent.Publication, error) {

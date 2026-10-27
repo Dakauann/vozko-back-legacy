@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	aa "vozko/domain/ai_attendance"
+	"vozko/domain/automationneeds"
 	"vozko/domain/shared"
 )
 
@@ -32,10 +33,11 @@ type OperatorAutomationToggle struct {
 	automation AutomationPauser
 	ownership  *AssignmentService
 	access     EntryAccess
+	variables  VariablesCheck
 }
 
-func NewOperatorAutomationToggle(automation AutomationPauser, ownership *AssignmentService, access EntryAccess) *OperatorAutomationToggle {
-	return &OperatorAutomationToggle{automation: automation, ownership: ownership, access: access}
+func NewOperatorAutomationToggle(automation AutomationPauser, ownership *AssignmentService, access EntryAccess, variables VariablesCheck) *OperatorAutomationToggle {
+	return &OperatorAutomationToggle{automation: automation, ownership: ownership, access: access, variables: variables}
 }
 
 func (t *OperatorAutomationToggle) SetAutomation(ctx context.Context, in OperatorAutomationInput) (OperatorAutomationResult, error) {
@@ -47,6 +49,12 @@ func (t *OperatorAutomationToggle) SetAutomation(ctx context.Context, in Operato
 
 func (t *OperatorAutomationToggle) apply(ctx context.Context, in OperatorAutomationInput) (OperatorAutomationResult, error) {
 	entryType := string(in.EntryType)
+
+	if in.Enabled == nil || *in.Enabled {
+		if err := t.governingNeeds(ctx, in); err != nil {
+			return OperatorAutomationResult{}, err
+		}
+	}
 
 	if err := t.automation.SetAutomation(ctx, in.EntryID, in.EntryType, in.Enabled); err != nil {
 		return OperatorAutomationResult{}, err
@@ -78,4 +86,15 @@ func (t *OperatorAutomationToggle) pauseAgain(ctx context.Context, in OperatorAu
 
 func (t *OperatorAutomationToggle) allows(in OperatorAutomationInput) bool {
 	return t.access != nil && t.access.CanAccessEntry(in.ActorUserID, in.WorkspaceID, in.EntryID, string(in.EntryType), in.IsAdmin)
+}
+
+func (t *OperatorAutomationToggle) governingNeeds(ctx context.Context, in OperatorAutomationInput) error {
+	automation, governed, err := t.ownership.governingAutomation(in.EntryID, string(in.EntryType))
+	if err != nil || !governed {
+		return nil
+	}
+	if t.variables == nil {
+		return automationneeds.ErrUnreadable
+	}
+	return t.variables.ConversationMissing(ctx, in.WorkspaceID, in.EntryID, in.EntryType, automation)
 }

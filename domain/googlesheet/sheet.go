@@ -2,6 +2,7 @@ package googlesheet
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -45,6 +46,10 @@ type Sheet struct {
 	SpreadsheetID string
 	TabID         int64
 	TabName       string
+	TabPeriod     TabPeriod
+	TabPattern    string
+	TabPeriodKey  string
+	Style         StylePreset
 	Title         string
 	Description   string
 	TimeZone      string
@@ -65,6 +70,9 @@ type NewSheetInput struct {
 	AccountID   string
 	Title       string
 	TabName     string
+	TabPeriod   TabPeriod
+	TabPattern  string
+	Style       StylePreset
 	Description string
 	TimeZone    string
 	Locale      string
@@ -87,6 +95,9 @@ func buildSheet(in NewSheetInput, owned bool) (*Sheet, error) {
 		AccountID:   strings.TrimSpace(in.AccountID),
 		Title:       strings.TrimSpace(in.Title),
 		TabName:     strings.TrimSpace(in.TabName),
+		TabPeriod:   in.TabPeriod,
+		TabPattern:  strings.TrimSpace(in.TabPattern),
+		Style:       in.Style,
 		Description: strings.TrimSpace(in.Description),
 		TimeZone:    strings.TrimSpace(in.TimeZone),
 		Locale:      strings.TrimSpace(in.Locale),
@@ -103,6 +114,15 @@ func buildSheet(in NewSheetInput, owned bool) (*Sheet, error) {
 	if s.Locale == "" {
 		s.Locale = DefaultLocale
 	}
+	if s.TabPeriod == "" {
+		s.TabPeriod = PeriodNone
+	}
+	if s.Style == "" {
+		s.Style = DefaultStyle
+	}
+	if s.TabPeriod == PeriodMonth && s.TabPattern == "" && s.Title != "" {
+		s.TabPattern = DefaultTabPattern(s.Title)
+	}
 	if owned {
 		if err := s.validateOwner(); err != nil {
 			return nil, err
@@ -111,14 +131,14 @@ func buildSheet(in NewSheetInput, owned bool) (*Sheet, error) {
 	if err := s.validateFrame(); err != nil {
 		return nil, err
 	}
-	for _, input := range in.Columns {
+	for i, input := range in.Columns {
 		col, err := newColumn(input, s.keys())
 		if err != nil {
-			return nil, err
+			return nil, atColumn(err, FieldColumns, i)
 		}
 		s.Columns = append(s.Columns, col)
 	}
-	if err := s.validateColumns(); err != nil {
+	if err := s.validateColumns(FieldColumns, 0); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -127,9 +147,9 @@ func buildSheet(in NewSheetInput, owned bool) (*Sheet, error) {
 func (s *Sheet) validateOwner() error {
 	switch {
 	case s.WorkspaceID == "":
-		return invalidSheet("workspace is required")
+		return refuse(FieldWorkspace, CodeWorkspaceRequired)
 	case s.AccountID == "":
-		return invalidSheet("a connected google account is required")
+		return refuse(FieldAccount, CodeAccountRequired)
 	}
 	return nil
 }
@@ -137,40 +157,52 @@ func (s *Sheet) validateOwner() error {
 func (s *Sheet) validateFrame() error {
 	switch {
 	case s.Title == "":
-		return invalidSheet("title is required")
+		return refuse(FieldTitle, CodeTitleRequired)
 	case utf8.RuneCountInString(s.Title) > MaxTitleRunes:
-		return invalidSheet("title is longer than %d characters", MaxTitleRunes)
+		return refuse(FieldTitle, CodeTitleTooLong).limit(MaxTitleRunes)
 	case utf8.RuneCountInString(s.TabName) > MaxTabRunes:
-		return invalidSheet("tab name is longer than %d characters", MaxTabRunes)
-	case strings.ContainsAny(s.TabName, "'[]*?/\\:"):
-		return invalidSheet("tab name %q has a character google refuses", s.TabName)
+		return refuse(FieldTabName, CodeTabNameTooLong).limit(MaxTabRunes)
+	case strings.ContainsAny(s.TabName, tabForbidden):
+		return refuse(FieldTabName, CodeTabNameForbidden).detail("%q", s.TabName)
 	case !localePattern.MatchString(s.Locale):
-		return invalidSheet("locale %q is not like pt_BR", s.Locale)
+		return refuse(FieldLocale, CodeLocaleInvalid).detail("%q", s.Locale)
+	case !s.Style.Valid():
+		return refuse(FieldStyle, CodeStyleUnknown).detail("%q", s.Style)
+	case !s.TabPeriod.Valid():
+		return refuse(FieldTabPeriod, CodeTabPeriodUnknown).detail("%q", s.TabPeriod)
 	}
 	if _, err := time.LoadLocation(s.TimeZone); err != nil {
-		return invalidSheet("unknown time zone %q", s.TimeZone)
+		return refuse(FieldTimeZone, CodeTimeZoneUnknown).detail("%q", s.TimeZone)
 	}
-	return nil
+	return s.validatePattern()
 }
 
-func (s *Sheet) validateColumns() error {
+func (s *Sheet) validatePattern() error {
+	if !s.Periodic() {
+		if s.TabPattern != "" {
+			return refuse(FieldTabPattern, CodeTabPatternNotPeriodic)
+		}
+		return nil
+	}
+	return checkTabPattern(s.TabPattern)
+}
+
+func (s *Sheet) validateColumns(field string, firstNew int) error {
 	if len(s.Columns) == 0 {
-		return invalidSheet("a sheet needs at least one column")
+		return refuse(field, CodeNoColumns)
 	}
 	headers := map[string]bool{}
-	inputs := 0
-	for _, col := range s.Columns {
+	for i, col := range s.Columns {
 		folded := shared.FoldForMatch(col.Header)
 		if headers[folded] {
-			return invalidSheet("header %q is repeated", col.Header)
+			def := columnRefusal(CodeHeaderRepeated, col)
+			def.Field, def.Column = field, i-firstNew
+			if i < firstNew {
+				def.Field, def.Column = FieldUpdate, -1
+			}
+			return def
 		}
 		headers[folded] = true
-		if col.TakesInput() {
-			inputs++
-		}
-	}
-	if inputs == 0 {
-		return invalidSheet("a sheet needs at least one active column filled by agents or workflows")
 	}
 	return nil
 }
@@ -200,6 +232,15 @@ func (s *Sheet) InputColumns() []Column {
 		}
 	}
 	return out
+}
+
+func (s *Sheet) TakesInput() bool { return len(s.InputColumns()) > 0 }
+
+func (s *Sheet) CheckTakesInput() error {
+	if !s.TakesInput() {
+		return ErrNoInputColumns
+	}
+	return nil
 }
 
 func (s *Sheet) HeaderRow() []string {
@@ -245,6 +286,8 @@ type ColumnUpdate struct {
 	Required    *bool
 	Archived    *bool
 	Options     []string
+	Colors      map[string]OptionColor
+	LinkLabel   *string
 }
 
 type ColumnsEdit struct {
@@ -256,11 +299,12 @@ func (e ColumnsEdit) Empty() bool { return len(e.Add) == 0 && len(e.Update) == 0
 
 func (s *Sheet) EditColumns(edit ColumnsEdit) error {
 	if edit.Empty() {
-		return invalidSheet("the edit changes nothing")
+		return refuse(FieldEdit, CodeEditEmpty)
 	}
 	columns := slices.Clone(s.Columns)
 	for i := range columns {
 		columns[i].Options = slices.Clone(columns[i].Options)
+		columns[i].Colors = maps.Clone(columns[i].Colors)
 	}
 	draft := *s
 	draft.Columns = columns
@@ -269,14 +313,15 @@ func (s *Sheet) EditColumns(edit ColumnsEdit) error {
 			return err
 		}
 	}
-	for _, input := range edit.Add {
+	existing := len(draft.Columns)
+	for i, input := range edit.Add {
 		col, err := newColumn(input, draft.keys())
 		if err != nil {
-			return err
+			return atColumn(err, FieldAdd, i)
 		}
 		draft.Columns = append(draft.Columns, col)
 	}
-	if err := draft.validateColumns(); err != nil {
+	if err := draft.validateColumns(FieldAdd, existing); err != nil {
 		return err
 	}
 	s.Columns = draft.Columns
@@ -307,24 +352,32 @@ func (s *Sheet) applyUpdate(update ColumnUpdate) error {
 	if update.Archived != nil {
 		col.Archived = *update.Archived
 	}
+	if update.LinkLabel != nil {
+		col.LinkLabel = strings.TrimSpace(*update.LinkLabel)
+	}
 	if update.Options != nil {
 		if col.Type != TypeChoice {
-			return invalidSheet("only single choice columns take options (%q)", col.Header)
+			return updateRefusal(columnRefusal(CodeOptionsNotChoice, col))
 		}
 		next := trimmedOptions(update.Options)
 		for _, existing := range col.Options {
 			if !slices.Contains(next, existing) {
-				return invalidSheet("option %q of %q may hold rows already; options can only be added", existing, col.Header)
+				return updateRefusal(columnRefusal(CodeOptionRemoved, col).option(existing))
 			}
 		}
 		col.Options = next
 	}
+	if update.Colors != nil {
+		col.Colors = trimmedColors(update.Colors)
+	}
 	if err := col.validate(); err != nil {
-		return err
+		return updateRefusal(err)
 	}
 	s.Columns[index] = col
 	return nil
 }
+
+func updateRefusal(err error) error { return atColumn(err, FieldUpdate, -1) }
 
 func (s *Sheet) Rename(title, description *string) error {
 	draft := *s
@@ -338,6 +391,25 @@ func (s *Sheet) Rename(title, description *string) error {
 		return err
 	}
 	s.Title, s.Description = draft.Title, draft.Description
+	s.Version++
+	return nil
+}
+
+func (s *Sheet) ChangeLayout(style *StylePreset, pattern *string) error {
+	if style == nil && pattern == nil {
+		return refuse(FieldEdit, CodeEditEmpty)
+	}
+	draft := *s
+	if style != nil {
+		draft.Style = *style
+	}
+	if pattern != nil {
+		draft.TabPattern = strings.TrimSpace(*pattern)
+	}
+	if err := draft.validateFrame(); err != nil {
+		return err
+	}
+	s.Style, s.TabPattern = draft.Style, draft.TabPattern
 	s.Version++
 	return nil
 }
@@ -357,6 +429,17 @@ func HeaderDifference(expected []string, rows [][]any) string {
 		}
 	}
 	return ""
+}
+
+func HeaderIsBlank(rows [][]any) bool {
+	for _, row := range rows {
+		for _, cell := range row {
+			if strings.TrimSpace(fmt.Sprint(cell)) != "" {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func columnLetter(index int) string {

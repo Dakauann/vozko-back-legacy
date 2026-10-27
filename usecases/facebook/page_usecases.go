@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"vozko/domain/automationneeds"
 	fbdomain "vozko/domain/facebook"
 	"vozko/domain/shared"
 )
@@ -15,11 +16,12 @@ type PageUseCases struct {
 	pages        fbdomain.PageRepository
 	grants       fbdomain.GrantRepository
 	subscription fbdomain.SubscriptionService
+	guard        automationneeds.ReceptiveGuard
 	now          func() time.Time
 }
 
-func NewPageUseCases(pages fbdomain.PageRepository, grants fbdomain.GrantRepository, subscription fbdomain.SubscriptionService) *PageUseCases {
-	return &PageUseCases{pages: pages, grants: grants, subscription: subscription, now: func() time.Time { return time.Now().UTC() }}
+func NewPageUseCases(pages fbdomain.PageRepository, grants fbdomain.GrantRepository, subscription fbdomain.SubscriptionService, guard automationneeds.ReceptiveGuard) *PageUseCases {
+	return &PageUseCases{pages: pages, grants: grants, subscription: subscription, guard: guard, now: func() time.Time { return time.Now().UTC() }}
 }
 
 func (uc *PageUseCases) List(ctx context.Context, in fbdomain.ListPagesInput) (*shared.PaginatedResult[*fbdomain.Page], error) {
@@ -67,9 +69,16 @@ func (uc *PageUseCases) UpdateConfig(ctx context.Context, in UpdatePageConfigInp
 	page.EnableAutoStaging = in.EnableAutoStaging
 	page.EnableAutoMemory = in.EnableAutoMemory
 	page.AutomationDisclosure = strings.TrimSpace(in.AutomationDisclosure)
+	if uc.guard == nil {
+		return nil, automationneeds.ErrUnreadable
+	}
+	if err := uc.guard.Admit(page.WorkspaceID, page.Automation()); err != nil {
+		return nil, err
+	}
 	if err := uc.pages.UpdateConfig(ctx, page); err != nil {
 		return nil, err
 	}
+	uc.guard.Saved(ctx, page.WorkspaceID, automationneeds.SlotFacebook, page.ID, page.Automation())
 	return uc.pages.FindByID(ctx, page.ID)
 }
 

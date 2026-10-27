@@ -6,6 +6,7 @@ import (
 
 	"vozko/domain/actor"
 	"vozko/domain/agent"
+	"vozko/domain/automationneeds"
 	"vozko/domain/conversation"
 	"vozko/domain/shared"
 	"vozko/domain/workflow"
@@ -64,11 +65,16 @@ func (in DelegateInput) toggle() OperatorAutomationInput {
 	}
 }
 
+type VariablesCheck interface {
+	ConversationMissing(ctx context.Context, workspaceID, entryID string, entryType shared.EntryType, target conversation.Automation) error
+}
+
 type AutomationDelegation struct {
 	delegations conversation.DelegationRepository
 	toggle      *OperatorAutomationToggle
 	directory   AutomationDirectory
 	runs        ConversationAutomationRuns
+	variables   VariablesCheck
 }
 
 type ConversationAutomationRuns interface {
@@ -76,8 +82,8 @@ type ConversationAutomationRuns interface {
 	StartConversationWorkflow(ctx context.Context, workspaceID, entryID, entryType, workflowID, by string) error
 }
 
-func NewAutomationDelegation(delegations conversation.DelegationRepository, toggle *OperatorAutomationToggle, directory AutomationDirectory, runs ConversationAutomationRuns) *AutomationDelegation {
-	return &AutomationDelegation{delegations: delegations, toggle: toggle, directory: directory, runs: runs}
+func NewAutomationDelegation(delegations conversation.DelegationRepository, toggle *OperatorAutomationToggle, directory AutomationDirectory, runs ConversationAutomationRuns, variables VariablesCheck) *AutomationDelegation {
+	return &AutomationDelegation{delegations: delegations, toggle: toggle, directory: directory, runs: runs, variables: variables}
 }
 
 type SystemDelegation struct {
@@ -107,6 +113,12 @@ func (d *AutomationDelegation) DelegateAsSystem(ctx context.Context, in SystemDe
 
 func (d *AutomationDelegation) delegate(ctx context.Context, in DelegateInput) (OperatorAutomationResult, error) {
 	if err := d.directory.Usable(in.WorkspaceID, in.Automation); err != nil {
+		return OperatorAutomationResult{}, err
+	}
+	if d.variables == nil {
+		return OperatorAutomationResult{}, automationneeds.ErrUnreadable
+	}
+	if err := d.variables.ConversationMissing(ctx, in.WorkspaceID, in.EntryID, in.EntryType, in.Automation); err != nil {
 		return OperatorAutomationResult{}, err
 	}
 	previous, err := d.delegations.Find(ctx, in.EntryID, in.EntryType)

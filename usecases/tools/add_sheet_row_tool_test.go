@@ -199,3 +199,40 @@ func TestAMissingSheetIsABindingProblemAndAnOutageIsNot(t *testing.T) {
 		t.Fatal("an outage must not read as a bad sheet")
 	}
 }
+
+func timelineForTool(t *testing.T) *googlesheet.Sheet {
+	t.Helper()
+	s, err := googlesheet.NewSheet(googlesheet.NewSheetInput{
+		WorkspaceID: "ws-1", AccountID: "acct", Title: "Negociações",
+		Columns: []googlesheet.ColumnInput{
+			{Header: "Texto", Type: googlesheet.TypeLongText, Source: googlesheet.SourceMessageText},
+			{Header: "Telefone", Type: googlesheet.TypePhone, Source: googlesheet.SourceLeadPhone},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.ID = "sheet-1"
+	return s
+}
+
+func TestASheetWithoutInputColumnsIsNotOfferedToAgents(t *testing.T) {
+	stub := &sheetRowsStub{sheet: timelineForTool(t)}
+	tool := NewAddSheetRowTool(stub)
+	def := tool.(tools.ContextualHandler).DefinitionWithContext(toolContext("sheet-1"))
+	if def.Description != addSheetRowNoInputs || len(def.Parameters) != 0 {
+		t.Fatalf("definition = %+v", def)
+	}
+	result, err := tool.(*addSheetRowTool).ExecuteWithConfig(context.Background(), agentConfig(), map[string]interface{}{})
+	if err != nil || !result.IsError || result.ErrorCode != googlesheet.CodeNoInputColumns || len(stub.enqueued) != 0 {
+		t.Fatalf("execute = %+v, %v, enqueued %d", result, err, len(stub.enqueued))
+	}
+	preview, _ := tool.(tools.Previewer).Preview(context.Background(), agentConfig(), map[string]interface{}{})
+	if !preview.IsError || preview.ErrorCode != googlesheet.CodeNoInputColumns || stub.previews != 0 {
+		t.Fatalf("preview = %+v", preview)
+	}
+	problem, ok := tools.ProblemOf(tool.(tools.BindingValidator).ValidateBinding(context.Background(), "ws-1", map[string]interface{}{addSheetRowConfigKey: "sheet-1"}))
+	if !ok || problem.Code != "tool_sheet_no_input_columns" {
+		t.Fatalf("binding problem = %+v %v", problem, ok)
+	}
+}
