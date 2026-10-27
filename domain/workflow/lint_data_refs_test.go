@@ -84,6 +84,20 @@ func TestANodeNoTriggerReachesIsLeftToTheOrphanLint(t *testing.T) {
 	}
 }
 
+func TestAStageTriggerRunsInTheConversationSoItsCampaignVariablesAreProvided(t *testing.T) {
+	g := triggerGraph(Node{ID: "etapa", Type: NodeTypeTriggerStageAdded, Config: map[string]interface{}{"stage_id": "pago"}}, sendText("s", "Matrícula {{campvars.matricula}}"))
+	if issues := dataRefIssues(g); len(issues) != 0 {
+		t.Fatalf("issues = %+v", issues)
+	}
+}
+
+func TestABirthdayTriggerRunsOnTheLeadSoCampaignVariablesAreNeverSet(t *testing.T) {
+	g := triggerGraph(Node{ID: "aniversario", Type: NodeTypeTriggerBirthday, Config: map[string]interface{}{}}, sendText("s", "Matrícula {{campvars.matricula}}"))
+	if issues := dataRefIssues(g); len(issues) != 1 || issues[0].Code != LintDataRefNeverSet || issues[0].Path != "campvars.matricula" {
+		t.Fatalf("issues = %+v", issues)
+	}
+}
+
 func TestLintGraphReportsTheNeverSetReference(t *testing.T) {
 	g := triggerGraph(agentCallTestTrigger(), sendText("s", "{{input.telefone}}"))
 	report := LintGraph(g, WorkflowTypeMessages, catalogDefs(), nil, nil)

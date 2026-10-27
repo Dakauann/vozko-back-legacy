@@ -136,6 +136,7 @@ func (f *variableFlow) triggerProvisions(np nodeProvisions, n *Node, spec Trigge
 		formIdentity(np, VariableGroupTrigger, VariableKindTrigger)
 	case NodeTypeTriggerStageAdded:
 		np.visible(DataKeyStageID, matchExact, label("Etapa em que entrou", "id"), VariableGroupTrigger, VariableKindTrigger, VariableTypeText)
+		np.hidden(DataKeyCampaignVars, matchOpen)
 	case NodeTypeTriggerBirthday:
 		np.visible(DataKeyBirthday, matchExact, label("Aniversário", "data"), VariableGroupTrigger, VariableKindTrigger, VariableTypeDate)
 		leadProvisions(np)
