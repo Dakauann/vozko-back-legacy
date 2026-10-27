@@ -131,3 +131,8 @@ type Limiter interface {
 	TakeRead(ctx context.Context, accountKey string) (granted bool, err error)
 	WritePressure(ctx context.Context) (float64, error)
 }
+
+type ExportRepository interface {
+	Position(ctx context.Context, sheetID, entryID, entryType string) (ExportPosition, error)
+	Record(ctx context.Context, export MessageExport) (inserted int, err error)
+}

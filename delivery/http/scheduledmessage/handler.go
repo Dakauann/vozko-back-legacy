@@ -39,7 +39,7 @@ func NewScheduledMessageHandler(
 }
 
 // @Summary		Listar mensagens agendadas de uma conversa
-// @Description	Lista as mensagens agendadas de uma conversa e o estado atual da janela de atendimento. Use o parâmetro `status` (separado por vírgula) para filtrar.
+// @Description	Lista as mensagens agendadas de uma conversa e o estado atual da janela de atendimento. Use o parâmetro `status` (separado por vírgula) para filtrar. Cada mensagem diz quem a agendou em `scheduledBy` (uma pessoa, um agente de IA ou um fluxo, com o nome); uma mensagem agendada por automação com `cancelOnReply` é cancelada quando o contato responde antes do envio, e `cancelReason` diz por que uma mensagem foi cancelada (person, automation, contact_replied ou automation_stood_down, quando uma pessoa assumiu a conversa antes do envio).
 // @Tags			Mensagens Agendadas
 // @Produce		json
 // @Param			entryType	path		string	true	"Tipo da entrada"
@@ -64,7 +64,7 @@ func (h *ScheduledMessageHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.WriteSuccess(w, http.StatusOK, ScheduledMessageListResponse{
-		ScheduledMessages: toResponses(result.Messages),
+		ScheduledMessages: toResponses(result.Messages, h.listUC.AuthorNames(result.Messages)),
 		Window:            toWindowResponse(result.Window),
 	})
 }
@@ -148,7 +148,7 @@ func (h *ScheduledMessageHandler) Create(w http.ResponseWriter, r *http.Request)
 		status = http.StatusOK
 	}
 	response.WriteSuccess(w, status, ScheduledMessageEnvelope{
-		ScheduledMessage: toResponse(result.Message),
+		ScheduledMessage: toResponse(result.Message, h.listUC.AuthorNames([]*sm.ScheduledMessage{result.Message})),
 		Window:           toWindowResponse(result.Window),
 	})
 }
@@ -191,13 +191,13 @@ func (h *ScheduledMessageHandler) Reschedule(w http.ResponseWriter, r *http.Requ
 	}
 
 	response.WriteSuccess(w, http.StatusOK, ScheduledMessageEnvelope{
-		ScheduledMessage: toResponse(result.Message),
+		ScheduledMessage: toResponse(result.Message, h.listUC.AuthorNames([]*sm.ScheduledMessage{result.Message})),
 		Window:           toWindowResponse(result.Window),
 	})
 }
 
 // @Summary		Cancelar uma mensagem agendada
-// @Description	Cancela uma mensagem ainda pendente. Uma mensagem já enviada não pode ser cancelada — o cliente já a recebeu.
+// @Description	Cancela uma mensagem ainda pendente, inclusive uma agendada por um agente de IA ou por um fluxo. Uma mensagem já enviada não pode ser cancelada, porque o cliente já a recebeu.
 // @Tags			Mensagens Agendadas
 // @Produce		json
 // @Param			id	path	string	true	"ID da mensagem agendada"
@@ -217,7 +217,7 @@ func (h *ScheduledMessageHandler) Cancel(w http.ResponseWriter, r *http.Request)
 }
 
 // @Summary		Listar mensagens agendadas do workspace
-// @Description	Lista as mensagens agendadas de todo o workspace, com paginação.
+// @Description	Lista as mensagens agendadas de todo o workspace, com paginação, incluindo as agendadas por agentes de IA e fluxos (`scheduledBy`).
 // @Tags			Mensagens Agendadas
 // @Produce		json
 // @Param			status		query		string	false	"Filtro de status separado por vírgula"
@@ -245,7 +245,7 @@ func (h *ScheduledMessageHandler) ListWorkspace(w http.ResponseWriter, r *http.R
 		totalPages = int((total + int64(pageSize) - 1) / int64(pageSize))
 	}
 	response.WriteSuccess(w, http.StatusOK, WorkspaceScheduledMessagesResponse{
-		ScheduledMessages: toResponses(messages),
+		ScheduledMessages: toResponses(messages, h.listUC.AuthorNames(messages)),
 		Page:              page,
 		PageSize:          pageSize,
 		TotalItems:        total,

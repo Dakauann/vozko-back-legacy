@@ -5361,7 +5361,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Cria uma instância de ferramenta. Tipos que aceitam várias instâncias (como Requisição HTTP) podem aparecer quantas vezes forem precisas, cada uma com seu nome, descrição e configuração. O nome da função é opcional: sem ele o backend propõe um a partir da descrição.\n\n| Regra | Código |\n|---|---|\n| Nome com letras minúsculas, dígitos e _, começando por letra, até 64 caracteres | agent_tool_name_invalid |\n| Nome já usado por outra função do agente | agent_tool_name_taken |\n| Tipo de uma instância só que já está no agente | agent_tool_single_type_taken |\n| Mesmo destino (por exemplo o mesmo fluxo) já usado | agent_tool_target_taken |\n| Requisição HTTP sem descrição | agent_tool_description_required |\n\nCredenciais digitadas em cabeçalhos de autenticação ou na consulta da URL vão para os segredos do workspace, e a configuração guarda só a referência.",
+                "description": "Cria uma instância de ferramenta. Tipos que aceitam várias instâncias (como Requisição HTTP) podem aparecer quantas vezes forem precisas, cada uma com seu nome, descrição e configuração. O nome da função é opcional: sem ele o backend propõe o nome do tipo, numerado quando o agente já tem outra instância (http_request, http_request_2).\n\n| Regra | Código |\n|---|---|\n| Nome com letras minúsculas, dígitos e _, começando por letra, até 64 caracteres | agent_tool_name_invalid |\n| Nome já usado por outra função do agente | agent_tool_name_taken |\n| Tipo de uma instância só que já está no agente | agent_tool_single_type_taken |\n| Mesmo destino (por exemplo o mesmo fluxo) já usado | agent_tool_target_taken |\n| Requisição HTTP sem descrição | agent_tool_description_required |\n\nCredenciais digitadas em cabeçalhos de autenticação ou na consulta da URL vão para os segredos do workspace, e a configuração guarda só a referência.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14693,6 +14693,65 @@ const docTemplate = `{
                 }
             }
         },
+        "/conversations/{entryType}/{entryId}/responsible-workflow": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Informa o fluxo que responde por esta conversa, o mesmo que decide os gatilhos Mensagem recebida, Primeira mensagem e Entrou na etapa: o fluxo para o qual a conversa foi delegada ou, sem delegação, o fluxo do número, conta ou campanha da conversa quando os fluxos estão ligados nele. workflow é null quando nenhum fluxo responde (um agente de IA responde, os fluxos estão desligados ou o fluxo não existe mais). state diz se o fluxo roda: active (publicado e ativo), paused (publicado e pausado) ou draft (nunca publicado). Só aparece para quem pode ver a conversa. Uma falha de leitura responde 500 responsible_workflow_failed, nunca um palpite.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Conversas"
+                ],
+                "summary": "Fluxo responsável pela conversa",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tipo da entrada",
+                        "name": "entryType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID da entrada",
+                        "name": "entryId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/conversation.responsibleWorkflowResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "conversation_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "responsible_workflow_failed",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/conversations/{entryType}/{entryId}/scheduled-messages": {
             "get": {
                 "security": [
@@ -14700,7 +14759,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Lista as mensagens agendadas de uma conversa e o estado atual da janela de atendimento. Use o parâmetro ` + "`" + `status` + "`" + ` (separado por vírgula) para filtrar.",
+                "description": "Lista as mensagens agendadas de uma conversa e o estado atual da janela de atendimento. Use o parâmetro ` + "`" + `status` + "`" + ` (separado por vírgula) para filtrar. Cada mensagem diz quem a agendou em ` + "`" + `scheduledBy` + "`" + ` (uma pessoa, um agente de IA ou um fluxo, com o nome); uma mensagem agendada por automação com ` + "`" + `cancelOnReply` + "`" + ` é cancelada quando o contato responde antes do envio, e ` + "`" + `cancelReason` + "`" + ` diz por que uma mensagem foi cancelada (person, automation, contact_replied ou automation_stood_down, quando uma pessoa assumiu a conversa antes do envio).",
                 "produces": [
                     "application/json"
                 ],
@@ -20580,6 +20639,104 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/inbox/preferences": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mostra as preferências de quem está logado na caixa de entrada do workspace do cabeçalho ` + "`" + `X-Workspace-ID` + "`" + `. Cada pessoa só vê as próprias.\n\nOs grupos de WhatsApp ficam sempre na aba Grupos, fora das abas e dos totais das conversas com clientes. Com ` + "`" + `hideGroups` + "`" + ` verdadeiro, a aba Grupos some para esta pessoa e as mensagens de grupo deixam de tocar som e de mostrar aviso na área de trabalho para ela. Sem preferência salva, ou quando ela não pode ser lida, vale o padrão ` + "`" + `hideGroups: false` + "`" + `.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Conversas"
+                ],
+                "summary": "Preferências pessoais da caixa de entrada",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/personalinboxhttp.InboxPreferencesResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Salva as preferências de quem está logado na caixa de entrada deste workspace. ` + "`" + `hideGroups` + "`" + ` é obrigatório: verdadeiro esconde a aba Grupos e silencia os avisos de mensagens de grupo só para esta pessoa; falso mostra a aba Grupos de novo. A mudança chega em ` + "`" + `conversation:inbox_preferences` + "`" + ` em todas as conexões da pessoa neste workspace e passa a valer na hora para a lista, a busca e os avisos.\n\nCódigos: 400 ` + "`" + `inbox_preferences_invalid` + "`" + `, 401 ` + "`" + `unauthorized` + "`" + `, 403 ` + "`" + `inbox_preferences_forbidden` + "`" + ` (sem acesso ao atendimento), 500 ` + "`" + `inbox_preferences_failed` + "`" + `.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Conversas"
+                ],
+                "summary": "Salvar as preferências pessoais da caixa de entrada",
+                "parameters": [
+                    {
+                        "description": "preferências",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/personalinboxhttp.InboxPreferencesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/personalinboxhttp.InboxPreferencesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "inbox_preferences_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "inbox_preferences_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "inbox_preferences_failed",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -32334,7 +32491,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Lista as mensagens agendadas de todo o workspace, com paginação.",
+                "description": "Lista as mensagens agendadas de todo o workspace, com paginação, incluindo as agendadas por agentes de IA e fluxos (` + "`" + `scheduledBy` + "`" + `).",
                 "produces": [
                     "application/json"
                 ],
@@ -32385,7 +32542,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Cancela uma mensagem ainda pendente. Uma mensagem já enviada não pode ser cancelada — o cliente já a recebeu.",
+                "description": "Cancela uma mensagem ainda pendente, inclusive uma agendada por um agente de IA ou por um fluxo. Uma mensagem já enviada não pode ser cancelada, porque o cliente já a recebeu.",
                 "produces": [
                     "application/json"
                 ],
@@ -46385,7 +46542,7 @@ const docTemplate = `{
         },
         "/workflows": {
             "get": {
-                "description": "Lista paginada dos workflows do workspace (filtrada pelos departamentos de quem pede). Cada item traz entryPoints (as mesmas entradas do GET /workflows/{id}), carregados para a página inteira num número fixo de consultas. entryKind filtra no banco, antes da paginação (totalItems e totalPages contam só os que passam), os fluxos que têm uma entrada desse tipo em entryPoints, pronta ou bloqueada: um gatilho desse tipo na versão publicada (no rascunho quando nunca foi publicado) ou, para webhook, agent_call e lead_exit, a ligação externa (webhook ativo, agente ativo com Executar fluxo, saída do lead de campanha ou de template).",
+                "description": "Lista paginada dos workflows do workspace (filtrada pelos departamentos de quem pede). Cada item traz entryPoints (as mesmas entradas do GET /workflows/{id}), carregados para a página inteira num número fixo de consultas. Cada item traz também runSummary (o mesmo do GET /workflows/{id}), com os avisos de sobreposição lidos uma única vez para a página. entryKind filtra no banco, antes da paginação (totalItems e totalPages contam só os que passam), os fluxos que têm uma entrada desse tipo em entryPoints, pronta ou bloqueada: um gatilho desse tipo na versão publicada (no rascunho quando nunca foi publicado) ou, para webhook, agent_call e lead_exit, a ligação externa (webhook ativo, agente ativo com Executar fluxo, saída do lead de campanha ou de template).",
                 "produces": [
                     "application/json"
                 ],
@@ -47232,6 +47389,58 @@ const docTemplate = `{
                                     }
                                 }
                             ]
+                        }
+                    }
+                }
+            }
+        },
+        "/workflows/{id}/publish-preview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lê o rascunho salvo como se fosse publicado e ativado agora e devolve o mesmo resumo de runSummary do GET /workflows: state é sempre active, conditions traz uma condição por gatilho do rascunho (e as saídas do lead) com kind, scope (conversation para Mensagem recebida, Primeira mensagem e Entrou na etapa, que só disparam nas conversas pelas quais o fluxo responde; global para os demais), o motivo quando a condição não roda (no_channel, channel_paused, no_form, form_inactive, no_agent_bound, no_webhook, webhook_inactive, no_trunk, needs_message_trigger) e os alvos com id e nome (números, contas e campanhas ligados, formulários, agentes, a linha telefônica, os botões; off quando o alvo está desligado e missing quando não existe mais). overlaps lista, para os gatilhos globais que podem coincidir (formulário respondido, aniversário e ligação na mesma linha), os OUTROS fluxos ativos da área de trabalho que reagem ao mesmo evento. Salve o rascunho antes de pedir a prévia: a publicação usa o rascunho salvo.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Prévia do que o fluxo vai rodar ao publicar",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do workflow",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflow.RunSummary"
+                        }
+                    },
+                    "403": {
+                        "description": "workflow_access_denied: sem acesso ao departamento do workflow",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workflow_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error: as ligações do fluxo não puderam ser lidas",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -50217,7 +50426,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Mantém a caixa de entrada e as conversas abertas atualizadas em tempo real: novas mensagens, leituras, digitação, mudanças de etapa, etiquetas, responsável e status. Também é por ele que o atendente envia mensagens e muda o status da conversa.\n\n## Conectar\n\n` + "`" + `` + "`" + `` + "`" + `text\nwss://SUA_URL_BASE/ws/conversations?token=SEU_ACCESS_TOKEN\u0026workspaceId=SEU_WORKSPACE_ID\n` + "`" + `` + "`" + `` + "`" + `\n\n| Parâmetro | Obrigatório | Descrição |\n|---|---|---|\n| ` + "`" + `workspaceId` + "`" + ` | não | Workspace da conexão. Sem ele, vale o workspace padrão do usuário. |\n| ` + "`" + `departmentId` + "`" + ` | não | Departamento selecionado; filtra a caixa de entrada. |\n| ` + "`" + `campaignId` + "`" + ` + ` + "`" + `campaignType` + "`" + ` | não | Abre a conexão já na caixa de uma campanha. ` + "`" + `campaignType` + "`" + `: ` + "`" + `whatsapp` + "`" + `, ` + "`" + `unofficial_whatsapp` + "`" + `, ` + "`" + `instagram` + "`" + `, ` + "`" + `facebook` + "`" + ` ou ` + "`" + `telegram` + "`" + `. |\n\n- Permissão: ` + "`" + `conversations:read` + "`" + ` no workspace.\n- O servidor envia um ping a cada 54 segundos; navegadores respondem sozinhos. Sem resposta em 60 segundos, a conexão é encerrada.\n- Mensagens do cliente podem ter até 512 KiB.\n\nAo conectar, você recebe ` + "`" + `conversation:connected` + "`" + `, depois ` + "`" + `conversation:connected_users` + "`" + ` e a primeira página da caixa de entrada em ` + "`" + `conversation:inbox` + "`" + `.\n\n## Mensagens que você envia\n\nFormato: ` + "`" + `{\"type\": \"...\", \"payload\": {...}}` + "`" + `. Tipos desconhecidos recebem ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `code: \"unknown_event\"` + "`" + `.\n\n| type | Permissão | payload | Resposta |\n|---|---|---|---|\n| ` + "`" + `subscribe` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:subscribed` + "`" + ` e ` + "`" + `conversation:history` + "`" + `. A partir daí você recebe os eventos dessa conversa. ` + "`" + `page_size` + "`" + ` padrão 50, máximo 100. Abrir a conversa tira a sua marca pessoal de não lida (chega ` + "`" + `conversation:personal_mark` + "`" + ` se havia uma). Logo depois chega ` + "`" + `conversation:viewers` + "`" + ` com quem está com a conversa aberta, e todos os inscritos recebem a lista nova. |\n| ` + "`" + `unsubscribe` + "`" + ` | | ` + "`" + `{\"entry_id\": string, \"entry_type\": string}` + "`" + ` | ` + "`" + `conversation:unsubscribed` + "`" + `. Os inscritos que ficam recebem ` + "`" + `conversation:viewers` + "`" + ` sem você (quando era a sua última conexão inscrita). |\n| ` + "`" + `send` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"text\"?: string, \"media_id\"?: string, \"media_type\"?: \"image\" \\| \"video\" \\| \"audio\" \\| \"document\" \\| \"sticker\", \"signed\"?: boolean, \"request_id\": string, \"reply_to_message_id\"?: string}` + "`" + ` | ` + "`" + `conversation:message_sent` + "`" + ` para todos os inscritos e sempre para a conexão que enviou (mesmo sem inscrição, ou quando ela já recebeu a mensagem no histórico), ou ` + "`" + `conversation:message_error` + "`" + `. Informe ` + "`" + `text` + "`" + ` ou ` + "`" + `media_id` + "`" + `. ` + "`" + `request_id` + "`" + ` (até 128 caracteres, um UUID por envio) torna o envio idempotente: repetir o mesmo ` + "`" + `request_id` + "`" + ` na mesma conversa nunca envia de novo; se a mensagem já foi gravada, a resposta é o mesmo ` + "`" + `conversation:message_sent` + "`" + ` de antes (mesmo ` + "`" + `request_id` + "`" + `); se o primeiro envio ainda está em andamento, a repetição fica sem resposta e vale a resposta do primeiro. Sem ` + "`" + `request_id` + "`" + ` (clientes antigos) não há essa proteção. |\n| ` + "`" + `send_button` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"body_text\": string, \"buttons\": [{\"id\": string, \"title\": string}], \"header_type\"?: string, \"header_text\"?: string, \"footer_text\"?: string, \"request_id\": string, \"reply_to_message_id\"?: string}` + "`" + ` | Igual a ` + "`" + `send` + "`" + `, inclusive a idempotência por ` + "`" + `request_id` + "`" + `. De 1 a 3 botões. Os botões ficam guardados na mensagem e chegam em ` + "`" + `interactive` + "`" + `, para desenhar o balão e para que ela possa ser reenviada. |\n| ` + "`" + `resend_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"request_id\": string}` + "`" + ` | Reenvia uma mensagem que falhou, pelo mesmo caminho de ` + "`" + `send` + "`" + ` (saldo, janela, limite mensal, permissões e cobrança valem iguais), com o conteúdo original (texto, mídia, botões e resposta citada). Só vale para mensagem dessa conversa, enviada por um atendente, com ` + "`" + `deliveryStatus: \"failed\"` + "`" + ` e ainda não reenviada; senão ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `not_found` + "`" + `, ` + "`" + `not_allowed` + "`" + ` ou ` + "`" + `invalid` + "`" + ` (falta ` + "`" + `request_id` + "`" + `). O reenvio cria uma mensagem nova: chega ` + "`" + `conversation:message_updated` + "`" + ` da mensagem que falhou, agora com ` + "`" + `resent_as` + "`" + ` apontando para a nova, e depois ` + "`" + `conversation:message_sent` + "`" + ` da nova com o seu ` + "`" + `request_id` + "`" + `. Se o canal recusar, ` + "`" + `conversation:message_error` + "`" + ` com esse ` + "`" + `request_id` + "`" + ` e ` + "`" + `code: \"send_failed\"` + "`" + `, e a mensagem que falhou fica como estava. Repetir o mesmo ` + "`" + `request_id` + "`" + ` responde com a mesma mensagem nova, sem enviar de novo. |\n| ` + "`" + `react_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"emoji\": string, \"request_id\": string}` + "`" + ` | Reage a uma mensagem no canal; ` + "`" + `emoji: \"\"` + "`" + ` tira a sua reação. Deu certo: ` + "`" + `conversation:message_updated` + "`" + ` com a reação em ` + "`" + `reactions` + "`" + ` (` + "`" + `direction: \"outbound\"` + "`" + `, ` + "`" + `actor_id` + "`" + ` é você). Falhou: ` + "`" + `conversation:error` + "`" + `, e nada muda. |\n| ` + "`" + `edit_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"text\": string, \"request_id\": string}` + "`" + ` | Edita o texto de uma mensagem sua. Deu certo: ` + "`" + `conversation:message_updated` + "`" + ` com o novo ` + "`" + `text` + "`" + ` e ` + "`" + `edited_at` + "`" + `. Falhou: ` + "`" + `conversation:error` + "`" + `, e nada muda. |\n| ` + "`" + `delete_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"request_id\": string}` + "`" + ` | Apaga para todos uma mensagem sua. Deu certo: ` + "`" + `conversation:message_updated` + "`" + ` com ` + "`" + `retracted_at` + "`" + ` e sem o conteúdo. Falhou: ` + "`" + `conversation:error` + "`" + `, e nada muda. |\n| ` + "`" + `mark_read` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_ids\": string[]}` + "`" + ` | ` + "`" + `conversation:read` + "`" + ` para todos os inscritos. Também tira a sua marca pessoal de não lida dessa conversa (veja Marcas pessoais). |\n| ` + "`" + `pin_conversation` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"pinned\": boolean, \"request_id\": string}` + "`" + ` | Fixa (` + "`" + `pinned: true` + "`" + `) ou desafixa a conversa só para você. Resposta ` + "`" + `conversation:personal_mark` + "`" + ` em todas as suas conexões deste workspace, ou ` + "`" + `conversation:error` + "`" + `. |\n| ` + "`" + `mark_unread` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"request_id\": string}` + "`" + ` | Marca a conversa como não lida só para você. Resposta ` + "`" + `conversation:personal_mark` + "`" + ` em todas as suas conexões deste workspace, ou ` + "`" + `conversation:error` + "`" + `. |\n| ` + "`" + `clear_unread_mark` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"request_id\": string}` + "`" + ` | Tira só a sua marca pessoal de não lida (o desfazer de ` + "`" + `mark_unread` + "`" + `): não marca nenhuma mensagem como lida e não manda confirmação de leitura ao contato. Resposta ` + "`" + `conversation:personal_mark` + "`" + ` em todas as suas conexões deste workspace (mesmo quando não havia marca), ou ` + "`" + `conversation:error` + "`" + `. |\n| ` + "`" + `typing` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"is_typing\"?: boolean}` + "`" + ` | ` + "`" + `conversation:typing` + "`" + ` para os outros inscritos. Sem erros. |\n| ` + "`" + `request_connected_users` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{}` + "`" + ` | ` + "`" + `conversation:connected_users` + "`" + ` |\n| ` + "`" + `load_history` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"before\": string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:history` + "`" + ` com mensagens anteriores a ` + "`" + `before` + "`" + ` (RFC 3339). ` + "`" + `has_more` + "`" + ` diz se há mensagens ainda mais antigas. |\n| ` + "`" + `load_around` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"timestamp\"?: string, \"message_id\"?: string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:history` + "`" + ` em torno de ` + "`" + `timestamp` + "`" + ` (RFC 3339) ou da mensagem ` + "`" + `message_id` + "`" + ` (informe exatamente um dos dois). Com ` + "`" + `message_id` + "`" + ` (por exemplo o ` + "`" + `replyToMessageId` + "`" + ` de uma citação que ainda não está carregada), o servidor confere o acesso à conversa, carrega a mensagem e usa o ` + "`" + `createdAt` + "`" + ` dela; se ela não existe ou não é dessa conversa, ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `code: \"not_found\"` + "`" + `, ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `. ` + "`" + `has_after` + "`" + ` diz se há mensagens mais novas depois da página. |\n| ` + "`" + `load_after` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"after\": string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:history` + "`" + ` com ` + "`" + `direction: \"after\"` + "`" + ` e as mensagens logo depois de ` + "`" + `after` + "`" + ` (RFC 3339 com nanossegundos, por exemplo o ` + "`" + `createdAt` + "`" + ` da mensagem mais nova que você já tem). ` + "`" + `has_after: true` + "`" + ` indica que há mais páginas depois; repita com o ` + "`" + `createdAt` + "`" + ` da última mensagem recebida. Serve para recuperar o que chegou durante uma queda de conexão e para voltar ao presente depois de um salto. Mesma checagem de acesso e mesmos limites de ` + "`" + `page_size` + "`" + ` de ` + "`" + `load_history` + "`" + `. |\n| ` + "`" + `request_inbox_page` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"page\"?: number, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:inbox` + "`" + `. ` + "`" + `page_size` + "`" + ` padrão 20, máximo 50. |\n| ` + "`" + `search_inbox` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | Veja Busca na caixa de entrada | ` + "`" + `conversation:search_results` + "`" + ` |\n| ` + "`" + `search_messages` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"query\": string, \"page\"?: number, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:search_messages_results` + "`" + ` |\n| ` + "`" + `load_entry_matches` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | Igual a ` + "`" + `search_messages` + "`" + ` (` + "`" + `page_size` + "`" + ` padrão 10, máximo 50) | ` + "`" + `conversation:entry_matches_results` + "`" + ` |\n| ` + "`" + `reopen_window` + "`" + ` | ` + "`" + `conversations:reopen` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"template_id\": string, \"parameters\"?: string[], \"header_parameters\"?: string[], \"request_id\"?: string}` + "`" + ` | Envia um template para reabrir a janela de atendimento. ` + "`" + `parameters` + "`" + ` são os valores das variáveis do corpo, na ordem em que aparecem; ` + "`" + `header_parameters` + "`" + `, o da variável do texto do cabeçalho. | Resposta ` + "`" + `conversation:window_reopened` + "`" + `. |\n| ` + "`" + `assign_to` + "`" + ` | ` + "`" + `conversations:assign` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"user_id\": string}` + "`" + ` | Sem resposta direta: você recebe ` + "`" + `conversation:entry_update` + "`" + `. |\n| ` + "`" + `request_funnel_column` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"stage_id\": string, \"page\"?: number, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:funnel_column` + "`" + ` |\n| ` + "`" + `request_funnel_summary` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"stage_ids\": string[]}` + "`" + ` | ` + "`" + `conversation:funnel_summary` + "`" + ` |\n| ` + "`" + `switch_view` + "`" + ` | | ` + "`" + `{\"campaign_id\"?: string, \"campaign_type\"?: string, \"whatsapp_campaign_type\"?: \"standard\" \\| \"organic\", \"container_kind\"?: \"\" \\| \"campaign\", \"conversation_status\"?: \"new\" \\| \"ongoing\" \\| \"finished\"}` + "`" + ` | ` + "`" + `conversation:view_switched` + "`" + ` e a primeira página em ` + "`" + `conversation:inbox` + "`" + `. Cancela todas as inscrições em conversas. |\n| ` + "`" + `set_conversation_status` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"status\": \"ongoing\" \\| \"finished\", \"outcome_code\"?: string}` + "`" + ` | Sem resposta direta: você recebe ` + "`" + `conversation:conversation_status_update` + "`" + `. |\n\n` + "`" + `entry_type` + "`" + ` é o canal da conversa: ` + "`" + `whatsapp` + "`" + `, ` + "`" + `unofficial_whatsapp` + "`" + `, ` + "`" + `instagram` + "`" + `, ` + "`" + `facebook` + "`" + ` ou ` + "`" + `telegram` + "`" + `.\n\nRegras de ` + "`" + `react_message` + "`" + `, ` + "`" + `edit_message` + "`" + ` e ` + "`" + `delete_message` + "`" + `: o servidor confere o mesmo acesso de ` + "`" + `send` + "`" + ` e a regra da ação antes de chamar o canal, então um cliente desatualizado nunca age fora dela. Reagir exige um canal que reage e uma mensagem que o canal identifica e que não foi apagada. Editar exige um canal que edita, uma mensagem só de texto enviada por você e dentro da janela de edição do canal. Apagar exige um canal que apaga, uma mensagem enviada por você e dentro da janela de exclusão do canal. Hoje: WhatsApp por QR Code reage, edita por 15 minutos e apaga por 48 horas; Telegram reage, edita e apaga por 48 horas; Instagram, Facebook e WhatsApp oficial só reagem; o site não tem nenhuma ação. ` + "`" + `conversation:subscribed` + "`" + ` traz o que o canal da conversa permite em ` + "`" + `message_capabilities` + "`" + `.\n\nRegras de ` + "`" + `set_conversation_status` + "`" + `: uma conversa volta a ` + "`" + `new` + "`" + ` só quando o contato manda uma mensagem nova; uma conversa finalizada só reabre da mesma forma. Se o workspace exige um desfecho, envie ` + "`" + `outcome_code` + "`" + `; sem ele você recebe ` + "`" + `outcome_required` + "`" + ` com a lista em ` + "`" + `outcomes` + "`" + `.\n\nEm ` + "`" + `switch_view` + "`" + ` com ` + "`" + `campaign_type: \"whatsapp\"` + "`" + `, é preciso ` + "`" + `whatsapp_campaigns:read` + "`" + `; com ` + "`" + `unofficial_whatsapp` + "`" + ` e ` + "`" + `container_kind: \"campaign\"` + "`" + `, ` + "`" + `unofficial_whatsapp_campaigns:read` + "`" + `.\n\n### Busca na caixa de entrada\n\nTodos os campos de ` + "`" + `search_inbox` + "`" + ` são opcionais:\n\n` + "`" + `` + "`" + `` + "`" + `json\n{\n\"query\": \"string\",\n\"stage_id\": \"string\",\n\"stage_name\": \"string\",\n\"min_message_count\": 0,\n\"max_message_count\": 0,\n\"message_search\": \"string\",\n\"window_open\": true,\n\"has_unread\": true,\n\"is_group\": true,\n\"channel\": \"string\",\n\"date_from\": \"RFC 3339\",\n\"date_to\": \"RFC 3339\",\n\"conversation_status\": \"new | ongoing | finished\",\n\"responsible_user_id\": \"string\",\n\"responsible_unassigned\": true,\n\"responsible_kind\": \"ai | workflow\",\n\"sort\": \"recent | waiting\",\n\"label_id\": \"string\",\n\"personal\": \"pinned\",\n\"origin\": \"receptive | campaign | outreach | unknown\",\n\"page\": 1,\n\"page_size\": 20\n}\n` + "`" + `` + "`" + `` + "`" + `\n\n- ` + "`" + `sort` + "`" + `: ` + "`" + `recent` + "`" + ` (padrão, a ordem de sempre: a mensagem mais recente primeiro) ou ` + "`" + `waiting` + "`" + `: primeiro as conversas que esperam resposta (as que têm ` + "`" + `waiting_since` + "`" + `), a que espera desde mais cedo no topo, depois as demais pela mais recente. É a mesma regra de ` + "`" + `waiting_since` + "`" + `: conversa finalizada não espera. Outro valor responde ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `invalid_sort` + "`" + `.\n- ` + "`" + `label_id` + "`" + `: só conversas com essa etiqueta. Um id ilegível responde ` + "`" + `invalid_label` + "`" + `.\n- ` + "`" + `is_group` + "`" + `: ` + "`" + `true` + "`" + `, só conversas de grupo (hoje, grupos do WhatsApp não oficial); ` + "`" + `false` + "`" + `, só conversas com pessoas. Num canal sem grupos, ` + "`" + `true` + "`" + ` não traz nada.\n- ` + "`" + `personal` + "`" + `: sem valor, a sua caixa de entrada (as suas fixadas primeiro, todas as outras em seguida); ` + "`" + `pinned` + "`" + `, só as que você fixou. Outro valor responde ` + "`" + `invalid_personal` + "`" + `.\n- ` + "`" + `origin` + "`" + `: só conversas com essa origem, pela primeira mensagem: ` + "`" + `receptive` + "`" + ` (o contato escreveu primeiro), ` + "`" + `campaign` + "`" + ` (começou por uma mensagem de campanha), ` + "`" + `outreach` + "`" + ` (a equipe, a IA ou um fluxo começou) ou ` + "`" + `unknown` + "`" + ` (remetente não registrado). Uma conversa ainda sem origem registrada só aparece sem o filtro. Vale também para os totais e a paginação. Outro valor responde ` + "`" + `invalid_origin` + "`" + `. Cada ` + "`" + `InboxEntry` + "`" + ` traz a sua ` + "`" + `origin` + "`" + ` quando ela já está registrada.\n- Em qualquer ` + "`" + `sort` + "`" + `, as conversas que você fixou vêm primeiro. ` + "`" + `request_inbox_page` + "`" + `, a primeira página ao conectar e ` + "`" + `switch_view` + "`" + ` usam a sua caixa de entrada (sem ` + "`" + `personal` + "`" + `) com ` + "`" + `sort: \"recent\"` + "`" + `. As colunas do funil (` + "`" + `request_funnel_column` + "`" + `, ` + "`" + `request_funnel_summary` + "`" + `) não usam marcas pessoais.\n\n### Marcas pessoais\n\nFixar e marcar como não lida são só seus: ninguém da equipe vê as suas marcas, e elas nunca mostram uma conversa que você não pode ver (valem as mesmas regras de ` + "`" + `subscribe` + "`" + `: departamento, responsável e ` + "`" + `view_others` + "`" + `). Uma conversa que você deixou de ver some das suas marcas.\n\n- Toda mudança chega em ` + "`" + `conversation:personal_mark` + "`" + ` a todas as suas conexões neste workspace (abas e janelas, em qualquer servidor), com ` + "`" + `mark: null` + "`" + ` quando não sobrou marca.\n- Abrir a conversa (` + "`" + `subscribe` + "`" + `) ou ` + "`" + `mark_read` + "`" + ` tira a sua marca de não lida. Para desfazer ` + "`" + `mark_unread` + "`" + ` use ` + "`" + `clear_unread_mark` + "`" + `, que tira só a marca: ` + "`" + `mark_read` + "`" + ` marca as mensagens do contato como lidas e manda a confirmação de leitura a ele.\n- ` + "`" + `conversation:inbox` + "`" + ` e ` + "`" + `conversation:search_results` + "`" + ` trazem ` + "`" + `personal_marks` + "`" + ` com as suas marcas das conversas da página.\n- Os totais por status (` + "`" + `conversation_status_counts` + "`" + `) são da equipe: as suas marcas não os mudam.\n\nRecusas de ` + "`" + `pin_conversation` + "`" + `, ` + "`" + `mark_unread` + "`" + ` e ` + "`" + `clear_unread_mark` + "`" + ` chegam em ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `request_id` + "`" + `, ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + ` e o código: ` + "`" + `not_allowed` + "`" + ` (sem ` + "`" + `conversations:read` + "`" + ` ou sem acesso à conversa), ` + "`" + `invalid` + "`" + ` (falta ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + ` ou ` + "`" + `pinned` + "`" + `), ` + "`" + `unsupported` + "`" + ` (servidor sem marcas pessoais) ou ` + "`" + `failed` + "`" + ` (não foi possível gravar).\n\n## Mensagens que você recebe\n\nFormato: ` + "`" + `{\"type\": \"...\", \"payload\": {...}}` + "`" + `.\n\n### Respostas aos seus pedidos\n\n| type | payload |\n|---|---|\n| ` + "`" + `conversation:connected` + "`" + ` | ` + "`" + `{\"user_id\": string, \"connection_id\": string}` + "`" + ` |\n| ` + "`" + `conversation:subscribed` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"lead_id\"?, \"lead_name\": string, \"lead_number\": string, \"lead_version\": number, \"blocked\": boolean, \"lead_picture\": string, \"lead_metadata\"?: object, \"entry_variables\"?: string[], \"unread_count\": number, \"automation_enabled\": boolean, \"window_open\": boolean, \"window_expires_at\"?: string, \"window_closed_reason\"?: string, \"window_closed_detail\"?: string, \"window_tier\"?: \"standard\" | \"human_agent\", \"ad_origin\"?: AdOrigin, \"message_capabilities\": {\"react\": boolean, \"edit\": boolean, \"delete\": boolean, \"edit_window_seconds\": number, \"delete_window_seconds\": number}, \"media_limits\"?: [{\"kind\": \"image\" | \"video\" | \"audio\" | \"document\", \"max_bytes\": number, \"mime_types\": string[]}]}` + "`" + `. ` + "`" + `message_capabilities` + "`" + ` diz o que o canal da conversa permite fazer com as mensagens (veja as regras de ` + "`" + `react_message` + "`" + `, ` + "`" + `edit_message` + "`" + ` e ` + "`" + `delete_message` + "`" + `); as janelas contam a partir do ` + "`" + `createdAt` + "`" + ` da mensagem e valem 0 quando a ação não existe. ` + "`" + `media_limits` + "`" + ` diz quais anexos o canal aceita, um item por tipo, com o tamanho máximo em bytes; ` + "`" + `mime_types` + "`" + ` vazio aceita qualquer formato daquele tipo; um tipo fora da lista não é aceito; a lista vazia quer dizer que o canal não aceita anexos; sem o campo, os limites do canal não são conhecidos e o cliente não deve enviar anexos. ` + "`" + `lead_name` + "`" + `, ` + "`" + `lead_number` + "`" + `, ` + "`" + `lead_version` + "`" + ` e ` + "`" + `lead_picture` + "`" + ` vêm sempre (texto vazio ou 0 quando não há valor), para que um valor apagado substitua o anterior na tela. |\n| ` + "`" + `conversation:unsubscribed` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string}` + "`" + ` |\n| ` + "`" + `conversation:history` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"direction\": \"latest\" \\| \"before\" \\| \"around\" \\| \"after\", \"messages\": Message[], \"has_more\": boolean, \"has_after\": boolean, \"total\": number, \"page_size\": number}` + "`" + `. ` + "`" + `direction` + "`" + ` diz qual pedido a página responde: ` + "`" + `latest` + "`" + ` (primeira página de ` + "`" + `subscribe` + "`" + `), ` + "`" + `before` + "`" + ` (` + "`" + `load_history` + "`" + `), ` + "`" + `around` + "`" + ` (` + "`" + `load_around` + "`" + `) ou ` + "`" + `after` + "`" + ` (` + "`" + `load_after` + "`" + `). As mensagens vêm sempre da mais antiga para a mais nova. ` + "`" + `has_more` + "`" + `: há mensagens mais antigas que a página (não se aplica a ` + "`" + `after` + "`" + `). ` + "`" + `has_after` + "`" + `: há mensagens mais novas que a página (só em ` + "`" + `around` + "`" + ` e ` + "`" + `after` + "`" + `). ` + "`" + `total` + "`" + ` vem em ` + "`" + `latest` + "`" + ` e ` + "`" + `around` + "`" + `. |\n| ` + "`" + `conversation:inbox` + "`" + ` | ` + "`" + `{\"entries\": InboxEntry[], \"personal_marks\": PersonalMark[], \"page\", \"page_size\", \"total_items\", \"total_pages\", \"stage_counts\"?: object, \"conversation_status_counts\"?: object, \"available_labels\"?: Label[]}` + "`" + `. ` + "`" + `personal_marks` + "`" + ` traz as suas marcas das conversas da página (lista vazia quando não há). |\n| ` + "`" + `conversation:search_results` + "`" + ` | ` + "`" + `{\"query\"?, \"filters\": object, \"entries\": InboxEntry[], \"personal_marks\": PersonalMark[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + `. ` + "`" + `filters` + "`" + ` repete os filtros pedidos, inclusive ` + "`" + `sort` + "`" + `, ` + "`" + `label_id` + "`" + `, ` + "`" + `personal` + "`" + ` e ` + "`" + `origin` + "`" + `. |\n| ` + "`" + `conversation:personal_mark` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"mark\": {\"pinned_at\"?: string, \"unread_marked_at\"?: string} \\| null}` + "`" + `. Só para as suas conexões neste workspace: resposta a ` + "`" + `pin_conversation` + "`" + `, ` + "`" + `mark_unread` + "`" + ` e ` + "`" + `clear_unread_mark` + "`" + `, e também quando a sua marca muda sozinha (abrir ou ler a conversa). ` + "`" + `mark: null` + "`" + `: nenhuma marca. |\n| ` + "`" + `conversation:search_messages_results` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"query\", \"messages\": Message[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + ` |\n| ` + "`" + `conversation:entry_matches_results` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"query\", \"matches\": MatchedMessage[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + ` |\n| ` + "`" + `conversation:window_reopened` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"request_id\"?, \"template_id\", \"message_id\"}` + "`" + ` |\n| ` + "`" + `conversation:funnel_column` + "`" + ` | ` + "`" + `{\"stage_id\", \"entries\": InboxEntry[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + ` |\n| ` + "`" + `conversation:funnel_summary` + "`" + ` | ` + "`" + `{\"columns\": [{\"stage_id\": string, \"total_items\": number}]}` + "`" + ` |\n| ` + "`" + `conversation:view_switched` + "`" + ` | ` + "`" + `{\"view_mode\": \"global\" \\| \"campaign\", \"campaign_id\"?, \"campaign_type\"?, \"whatsapp_campaign_type\"?, \"container_kind\"?, \"conversation_status\"?}` + "`" + ` |\n| ` + "`" + `conversation:connected_users` + "`" + ` | ` + "`" + `{\"users\": [{\"user_id\", \"workspace_id\", \"campaign_id\", \"campaign_type\", \"campaign_name\"?, \"view_mode\", \"username\"?, \"email\"?, \"connected_at\"}]}` + "`" + `. Também chega sozinho quando alguém entra, sai ou troca de visão. Você só vê colegas dos seus departamentos, salvo se tiver acesso a todo o workspace. |\n| ` + "`" + `conversation:message_error` + "`" + ` | ` + "`" + `{\"request_id\", \"entry_id\", \"entry_type\", \"error\": string, \"code\"?: string}` + "`" + `. Falha de ` + "`" + `send` + "`" + `, ` + "`" + `send_button` + "`" + ` ou do envio de ` + "`" + `resend_message` + "`" + `. |\n| ` + "`" + `conversation:error` + "`" + ` | Veja Erros. |\n\n### Eventos das conversas em que você se inscreveu\n\n| type | payload | Quando |\n|---|---|---|\n| ` + "`" + `conversation:message` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message\": Message}` + "`" + ` | Chegou ou foi enviada uma mensagem (contato, IA, fluxo, agendamento, chamadas). |\n| ` + "`" + `conversation:message_sent` + "`" + ` | ` + "`" + `{\"request_id\", \"entry_id\", \"entry_type\", \"message\": Message}` + "`" + ` | Um atendente enviou uma mensagem. Chega para todos os inscritos. |\n| ` + "`" + `conversation:message_updated` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message\": Message}` + "`" + ` | Uma mensagem já entregue mudou: foi editada ou apagada (pelo contato ou pela equipe), recebeu ou perdeu uma reação, ganhou a transcrição do áudio, ou falhou e foi reenviada (` + "`" + `resent_as` + "`" + `). Traz a mensagem inteira no mesmo formato de ` + "`" + `conversation:message` + "`" + `; substitua a que você tem pelo ` + "`" + `id` + "`" + `. Chega só para quem está inscrito na conversa. |\n| ` + "`" + `conversation:read` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message_ids\": string[], \"read_by\": string, \"read_at\": string}` + "`" + ` | Mensagens foram marcadas como lidas. |\n| ` + "`" + `conversation:typing` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"user_id\"?, \"is_typing\": boolean}` + "`" + ` | Um colega está digitando. |\n| ` + "`" + `conversation:message_status` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message_id\", \"status\": \"sent\" \\| \"delivered\" \\| \"read\" \\| \"failed\"}` + "`" + ` | O canal confirmou a entrega. |\n| ` + "`" + `conversation:analysis_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"analysis\": Analysis \\| null, \"pending\": boolean}` + "`" + ` | A análise da conversa mudou. |\n| ` + "`" + `conversation:ad_origin` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"ad_origin\": AdOrigin}` + "`" + ` | O contato chegou por um anúncio (WhatsApp, Instagram ou Facebook). Só a primeira vez: o anúncio de origem não muda. |\n| ` + "`" + `conversation:conversation_status_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"status\", \"close_source\"?, \"close_reason\"?, \"close_outcome\"?, \"closed_at\"?}` + "`" + ` | O status da conversa mudou. |\n| ` + "`" + `conversation:viewers` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"viewers\": [{\"user_id\": string, \"name\": string}]}` + "`" + ` | Quem está com a conversa aberta agora mudou: alguém se inscreveu, cancelou a inscrição ou desconectou (em qualquer servidor). Também chega logo depois do seu ` + "`" + `subscribe` + "`" + `, com a lista atual. Traz todos os inscritos, inclusive você (filtre o seu ` + "`" + `user_id` + "`" + `); cada pessoa aparece uma vez, mesmo com várias abas ou janelas destacadas. ` + "`" + `name` + "`" + ` é o nome de usuário (texto vazio quando não foi encontrado). A lista é a fotografia completa: substitua a anterior. |\n| ` + "`" + `conversation:note` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"note\": Note}` + "`" + ` | Alguém da equipe gravou uma nota interna na conversa (POST /conversations/{entryType}/{entryId}/notes). |\n| ` + "`" + `conversation:note_deleted` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"note_id\": string}` + "`" + ` | O autor apagou uma nota interna; tire-a da tela. |\n\nUma mesma mensagem chega uma vez só por conexão: como ` + "`" + `conversation:message` + "`" + ` ou como ` + "`" + `conversation:message_sent` + "`" + `.\n\n### Eventos do workspace\n\nChegam mesmo sem inscrição, para quem tem acesso à conversa e está na visão correspondente:\n\n| type | payload | Quando |\n|---|---|---|\n| ` + "`" + `conversation:entry_update` + "`" + ` | ` + "`" + `{\"entry\": InboxEntry, \"silent\"?: boolean, \"alert\"?: boolean}` + "`" + ` | Nova mensagem, envio, troca de responsável, status ou etapa. ` + "`" + `silent: true` + "`" + ` indica atualização sem novidade para o atendente. ` + "`" + `alert: true` + "`" + ` só vem numa mensagem nova do cliente e só para quem deve ser avisado: o responsável humano; ninguém quando um agente ou fluxo é o responsável ou quando a distribuição automática vai entregar a conversa; na fila manual, quem pode pegá-la. Toque o som e mostre o aviso só quando ` + "`" + `alert` + "`" + ` vier. |\n| ` + "`" + `conversation:assigned_to_you` + "`" + ` | ` + "`" + `{\"entry\": InboxEntry, \"assigned_at\": string}` + "`" + ` | Uma conversa passou a ser sua pela distribuição automática, por um colega, por uma transferência ou por um agente ou fluxo. Não chega quando você mesmo a pega. Chega uma vez por atribuição, em todas as suas conexões deste workspace. |\n| ` + "`" + `conversation:conversation_status_counts_update` + "`" + ` | ` + "`" + `{\"counts\": {\"new\": number, \"ongoing\": number, \"finished\": number}}` + "`" + ` | Os totais por status mudaram. |\n| ` + "`" + `conversation:stage_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"stage\": Stage \\| null}` + "`" + ` | A etapa da conversa mudou. |\n| ` + "`" + `conversation:label_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"labels\": Label[]}` + "`" + ` | As etiquetas mudaram. |\n| ` + "`" + `conversation:entry_removed` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"reason\": \"assigned\"}` + "`" + ` | A conversa foi para outra pessoa e você não a vê mais. |\n| ` + "`" + `audience:analyzed` + "`" + ` | ` + "`" + `{\"workspaceId\", \"source\", \"accountId\", \"containerId\", \"items\": CommentAnalyzed[], \"more\": number}` + "`" + ` | Um lote de comentários foi analisado. Só para quem tem ` + "`" + `audience:read` + "`" + `. |\n| ` + "`" + `notification:created` + "`" + ` | ` + "`" + `{\"workspaceId\", \"item\": {\"id\", \"category\", \"severity\", \"title\", \"body\", \"imageUrl\"?, \"actionUrl\"?, \"actionLabel\"?, \"createdAt\"}}` + "`" + ` | Uma notificação nova chegou para você neste workspace (a mesma forma de GET /notifications). Só para os destinatários dela. Atualize o contador com GET /notifications/summary. |\n| ` + "`" + `conversation:lead_update` + "`" + ` | ` + "`" + `{\"leadId\": string, \"version\": number, \"fields\": string[]}` + "`" + ` | Um lead mudou (edição, nome, bloqueio, responsável, opt-out, família, anonimização). Traz só os nomes dos campos, nunca os valores; um campo personalizado aparece como ` + "`" + `customFields.\u003cchave\u003e` + "`" + `, e ` + "`" + `anonymized` + "`" + ` diz que o lead foi anonimizado e não existe mais (a nova leitura responde 404): busque o lead de novo por uma rota que você pode usar (GET /leads/{id} com ` + "`" + `leads:read` + "`" + `, ou a própria conversa). Chega para quem tem ` + "`" + `leads:read` + "`" + ` e para quem está inscrito em uma conversa desse lead. Use ` + "`" + `version` + "`" + ` no ` + "`" + `If-Match` + "`" + ` da próxima edição. |\n| ` + "`" + `conversation:leads_bulk_update` + "`" + ` | ` + "`" + `{\"runId\": string}` + "`" + ` | Um lote de uma ação em massa sobre leads (classificar, atribuir, bloquear) foi gravado. Chega uma vez por lote, só para quem tem ` + "`" + `leads:read` + "`" + `; não traz ids de leads nem valores. Recarregue a lista e consulte o andamento em GET /leads/actions/{runId}. |\n\n### Chat da equipe\n\nConversas internas entre colegas (veja a seção Chat da equipe da API). Os eventos chegam só para quem participa da conversa, em todas as suas conexões deste workspace, em qualquer servidor. Os comandos são pela API HTTP; o socket só traz os eventos e a digitação. Quem não tem ` + "`" + `conversations:read` + "`" + ` não abre este socket: atualize GET /team-chat/summary a cada minuto. Ao reconectar, recupere o que perdeu com GET /team-chat/threads e, em cada conversa aberta, GET /team-chat/threads/{id}/messages com ` + "`" + `after_seq` + "`" + ` igual ao maior ` + "`" + `seq` + "`" + ` que você já tem.\n\n| type | Direção | payload | Quando |\n|---|---|---|---|\n| ` + "`" + `team_chat_typing` + "`" + ` | você envia | ` + "`" + `{\"thread_id\": string}` + "`" + ` | Você está digitando. Envie no máximo um a cada 3 segundos. Precisa participar da conversa; recusas não têm resposta. |\n| ` + "`" + `team_chat:message` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"message\": TeamChatMessage}` + "`" + ` | Mensagem nova, inclusive as suas (para as suas outras abas), as de sistema e as agendadas no momento do envio. |\n| ` + "`" + `team_chat:message_updated` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"message\": TeamChatMessage}` + "`" + ` | Uma mensagem foi editada (` + "`" + `edited_at` + "`" + `) ou apagada (` + "`" + `deleted_at` + "`" + `, sem texto). |\n| ` + "`" + `team_chat:read` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"user_id\", \"seq\"}` + "`" + ` | Alguém leu a conversa até ` + "`" + `seq` + "`" + ` (confirmação de leitura; quando é você, sincroniza as suas abas). |\n| ` + "`" + `team_chat:thread` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\"}` + "`" + ` | A conversa mudou (criada com você, título, participantes, silenciada): busque GET /team-chat/threads/{id}. |\n| ` + "`" + `team_chat:thread_removed` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\"}` + "`" + ` | Você saiu ou foi tirado do grupo: remova a conversa da tela. |\n| ` + "`" + `team_chat:typing` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"user_id\"}` + "`" + ` | Alguém está digitando. Some sozinho depois de 5 segundos sem um novo aviso. |\n| ` + "`" + `team_chat:scheduled` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"scheduled\": TeamChatScheduled}` + "`" + ` | Uma mensagem que você agendou mudou: criada, alterada, cancelada, enviada ou falhou (` + "`" + `failure_reason` + "`" + `). Só para o autor. |\n\n**TeamChatMessage**: ` + "`" + `id` + "`" + `, ` + "`" + `thread_id` + "`" + `, ` + "`" + `seq` + "`" + ` (ordem na conversa, sem buracos), ` + "`" + `author_id` + "`" + `, ` + "`" + `author_name` + "`" + `, ` + "`" + `kind` + "`" + ` (` + "`" + `text | system` + "`" + `), ` + "`" + `body` + "`" + `, ` + "`" + `event` + "`" + `? (só em ` + "`" + `system` + "`" + `: ` + "`" + `created | renamed | members_added | member_removed | member_left` + "`" + `), ` + "`" + `subject_ids` + "`" + ` (quem a mensagem de sistema afeta), ` + "`" + `reply_to_id` + "`" + `?, ` + "`" + `mentions` + "`" + `, ` + "`" + `client_id` + "`" + `?, ` + "`" + `created_at` + "`" + `, ` + "`" + `edited_at` + "`" + `?, ` + "`" + `deleted_at` + "`" + `?. **TeamChatScheduled**: ` + "`" + `id` + "`" + `, ` + "`" + `thread_id` + "`" + `, ` + "`" + `body` + "`" + `, ` + "`" + `mentions` + "`" + `, ` + "`" + `reply_to_id` + "`" + `?, ` + "`" + `send_at` + "`" + `, ` + "`" + `status` + "`" + ` (` + "`" + `pending | sent | canceled | failed` + "`" + `), ` + "`" + `failure_reason` + "`" + `?, ` + "`" + `sent_message_id` + "`" + `?, ` + "`" + `created_at` + "`" + `, ` + "`" + `updated_at` + "`" + `.\n\n## Tipos usados nas mensagens\n\n**InboxEntry**: ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `campaign_id` + "`" + `?, ` + "`" + `campaign_name` + "`" + `?, ` + "`" + `lead_id` + "`" + `?, ` + "`" + `lead_name` + "`" + `?, ` + "`" + `lead_number` + "`" + `?, ` + "`" + `lead_version` + "`" + `?, ` + "`" + `blocked` + "`" + `, ` + "`" + `lead_picture` + "`" + `?, ` + "`" + `is_group` + "`" + `?, ` + "`" + `lead_metadata` + "`" + `?, ` + "`" + `entry_variables` + "`" + `?, ` + "`" + `unread_count` + "`" + `, ` + "`" + `last_message_preview` + "`" + `?, ` + "`" + `last_message_at` + "`" + `, ` + "`" + `last_message_type` + "`" + `?, ` + "`" + `last_message_sender` + "`" + `?, ` + "`" + `last_message_sender_avatar` + "`" + `?, ` + "`" + `last_message_sender_kind` + "`" + `? (` + "`" + `contact | human | ai | workflow | campaign | system | external` + "`" + `: quem mandou a última mensagem, para o cliente nomear o remetente no idioma de quem lê; ` + "`" + `external` + "`" + ` é uma mensagem enviada pela conta fora da plataforma, no app do próprio canal ou no celular; ausente em mensagens antigas sem remetente gravado), ` + "`" + `last_message_author` + "`" + `? (groups: name of the member who sent the last message), ` + "`" + `last_message_from_us` + "`" + `? (groups: the last message was ours), ` + "`" + `last_customer_message_at` + "`" + `? (quando o contato escreveu por último, em todos os canais), ` + "`" + `last_agent_message_at` + "`" + `? (quando a equipe, uma IA, um fluxo ou uma campanha escreveu por último), ` + "`" + `waiting_since` + "`" + `? (RFC 3339: desde quando o contato espera resposta, a primeira mensagem dele depois da última resposta da equipe, de uma IA ou de um fluxo, inclusive a digitada no celular fora da plataforma; campanha e aviso do sistema não são resposta; ausente quando ninguém espera ou a conversa está finalizada; finalizar a conversa encerra a espera e a próxima mensagem do contato começa outra), ` + "`" + `window_open` + "`" + `, ` + "`" + `window_expires_at` + "`" + `?, ` + "`" + `window_closed_reason` + "`" + `?, ` + "`" + `window_closed_detail` + "`" + `? (o mesmo estado da janela que ` + "`" + `conversation:subscribed` + "`" + ` informa, em todos os canais; sem como confirmar o estado, a linha vem fechada com ` + "`" + `channel_unavailable` + "`" + `), ` + "`" + `business_phone_id` + "`" + `?, ` + "`" + `assigned_user_id` + "`" + `?, ` + "`" + `assigned_username` + "`" + `?, ` + "`" + `automation_enabled` + "`" + `, ` + "`" + `stage` + "`" + `?: Stage, ` + "`" + `labels` + "`" + `?: Label[], ` + "`" + `available_stages` + "`" + `?: Stage[], ` + "`" + `matched_messages` + "`" + `?: MatchedMessage[], ` + "`" + `total_matches` + "`" + `?, ` + "`" + `latest_analysis` + "`" + `?: Analysis, ` + "`" + `analysis_phase` + "`" + `?: ` + "`" + `\"awaiting\" | \"queued\"` + "`" + `, ` + "`" + `live_read` + "`" + `?: LiveRead, ` + "`" + `conversation_status` + "`" + `?: ` + "`" + `new | ongoing | finished` + "`" + `, ` + "`" + `close_source` + "`" + `?: ` + "`" + `human | ai | system` + "`" + `, ` + "`" + `close_reason` + "`" + `?: ` + "`" + `manual | customer_idle | ai_resolved | max_age | workflow` + "`" + `, ` + "`" + `closed_at` + "`" + `?, ` + "`" + `close_outcome` + "`" + `?, ` + "`" + `ai_handler` + "`" + `?: AIHandler.\n\n**Message** (chaves em camelCase): ` + "`" + `id` + "`" + `, ` + "`" + `entryId` + "`" + `, ` + "`" + `entryType` + "`" + `, ` + "`" + `channel` + "`" + `, ` + "`" + `messageType` + "`" + `, ` + "`" + `direction` + "`" + `?: ` + "`" + `INBOUND | OUTBOUND` + "`" + `, ` + "`" + `from` + "`" + `, ` + "`" + `to` + "`" + `, ` + "`" + `text` + "`" + `, ` + "`" + `mediaId` + "`" + `?, ` + "`" + `mediaType` + "`" + `?, ` + "`" + `read` + "`" + `, ` + "`" + `readAt` + "`" + `?, ` + "`" + `readBy` + "`" + `?, ` + "`" + `whatsappMessageId` + "`" + `?, ` + "`" + `externalMessageId` + "`" + `?, ` + "`" + `replyToMessageId` + "`" + `?, ` + "`" + `deliveryStatus` + "`" + `?: ` + "`" + `sent | delivered | read | failed` + "`" + `, ` + "`" + `senderName` + "`" + `?, ` + "`" + `senderAvatar` + "`" + `?, ` + "`" + `sentVia` + "`" + `?: ` + "`" + `business_app` + "`" + `, ` + "`" + `sentBy` + "`" + `: ` + "`" + `{\"kind\": \"contact\" | \"human\" | \"ai\" | \"workflow\" | \"campaign\" | \"external\" | \"system\", \"id\": string}` + "`" + `, ` + "`" + `metadata` + "`" + `?, ` + "`" + `location` + "`" + `?: ` + "`" + `{\"latitude\": number, \"longitude\": number, \"name\"?: string, \"address\"?: string, \"candidate\": boolean}` + "`" + `, ` + "`" + `createdAt` + "`" + `, ` + "`" + `updatedAt` + "`" + `. Em snake_case: ` + "`" + `transcript` + "`" + `? (transcrição de um áudio recebido; hoje só no WhatsApp oficial; o ` + "`" + `text` + "`" + ` do áudio continua sendo o marcador ` + "`" + `[Áudio]` + "`" + `), ` + "`" + `edited_at` + "`" + `? (a mensagem foi editada, pelo contato ou por um atendente; ` + "`" + `text` + "`" + ` já é o novo texto), ` + "`" + `retracted_at` + "`" + `? (a mensagem foi apagada, pelo contato ou por um atendente: ` + "`" + `text` + "`" + ` vem vazio e ` + "`" + `transcript` + "`" + `, ` + "`" + `mediaId` + "`" + `, ` + "`" + `mediaType` + "`" + `, ` + "`" + `media` + "`" + `, ` + "`" + `metadata` + "`" + ` e ` + "`" + `location` + "`" + ` não vêm), ` + "`" + `reactions` + "`" + `?: Reaction[] (ausente quando não há reações), ` + "`" + `sender_user_id` + "`" + `? (o usuário da equipe que enviou a mensagem; ausente quando não foi um atendente), ` + "`" + `client_request_id` + "`" + `? (o ` + "`" + `request_id` + "`" + ` do envio de um atendente, para casar a mensagem com o balão pendente), ` + "`" + `resent_as` + "`" + `? (esta mensagem falhou e foi reenviada como a mensagem com esse ` + "`" + `id` + "`" + `; esconda esta e mostre a nova), ` + "`" + `interactive` + "`" + `?: Interactive, ` + "`" + `interactive_reply` + "`" + `?: InteractiveReply.\n\n**Interactive** (mensagem enviada com opções, em qualquer canal e por qualquer remetente: fluxo, agente de IA, atendente, campanha ou modelo do WhatsApp oficial; traz só o que o contato recebeu, depois dos limites do canal): ` + "`" + `{\"kind\": \"buttons\" | \"list\" | \"cta_url\" | \"template\", \"header\"?: {\"type\": \"text\" | \"image\" | \"video\" | \"document\", \"text\"?: string, \"media_url\"?: string}, \"body\": string, \"footer\"?: string, \"button_label\"?: string (o rótulo que abre a lista), \"sections\"?: [{\"title\"?: string, \"rows\": [{\"id\": string, \"title\": string, \"description\"?: string}]}], \"buttons\"?: [{\"kind\": \"reply\" | \"url\" | \"phone\" | \"copy_code\" | \"flow\", \"id\"?: string, \"title\": string, \"url\"?: string, \"phone\"?: string, \"code\"?: string}], \"template_name\"?: string}` + "`" + `. **InteractiveReply** (resposta do contato que escolheu uma opção; ` + "`" + `replyToMessageId` + "`" + ` aponta para a mensagem com as opções quando o canal informa): ` + "`" + `{\"kind\": \"button\" | \"list\" | \"template_button\" | \"option\" | \"quick_reply\" | \"postback\", \"option_id\": string, \"title\"?: string}` + "`" + `.\n\n` + "`" + `location` + "`" + ` aparece em toda mensagem de localização (WhatsApp oficial e coexistência, Telegram), recebida ou enviada, para desenhar o cartão do mapa. ` + "`" + `candidate: true` + "`" + ` marca a localização que o lead mandou, dentro do Brasil, que pode virar a posição dele por ` + "`" + `POST /leads/{id}/location-candidates/{messageId}/accept` + "`" + ` (exige ` + "`" + `leads:update` + "`" + `; o servidor confere de novo a conversa e o lead).\n\nValores de ` + "`" + `messageType` + "`" + `: ` + "`" + `user_message` + "`" + `, ` + "`" + `ai_response` + "`" + `, ` + "`" + `tool_call` + "`" + `, ` + "`" + `tool_result` + "`" + `, ` + "`" + `audio` + "`" + `, ` + "`" + `system` + "`" + `, ` + "`" + `media` + "`" + `, ` + "`" + `operator` + "`" + `, ` + "`" + `template` + "`" + `, ` + "`" + `call_permission_request` + "`" + `, ` + "`" + `call_permission_granted` + "`" + `, ` + "`" + `call_permission_rejected` + "`" + `, ` + "`" + `call_received` + "`" + `, ` + "`" + `call_answered` + "`" + `, ` + "`" + `call_missed` + "`" + `, ` + "`" + `call_ended` + "`" + `, ` + "`" + `story_reply` + "`" + `, ` + "`" + `story_mention` + "`" + `, ` + "`" + `reaction` + "`" + `, ` + "`" + `unsupported` + "`" + `, ` + "`" + `post_share` + "`" + `, ` + "`" + `sticker` + "`" + `, ` + "`" + `link_share` + "`" + `.\n\n**Stage**: ` + "`" + `stage_id` + "`" + `, ` + "`" + `name` + "`" + `, ` + "`" + `color` + "`" + `?. **Label**: ` + "`" + `label_id` + "`" + `, ` + "`" + `name` + "`" + `, ` + "`" + `color` + "`" + `?.\n\n**PersonalMark**: ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `pinned_at` + "`" + `? (fixada por você), ` + "`" + `unread_marked_at` + "`" + `? (marcada por você como não lida). Só as marcas de quem pediu.\n\n**Note** (nota interna, só da equipe; nunca vai para o contato, a IA, a análise, os fluxos, as exportações ou o chat do site): ` + "`" + `id` + "`" + `, ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `author_id` + "`" + `, ` + "`" + `author_name` + "`" + `, ` + "`" + `body` + "`" + `, ` + "`" + `mentions` + "`" + `: string[] (IDs de usuários mencionados; lista vazia quando não há), ` + "`" + `created_at` + "`" + `. A mesma forma de GET /conversations/{entryType}/{entryId}/notes.\n\n**Reaction**: ` + "`" + `emoji` + "`" + `, ` + "`" + `direction` + "`" + `: ` + "`" + `inbound | outbound` + "`" + ` (` + "`" + `inbound` + "`" + ` é do contato, ` + "`" + `outbound` + "`" + ` é nossa), ` + "`" + `actor_id` + "`" + `? (quem reagiu: o identificador do contato no canal ou o usuário da equipe), ` + "`" + `at` + "`" + `. Há no máximo uma reação de cada contato e uma só nossa (` + "`" + `outbound` + "`" + `), porque a conta da empresa reage uma vez por mensagem: uma reação nova substitui a anterior do mesmo lado e remover a reação a tira da lista. Na reação ` + "`" + `outbound` + "`" + `, ` + "`" + `actor_id` + "`" + ` é o atendente que reagiu pelo sistema; reações feitas direto no celular chegam sem ` + "`" + `actor_id` + "`" + `. Mensagens antigas do Instagram e do Facebook com a reação guardada no formato anterior chegam na mesma forma.\n\n**MatchedMessage**: ` + "`" + `message_id` + "`" + `, ` + "`" + `text` + "`" + `, ` + "`" + `from` + "`" + `, ` + "`" + `message_type` + "`" + `, ` + "`" + `channel` + "`" + `, ` + "`" + `created_at` + "`" + `, ` + "`" + `position` + "`" + `, ` + "`" + `page` + "`" + `.\n\n**AIHandler**: ` + "`" + `kind` + "`" + `, ` + "`" + `agent_id` + "`" + `?, ` + "`" + `agent_name` + "`" + `?, ` + "`" + `agent_avatar` + "`" + `?, ` + "`" + `agent_active` + "`" + `, ` + "`" + `workflow_id` + "`" + `?, ` + "`" + `workflow_name` + "`" + `?, ` + "`" + `workflow_run_id` + "`" + `?, ` + "`" + `run_status` + "`" + `?, ` + "`" + `current_node_id` + "`" + `?, ` + "`" + `current_node_type` + "`" + `?.\n\n**AdOrigin** (camelCase): o primeiro anúncio que trouxe o contato. ` + "`" + `adId` + "`" + `?, ` + "`" + `platform` + "`" + `?: ` + "`" + `facebook | instagram` + "`" + `, ` + "`" + `title` + "`" + `?, ` + "`" + `sourceUrl` + "`" + `?, ` + "`" + `image` + "`" + `?: ` + "`" + `{\"url\", \"mimeType\"?, \"layout\": {\"width\"?, \"height\"?, \"thumbhash\"?}}` + "`" + ` (cópia guardada pela plataforma), ` + "`" + `arrivedAt` + "`" + `.\n\n**LiveRead** (camelCase): ` + "`" + `interest` + "`" + `?, ` + "`" + `disposition` + "`" + `?, ` + "`" + `sentiment` + "`" + `?, ` + "`" + `qualification` + "`" + `?, ` + "`" + `nextAction` + "`" + `?, ` + "`" + `language` + "`" + `?, ` + "`" + `attendanceQuality` + "`" + `, ` + "`" + `certainty` + "`" + `?: object, ` + "`" + `decidedAt` + "`" + `.\n\n**Analysis** (camelCase): análise da conversa com ` + "`" + `id` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `sentiment` + "`" + `?, ` + "`" + `intent` + "`" + `?, ` + "`" + `interest` + "`" + `?, ` + "`" + `productInterest` + "`" + `?, ` + "`" + `disposition` + "`" + `?, ` + "`" + `qualification` + "`" + `?, ` + "`" + `nextAction` + "`" + `?, ` + "`" + `summary` + "`" + `?, ` + "`" + `attendanceQuality` + "`" + `?, ` + "`" + `messageCount` + "`" + `?, ` + "`" + `requiresAction` + "`" + `, ` + "`" + `excerpt` + "`" + `, ` + "`" + `analyzedAt` + "`" + `? e demais campos de identificação (` + "`" + `workspaceId` + "`" + `, ` + "`" + `source` + "`" + `, ` + "`" + `accountId` + "`" + `, ` + "`" + `containerId` + "`" + `, ` + "`" + `subjectId` + "`" + `, ` + "`" + `createdAt` + "`" + `, ` + "`" + `updatedAt` + "`" + `).\n\n**CommentAnalyzed** (camelCase): ` + "`" + `commentId` + "`" + `, ` + "`" + `subjectKind` + "`" + `, ` + "`" + `authorExternalId` + "`" + `, ` + "`" + `authorHandle` + "`" + `?, ` + "`" + `stance` + "`" + `?, ` + "`" + `sentiment` + "`" + `?, ` + "`" + `intent` + "`" + `?, ` + "`" + `topicKey` + "`" + `?, ` + "`" + `severity` + "`" + `, ` + "`" + `requiresAction` + "`" + `, ` + "`" + `isSpam` + "`" + `, ` + "`" + `excerpt` + "`" + `, ` + "`" + `interest` + "`" + `?, ` + "`" + `productInterest` + "`" + `?, ` + "`" + `disposition` + "`" + `?, ` + "`" + `qualification` + "`" + `?, ` + "`" + `nextAction` + "`" + `?, ` + "`" + `summary` + "`" + `?, ` + "`" + `occurredAt` + "`" + `, ` + "`" + `analyzedAt` + "`" + `.\n\nValores de ` + "`" + `window_closed_reason` + "`" + `: ` + "`" + `expired` + "`" + `, ` + "`" + `no_inbound` + "`" + `, ` + "`" + `contact_blocked` + "`" + `, ` + "`" + `session_down` + "`" + `, ` + "`" + `account_restricted` + "`" + `, ` + "`" + `reply_revoked` + "`" + ` e ` + "`" + `channel_unavailable` + "`" + `.\n\nDatas são strings RFC 3339.\n\n## Erros\n\n` + "`" + `conversation:error` + "`" + ` traz ` + "`" + `{\"code\": string, \"message\": string}` + "`" + `; recusas de ` + "`" + `reopen_window` + "`" + `, ` + "`" + `react_message` + "`" + `, ` + "`" + `edit_message` + "`" + `, ` + "`" + `delete_message` + "`" + `, ` + "`" + `resend_message` + "`" + `, ` + "`" + `pin_conversation` + "`" + `, ` + "`" + `mark_unread` + "`" + ` e ` + "`" + `clear_unread_mark` + "`" + ` também trazem ` + "`" + `request_id` + "`" + `, ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `; em mudanças de status, também ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `previous_status` + "`" + ` e ` + "`" + `outcomes` + "`" + ` (` + "`" + `[{\"code\", \"label\", \"isDurable\", \"position\"}]` + "`" + `).\n\n| code | Significado |\n|---|---|\n| ` + "`" + `forbidden` + "`" + ` | Falta permissão, a campanha é de outro workspace ou a regra de status não permite a mudança. Se o acesso ao workspace for revogado, a conexão é encerrada logo depois. |\n| ` + "`" + `unauthorized` + "`" + ` | Você não tem acesso a essa conversa, ou o responsável escolhido não pode recebê-la. |\n| ` + "`" + `unknown_event` + "`" + ` | ` + "`" + `type` + "`" + ` desconhecido. |\n| ` + "`" + `invalid_payload` + "`" + ` | O ` + "`" + `payload` + "`" + ` não tem o formato esperado. |\n| ` + "`" + `missing_fields` + "`" + ` | Falta um campo obrigatório. |\n| ` + "`" + `missing_content` + "`" + ` | Mensagem sem texto nem mídia. |\n| ` + "`" + `invalid_buttons` + "`" + ` | É preciso de 1 a 3 botões. |\n| ` + "`" + `invalid_entry_type` + "`" + ` | ` + "`" + `entry_type` + "`" + ` inválido. |\n| ` + "`" + `invalid_timestamp` + "`" + ` | Data fora do formato RFC 3339. |\n| ` + "`" + `invalid_status` + "`" + ` | Status diferente de ` + "`" + `new` + "`" + `, ` + "`" + `ongoing` + "`" + ` ou ` + "`" + `finished` + "`" + `. |\n| ` + "`" + `invalid_sort` + "`" + `, ` + "`" + `invalid_personal` + "`" + `, ` + "`" + `invalid_label` + "`" + ` | ` + "`" + `search_inbox` + "`" + ` com ` + "`" + `sort` + "`" + `, ` + "`" + `personal` + "`" + ` ou ` + "`" + `label_id` + "`" + ` inválido. |\n| ` + "`" + `invalid_campaign_type` + "`" + `, ` + "`" + `invalid_container_kind` + "`" + `, ` + "`" + `invalid_whatsapp_campaign_type` + "`" + ` | Filtro de visão inválido. |\n| ` + "`" + `not_found` + "`" + ` | Campanha não encontrada, ou mensagem que não existe ou não é dessa conversa. |\n| ` + "`" + `not_configured` + "`" + ` | O recurso não está disponível neste servidor. |\n| ` + "`" + `not_allowed` + "`" + ` | Ações sobre mensagens: falta ` + "`" + `conversations:send` + "`" + ` ou acesso à conversa, a mensagem não é sua, já foi apagada ou não pode receber essa ação (por exemplo, editar uma mídia ou reenviar uma mensagem que não falhou). Marcas pessoais: falta ` + "`" + `conversations:read` + "`" + ` ou acesso à conversa. |\n| ` + "`" + `invalid` + "`" + ` | Ações sobre mensagens: falta ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `message_id` + "`" + `, o texto da edição ou o ` + "`" + `request_id` + "`" + ` do reenvio, ou o ` + "`" + `request_id` + "`" + ` passa de 128 caracteres. Marcas pessoais: falta ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + ` ou ` + "`" + `pinned` + "`" + `. |\n| ` + "`" + `unsupported` + "`" + ` | O canal da conversa não tem essa ação. Em marcas pessoais: o servidor não oferece marcas pessoais. |\n| ` + "`" + `window_expired` + "`" + ` | A janela do canal para essa ação já passou, ou a janela de atendimento está fechada. |\n| ` + "`" + `failed` + "`" + ` | O canal recusou a ação ou ela não pôde ser gravada; nada mudou na conversa. Em marcas pessoais: a marca não pôde ser gravada. |\n| ` + "`" + `outcome_required` + "`" + ` | Escolha um desfecho (lista em ` + "`" + `outcomes` + "`" + `) para finalizar. |\n| ` + "`" + `outcome_unknown` + "`" + ` | O desfecho não existe no workspace (lista em ` + "`" + `outcomes` + "`" + `). |\n| ` + "`" + `history_error` + "`" + `, ` + "`" + `inbox_error` + "`" + `, ` + "`" + `search_error` + "`" + `, ` + "`" + `fetch_error` + "`" + `, ` + "`" + `template_send_failed` + "`" + `, ` + "`" + `assign_failed` + "`" + `, ` + "`" + `internal_error` + "`" + ` | Falha ao processar o pedido; tente de novo. |\n| ` + "`" + `lead_opted_out` + "`" + `, ` + "`" + `lead_blocked` + "`" + `, ` + "`" + `within_spam_window` + "`" + `, ` + "`" + `window_already_open` + "`" + `, ` + "`" + `insufficient_balance` + "`" + `, ` + "`" + `monthly_send_cap_reached` + "`" + `, ` + "`" + `pricing_unavailable` + "`" + `, ` + "`" + `quote_out_of_range` + "`" + `, ` + "`" + `template_not_sendable` + "`" + `, ` + "`" + `template_phone_mismatch` + "`" + `, ` + "`" + `invalid_phone` + "`" + `, ` + "`" + `phone_not_connected` + "`" + `, ` + "`" + `send_in_progress` + "`" + `, ` + "`" + `idempotency_key_required` + "`" + `, ` + "`" + `billing_unavailable` + "`" + `, ` + "`" + `conversation_not_found` + "`" + ` | Recusa de ` + "`" + `reopen_window` + "`" + `, com ` + "`" + `request_id` + "`" + ` (o mesmo do pedido), ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `: o mesmo código que POST /whatsapp/outreach/conversations responde para a mesma recusa (inclusive ` + "`" + `forbidden` + "`" + ` e ` + "`" + `not_found` + "`" + ` para número ou modelo). Uma falha sem motivo conhecido chega como ` + "`" + `template_send_failed` + "`" + `. |\n| ` + "`" + `send_outcome_unknown` + "`" + ` | ` + "`" + `reopen_window` + "`" + ` sem resposta do WhatsApp: o modelo pode ter sido entregue e cobrado. Confira a conversa antes de enviar de novo; não repita automaticamente. Traz ` + "`" + `request_id` + "`" + `, ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `. |\n\nCódigos de ` + "`" + `conversation:message_error` + "`" + `: ` + "`" + `unauthorized` + "`" + `, ` + "`" + `not_configured` + "`" + `, ` + "`" + `send_failed` + "`" + `, ` + "`" + `internal_error` + "`" + `, ` + "`" + `media_not_sendable` + "`" + ` (a mídia não é um envio desta conversa nem da biblioteca do workspace, ou é imagem de nota interna; a mesma resposta vale para uma mídia que não existe) e, no e-mail, ` + "`" + `email_balance_insufficient` + "`" + ` (o saldo da carteira não cobre o envio), ` + "`" + `email_attachment_blocked` + "`" + `, ` + "`" + `email_attachment_too_large` + "`" + `, ` + "`" + `email_domain_checking` + "`" + ` (o domínio do destinatário ainda está sendo verificado; nada foi cobrado, tente de novo em instantes), ` + "`" + `email_domain_unknown` + "`" + `, ` + "`" + `email_disposable_address` + "`" + ` e ` + "`" + `email_no_mail_domain` + "`" + ` (a higiene de lista recusou o destinatário; nada foi cobrado).\n\n## Autenticação\n\nUse o mesmo access token da API HTTP. Navegadores não permitem cabeçalhos em WebSockets, então o token pode ir no cabeçalho ` + "`" + `Authorization: Bearer SEU_ACCESS_TOKEN` + "`" + ` (clientes fora do navegador), no parâmetro ` + "`" + `token` + "`" + ` da URL ou no cookie ` + "`" + `accessToken` + "`" + ` do login em modo cookie. Com o cookie, a conexão só é aceita quando o ` + "`" + `Origin` + "`" + ` é o próprio painel ou uma origem confiável; o token no cabeçalho ou na URL vale de qualquer origem.\n\n## Workspace\n\nInforme o workspace em ` + "`" + `workspace_id` + "`" + ` e em ` + "`" + `workspaceId` + "`" + `, com o mesmo valor (ou o cabeçalho ` + "`" + `X-Workspace-ID` + "`" + ` junto com ` + "`" + `workspaceId` + "`" + `). O primeiro é usado na checagem de permissão da conexão; o segundo define o workspace da sessão.\n\n## Formato das mensagens\n\nCada quadro de texto carrega um único objeto JSON com o tipo da mensagem. Datas são strings RFC 3339. Antes de abrir o WebSocket, erros de autenticação, workspace e permissão voltam como HTTP comum (401, 400, 403, 429, 501).",
+                "description": "Mantém a caixa de entrada e as conversas abertas atualizadas em tempo real: novas mensagens, leituras, digitação, mudanças de etapa, etiquetas, responsável e status. Também é por ele que o atendente envia mensagens e muda o status da conversa.\n\n## Conectar\n\n` + "`" + `` + "`" + `` + "`" + `text\nwss://SUA_URL_BASE/ws/conversations?token=SEU_ACCESS_TOKEN\u0026workspaceId=SEU_WORKSPACE_ID\n` + "`" + `` + "`" + `` + "`" + `\n\n| Parâmetro | Obrigatório | Descrição |\n|---|---|---|\n| ` + "`" + `workspaceId` + "`" + ` | não | Workspace da conexão. Sem ele, vale o workspace padrão do usuário. |\n| ` + "`" + `departmentId` + "`" + ` | não | Departamento selecionado; filtra a caixa de entrada. |\n| ` + "`" + `campaignId` + "`" + ` + ` + "`" + `campaignType` + "`" + ` | não | Abre a conexão já na caixa de uma campanha. ` + "`" + `campaignType` + "`" + `: ` + "`" + `whatsapp` + "`" + `, ` + "`" + `unofficial_whatsapp` + "`" + `, ` + "`" + `instagram` + "`" + `, ` + "`" + `facebook` + "`" + ` ou ` + "`" + `telegram` + "`" + `. |\n\n- Permissão: ` + "`" + `conversations:read` + "`" + ` no workspace.\n- O servidor envia um ping a cada 54 segundos; navegadores respondem sozinhos. Sem resposta em 60 segundos, a conexão é encerrada.\n- Mensagens do cliente podem ter até 512 KiB.\n\nAo conectar, você recebe ` + "`" + `conversation:connected` + "`" + `, depois ` + "`" + `conversation:connected_users` + "`" + ` e a primeira página da caixa de entrada em ` + "`" + `conversation:inbox` + "`" + `.\n\n## Mensagens que você envia\n\nFormato: ` + "`" + `{\"type\": \"...\", \"payload\": {...}}` + "`" + `. Tipos desconhecidos recebem ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `code: \"unknown_event\"` + "`" + `.\n\n| type | Permissão | payload | Resposta |\n|---|---|---|---|\n| ` + "`" + `subscribe` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:subscribed` + "`" + ` e ` + "`" + `conversation:history` + "`" + `. A partir daí você recebe os eventos dessa conversa. ` + "`" + `page_size` + "`" + ` padrão 50, máximo 100. Abrir a conversa tira a sua marca pessoal de não lida (chega ` + "`" + `conversation:personal_mark` + "`" + ` se havia uma). Logo depois chega ` + "`" + `conversation:viewers` + "`" + ` com quem está com a conversa aberta, e todos os inscritos recebem a lista nova. |\n| ` + "`" + `unsubscribe` + "`" + ` | | ` + "`" + `{\"entry_id\": string, \"entry_type\": string}` + "`" + ` | ` + "`" + `conversation:unsubscribed` + "`" + `. Os inscritos que ficam recebem ` + "`" + `conversation:viewers` + "`" + ` sem você (quando era a sua última conexão inscrita). |\n| ` + "`" + `send` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"text\"?: string, \"media_id\"?: string, \"media_type\"?: \"image\" \\| \"video\" \\| \"audio\" \\| \"document\" \\| \"sticker\", \"signed\"?: boolean, \"request_id\": string, \"reply_to_message_id\"?: string}` + "`" + ` | ` + "`" + `conversation:message_sent` + "`" + ` para todos os inscritos e sempre para a conexão que enviou (mesmo sem inscrição, ou quando ela já recebeu a mensagem no histórico), ou ` + "`" + `conversation:message_error` + "`" + `. Informe ` + "`" + `text` + "`" + ` ou ` + "`" + `media_id` + "`" + `. ` + "`" + `request_id` + "`" + ` (até 128 caracteres, um UUID por envio) torna o envio idempotente: repetir o mesmo ` + "`" + `request_id` + "`" + ` na mesma conversa nunca envia de novo; se a mensagem já foi gravada, a resposta é o mesmo ` + "`" + `conversation:message_sent` + "`" + ` de antes (mesmo ` + "`" + `request_id` + "`" + `); se o primeiro envio ainda está em andamento, a repetição fica sem resposta e vale a resposta do primeiro. Sem ` + "`" + `request_id` + "`" + ` (clientes antigos) não há essa proteção. |\n| ` + "`" + `send_button` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"body_text\": string, \"buttons\": [{\"id\": string, \"title\": string}], \"header_type\"?: string, \"header_text\"?: string, \"footer_text\"?: string, \"request_id\": string, \"reply_to_message_id\"?: string}` + "`" + ` | Igual a ` + "`" + `send` + "`" + `, inclusive a idempotência por ` + "`" + `request_id` + "`" + `. De 1 a 3 botões. Os botões ficam guardados na mensagem e chegam em ` + "`" + `interactive` + "`" + `, para desenhar o balão e para que ela possa ser reenviada. |\n| ` + "`" + `resend_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"request_id\": string}` + "`" + ` | Reenvia uma mensagem que falhou, pelo mesmo caminho de ` + "`" + `send` + "`" + ` (saldo, janela, limite mensal, permissões e cobrança valem iguais), com o conteúdo original (texto, mídia, botões e resposta citada). Só vale para mensagem dessa conversa, enviada por um atendente, com ` + "`" + `deliveryStatus: \"failed\"` + "`" + ` e ainda não reenviada; senão ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `not_found` + "`" + `, ` + "`" + `not_allowed` + "`" + ` ou ` + "`" + `invalid` + "`" + ` (falta ` + "`" + `request_id` + "`" + `). O reenvio cria uma mensagem nova: chega ` + "`" + `conversation:message_updated` + "`" + ` da mensagem que falhou, agora com ` + "`" + `resent_as` + "`" + ` apontando para a nova, e depois ` + "`" + `conversation:message_sent` + "`" + ` da nova com o seu ` + "`" + `request_id` + "`" + `. Se o canal recusar, ` + "`" + `conversation:message_error` + "`" + ` com esse ` + "`" + `request_id` + "`" + ` e ` + "`" + `code: \"send_failed\"` + "`" + `, e a mensagem que falhou fica como estava. Repetir o mesmo ` + "`" + `request_id` + "`" + ` responde com a mesma mensagem nova, sem enviar de novo. |\n| ` + "`" + `react_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"emoji\": string, \"request_id\": string}` + "`" + ` | Reage a uma mensagem no canal; ` + "`" + `emoji: \"\"` + "`" + ` tira a sua reação. Deu certo: ` + "`" + `conversation:message_updated` + "`" + ` com a reação em ` + "`" + `reactions` + "`" + ` (` + "`" + `direction: \"outbound\"` + "`" + `, ` + "`" + `actor_id` + "`" + ` é você). Falhou: ` + "`" + `conversation:error` + "`" + `, e nada muda. |\n| ` + "`" + `edit_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"text\": string, \"request_id\": string}` + "`" + ` | Edita o texto de uma mensagem sua. Deu certo: ` + "`" + `conversation:message_updated` + "`" + ` com o novo ` + "`" + `text` + "`" + ` e ` + "`" + `edited_at` + "`" + `. Falhou: ` + "`" + `conversation:error` + "`" + `, e nada muda. |\n| ` + "`" + `delete_message` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_id\": string, \"request_id\": string}` + "`" + ` | Apaga para todos uma mensagem sua. Deu certo: ` + "`" + `conversation:message_updated` + "`" + ` com ` + "`" + `retracted_at` + "`" + ` e sem o conteúdo. Falhou: ` + "`" + `conversation:error` + "`" + `, e nada muda. |\n| ` + "`" + `mark_read` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"message_ids\": string[]}` + "`" + ` | ` + "`" + `conversation:read` + "`" + ` para todos os inscritos. Também tira a sua marca pessoal de não lida dessa conversa (veja Marcas pessoais). |\n| ` + "`" + `pin_conversation` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"pinned\": boolean, \"request_id\": string}` + "`" + ` | Fixa (` + "`" + `pinned: true` + "`" + `) ou desafixa a conversa só para você. Resposta ` + "`" + `conversation:personal_mark` + "`" + ` em todas as suas conexões deste workspace, ou ` + "`" + `conversation:error` + "`" + `. |\n| ` + "`" + `mark_unread` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"request_id\": string}` + "`" + ` | Marca a conversa como não lida só para você. Resposta ` + "`" + `conversation:personal_mark` + "`" + ` em todas as suas conexões deste workspace, ou ` + "`" + `conversation:error` + "`" + `. |\n| ` + "`" + `clear_unread_mark` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"request_id\": string}` + "`" + ` | Tira só a sua marca pessoal de não lida (o desfazer de ` + "`" + `mark_unread` + "`" + `): não marca nenhuma mensagem como lida e não manda confirmação de leitura ao contato. Resposta ` + "`" + `conversation:personal_mark` + "`" + ` em todas as suas conexões deste workspace (mesmo quando não havia marca), ou ` + "`" + `conversation:error` + "`" + `. |\n| ` + "`" + `typing` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"is_typing\"?: boolean}` + "`" + ` | ` + "`" + `conversation:typing` + "`" + ` para os outros inscritos. Sem erros. |\n| ` + "`" + `request_connected_users` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{}` + "`" + ` | ` + "`" + `conversation:connected_users` + "`" + ` |\n| ` + "`" + `load_history` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"before\": string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:history` + "`" + ` com mensagens anteriores a ` + "`" + `before` + "`" + ` (RFC 3339). ` + "`" + `has_more` + "`" + ` diz se há mensagens ainda mais antigas. |\n| ` + "`" + `load_around` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"timestamp\"?: string, \"message_id\"?: string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:history` + "`" + ` em torno de ` + "`" + `timestamp` + "`" + ` (RFC 3339) ou da mensagem ` + "`" + `message_id` + "`" + ` (informe exatamente um dos dois). Com ` + "`" + `message_id` + "`" + ` (por exemplo o ` + "`" + `replyToMessageId` + "`" + ` de uma citação que ainda não está carregada), o servidor confere o acesso à conversa, carrega a mensagem e usa o ` + "`" + `createdAt` + "`" + ` dela; se ela não existe ou não é dessa conversa, ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `code: \"not_found\"` + "`" + `, ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `. ` + "`" + `has_after` + "`" + ` diz se há mensagens mais novas depois da página. |\n| ` + "`" + `load_after` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"after\": string, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:history` + "`" + ` com ` + "`" + `direction: \"after\"` + "`" + ` e as mensagens logo depois de ` + "`" + `after` + "`" + ` (RFC 3339 com nanossegundos, por exemplo o ` + "`" + `createdAt` + "`" + ` da mensagem mais nova que você já tem). ` + "`" + `has_after: true` + "`" + ` indica que há mais páginas depois; repita com o ` + "`" + `createdAt` + "`" + ` da última mensagem recebida. Serve para recuperar o que chegou durante uma queda de conexão e para voltar ao presente depois de um salto. Mesma checagem de acesso e mesmos limites de ` + "`" + `page_size` + "`" + ` de ` + "`" + `load_history` + "`" + `. |\n| ` + "`" + `request_inbox_page` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"page\"?: number, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:inbox` + "`" + `. ` + "`" + `page_size` + "`" + ` padrão 20, máximo 50. |\n| ` + "`" + `search_inbox` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | Veja Busca na caixa de entrada | ` + "`" + `conversation:search_results` + "`" + ` |\n| ` + "`" + `search_messages` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"query\": string, \"page\"?: number, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:search_messages_results` + "`" + ` |\n| ` + "`" + `load_entry_matches` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | Igual a ` + "`" + `search_messages` + "`" + ` (` + "`" + `page_size` + "`" + ` padrão 10, máximo 50) | ` + "`" + `conversation:entry_matches_results` + "`" + ` |\n| ` + "`" + `reopen_window` + "`" + ` | ` + "`" + `conversations:reopen` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"template_id\": string, \"parameters\"?: string[], \"header_parameters\"?: string[], \"request_id\"?: string}` + "`" + ` | Envia um template para reabrir a janela de atendimento. ` + "`" + `parameters` + "`" + ` são os valores das variáveis do corpo, na ordem em que aparecem; ` + "`" + `header_parameters` + "`" + `, o da variável do texto do cabeçalho. | Resposta ` + "`" + `conversation:window_reopened` + "`" + `. |\n| ` + "`" + `assign_to` + "`" + ` | ` + "`" + `conversations:assign` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"user_id\": string}` + "`" + ` | Sem resposta direta: você recebe ` + "`" + `conversation:entry_update` + "`" + `. |\n| ` + "`" + `request_funnel_column` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"stage_id\": string, \"page\"?: number, \"page_size\"?: number}` + "`" + ` | ` + "`" + `conversation:funnel_column` + "`" + ` |\n| ` + "`" + `request_funnel_summary` + "`" + ` | ` + "`" + `conversations:read` + "`" + ` | ` + "`" + `{\"stage_ids\": string[]}` + "`" + ` | ` + "`" + `conversation:funnel_summary` + "`" + ` |\n| ` + "`" + `switch_view` + "`" + ` | | ` + "`" + `{\"campaign_id\"?: string, \"campaign_type\"?: string, \"whatsapp_campaign_type\"?: \"standard\" \\| \"organic\", \"container_kind\"?: \"\" \\| \"campaign\", \"conversation_status\"?: \"new\" \\| \"ongoing\" \\| \"finished\", \"is_group\"?: boolean}` + "`" + ` | ` + "`" + `conversation:view_switched` + "`" + ` e a primeira página em ` + "`" + `conversation:inbox` + "`" + `. Cancela todas as inscrições em conversas. Com ` + "`" + `is_group: true` + "`" + ` a lista é a aba Grupos (veja Grupos); sem ele, as conversas com clientes. |\n| ` + "`" + `set_conversation_status` + "`" + ` | ` + "`" + `conversations:send` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string, \"status\": \"ongoing\" \\| \"finished\", \"outcome_code\"?: string}` + "`" + ` | Sem resposta direta: você recebe ` + "`" + `conversation:conversation_status_update` + "`" + `. |\n\n` + "`" + `entry_type` + "`" + ` é o canal da conversa: ` + "`" + `whatsapp` + "`" + `, ` + "`" + `unofficial_whatsapp` + "`" + `, ` + "`" + `instagram` + "`" + `, ` + "`" + `facebook` + "`" + ` ou ` + "`" + `telegram` + "`" + `.\n\nRegras de ` + "`" + `react_message` + "`" + `, ` + "`" + `edit_message` + "`" + ` e ` + "`" + `delete_message` + "`" + `: o servidor confere o mesmo acesso de ` + "`" + `send` + "`" + ` e a regra da ação antes de chamar o canal, então um cliente desatualizado nunca age fora dela. Reagir exige um canal que reage e uma mensagem que o canal identifica e que não foi apagada. Editar exige um canal que edita, uma mensagem só de texto enviada por você e dentro da janela de edição do canal. Apagar exige um canal que apaga, uma mensagem enviada por você e dentro da janela de exclusão do canal. Hoje: WhatsApp por QR Code reage, edita por 15 minutos e apaga por 48 horas; Telegram reage, edita e apaga por 48 horas; Instagram, Facebook e WhatsApp oficial só reagem; o site não tem nenhuma ação. ` + "`" + `conversation:subscribed` + "`" + ` traz o que o canal da conversa permite em ` + "`" + `message_capabilities` + "`" + `.\n\nRegras de ` + "`" + `set_conversation_status` + "`" + `: uma conversa volta a ` + "`" + `new` + "`" + ` só quando o contato manda uma mensagem nova; uma conversa finalizada só reabre da mesma forma. Se o workspace exige um desfecho, envie ` + "`" + `outcome_code` + "`" + `; sem ele você recebe ` + "`" + `outcome_required` + "`" + ` com a lista em ` + "`" + `outcomes` + "`" + `.\n\nEm ` + "`" + `switch_view` + "`" + ` com ` + "`" + `campaign_type: \"whatsapp\"` + "`" + `, é preciso ` + "`" + `whatsapp_campaigns:read` + "`" + `; com ` + "`" + `unofficial_whatsapp` + "`" + ` e ` + "`" + `container_kind: \"campaign\"` + "`" + `, ` + "`" + `unofficial_whatsapp_campaigns:read` + "`" + `.\n\n### Busca na caixa de entrada\n\nTodos os campos de ` + "`" + `search_inbox` + "`" + ` são opcionais:\n\n` + "`" + `` + "`" + `` + "`" + `json\n{\n\"query\": \"string\",\n\"stage_id\": \"string\",\n\"stage_name\": \"string\",\n\"min_message_count\": 0,\n\"max_message_count\": 0,\n\"message_search\": \"string\",\n\"window_open\": true,\n\"has_unread\": true,\n\"is_group\": true,\n\"channel\": \"string\",\n\"date_from\": \"RFC 3339\",\n\"date_to\": \"RFC 3339\",\n\"conversation_status\": \"new | ongoing | finished\",\n\"responsible_user_id\": \"string\",\n\"responsible_unassigned\": true,\n\"responsible_kind\": \"ai | workflow\",\n\"sort\": \"recent | waiting\",\n\"label_id\": \"string\",\n\"personal\": \"pinned\",\n\"origin\": \"receptive | campaign | outreach | unknown\",\n\"page\": 1,\n\"page_size\": 20\n}\n` + "`" + `` + "`" + `` + "`" + `\n\n- ` + "`" + `sort` + "`" + `: ` + "`" + `recent` + "`" + ` (padrão, a ordem de sempre: a mensagem mais recente primeiro) ou ` + "`" + `waiting` + "`" + `: primeiro as conversas que esperam resposta (as que têm ` + "`" + `waiting_since` + "`" + `), a que espera desde mais cedo no topo, depois as demais pela mais recente. É a mesma regra de ` + "`" + `waiting_since` + "`" + `: conversa finalizada não espera. Outro valor responde ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `invalid_sort` + "`" + `.\n- ` + "`" + `label_id` + "`" + `: só conversas com essa etiqueta. Um id ilegível responde ` + "`" + `invalid_label` + "`" + `.\n- ` + "`" + `is_group` + "`" + `: ` + "`" + `true` + "`" + `, busca na aba Grupos (hoje, grupos do WhatsApp não oficial); ` + "`" + `false` + "`" + `, nas conversas com clientes. Sem o campo, vale a aba da sua visão (` + "`" + `switch_view` + "`" + `). Num canal sem grupos, ` + "`" + `true` + "`" + ` não traz nada.\n- ` + "`" + `personal` + "`" + `: sem valor, a sua caixa de entrada (as suas fixadas primeiro, todas as outras em seguida); ` + "`" + `pinned` + "`" + `, só as que você fixou. Outro valor responde ` + "`" + `invalid_personal` + "`" + `.\n- ` + "`" + `origin` + "`" + `: só conversas com essa origem, pela primeira mensagem: ` + "`" + `receptive` + "`" + ` (o contato escreveu primeiro), ` + "`" + `campaign` + "`" + ` (começou por uma mensagem de campanha), ` + "`" + `outreach` + "`" + ` (a equipe, a IA ou um fluxo começou) ou ` + "`" + `unknown` + "`" + ` (remetente não registrado). Uma conversa ainda sem origem registrada só aparece sem o filtro. Vale também para os totais e a paginação. Outro valor responde ` + "`" + `invalid_origin` + "`" + `. Cada ` + "`" + `InboxEntry` + "`" + ` traz a sua ` + "`" + `origin` + "`" + ` quando ela já está registrada.\n- Em qualquer ` + "`" + `sort` + "`" + `, as conversas que você fixou vêm primeiro. ` + "`" + `request_inbox_page` + "`" + `, a primeira página ao conectar e ` + "`" + `switch_view` + "`" + ` usam a sua caixa de entrada (sem ` + "`" + `personal` + "`" + `) com ` + "`" + `sort: \"recent\"` + "`" + `. As colunas do funil (` + "`" + `request_funnel_column` + "`" + `, ` + "`" + `request_funnel_summary` + "`" + `) não usam marcas pessoais.\n\n### Marcas pessoais\n\nFixar e marcar como não lida são só seus: ninguém da equipe vê as suas marcas, e elas nunca mostram uma conversa que você não pode ver (valem as mesmas regras de ` + "`" + `subscribe` + "`" + `: departamento, responsável e ` + "`" + `view_others` + "`" + `). Uma conversa que você deixou de ver some das suas marcas.\n\n- Toda mudança chega em ` + "`" + `conversation:personal_mark` + "`" + ` a todas as suas conexões neste workspace (abas e janelas, em qualquer servidor), com ` + "`" + `mark: null` + "`" + ` quando não sobrou marca.\n- Abrir a conversa (` + "`" + `subscribe` + "`" + `) ou ` + "`" + `mark_read` + "`" + ` tira a sua marca de não lida. Para desfazer ` + "`" + `mark_unread` + "`" + ` use ` + "`" + `clear_unread_mark` + "`" + `, que tira só a marca: ` + "`" + `mark_read` + "`" + ` marca as mensagens do contato como lidas e manda a confirmação de leitura a ele.\n- ` + "`" + `conversation:inbox` + "`" + ` e ` + "`" + `conversation:search_results` + "`" + ` trazem ` + "`" + `personal_marks` + "`" + ` com as suas marcas das conversas da página.\n- Os totais por status (` + "`" + `conversation_status_counts` + "`" + `) são da equipe: as suas marcas não os mudam.\n\n### Grupos\n\nOs grupos de WhatsApp ficam sempre na aba Grupos, para todos: as conversas com clientes (a primeira página, ` + "`" + `request_inbox_page` + "`" + `, ` + "`" + `search_inbox` + "`" + `, as colunas do funil e os totais por status) nunca trazem grupos. A aba Grupos é ` + "`" + `switch_view` + "`" + ` com ` + "`" + `is_group: true` + "`" + ` e mostra todos os grupos, inclusive os finalizados; ` + "`" + `conversation_status_counts` + "`" + ` traz o total dela em ` + "`" + `groups` + "`" + `.\n\n- Cada pessoa pode esconder os grupos (PUT /inbox/preferences com ` + "`" + `hideGroups: true` + "`" + `). Para ela, a aba Grupos e as buscas com ` + "`" + `is_group: true` + "`" + ` voltam vazias, e mensagens de grupo não chegam nem tocam aviso. A preferência chega em ` + "`" + `conversation:inbox_preferences` + "`" + ` logo depois de conectar e sempre que muda, em todas as suas conexões deste workspace. Quando ela não pode ser lida, vale o padrão: grupos visíveis na aba Grupos.\n- Uma conversa sem a marca de grupo conta como conversa com cliente, para nada sumir por engano.\n\nRecusas de ` + "`" + `pin_conversation` + "`" + `, ` + "`" + `mark_unread` + "`" + ` e ` + "`" + `clear_unread_mark` + "`" + ` chegam em ` + "`" + `conversation:error` + "`" + ` com ` + "`" + `request_id` + "`" + `, ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + ` e o código: ` + "`" + `not_allowed` + "`" + ` (sem ` + "`" + `conversations:read` + "`" + ` ou sem acesso à conversa), ` + "`" + `invalid` + "`" + ` (falta ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + ` ou ` + "`" + `pinned` + "`" + `), ` + "`" + `unsupported` + "`" + ` (servidor sem marcas pessoais) ou ` + "`" + `failed` + "`" + ` (não foi possível gravar).\n\n## Mensagens que você recebe\n\nFormato: ` + "`" + `{\"type\": \"...\", \"payload\": {...}}` + "`" + `.\n\n### Respostas aos seus pedidos\n\n| type | payload |\n|---|---|\n| ` + "`" + `conversation:connected` + "`" + ` | ` + "`" + `{\"user_id\": string, \"connection_id\": string}` + "`" + ` |\n| ` + "`" + `conversation:subscribed` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"lead_id\"?, \"lead_name\": string, \"lead_number\": string, \"lead_version\": number, \"blocked\": boolean, \"lead_picture\": string, \"lead_metadata\"?: object, \"entry_variables\"?: string[], \"unread_count\": number, \"automation_enabled\": boolean, \"window_open\": boolean, \"window_expires_at\"?: string, \"window_closed_reason\"?: string, \"window_closed_detail\"?: string, \"window_tier\"?: \"standard\" | \"human_agent\", \"ad_origin\"?: AdOrigin, \"message_capabilities\": {\"react\": boolean, \"edit\": boolean, \"delete\": boolean, \"edit_window_seconds\": number, \"delete_window_seconds\": number}, \"media_limits\"?: [{\"kind\": \"image\" | \"video\" | \"audio\" | \"document\", \"max_bytes\": number, \"mime_types\": string[]}]}` + "`" + `. ` + "`" + `message_capabilities` + "`" + ` diz o que o canal da conversa permite fazer com as mensagens (veja as regras de ` + "`" + `react_message` + "`" + `, ` + "`" + `edit_message` + "`" + ` e ` + "`" + `delete_message` + "`" + `); as janelas contam a partir do ` + "`" + `createdAt` + "`" + ` da mensagem e valem 0 quando a ação não existe. ` + "`" + `media_limits` + "`" + ` diz quais anexos o canal aceita, um item por tipo, com o tamanho máximo em bytes; ` + "`" + `mime_types` + "`" + ` vazio aceita qualquer formato daquele tipo; um tipo fora da lista não é aceito; a lista vazia quer dizer que o canal não aceita anexos; sem o campo, os limites do canal não são conhecidos e o cliente não deve enviar anexos. ` + "`" + `lead_name` + "`" + `, ` + "`" + `lead_number` + "`" + `, ` + "`" + `lead_version` + "`" + ` e ` + "`" + `lead_picture` + "`" + ` vêm sempre (texto vazio ou 0 quando não há valor), para que um valor apagado substitua o anterior na tela. |\n| ` + "`" + `conversation:unsubscribed` + "`" + ` | ` + "`" + `{\"entry_id\": string, \"entry_type\": string}` + "`" + ` |\n| ` + "`" + `conversation:history` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"direction\": \"latest\" \\| \"before\" \\| \"around\" \\| \"after\", \"messages\": Message[], \"has_more\": boolean, \"has_after\": boolean, \"total\": number, \"page_size\": number}` + "`" + `. ` + "`" + `direction` + "`" + ` diz qual pedido a página responde: ` + "`" + `latest` + "`" + ` (primeira página de ` + "`" + `subscribe` + "`" + `), ` + "`" + `before` + "`" + ` (` + "`" + `load_history` + "`" + `), ` + "`" + `around` + "`" + ` (` + "`" + `load_around` + "`" + `) ou ` + "`" + `after` + "`" + ` (` + "`" + `load_after` + "`" + `). As mensagens vêm sempre da mais antiga para a mais nova. ` + "`" + `has_more` + "`" + `: há mensagens mais antigas que a página (não se aplica a ` + "`" + `after` + "`" + `). ` + "`" + `has_after` + "`" + `: há mensagens mais novas que a página (só em ` + "`" + `around` + "`" + ` e ` + "`" + `after` + "`" + `). ` + "`" + `total` + "`" + ` vem em ` + "`" + `latest` + "`" + ` e ` + "`" + `around` + "`" + `. |\n| ` + "`" + `conversation:inbox` + "`" + ` | ` + "`" + `{\"entries\": InboxEntry[], \"personal_marks\": PersonalMark[], \"page\", \"page_size\", \"total_items\", \"total_pages\", \"stage_counts\"?: object, \"conversation_status_counts\"?: object, \"available_labels\"?: Label[]}` + "`" + `. ` + "`" + `personal_marks` + "`" + ` traz as suas marcas das conversas da página (lista vazia quando não há). |\n| ` + "`" + `conversation:search_results` + "`" + ` | ` + "`" + `{\"query\"?, \"filters\": object, \"entries\": InboxEntry[], \"personal_marks\": PersonalMark[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + `. ` + "`" + `filters` + "`" + ` repete os filtros pedidos, inclusive ` + "`" + `sort` + "`" + `, ` + "`" + `label_id` + "`" + `, ` + "`" + `personal` + "`" + ` e ` + "`" + `origin` + "`" + `. |\n| ` + "`" + `conversation:personal_mark` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"mark\": {\"pinned_at\"?: string, \"unread_marked_at\"?: string} \\| null}` + "`" + `. Só para as suas conexões neste workspace: resposta a ` + "`" + `pin_conversation` + "`" + `, ` + "`" + `mark_unread` + "`" + ` e ` + "`" + `clear_unread_mark` + "`" + `, e também quando a sua marca muda sozinha (abrir ou ler a conversa). ` + "`" + `mark: null` + "`" + `: nenhuma marca. |\n| ` + "`" + `conversation:search_messages_results` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"query\", \"messages\": Message[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + ` |\n| ` + "`" + `conversation:entry_matches_results` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"query\", \"matches\": MatchedMessage[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + ` |\n| ` + "`" + `conversation:window_reopened` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"request_id\"?, \"template_id\", \"message_id\"}` + "`" + ` |\n| ` + "`" + `conversation:funnel_column` + "`" + ` | ` + "`" + `{\"stage_id\", \"entries\": InboxEntry[], \"page\", \"page_size\", \"total_items\", \"total_pages\"}` + "`" + ` |\n| ` + "`" + `conversation:funnel_summary` + "`" + ` | ` + "`" + `{\"columns\": [{\"stage_id\": string, \"total_items\": number}]}` + "`" + ` |\n| ` + "`" + `conversation:view_switched` + "`" + ` | ` + "`" + `{\"view_mode\": \"global\" \\| \"campaign\", \"campaign_id\"?, \"campaign_type\"?, \"whatsapp_campaign_type\"?, \"container_kind\"?, \"conversation_status\"?, \"is_group\"?: boolean}` + "`" + `. ` + "`" + `is_group: true` + "`" + `: a visão é a aba Grupos. |\n| ` + "`" + `conversation:inbox_preferences` + "`" + ` | ` + "`" + `{\"hide_groups\": boolean}` + "`" + `. As suas preferências da caixa de entrada neste workspace: chega logo depois de conectar e sempre que mudam (em qualquer servidor). Com ` + "`" + `hide_groups: true` + "`" + `, esconda a aba Grupos. |\n| ` + "`" + `conversation:connected_users` + "`" + ` | ` + "`" + `{\"users\": [{\"user_id\", \"workspace_id\", \"campaign_id\", \"campaign_type\", \"campaign_name\"?, \"view_mode\", \"username\"?, \"email\"?, \"connected_at\"}]}` + "`" + `. Também chega sozinho quando alguém entra, sai ou troca de visão. Você só vê colegas dos seus departamentos, salvo se tiver acesso a todo o workspace. |\n| ` + "`" + `conversation:message_error` + "`" + ` | ` + "`" + `{\"request_id\", \"entry_id\", \"entry_type\", \"error\": string, \"code\"?: string}` + "`" + `. Falha de ` + "`" + `send` + "`" + `, ` + "`" + `send_button` + "`" + ` ou do envio de ` + "`" + `resend_message` + "`" + `. |\n| ` + "`" + `conversation:error` + "`" + ` | Veja Erros. |\n\n### Eventos das conversas em que você se inscreveu\n\n| type | payload | Quando |\n|---|---|---|\n| ` + "`" + `conversation:message` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message\": Message}` + "`" + ` | Chegou ou foi enviada uma mensagem (contato, IA, fluxo, agendamento, chamadas). |\n| ` + "`" + `conversation:message_sent` + "`" + ` | ` + "`" + `{\"request_id\", \"entry_id\", \"entry_type\", \"message\": Message}` + "`" + ` | Um atendente enviou uma mensagem. Chega para todos os inscritos. |\n| ` + "`" + `conversation:message_updated` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message\": Message}` + "`" + ` | Uma mensagem já entregue mudou: foi editada ou apagada (pelo contato ou pela equipe), recebeu ou perdeu uma reação, ganhou a transcrição do áudio, ou falhou e foi reenviada (` + "`" + `resent_as` + "`" + `). Traz a mensagem inteira no mesmo formato de ` + "`" + `conversation:message` + "`" + `; substitua a que você tem pelo ` + "`" + `id` + "`" + `. Chega só para quem está inscrito na conversa. |\n| ` + "`" + `conversation:read` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message_ids\": string[], \"read_by\": string, \"read_at\": string}` + "`" + ` | Mensagens foram marcadas como lidas. |\n| ` + "`" + `conversation:typing` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"user_id\"?, \"is_typing\": boolean}` + "`" + ` | Um colega está digitando. |\n| ` + "`" + `conversation:message_status` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"message_id\", \"status\": \"sent\" \\| \"delivered\" \\| \"read\" \\| \"failed\"}` + "`" + ` | O canal confirmou a entrega. |\n| ` + "`" + `conversation:analysis_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"analysis\": Analysis \\| null, \"pending\": boolean}` + "`" + ` | A análise da conversa mudou. |\n| ` + "`" + `conversation:ad_origin` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"ad_origin\": AdOrigin}` + "`" + ` | O contato chegou por um anúncio (WhatsApp, Instagram ou Facebook). Só a primeira vez: o anúncio de origem não muda. |\n| ` + "`" + `conversation:conversation_status_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"status\", \"close_source\"?, \"close_reason\"?, \"close_outcome\"?, \"closed_at\"?}` + "`" + ` | O status da conversa mudou. |\n| ` + "`" + `conversation:viewers` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"viewers\": [{\"user_id\": string, \"name\": string}]}` + "`" + ` | Quem está com a conversa aberta agora mudou: alguém se inscreveu, cancelou a inscrição ou desconectou (em qualquer servidor). Também chega logo depois do seu ` + "`" + `subscribe` + "`" + `, com a lista atual. Traz todos os inscritos, inclusive você (filtre o seu ` + "`" + `user_id` + "`" + `); cada pessoa aparece uma vez, mesmo com várias abas ou janelas destacadas. ` + "`" + `name` + "`" + ` é o nome de usuário (texto vazio quando não foi encontrado). A lista é a fotografia completa: substitua a anterior. |\n| ` + "`" + `conversation:note` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"note\": Note}` + "`" + ` | Alguém da equipe gravou uma nota interna na conversa (POST /conversations/{entryType}/{entryId}/notes). |\n| ` + "`" + `conversation:note_deleted` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"note_id\": string}` + "`" + ` | O autor apagou uma nota interna; tire-a da tela. |\n\nUma mesma mensagem chega uma vez só por conexão: como ` + "`" + `conversation:message` + "`" + ` ou como ` + "`" + `conversation:message_sent` + "`" + `.\n\n### Eventos do workspace\n\nChegam mesmo sem inscrição, para quem tem acesso à conversa e está na visão correspondente:\n\n| type | payload | Quando |\n|---|---|---|\n| ` + "`" + `conversation:entry_update` + "`" + ` | ` + "`" + `{\"entry\": InboxEntry, \"silent\"?: boolean, \"alert\"?: boolean, \"unlisted\"?: boolean}` + "`" + ` | Nova mensagem, envio, troca de responsável, status ou etapa. ` + "`" + `silent: true` + "`" + ` indica atualização sem novidade para o atendente. ` + "`" + `alert: true` + "`" + ` só vem numa mensagem nova do cliente e só para quem deve ser avisado: o responsável humano; ninguém quando um agente ou fluxo é o responsável ou quando a distribuição automática vai entregar a conversa; na fila manual, quem pode pegá-la. Toque o som e mostre o aviso só quando ` + "`" + `alert` + "`" + ` vier. ` + "`" + `unlisted: true` + "`" + ` vem com ` + "`" + `alert` + "`" + ` quando a conversa é de outra aba (um grupo enquanto você vê os clientes, ou o contrário): avise, mas não ponha a conversa na lista atual. Quem escondeu os grupos não recebe nada de grupos. |\n| ` + "`" + `conversation:assigned_to_you` + "`" + ` | ` + "`" + `{\"entry\": InboxEntry, \"assigned_at\": string}` + "`" + ` | Uma conversa passou a ser sua pela distribuição automática, por um colega, por uma transferência ou por um agente ou fluxo. Não chega quando você mesmo a pega. Chega uma vez por atribuição, em todas as suas conexões deste workspace. |\n| ` + "`" + `conversation:conversation_status_counts_update` + "`" + ` | ` + "`" + `{\"counts\": {\"new\": number, \"ongoing\": number, \"finished\": number, \"groups\"?: number}}` + "`" + ` | Os totais por status mudaram. ` + "`" + `new` + "`" + `, ` + "`" + `ongoing` + "`" + ` e ` + "`" + `finished` + "`" + ` contam só conversas com clientes; ` + "`" + `groups` + "`" + ` conta todos os grupos (a aba Grupos) e só vem quando a visão inclui um canal com grupos. |\n| ` + "`" + `conversation:stage_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"stage\": Stage \\| null}` + "`" + ` | A etapa da conversa mudou. |\n| ` + "`" + `conversation:label_update` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"labels\": Label[]}` + "`" + ` | As etiquetas mudaram. |\n| ` + "`" + `conversation:entry_removed` + "`" + ` | ` + "`" + `{\"entry_id\", \"entry_type\", \"reason\": \"assigned\"}` + "`" + ` | A conversa foi para outra pessoa e você não a vê mais. |\n| ` + "`" + `audience:analyzed` + "`" + ` | ` + "`" + `{\"workspaceId\", \"source\", \"accountId\", \"containerId\", \"items\": CommentAnalyzed[], \"more\": number}` + "`" + ` | Um lote de comentários foi analisado. Só para quem tem ` + "`" + `audience:read` + "`" + `. |\n| ` + "`" + `notification:created` + "`" + ` | ` + "`" + `{\"workspaceId\", \"item\": {\"id\", \"category\", \"severity\", \"title\", \"body\", \"imageUrl\"?, \"actionUrl\"?, \"actionLabel\"?, \"createdAt\"}}` + "`" + ` | Uma notificação nova chegou para você neste workspace (a mesma forma de GET /notifications). Só para os destinatários dela. Atualize o contador com GET /notifications/summary. |\n| ` + "`" + `conversation:lead_update` + "`" + ` | ` + "`" + `{\"leadId\": string, \"version\": number, \"fields\": string[]}` + "`" + ` | Um lead mudou (edição, nome, bloqueio, responsável, opt-out, família, anonimização). Traz só os nomes dos campos, nunca os valores; um campo personalizado aparece como ` + "`" + `customFields.\u003cchave\u003e` + "`" + `, e ` + "`" + `anonymized` + "`" + ` diz que o lead foi anonimizado e não existe mais (a nova leitura responde 404): busque o lead de novo por uma rota que você pode usar (GET /leads/{id} com ` + "`" + `leads:read` + "`" + `, ou a própria conversa). Chega para quem tem ` + "`" + `leads:read` + "`" + ` e para quem está inscrito em uma conversa desse lead. Use ` + "`" + `version` + "`" + ` no ` + "`" + `If-Match` + "`" + ` da próxima edição. |\n| ` + "`" + `conversation:leads_bulk_update` + "`" + ` | ` + "`" + `{\"runId\": string}` + "`" + ` | Um lote de uma ação em massa sobre leads (classificar, atribuir, bloquear) foi gravado. Chega uma vez por lote, só para quem tem ` + "`" + `leads:read` + "`" + `; não traz ids de leads nem valores. Recarregue a lista e consulte o andamento em GET /leads/actions/{runId}. |\n\n### Chat da equipe\n\nConversas internas entre colegas (veja a seção Chat da equipe da API). Os eventos chegam só para quem participa da conversa, em todas as suas conexões deste workspace, em qualquer servidor. Os comandos são pela API HTTP; o socket só traz os eventos e a digitação. Quem não tem ` + "`" + `conversations:read` + "`" + ` não abre este socket: atualize GET /team-chat/summary a cada minuto. Ao reconectar, recupere o que perdeu com GET /team-chat/threads e, em cada conversa aberta, GET /team-chat/threads/{id}/messages com ` + "`" + `after_seq` + "`" + ` igual ao maior ` + "`" + `seq` + "`" + ` que você já tem.\n\n| type | Direção | payload | Quando |\n|---|---|---|---|\n| ` + "`" + `team_chat_typing` + "`" + ` | você envia | ` + "`" + `{\"thread_id\": string}` + "`" + ` | Você está digitando. Envie no máximo um a cada 3 segundos. Precisa participar da conversa; recusas não têm resposta. |\n| ` + "`" + `team_chat:message` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"message\": TeamChatMessage}` + "`" + ` | Mensagem nova, inclusive as suas (para as suas outras abas), as de sistema e as agendadas no momento do envio. |\n| ` + "`" + `team_chat:message_updated` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"message\": TeamChatMessage}` + "`" + ` | Uma mensagem foi editada (` + "`" + `edited_at` + "`" + `) ou apagada (` + "`" + `deleted_at` + "`" + `, sem texto). |\n| ` + "`" + `team_chat:read` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"user_id\", \"seq\"}` + "`" + ` | Alguém leu a conversa até ` + "`" + `seq` + "`" + ` (confirmação de leitura; quando é você, sincroniza as suas abas). |\n| ` + "`" + `team_chat:thread` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\"}` + "`" + ` | A conversa mudou (criada com você, título, participantes, silenciada): busque GET /team-chat/threads/{id}. |\n| ` + "`" + `team_chat:thread_removed` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\"}` + "`" + ` | Você saiu ou foi tirado do grupo: remova a conversa da tela. |\n| ` + "`" + `team_chat:typing` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"user_id\"}` + "`" + ` | Alguém está digitando. Some sozinho depois de 5 segundos sem um novo aviso. |\n| ` + "`" + `team_chat:scheduled` + "`" + ` | você recebe | ` + "`" + `{\"thread_id\", \"scheduled\": TeamChatScheduled}` + "`" + ` | Uma mensagem que você agendou mudou: criada, alterada, cancelada, enviada ou falhou (` + "`" + `failure_reason` + "`" + `). Só para o autor. |\n\n**TeamChatMessage**: ` + "`" + `id` + "`" + `, ` + "`" + `thread_id` + "`" + `, ` + "`" + `seq` + "`" + ` (ordem na conversa, sem buracos), ` + "`" + `author_id` + "`" + `, ` + "`" + `author_name` + "`" + `, ` + "`" + `kind` + "`" + ` (` + "`" + `text | system` + "`" + `), ` + "`" + `body` + "`" + `, ` + "`" + `event` + "`" + `? (só em ` + "`" + `system` + "`" + `: ` + "`" + `created | renamed | members_added | member_removed | member_left` + "`" + `), ` + "`" + `subject_ids` + "`" + ` (quem a mensagem de sistema afeta), ` + "`" + `reply_to_id` + "`" + `?, ` + "`" + `mentions` + "`" + `, ` + "`" + `client_id` + "`" + `?, ` + "`" + `created_at` + "`" + `, ` + "`" + `edited_at` + "`" + `?, ` + "`" + `deleted_at` + "`" + `?. **TeamChatScheduled**: ` + "`" + `id` + "`" + `, ` + "`" + `thread_id` + "`" + `, ` + "`" + `body` + "`" + `, ` + "`" + `mentions` + "`" + `, ` + "`" + `reply_to_id` + "`" + `?, ` + "`" + `send_at` + "`" + `, ` + "`" + `status` + "`" + ` (` + "`" + `pending | sent | canceled | failed` + "`" + `), ` + "`" + `failure_reason` + "`" + `?, ` + "`" + `sent_message_id` + "`" + `?, ` + "`" + `created_at` + "`" + `, ` + "`" + `updated_at` + "`" + `.\n\n## Tipos usados nas mensagens\n\n**InboxEntry**: ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `campaign_id` + "`" + `?, ` + "`" + `campaign_name` + "`" + `?, ` + "`" + `lead_id` + "`" + `?, ` + "`" + `lead_name` + "`" + `?, ` + "`" + `lead_number` + "`" + `?, ` + "`" + `lead_version` + "`" + `?, ` + "`" + `blocked` + "`" + `, ` + "`" + `lead_picture` + "`" + `?, ` + "`" + `is_group` + "`" + `?, ` + "`" + `lead_metadata` + "`" + `?, ` + "`" + `entry_variables` + "`" + `?, ` + "`" + `unread_count` + "`" + `, ` + "`" + `last_message_preview` + "`" + `?, ` + "`" + `last_message_at` + "`" + `, ` + "`" + `last_message_type` + "`" + `?, ` + "`" + `last_message_sender` + "`" + `?, ` + "`" + `last_message_sender_avatar` + "`" + `?, ` + "`" + `last_message_sender_kind` + "`" + `? (` + "`" + `contact | human | ai | workflow | campaign | system | external` + "`" + `: quem mandou a última mensagem, para o cliente nomear o remetente no idioma de quem lê; ` + "`" + `external` + "`" + ` é uma mensagem enviada pela conta fora da plataforma, no app do próprio canal ou no celular; ausente em mensagens antigas sem remetente gravado), ` + "`" + `last_message_author` + "`" + `? (groups: name of the member who sent the last message), ` + "`" + `last_message_from_us` + "`" + `? (groups: the last message was ours), ` + "`" + `last_customer_message_at` + "`" + `? (quando o contato escreveu por último, em todos os canais), ` + "`" + `last_agent_message_at` + "`" + `? (quando a equipe, uma IA, um fluxo ou uma campanha escreveu por último), ` + "`" + `waiting_since` + "`" + `? (RFC 3339: desde quando o contato espera resposta, a primeira mensagem dele depois da última resposta da equipe, de uma IA ou de um fluxo, inclusive a digitada no celular fora da plataforma; campanha e aviso do sistema não são resposta; ausente quando ninguém espera ou a conversa está finalizada; finalizar a conversa encerra a espera e a próxima mensagem do contato começa outra), ` + "`" + `window_open` + "`" + `, ` + "`" + `window_expires_at` + "`" + `?, ` + "`" + `window_closed_reason` + "`" + `?, ` + "`" + `window_closed_detail` + "`" + `? (o mesmo estado da janela que ` + "`" + `conversation:subscribed` + "`" + ` informa, em todos os canais; sem como confirmar o estado, a linha vem fechada com ` + "`" + `channel_unavailable` + "`" + `), ` + "`" + `business_phone_id` + "`" + `?, ` + "`" + `assigned_user_id` + "`" + `?, ` + "`" + `assigned_username` + "`" + `?, ` + "`" + `automation_enabled` + "`" + `, ` + "`" + `stage` + "`" + `?: Stage, ` + "`" + `labels` + "`" + `?: Label[], ` + "`" + `available_stages` + "`" + `?: Stage[], ` + "`" + `matched_messages` + "`" + `?: MatchedMessage[], ` + "`" + `total_matches` + "`" + `?, ` + "`" + `latest_analysis` + "`" + `?: Analysis, ` + "`" + `analysis_phase` + "`" + `?: ` + "`" + `\"awaiting\" | \"queued\"` + "`" + `, ` + "`" + `live_read` + "`" + `?: LiveRead, ` + "`" + `conversation_status` + "`" + `?: ` + "`" + `new | ongoing | finished` + "`" + `, ` + "`" + `close_source` + "`" + `?: ` + "`" + `human | ai | system` + "`" + `, ` + "`" + `close_reason` + "`" + `?: ` + "`" + `manual | customer_idle | ai_resolved | max_age | workflow` + "`" + `, ` + "`" + `closed_at` + "`" + `?, ` + "`" + `close_outcome` + "`" + `?, ` + "`" + `ai_handler` + "`" + `?: AIHandler.\n\n**Message** (chaves em camelCase): ` + "`" + `id` + "`" + `, ` + "`" + `entryId` + "`" + `, ` + "`" + `entryType` + "`" + `, ` + "`" + `channel` + "`" + `, ` + "`" + `messageType` + "`" + `, ` + "`" + `direction` + "`" + `?: ` + "`" + `INBOUND | OUTBOUND` + "`" + `, ` + "`" + `from` + "`" + `, ` + "`" + `to` + "`" + `, ` + "`" + `text` + "`" + `, ` + "`" + `mediaId` + "`" + `?, ` + "`" + `mediaType` + "`" + `?, ` + "`" + `read` + "`" + `, ` + "`" + `readAt` + "`" + `?, ` + "`" + `readBy` + "`" + `?, ` + "`" + `whatsappMessageId` + "`" + `?, ` + "`" + `externalMessageId` + "`" + `?, ` + "`" + `replyToMessageId` + "`" + `?, ` + "`" + `deliveryStatus` + "`" + `?: ` + "`" + `sent | delivered | read | failed` + "`" + `, ` + "`" + `senderName` + "`" + `?, ` + "`" + `senderAvatar` + "`" + `?, ` + "`" + `sentVia` + "`" + `?: ` + "`" + `business_app` + "`" + `, ` + "`" + `sentBy` + "`" + `: ` + "`" + `{\"kind\": \"contact\" | \"human\" | \"ai\" | \"workflow\" | \"campaign\" | \"external\" | \"system\", \"id\": string}` + "`" + `, ` + "`" + `metadata` + "`" + `?, ` + "`" + `location` + "`" + `?: ` + "`" + `{\"latitude\": number, \"longitude\": number, \"name\"?: string, \"address\"?: string, \"candidate\": boolean}` + "`" + `, ` + "`" + `createdAt` + "`" + `, ` + "`" + `updatedAt` + "`" + `. Em snake_case: ` + "`" + `transcript` + "`" + `? (transcrição de um áudio recebido; hoje só no WhatsApp oficial; o ` + "`" + `text` + "`" + ` do áudio continua sendo o marcador ` + "`" + `[Áudio]` + "`" + `), ` + "`" + `edited_at` + "`" + `? (a mensagem foi editada, pelo contato ou por um atendente; ` + "`" + `text` + "`" + ` já é o novo texto), ` + "`" + `retracted_at` + "`" + `? (a mensagem foi apagada, pelo contato ou por um atendente: ` + "`" + `text` + "`" + ` vem vazio e ` + "`" + `transcript` + "`" + `, ` + "`" + `mediaId` + "`" + `, ` + "`" + `mediaType` + "`" + `, ` + "`" + `media` + "`" + `, ` + "`" + `metadata` + "`" + ` e ` + "`" + `location` + "`" + ` não vêm), ` + "`" + `reactions` + "`" + `?: Reaction[] (ausente quando não há reações), ` + "`" + `sender_user_id` + "`" + `? (o usuário da equipe que enviou a mensagem; ausente quando não foi um atendente), ` + "`" + `client_request_id` + "`" + `? (o ` + "`" + `request_id` + "`" + ` do envio de um atendente, para casar a mensagem com o balão pendente), ` + "`" + `resent_as` + "`" + `? (esta mensagem falhou e foi reenviada como a mensagem com esse ` + "`" + `id` + "`" + `; esconda esta e mostre a nova), ` + "`" + `interactive` + "`" + `?: Interactive, ` + "`" + `interactive_reply` + "`" + `?: InteractiveReply.\n\n**Interactive** (mensagem enviada com opções, em qualquer canal e por qualquer remetente: fluxo, agente de IA, atendente, campanha ou modelo do WhatsApp oficial; traz só o que o contato recebeu, depois dos limites do canal): ` + "`" + `{\"kind\": \"buttons\" | \"list\" | \"cta_url\" | \"template\", \"header\"?: {\"type\": \"text\" | \"image\" | \"video\" | \"document\", \"text\"?: string, \"media_url\"?: string}, \"body\": string, \"footer\"?: string, \"button_label\"?: string (o rótulo que abre a lista), \"sections\"?: [{\"title\"?: string, \"rows\": [{\"id\": string, \"title\": string, \"description\"?: string}]}], \"buttons\"?: [{\"kind\": \"reply\" | \"url\" | \"phone\" | \"copy_code\" | \"flow\", \"id\"?: string, \"title\": string, \"url\"?: string, \"phone\"?: string, \"code\"?: string}], \"template_name\"?: string}` + "`" + `. **InteractiveReply** (resposta do contato que escolheu uma opção; ` + "`" + `replyToMessageId` + "`" + ` aponta para a mensagem com as opções quando o canal informa): ` + "`" + `{\"kind\": \"button\" | \"list\" | \"template_button\" | \"option\" | \"quick_reply\" | \"postback\", \"option_id\": string, \"title\"?: string}` + "`" + `.\n\n` + "`" + `location` + "`" + ` aparece em toda mensagem de localização (WhatsApp oficial e coexistência, Telegram), recebida ou enviada, para desenhar o cartão do mapa. ` + "`" + `candidate: true` + "`" + ` marca a localização que o lead mandou, dentro do Brasil, que pode virar a posição dele por ` + "`" + `POST /leads/{id}/location-candidates/{messageId}/accept` + "`" + ` (exige ` + "`" + `leads:update` + "`" + `; o servidor confere de novo a conversa e o lead).\n\nValores de ` + "`" + `messageType` + "`" + `: ` + "`" + `user_message` + "`" + `, ` + "`" + `ai_response` + "`" + `, ` + "`" + `tool_call` + "`" + `, ` + "`" + `tool_result` + "`" + `, ` + "`" + `audio` + "`" + `, ` + "`" + `system` + "`" + `, ` + "`" + `media` + "`" + `, ` + "`" + `operator` + "`" + `, ` + "`" + `template` + "`" + `, ` + "`" + `call_permission_request` + "`" + `, ` + "`" + `call_permission_granted` + "`" + `, ` + "`" + `call_permission_rejected` + "`" + `, ` + "`" + `call_received` + "`" + `, ` + "`" + `call_answered` + "`" + `, ` + "`" + `call_missed` + "`" + `, ` + "`" + `call_ended` + "`" + `, ` + "`" + `story_reply` + "`" + `, ` + "`" + `story_mention` + "`" + `, ` + "`" + `reaction` + "`" + `, ` + "`" + `unsupported` + "`" + `, ` + "`" + `post_share` + "`" + `, ` + "`" + `sticker` + "`" + `, ` + "`" + `link_share` + "`" + `.\n\n**Stage**: ` + "`" + `stage_id` + "`" + `, ` + "`" + `name` + "`" + `, ` + "`" + `color` + "`" + `?. **Label**: ` + "`" + `label_id` + "`" + `, ` + "`" + `name` + "`" + `, ` + "`" + `color` + "`" + `?.\n\n**PersonalMark**: ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `pinned_at` + "`" + `? (fixada por você), ` + "`" + `unread_marked_at` + "`" + `? (marcada por você como não lida). Só as marcas de quem pediu.\n\n**Note** (nota interna, só da equipe; nunca vai para o contato, a IA, a análise, os fluxos, as exportações ou o chat do site): ` + "`" + `id` + "`" + `, ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `author_id` + "`" + `, ` + "`" + `author_name` + "`" + `, ` + "`" + `body` + "`" + `, ` + "`" + `mentions` + "`" + `: string[] (IDs de usuários mencionados; lista vazia quando não há), ` + "`" + `created_at` + "`" + `. A mesma forma de GET /conversations/{entryType}/{entryId}/notes.\n\n**Reaction**: ` + "`" + `emoji` + "`" + `, ` + "`" + `direction` + "`" + `: ` + "`" + `inbound | outbound` + "`" + ` (` + "`" + `inbound` + "`" + ` é do contato, ` + "`" + `outbound` + "`" + ` é nossa), ` + "`" + `actor_id` + "`" + `? (quem reagiu: o identificador do contato no canal ou o usuário da equipe), ` + "`" + `at` + "`" + `. Há no máximo uma reação de cada contato e uma só nossa (` + "`" + `outbound` + "`" + `), porque a conta da empresa reage uma vez por mensagem: uma reação nova substitui a anterior do mesmo lado e remover a reação a tira da lista. Na reação ` + "`" + `outbound` + "`" + `, ` + "`" + `actor_id` + "`" + ` é o atendente que reagiu pelo sistema; reações feitas direto no celular chegam sem ` + "`" + `actor_id` + "`" + `. Mensagens antigas do Instagram e do Facebook com a reação guardada no formato anterior chegam na mesma forma.\n\n**MatchedMessage**: ` + "`" + `message_id` + "`" + `, ` + "`" + `text` + "`" + `, ` + "`" + `from` + "`" + `, ` + "`" + `message_type` + "`" + `, ` + "`" + `channel` + "`" + `, ` + "`" + `created_at` + "`" + `, ` + "`" + `position` + "`" + `, ` + "`" + `page` + "`" + `.\n\n**AIHandler**: ` + "`" + `kind` + "`" + `, ` + "`" + `agent_id` + "`" + `?, ` + "`" + `agent_name` + "`" + `?, ` + "`" + `agent_avatar` + "`" + `?, ` + "`" + `agent_active` + "`" + `, ` + "`" + `workflow_id` + "`" + `?, ` + "`" + `workflow_name` + "`" + `?, ` + "`" + `workflow_run_id` + "`" + `?, ` + "`" + `run_status` + "`" + `?, ` + "`" + `current_node_id` + "`" + `?, ` + "`" + `current_node_type` + "`" + `?.\n\n**AdOrigin** (camelCase): o primeiro anúncio que trouxe o contato. ` + "`" + `adId` + "`" + `?, ` + "`" + `platform` + "`" + `?: ` + "`" + `facebook | instagram` + "`" + `, ` + "`" + `title` + "`" + `?, ` + "`" + `sourceUrl` + "`" + `?, ` + "`" + `image` + "`" + `?: ` + "`" + `{\"url\", \"mimeType\"?, \"layout\": {\"width\"?, \"height\"?, \"thumbhash\"?}}` + "`" + ` (cópia guardada pela plataforma), ` + "`" + `arrivedAt` + "`" + `.\n\n**LiveRead** (camelCase): ` + "`" + `interest` + "`" + `?, ` + "`" + `disposition` + "`" + `?, ` + "`" + `sentiment` + "`" + `?, ` + "`" + `qualification` + "`" + `?, ` + "`" + `nextAction` + "`" + `?, ` + "`" + `language` + "`" + `?, ` + "`" + `attendanceQuality` + "`" + `, ` + "`" + `certainty` + "`" + `?: object, ` + "`" + `decidedAt` + "`" + `.\n\n**Analysis** (camelCase): análise da conversa com ` + "`" + `id` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `sentiment` + "`" + `?, ` + "`" + `intent` + "`" + `?, ` + "`" + `interest` + "`" + `?, ` + "`" + `productInterest` + "`" + `?, ` + "`" + `disposition` + "`" + `?, ` + "`" + `qualification` + "`" + `?, ` + "`" + `nextAction` + "`" + `?, ` + "`" + `summary` + "`" + `?, ` + "`" + `attendanceQuality` + "`" + `?, ` + "`" + `messageCount` + "`" + `?, ` + "`" + `requiresAction` + "`" + `, ` + "`" + `excerpt` + "`" + `, ` + "`" + `analyzedAt` + "`" + `? e demais campos de identificação (` + "`" + `workspaceId` + "`" + `, ` + "`" + `source` + "`" + `, ` + "`" + `accountId` + "`" + `, ` + "`" + `containerId` + "`" + `, ` + "`" + `subjectId` + "`" + `, ` + "`" + `createdAt` + "`" + `, ` + "`" + `updatedAt` + "`" + `).\n\n**CommentAnalyzed** (camelCase): ` + "`" + `commentId` + "`" + `, ` + "`" + `subjectKind` + "`" + `, ` + "`" + `authorExternalId` + "`" + `, ` + "`" + `authorHandle` + "`" + `?, ` + "`" + `stance` + "`" + `?, ` + "`" + `sentiment` + "`" + `?, ` + "`" + `intent` + "`" + `?, ` + "`" + `topicKey` + "`" + `?, ` + "`" + `severity` + "`" + `, ` + "`" + `requiresAction` + "`" + `, ` + "`" + `isSpam` + "`" + `, ` + "`" + `excerpt` + "`" + `, ` + "`" + `interest` + "`" + `?, ` + "`" + `productInterest` + "`" + `?, ` + "`" + `disposition` + "`" + `?, ` + "`" + `qualification` + "`" + `?, ` + "`" + `nextAction` + "`" + `?, ` + "`" + `summary` + "`" + `?, ` + "`" + `occurredAt` + "`" + `, ` + "`" + `analyzedAt` + "`" + `.\n\nValores de ` + "`" + `window_closed_reason` + "`" + `: ` + "`" + `expired` + "`" + `, ` + "`" + `no_inbound` + "`" + `, ` + "`" + `contact_blocked` + "`" + `, ` + "`" + `session_down` + "`" + `, ` + "`" + `account_restricted` + "`" + `, ` + "`" + `reply_revoked` + "`" + ` e ` + "`" + `channel_unavailable` + "`" + `.\n\nDatas são strings RFC 3339.\n\n## Erros\n\n` + "`" + `conversation:error` + "`" + ` traz ` + "`" + `{\"code\": string, \"message\": string}` + "`" + `; recusas de ` + "`" + `reopen_window` + "`" + `, ` + "`" + `react_message` + "`" + `, ` + "`" + `edit_message` + "`" + `, ` + "`" + `delete_message` + "`" + `, ` + "`" + `resend_message` + "`" + `, ` + "`" + `pin_conversation` + "`" + `, ` + "`" + `mark_unread` + "`" + ` e ` + "`" + `clear_unread_mark` + "`" + ` também trazem ` + "`" + `request_id` + "`" + `, ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `; em mudanças de status, também ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `previous_status` + "`" + ` e ` + "`" + `outcomes` + "`" + ` (` + "`" + `[{\"code\", \"label\", \"isDurable\", \"position\"}]` + "`" + `).\n\n| code | Significado |\n|---|---|\n| ` + "`" + `forbidden` + "`" + ` | Falta permissão, a campanha é de outro workspace ou a regra de status não permite a mudança. Se o acesso ao workspace for revogado, a conexão é encerrada logo depois. |\n| ` + "`" + `unauthorized` + "`" + ` | Você não tem acesso a essa conversa, ou o responsável escolhido não pode recebê-la. |\n| ` + "`" + `unknown_event` + "`" + ` | ` + "`" + `type` + "`" + ` desconhecido. |\n| ` + "`" + `invalid_payload` + "`" + ` | O ` + "`" + `payload` + "`" + ` não tem o formato esperado. |\n| ` + "`" + `missing_fields` + "`" + ` | Falta um campo obrigatório. |\n| ` + "`" + `missing_content` + "`" + ` | Mensagem sem texto nem mídia. |\n| ` + "`" + `invalid_buttons` + "`" + ` | É preciso de 1 a 3 botões. |\n| ` + "`" + `invalid_entry_type` + "`" + ` | ` + "`" + `entry_type` + "`" + ` inválido. |\n| ` + "`" + `invalid_timestamp` + "`" + ` | Data fora do formato RFC 3339. |\n| ` + "`" + `invalid_status` + "`" + ` | Status diferente de ` + "`" + `new` + "`" + `, ` + "`" + `ongoing` + "`" + ` ou ` + "`" + `finished` + "`" + `. |\n| ` + "`" + `invalid_sort` + "`" + `, ` + "`" + `invalid_personal` + "`" + `, ` + "`" + `invalid_label` + "`" + ` | ` + "`" + `search_inbox` + "`" + ` com ` + "`" + `sort` + "`" + `, ` + "`" + `personal` + "`" + ` ou ` + "`" + `label_id` + "`" + ` inválido. |\n| ` + "`" + `invalid_campaign_type` + "`" + `, ` + "`" + `invalid_container_kind` + "`" + `, ` + "`" + `invalid_whatsapp_campaign_type` + "`" + ` | Filtro de visão inválido. |\n| ` + "`" + `not_found` + "`" + ` | Campanha não encontrada, ou mensagem que não existe ou não é dessa conversa. |\n| ` + "`" + `not_configured` + "`" + ` | O recurso não está disponível neste servidor. |\n| ` + "`" + `not_allowed` + "`" + ` | Ações sobre mensagens: falta ` + "`" + `conversations:send` + "`" + ` ou acesso à conversa, a mensagem não é sua, já foi apagada ou não pode receber essa ação (por exemplo, editar uma mídia ou reenviar uma mensagem que não falhou). Marcas pessoais: falta ` + "`" + `conversations:read` + "`" + ` ou acesso à conversa. |\n| ` + "`" + `invalid` + "`" + ` | Ações sobre mensagens: falta ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + `, ` + "`" + `message_id` + "`" + `, o texto da edição ou o ` + "`" + `request_id` + "`" + ` do reenvio, ou o ` + "`" + `request_id` + "`" + ` passa de 128 caracteres. Marcas pessoais: falta ` + "`" + `entry_id` + "`" + `, ` + "`" + `entry_type` + "`" + ` ou ` + "`" + `pinned` + "`" + `. |\n| ` + "`" + `unsupported` + "`" + ` | O canal da conversa não tem essa ação. Em marcas pessoais: o servidor não oferece marcas pessoais. |\n| ` + "`" + `window_expired` + "`" + ` | A janela do canal para essa ação já passou, ou a janela de atendimento está fechada. |\n| ` + "`" + `failed` + "`" + ` | O canal recusou a ação ou ela não pôde ser gravada; nada mudou na conversa. Em marcas pessoais: a marca não pôde ser gravada. |\n| ` + "`" + `outcome_required` + "`" + ` | Escolha um desfecho (lista em ` + "`" + `outcomes` + "`" + `) para finalizar. |\n| ` + "`" + `outcome_unknown` + "`" + ` | O desfecho não existe no workspace (lista em ` + "`" + `outcomes` + "`" + `). |\n| ` + "`" + `history_error` + "`" + `, ` + "`" + `inbox_error` + "`" + `, ` + "`" + `search_error` + "`" + `, ` + "`" + `fetch_error` + "`" + `, ` + "`" + `template_send_failed` + "`" + `, ` + "`" + `assign_failed` + "`" + `, ` + "`" + `internal_error` + "`" + ` | Falha ao processar o pedido; tente de novo. |\n| ` + "`" + `lead_opted_out` + "`" + `, ` + "`" + `lead_blocked` + "`" + `, ` + "`" + `within_spam_window` + "`" + `, ` + "`" + `window_already_open` + "`" + `, ` + "`" + `insufficient_balance` + "`" + `, ` + "`" + `monthly_send_cap_reached` + "`" + `, ` + "`" + `pricing_unavailable` + "`" + `, ` + "`" + `quote_out_of_range` + "`" + `, ` + "`" + `template_not_sendable` + "`" + `, ` + "`" + `template_phone_mismatch` + "`" + `, ` + "`" + `invalid_phone` + "`" + `, ` + "`" + `phone_not_connected` + "`" + `, ` + "`" + `send_in_progress` + "`" + `, ` + "`" + `idempotency_key_required` + "`" + `, ` + "`" + `billing_unavailable` + "`" + `, ` + "`" + `conversation_not_found` + "`" + ` | Recusa de ` + "`" + `reopen_window` + "`" + `, com ` + "`" + `request_id` + "`" + ` (o mesmo do pedido), ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `: o mesmo código que POST /whatsapp/outreach/conversations responde para a mesma recusa (inclusive ` + "`" + `forbidden` + "`" + ` e ` + "`" + `not_found` + "`" + ` para número ou modelo). Uma falha sem motivo conhecido chega como ` + "`" + `template_send_failed` + "`" + `. |\n| ` + "`" + `send_outcome_unknown` + "`" + ` | ` + "`" + `reopen_window` + "`" + ` sem resposta do WhatsApp: o modelo pode ter sido entregue e cobrado. Confira a conversa antes de enviar de novo; não repita automaticamente. Traz ` + "`" + `request_id` + "`" + `, ` + "`" + `entry_id` + "`" + ` e ` + "`" + `entry_type` + "`" + `. |\n\nCódigos de ` + "`" + `conversation:message_error` + "`" + `: ` + "`" + `unauthorized` + "`" + `, ` + "`" + `not_configured` + "`" + `, ` + "`" + `send_failed` + "`" + `, ` + "`" + `internal_error` + "`" + `, ` + "`" + `media_not_sendable` + "`" + ` (a mídia não é um envio desta conversa nem da biblioteca do workspace, ou é imagem de nota interna; a mesma resposta vale para uma mídia que não existe) e, no e-mail, ` + "`" + `email_balance_insufficient` + "`" + ` (o saldo da carteira não cobre o envio), ` + "`" + `email_attachment_blocked` + "`" + `, ` + "`" + `email_attachment_too_large` + "`" + `, ` + "`" + `email_domain_checking` + "`" + ` (o domínio do destinatário ainda está sendo verificado; nada foi cobrado, tente de novo em instantes), ` + "`" + `email_domain_unknown` + "`" + `, ` + "`" + `email_disposable_address` + "`" + ` e ` + "`" + `email_no_mail_domain` + "`" + ` (a higiene de lista recusou o destinatário; nada foi cobrado).\n\n## Autenticação\n\nUse o mesmo access token da API HTTP. Navegadores não permitem cabeçalhos em WebSockets, então o token pode ir no cabeçalho ` + "`" + `Authorization: Bearer SEU_ACCESS_TOKEN` + "`" + ` (clientes fora do navegador), no parâmetro ` + "`" + `token` + "`" + ` da URL ou no cookie ` + "`" + `accessToken` + "`" + ` do login em modo cookie. Com o cookie, a conexão só é aceita quando o ` + "`" + `Origin` + "`" + ` é o próprio painel ou uma origem confiável; o token no cabeçalho ou na URL vale de qualquer origem.\n\n## Workspace\n\nInforme o workspace em ` + "`" + `workspace_id` + "`" + ` e em ` + "`" + `workspaceId` + "`" + `, com o mesmo valor (ou o cabeçalho ` + "`" + `X-Workspace-ID` + "`" + ` junto com ` + "`" + `workspaceId` + "`" + `). O primeiro é usado na checagem de permissão da conexão; o segundo define o workspace da sessão.\n\n## Formato das mensagens\n\nCada quadro de texto carrega um único objeto JSON com o tipo da mensagem. Datas são strings RFC 3339. Antes de abrir o WebSocket, erros de autenticação, workspace e permissão voltam como HTTP comum (401, 400, 403, 429, 501).",
                 "tags": [
                     "WebSockets"
                 ],
@@ -51184,26 +51393,26 @@ const docTemplate = `{
         "advertising.Destination": {
             "type": "string",
             "enum": [
-                "WHATSAPP",
-                "MESSENGER",
-                "INSTAGRAM_DIRECT",
                 "WEBSITE",
                 "ON_AD",
                 "APP",
                 "ON_POST",
                 "NONE",
-                "CATALOG"
+                "CATALOG",
+                "WHATSAPP",
+                "MESSENGER",
+                "INSTAGRAM_DIRECT"
             ],
             "x-enum-varnames": [
-                "DestinationWhatsApp",
-                "DestinationMessenger",
-                "DestinationInstagramDirect",
                 "DestinationWebsite",
                 "DestinationInstantForm",
                 "DestinationApp",
                 "DestinationOnPost",
                 "DestinationNone",
-                "DestinationCatalog"
+                "DestinationCatalog",
+                "DestinationWhatsApp",
+                "DestinationMessenger",
+                "DestinationInstagramDirect"
             ]
         },
         "advertising.ExportLabels": {
@@ -51622,7 +51831,6 @@ const docTemplate = `{
         "advertising.OptimizationGoal": {
             "type": "string",
             "enum": [
-                "CONVERSATIONS",
                 "REACH",
                 "IMPRESSIONS",
                 "AD_RECALL_LIFT",
@@ -51635,10 +51843,10 @@ const docTemplate = `{
                 "QUALITY_LEAD",
                 "OFFSITE_CONVERSIONS",
                 "VALUE",
-                "APP_INSTALLS"
+                "APP_INSTALLS",
+                "CONVERSATIONS"
             ],
             "x-enum-varnames": [
-                "GoalConversations",
                 "GoalReach",
                 "GoalImpressions",
                 "GoalAdRecallLift",
@@ -51651,7 +51859,8 @@ const docTemplate = `{
                 "GoalQualityLead",
                 "GoalOffsiteConversion",
                 "GoalValue",
-                "GoalAppInstalls"
+                "GoalAppInstalls",
+                "GoalConversations"
             ]
         },
         "advertising.Pixel": {
@@ -56689,24 +56898,24 @@ const docTemplate = `{
         "attendance.Section": {
             "type": "string",
             "enum": [
+                "service_messages",
                 "summary",
                 "trend",
                 "stages",
                 "backlog",
                 "team",
                 "rework",
-                "live",
-                "service_messages"
+                "live"
             ],
             "x-enum-varnames": [
+                "SectionServiceMessages",
                 "SectionSummary",
                 "SectionTrend",
                 "SectionStages",
                 "SectionBacklog",
                 "SectionTeam",
                 "SectionRework",
-                "SectionLive",
-                "SectionServiceMessages"
+                "SectionLive"
             ]
         },
         "attendance.ServiceMessageBucket": {
@@ -64899,6 +65108,14 @@ const docTemplate = `{
                 }
             }
         },
+        "conversation.responsibleWorkflowResponse": {
+            "type": "object",
+            "properties": {
+                "workflow": {
+                    "$ref": "#/definitions/conversation_usecase.ResponsibleWorkflow"
+                }
+            }
+        },
         "conversation_event.ConversationEvent": {
             "type": "object",
             "properties": {
@@ -65024,6 +65241,20 @@ const docTemplate = `{
                 "EventAgentReplyWithheld",
                 "EventEmailForwardSkipped"
             ]
+        },
+        "conversation_usecase.ResponsibleWorkflow": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "state": {
+                    "$ref": "#/definitions/workflow.RunningState"
+                }
+            }
         },
         "conversationnotehttp.CreateNoteRequest": {
             "type": "object",
@@ -69608,7 +69839,12 @@ const docTemplate = `{
                         "lead_phone",
                         "lead_email",
                         "conversation_link",
-                        "origin"
+                        "origin",
+                        "message_sent_at",
+                        "message_sender",
+                        "message_direction",
+                        "message_text",
+                        "message_media_url"
                     ],
                     "example": "input"
                 },
@@ -69909,6 +70145,9 @@ const docTemplate = `{
                 },
                 "tabName": {
                     "type": "string"
+                },
+                "takesMessages": {
+                    "type": "boolean"
                 },
                 "timeZone": {
                     "type": "string"
@@ -76769,6 +77008,22 @@ const docTemplate = `{
                 }
             }
         },
+        "personalinboxhttp.InboxPreferencesRequest": {
+            "type": "object",
+            "properties": {
+                "hideGroups": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "personalinboxhttp.InboxPreferencesResponse": {
+            "type": "object",
+            "properties": {
+                "hideGroups": {
+                    "type": "boolean"
+                }
+            }
+        },
         "pipeline.CreatePipelineRequest": {
             "type": "object",
             "properties": {
@@ -77110,7 +77365,6 @@ const docTemplate = `{
         "report.FailureCode": {
             "type": "string",
             "enum": [
-                "forbidden",
                 "unknown_kind",
                 "unsupported_format",
                 "too_many_rows",
@@ -77120,10 +77374,10 @@ const docTemplate = `{
                 "source_unavailable",
                 "cancelled",
                 "workspace_required",
-                "empty_result"
+                "empty_result",
+                "forbidden"
             ],
             "x-enum-varnames": [
-                "FailureForbidden",
                 "FailureUnknownKind",
                 "FailureUnsupported",
                 "FailureTooManyRows",
@@ -77133,7 +77387,8 @@ const docTemplate = `{
                 "FailureSourceFailed",
                 "FailureCancelled",
                 "FailureWorkspaceEmpty",
-                "FailureEmptyResult"
+                "FailureEmptyResult",
+                "FailureForbidden"
             ]
         },
         "report.Format": {
@@ -77211,22 +77466,22 @@ const docTemplate = `{
         "report.Kind": {
             "type": "string",
             "enum": [
-                "leads",
-                "whatsapp_dispatch",
-                "whatsapp_form_responses",
                 "attendance_overview",
                 "conversation_entries",
                 "balance_transactions",
-                "opportunities"
+                "opportunities",
+                "leads",
+                "whatsapp_dispatch",
+                "whatsapp_form_responses"
             ],
             "x-enum-varnames": [
-                "KindLeads",
-                "KindWhatsAppDispatch",
-                "KindWhatsAppFormResponses",
                 "KindAttendanceOverview",
                 "KindConversationEntries",
                 "KindBalanceTransactions",
-                "KindOpportunities"
+                "KindOpportunities",
+                "KindLeads",
+                "KindWhatsAppDispatch",
+                "KindWhatsAppFormResponses"
             ]
         },
         "report.KindDescriptor": {
@@ -77579,6 +77834,28 @@ const docTemplate = `{
                 }
             }
         },
+        "scheduledmessage.ScheduledByResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "4f1c2a9e-8b7d-4e21-9a3f-2c6d5e8f1b0a"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "human",
+                        "ai",
+                        "workflow"
+                    ],
+                    "example": "ai"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Cobrança"
+                }
+            }
+        },
         "scheduledmessage.ScheduledMessageEnvelope": {
             "type": "object",
             "properties": {
@@ -77607,6 +77884,14 @@ const docTemplate = `{
         "scheduledmessage.ScheduledMessageResponse": {
             "type": "object",
             "properties": {
+                "cancelOnReply": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "cancelReason": {
+                    "type": "string",
+                    "example": "contact_replied"
+                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -77643,6 +77928,9 @@ const docTemplate = `{
                 },
                 "scheduledAt": {
                     "type": "string"
+                },
+                "scheduledBy": {
+                    "$ref": "#/definitions/scheduledmessage.ScheduledByResponse"
                 },
                 "sentAt": {
                     "type": "string"
@@ -86018,7 +86306,8 @@ const docTemplate = `{
                 "no_channel",
                 "channel_paused",
                 "no_trigger",
-                "needs_message_trigger"
+                "needs_message_trigger",
+                "no_trunk"
             ],
             "x-enum-varnames": [
                 "EntryBlockedNotPublished",
@@ -86031,7 +86320,8 @@ const docTemplate = `{
                 "EntryBlockedNoChannel",
                 "EntryBlockedChannelPaused",
                 "EntryBlockedNoTrigger",
-                "EntryBlockedNeedsMessageTrigger"
+                "EntryBlockedNeedsMessageTrigger",
+                "EntryBlockedNoTrunk"
             ]
         },
         "workflow.EntryChannel": {
@@ -86139,9 +86429,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/workflow.EntryAgent"
                     }
-                },
-                "anyForm": {
-                    "type": "boolean"
                 },
                 "channels": {
                     "type": "array",
@@ -86388,6 +86675,8 @@ const docTemplate = `{
         "workflow.LintIssueCode": {
             "type": "string",
             "enum": [
+                "NODE_AGENT_CALL_INPUTS_INVALID",
+                "NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER",
                 "GRAPH_EMPTY",
                 "GRAPH_TOO_MANY_NODES",
                 "GRAPH_TOO_MANY_EDGES",
@@ -86436,16 +86725,16 @@ const docTemplate = `{
                 "NODE_CODE_READS_TEMPLATE",
                 "NODE_SECRET_IN_PLAIN_TEXT",
                 "NODE_PINNED_OUTPUT",
+                "NODE_HTTP_URL_NOT_HTTPS",
                 "DATA_REF_NEVER_SET",
                 "DATA_REF_SOME_PATHS",
                 "SEND_OUTSIDE_WINDOW_RISK",
-                "NODE_HTTP_URL_NOT_HTTPS",
-                "NODE_CONSENT_GRANT_NEEDS_REPLY",
-                "NODE_AGENT_CALL_INPUTS_INVALID",
-                "NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER",
-                "NODE_INVALID_PLATFORM_EMAIL"
+                "NODE_INVALID_PLATFORM_EMAIL",
+                "NODE_CONSENT_GRANT_NEEDS_REPLY"
             ],
             "x-enum-varnames": [
+                "LintAgentCallInputsInvalid",
+                "LintReplyToAgentWithoutTrigger",
                 "LintGraphEmpty",
                 "LintGraphTooManyNodes",
                 "LintGraphTooManyEdges",
@@ -86494,14 +86783,12 @@ const docTemplate = `{
                 "LintCodeReadsTemplate",
                 "LintSecretInPlainText",
                 "LintPinnedOutput",
+                "LintHTTPURLNotHTTPS",
                 "LintDataRefNeverSet",
                 "LintDataRefSomePaths",
                 "LintSendOutsideWindowRisk",
-                "LintHTTPURLNotHTTPS",
-                "LintConsentGrantNeedsReply",
-                "LintAgentCallInputsInvalid",
-                "LintReplyToAgentWithoutTrigger",
-                "LintInvalidPlatformEmail"
+                "LintInvalidPlatformEmail",
+                "LintConsentGrantNeedsReply"
             ]
         },
         "workflow.LintSeverity": {
@@ -86620,6 +86907,7 @@ const docTemplate = `{
                 "action_reschedule_calendar_event",
                 "action_check_calendar_availability",
                 "action_add_sheet_row",
+                "action_export_messages_sheet",
                 "action_assign_label",
                 "action_assign_member",
                 "action_transfer_department",
@@ -86629,6 +86917,8 @@ const docTemplate = `{
                 "action_update_lead",
                 "action_consent",
                 "action_reply_to_agent",
+                "action_schedule_message",
+                "action_cancel_scheduled_messages",
                 "wait_duration",
                 "wait_for_reply",
                 "wait_schedule",
@@ -86681,6 +86971,7 @@ const docTemplate = `{
                 "NodeTypeActionRescheduleCalendarEvent",
                 "NodeTypeActionCheckCalendarAvailability",
                 "NodeTypeActionAddSheetRow",
+                "NodeTypeActionExportMessagesSheet",
                 "NodeTypeActionAssignLabel",
                 "NodeTypeActionAssignMember",
                 "NodeTypeActionTransferDepartment",
@@ -86690,6 +86981,8 @@ const docTemplate = `{
                 "NodeTypeActionUpdateLead",
                 "NodeTypeActionConsent",
                 "NodeTypeActionReplyToAgent",
+                "NodeTypeActionScheduleMessage",
+                "NodeTypeActionCancelScheduledMessages",
                 "NodeTypeWaitDuration",
                 "NodeTypeWaitForReply",
                 "NodeTypeWaitSchedule",
@@ -86728,6 +87021,38 @@ const docTemplate = `{
                 },
                 "y": {
                     "type": "number"
+                }
+            }
+        },
+        "workflow.RunCondition": {
+            "type": "object",
+            "properties": {
+                "hour": {
+                    "type": "integer"
+                },
+                "kind": {
+                    "$ref": "#/definitions/workflow.EntryPointKind"
+                },
+                "moreTargets": {
+                    "type": "integer"
+                },
+                "nodeId": {
+                    "type": "string"
+                },
+                "reason": {
+                    "$ref": "#/definitions/workflow.EntryBlockReason"
+                },
+                "scope": {
+                    "$ref": "#/definitions/workflow.TriggerScope"
+                },
+                "stage": {
+                    "$ref": "#/definitions/workflow.RunTarget"
+                },
+                "targets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflow.RunTarget"
+                    }
                 }
             }
         },
@@ -86837,6 +87162,23 @@ const docTemplate = `{
                 }
             }
         },
+        "workflow.RunOverlap": {
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "$ref": "#/definitions/workflow.EntryPointKind"
+                },
+                "target": {
+                    "$ref": "#/definitions/workflow.RunTarget"
+                },
+                "workflows": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflow.WorkflowRef"
+                    }
+                }
+            }
+        },
         "workflow.RunState": {
             "type": "object",
             "properties": {
@@ -86879,6 +87221,84 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "workflow.RunSummary": {
+            "type": "object",
+            "properties": {
+                "conditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflow.RunCondition"
+                    }
+                },
+                "overlaps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflow.RunOverlap"
+                    }
+                },
+                "state": {
+                    "$ref": "#/definitions/workflow.RunningState"
+                }
+            }
+        },
+        "workflow.RunTarget": {
+            "type": "object",
+            "properties": {
+                "button": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/definitions/workflow.RunTargetKind"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "missing": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "off": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "workflow.RunTargetKind": {
+            "type": "string",
+            "enum": [
+                "form",
+                "agent",
+                "stage",
+                "sip_trunk",
+                "campaign_button",
+                "template_button"
+            ],
+            "x-enum-varnames": [
+                "RunTargetForm",
+                "RunTargetAgent",
+                "RunTargetStage",
+                "RunTargetSIPTrunk",
+                "RunTargetCampaignButton",
+                "RunTargetTemplateButton"
+            ]
+        },
+        "workflow.RunningState": {
+            "type": "string",
+            "enum": [
+                "draft",
+                "paused",
+                "active"
+            ],
+            "x-enum-varnames": [
+                "RunningDraft",
+                "RunningPaused",
+                "RunningActive"
+            ]
         },
         "workflow.ScriptLog": {
             "type": "object",
@@ -87085,6 +87505,17 @@ const docTemplate = `{
                     "type": "boolean"
                 }
             }
+        },
+        "workflow.TriggerScope": {
+            "type": "string",
+            "enum": [
+                "conversation",
+                "global"
+            ],
+            "x-enum-varnames": [
+                "TriggerScopeConversation",
+                "TriggerScopeGlobal"
+            ]
         },
         "workflow.TriggerType": {
             "type": "string",
@@ -87375,6 +87806,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "runSummary": {
+                    "$ref": "#/definitions/workflow.RunSummary"
+                },
                 "status": {
                     "$ref": "#/definitions/workflow.WorkflowStatus"
                 },
@@ -87395,6 +87829,17 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "workspaceId": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflow.WorkflowRef": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
                     "type": "string"
                 }
             }

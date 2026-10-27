@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	sm "vozko/domain/scheduled_message"
+	"vozko/domain/shared/deps"
 )
 
 type cancelUseCase struct {
@@ -25,7 +26,7 @@ func (uc *cancelUseCase) Execute(_ context.Context, workspaceID, id string) erro
 	if err != nil {
 		return err
 	}
-	return uc.repo.Cancel(message.ID)
+	return uc.repo.Cancel(message.ID, sm.CancelByPerson)
 }
 
 func (uc *cancelUseCase) load(workspaceID, id string) (*sm.ScheduledMessage, error) {
@@ -92,17 +93,37 @@ func (uc *rescheduleUseCase) Execute(_ context.Context, in sm.RescheduleInput) (
 type listUseCase struct {
 	repo    sm.Repository
 	windows *windowService
+	authors sm.AuthorDirectory
 }
 
-func NewListUseCase(repo sm.Repository, windows sm.WindowReader, clock sm.Clock) (sm.ListUseCase, error) {
+func NewListUseCase(repo sm.Repository, windows sm.WindowReader, clock sm.Clock, authors sm.AuthorDirectory) (sm.ListUseCase, error) {
 	windowSvc, err := newWindowService(windows, clock)
 	if err != nil {
 		return nil, err
 	}
-	if repo == nil {
-		return nil, fmt.Errorf("scheduled message list use case: missing repository")
+	if err := deps.Require("scheduled message list use case", map[string]any{
+		"repository":       repo,
+		"author directory": authors,
+	}); err != nil {
+		return nil, err
 	}
-	return &listUseCase{repo: repo, windows: windowSvc}, nil
+	return &listUseCase{repo: repo, windows: windowSvc, authors: authors}, nil
+}
+
+func (uc *listUseCase) AuthorNames(messages []*sm.ScheduledMessage) map[string]string {
+	seen := map[string]bool{}
+	ids := []string{}
+	for _, m := range messages {
+		if m == nil || !m.ByAutomation() || seen[m.CreatedByAutomation] {
+			continue
+		}
+		seen[m.CreatedByAutomation] = true
+		ids = append(ids, m.CreatedByAutomation)
+	}
+	if len(ids) == 0 {
+		return map[string]string{}
+	}
+	return uc.authors.Names(ids...)
 }
 
 func (uc *listUseCase) ForEntry(_ context.Context, entryID, entryType string, statuses []sm.Status) (*sm.ListForEntryResult, error) {

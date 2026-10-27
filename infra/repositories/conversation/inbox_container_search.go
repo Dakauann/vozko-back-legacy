@@ -182,9 +182,15 @@ func containerInboxConditions(input conversation.SearchEntriesInput, ch channelQ
 	whereConditions := []string{}
 	whereArgs := []interface{}{}
 
+	if condition := groupScopeCondition(input.Groups, ch.GroupColumn); condition != "" {
+		whereConditions = append(whereConditions, condition)
+	}
+
 	if statusCol := ch.StatusColumn; statusCol != "" {
 		if input.ConversationStatus == "" {
-			whereConditions = append(whereConditions, statusCol+" IS DISTINCT FROM 'finished'")
+			if !input.Groups.ListsFinished() {
+				whereConditions = append(whereConditions, statusCol+" IS DISTINCT FROM 'finished'")
+			}
 		} else {
 			whereConditions = append(whereConditions, statusCol+" = ?")
 			whereArgs = append(whereArgs, string(input.ConversationStatus))
@@ -286,10 +292,6 @@ func containerInboxConditions(input conversation.SearchEntriesInput, ch channelQ
 			open = "NOT " + open
 		}
 		whereConditions = append(whereConditions, open)
-	}
-
-	if input.IsGroup != nil {
-		whereConditions = append(whereConditions, ch.groupCondition(*input.IsGroup, "entries.entry_id"))
 	}
 
 	return whereConditions, whereArgs

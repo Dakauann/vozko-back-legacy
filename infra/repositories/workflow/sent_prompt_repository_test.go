@@ -43,7 +43,7 @@ func TestSentPromptsComeFromSentMenusOfThatChannelAgainstPostgres(t *testing.T) 
 	at := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
 	run := func(entryType string) string {
 		id := uuid.NewString()
-		row := schema.WorkflowRunSchema{ID: id, WorkflowID: uuid.NewString(), WorkspaceID: uuid.NewString(), EntryID: uuid.NewString(), EntryType: entryType, StartedAt: at}
+		row := schema.WorkflowRunSchema{ID: id, WorkflowID: uuid.NewString(), WorkspaceID: uuid.NewString(), EntryID: uuid.NewString(), EntryType: entryType, State: "{}", StartedAt: at}
 		if err := tx.Create(&row).Error; err != nil {
 			t.Fatal(err)
 		}

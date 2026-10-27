@@ -158,8 +158,7 @@ func (w *Workflow) VoiceTrunkID() string {
 	if trigger == nil {
 		return ""
 	}
-	trunkID, _ := trigger.Config["trunk_id"].(string)
-	return strings.TrimSpace(trunkID)
+	return TrunkIDOf(trigger.Config)
 }
 
 const EntryTypeSIPCall = "sip_call"

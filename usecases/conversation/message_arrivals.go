@@ -2,16 +2,23 @@ package conversation_usecase
 
 import (
 	"log"
+	"log/slog"
+	"time"
 
 	"vozko/domain/conversation"
 	"vozko/domain/shared/deps"
 )
+
+type ContactReplies interface {
+	ContactReplied(entryID, entryType string, at time.Time) error
+}
 
 type MessageArrivalsDeps struct {
 	Broadcaster conversation.EventBroadcaster
 	Workspaces  conversation.CampaignWorkspaceResolver
 	Stages      conversation.InitialStageAssigner
 	Status      conversation.ConversationStatusUpdater
+	Replies     ContactReplies
 }
 
 type messageArrivals struct {
@@ -19,6 +26,7 @@ type messageArrivals struct {
 	workspaces conversation.CampaignWorkspaceResolver
 	stages     conversation.InitialStageAssigner
 	status     conversation.ConversationStatusUpdater
+	replies    ContactReplies
 }
 
 func NewMessageArrivals(d MessageArrivalsDeps) (conversation.EventBroadcaster, error) {
@@ -27,13 +35,15 @@ func NewMessageArrivals(d MessageArrivalsDeps) (conversation.EventBroadcaster, e
 		"workspaces":  d.Workspaces,
 		"stages":      d.Stages,
 		"status":      d.Status,
+		"replies":     d.Replies,
 	}); err != nil {
 		return nil, err
 	}
-	return messageArrivals{EventBroadcaster: d.Broadcaster, workspaces: d.Workspaces, stages: d.Stages, status: d.Status}, nil
+	return messageArrivals{EventBroadcaster: d.Broadcaster, workspaces: d.Workspaces, stages: d.Stages, status: d.Status, replies: d.Replies}, nil
 }
 
 func (a messageArrivals) BroadcastNewMessage(entryID, entryType string, message *conversation.Message) {
+	a.cancelFollowUpsOnReply(entryID, entryType, message)
 	a.assignInitialStage(entryID, entryType)
 	if message != nil {
 		if err := a.status.TransitionOnMessage(entryID, entryType, message.MessageType, message.ResolvedDirection()); err != nil {
@@ -54,4 +64,18 @@ func (a messageArrivals) assignInitialStage(entryID, entryType string) {
 		return
 	}
 	a.stages.AutoAssignInitialStage(workspaceID, campaignID, entryType, entryID, entryType)
+}
+
+func (a messageArrivals) cancelFollowUpsOnReply(entryID, entryType string, message *conversation.Message) {
+	if message == nil || message.ResolvedDirection() != conversation.MessageDirectionInbound {
+		return
+	}
+	at := message.CreatedAt
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+	if err := a.replies.ContactReplied(entryID, entryType, at); err != nil {
+		slog.Error("conversation.follow_ups.reply_cancel_failed",
+			slog.String("entry_id", entryID), slog.String("entry_type", entryType), slog.String("error", err.Error()))
+	}
 }

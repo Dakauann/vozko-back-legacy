@@ -31,10 +31,25 @@ type delivery struct {
 	headerParams []string
 	workspaceID  string
 	userID       string
+	automation   string
 	to           string
 	leadID       string
 	phoneID      string
 	campaignID   string
+}
+
+func (d delivery) sentBy() conversation.SentBy {
+	if automation, ok := conversation.SentByAutomation(d.automation); ok {
+		return automation
+	}
+	return conversation.SentByPerson(d.userID)
+}
+
+func (d delivery) author() string {
+	if _, ok := conversation.SentByAutomation(d.automation); ok {
+		return d.automation
+	}
+	return d.userID
 }
 
 func (r sendRules) sendablePhone(workspaceID, phoneID string) (*businessphone.WhatsAppBusinessPhoneNumber, error) {
@@ -176,13 +191,13 @@ func (r sendRules) recordMessage(ctx context.Context, d delivery, result *templa
 	}
 
 	record := conversation.MessageHistoryRecord{
-		SentBy:      conversation.SentByPerson(d.userID),
+		SentBy:      d.sentBy(),
 		EntryID:     d.entry.ID,
 		EntryType:   shared.EntryTypeWhatsApp,
 		Channel:     conversation.MessageChannelWhatsApp,
 		MessageType: conversation.MessageTypeTemplate,
 		MessageID:   result.MessageID,
-		From:        d.userID,
+		From:        d.author(),
 		To:          d.to,
 		Text:        bodyText,
 		Timestamp:   r.deps.Now(),

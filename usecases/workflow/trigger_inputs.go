@@ -36,7 +36,7 @@ func (r TriggerInputReaders) Specs(workspaceID string, g *workflow.Graph) []work
 				slog.String("workspace_id", workspaceID), slog.String("node_id", nodeID), slog.String("source", what), slog.String("error", err.Error()))
 		}
 	}
-	if needs.AnyForm || len(needs.FormIDs) > 0 {
+	if len(needs.FormIDs) > 0 {
 		r.readForms(workspaceID, needs, &sources, unreadable)
 	}
 	if needs.Stages {
@@ -57,14 +57,6 @@ func (r TriggerInputReaders) readForms(workspaceID string, needs workflow.Trigge
 	if r.Forms == nil {
 		unreadable(needs.FormNodes, "forms", errTriggerSourceMissing)
 		return
-	}
-	if needs.AnyForm {
-		choices, err := r.Forms.TriggerFormChoices(workspaceID)
-		if err != nil {
-			unreadable(needs.FormNodes, "forms", err)
-			return
-		}
-		sources.FormChoices = choices
 	}
 	for _, formID := range needs.FormIDs {
 		form, err := r.Forms.TriggerForm(workspaceID, formID)

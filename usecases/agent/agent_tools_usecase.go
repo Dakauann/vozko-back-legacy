@@ -116,9 +116,13 @@ func (uc *agentToolsUseCase) Duplicate(ctx context.Context, agentID, toolID stri
 	for _, b := range current.InternalTools {
 		taken[strings.ToLower(b.Function)] = true
 	}
+	basis := source.Function
+	if basis == "" {
+		basis = source.Name
+	}
 	copied := agent.ToolBinding{
 		Name: source.Name, Description: source.Description, Config: copyConfig(source.Config), Visibility: source.Visibility,
-		Function: agenttool.ProposeName(source.Name, source.Function, func(n string) bool { return taken[n] }),
+		Function: agenttool.ProposeName(basis, func(n string) bool { return taken[n] }),
 	}
 	saved, err := uc.save(ctx, agentID, append(cloneBindings(current.InternalTools), copied), nil, by)
 	if err != nil {

@@ -8,13 +8,14 @@ import (
 )
 
 type entryUpdate struct {
-	entryID     string
-	entryType   string
-	workspaceID string
-	campaignID  string
-	entry       *conversation.InboxEntry
-	data        []byte
-	alertData   []byte
+	entryID      string
+	entryType    string
+	workspaceID  string
+	campaignID   string
+	entry        *conversation.InboxEntry
+	data         []byte
+	alertData    []byte
+	unlistedData []byte
 }
 
 func (h *ConversationHub) entryWorkspaceID(entryID, entryType string) string {
@@ -65,6 +66,11 @@ func (h *ConversationHub) buildEntryUpdate(entryID, entryType, workspaceID strin
 			log.Printf("[ConversationHub] Error marshaling entry update alert: %v", err)
 			return nil, false
 		}
+		payload.Unlisted = true
+		if update.unlistedData, err = json.Marshal(&WSOutgoingMessage{Type: WSEventEntryUpdate, Payload: payload}); err != nil {
+			log.Printf("[ConversationHub] Error marshaling unlisted entry update alert: %v", err)
+			return nil, false
+		}
 	}
 	return update, true
 }
@@ -73,7 +79,22 @@ func connInOtherWorkspace(conn *WSConnection, workspaceID string) bool {
 	return workspaceID != "" && conn.WorkspaceID != "" && conn.WorkspaceID != workspaceID
 }
 
+func (h *ConversationHub) entryUpdateReach(update *entryUpdate, allowEntry func(*WSConnection) bool, conn *WSConnection) conversation.EntryReach {
+	reach := conversation.ReachOf(update.entry.IsGroup, conn.groupScope(nil), conn.hidesGroups.Load())
+	switch {
+	case reach == conversation.EntryListed && h.entryUpdateReaches(update, allowEntry, conn):
+		return conversation.EntryListed
+	case reach == conversation.EntryElsewhere && h.entryUpdateVisible(update, allowEntry, conn, false):
+		return conversation.EntryElsewhere
+	}
+	return conversation.EntryUnseen
+}
+
 func (h *ConversationHub) entryUpdateReaches(update *entryUpdate, allowEntry func(*WSConnection) bool, conn *WSConnection) bool {
+	return h.entryUpdateVisible(update, allowEntry, conn, true)
+}
+
+func (h *ConversationHub) entryUpdateVisible(update *entryUpdate, allowEntry func(*WSConnection) bool, conn *WSConnection, inStatusTab bool) bool {
 	if connInOtherWorkspace(conn, update.workspaceID) {
 		return false
 	}
@@ -83,7 +104,7 @@ func (h *ConversationHub) entryUpdateReaches(update *entryUpdate, allowEntry fun
 	if conn.CampaignType != "" && conn.CampaignType != update.entryType {
 		return false
 	}
-	if conn.ConversationStatus != "" && string(update.entry.ConversationStatus) != conn.ConversationStatus {
+	if inStatusTab && conn.ConversationStatus != "" && string(update.entry.ConversationStatus) != conn.ConversationStatus {
 		return false
 	}
 	if !allowEntry(conn) {
@@ -96,10 +117,17 @@ func (h *ConversationHub) entryUpdateReaches(update *entryUpdate, allowEntry fun
 	return true
 }
 
-func (h *ConversationHub) deliverEntryUpdate(conn *WSConnection, update *entryUpdate, alert bool) {
-	data := update.data
-	if alert && update.alertData != nil {
+func (h *ConversationHub) deliverEntryUpdate(conn *WSConnection, update *entryUpdate, reach conversation.EntryReach, alert bool) {
+	var data []byte
+	switch {
+	case reach == conversation.EntryListed && alert && update.alertData != nil:
 		data = update.alertData
+	case reach == conversation.EntryListed:
+		data = update.data
+	case reach == conversation.EntryElsewhere && alert && update.unlistedData != nil:
+		data = update.unlistedData
+	default:
+		return
 	}
 	select {
 	case conn.Send <- data:

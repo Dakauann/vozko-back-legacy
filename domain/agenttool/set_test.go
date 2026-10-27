@@ -34,7 +34,7 @@ func flow(id, workflow string) agent.ToolBinding {
 	return agent.ToolBinding{ID: id, Name: "run_workflow", Config: map[string]interface{}{"workflow_id": workflow}}
 }
 
-func TestTwoHTTPInstancesWithTheirOwnNamesAreKept(t *testing.T) {
+func TestTwoUnnamedHTTPInstancesAreNamedAfterTheTypeNotTheirDescriptions(t *testing.T) {
 	got, err := PrepareSet(setRules(), nil, []agent.ToolBinding{
 		http("", "", "Consultar status do pedido", "https://a.test/orders"),
 		http("", "", "Criar ticket de suporte", "https://a.test/tickets"),
@@ -42,7 +42,7 @@ func TestTwoHTTPInstancesWithTheirOwnNamesAreKept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].ID != "new-1" || got[0].Function != "consultar_status_do_pedido" || got[1].Function != "criar_ticket_de_suporte" {
+	if len(got) != 2 || got[0].ID != "new-1" || got[0].Function != "http_request" || got[1].Function != "http_request_2" {
 		t.Fatalf("got %+v", got)
 	}
 }

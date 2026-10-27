@@ -56,6 +56,7 @@ type QuoteTemplateSendUseCase interface {
 type ConversationTemplateInput struct {
 	WorkspaceID string
 	UserID      string
+	Automation  string
 	EntryID     string
 
 	TemplateID   string

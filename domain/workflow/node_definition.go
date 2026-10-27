@@ -53,6 +53,7 @@ type NodeDefinition struct {
 	Guidance          NodeGuidance           `json:"guidance"`
 	TestBehavior      NodeTestBehavior       `json:"testBehavior"`
 	NeedsConversation bool                   `json:"needsConversation,omitempty"`
+	TriggerScope      TriggerScope           `json:"triggerScope,omitempty"`
 
 	ChannelLimits map[string]ChannelInteractiveLimits `json:"channelLimits,omitempty"`
 }
@@ -156,6 +157,7 @@ func (d NodeDefinition) acceptedBy(t WorkflowType) bool {
 }
 
 func NormalizeNodeDefinition(def NodeDefinition) NodeDefinition {
+	def.TriggerScope = definitionTriggerScope(def)
 
 	for _, field := range def.ConfigSchema {
 		if field.Type != "range" {
@@ -313,7 +315,7 @@ func BuiltinDefinitions() []NodeDefinition {
 			Icon:          "ClipboardText",
 			DefaultConfig: map[string]interface{}{FormTriggerFormIDsKey: []interface{}{}},
 			ConfigSchema: []ConfigField{
-				{Key: FormTriggerFormIDsKey, Label: "Formulários", Type: "multi-select", OptionsSource: "whatsapp_forms", Description: "Vazio: qualquer formulário."},
+				{Key: FormTriggerFormIDsKey, Label: "Formulários", Type: "multi-select", OptionsSource: "whatsapp_forms", Required: true, Description: "Escolha ao menos um formulário: sem formulário o gatilho não dispara."},
 			},
 			OutputKeys: []OutputKeyDefinition{
 				{Key: DataKeyFormID, Description: "ID do formulário respondido"},
@@ -324,7 +326,7 @@ func BuiltinDefinitions() []NodeDefinition {
 				When: "Inicia o fluxo a cada resposta enviada a um formulário do WhatsApp, por exemplo para etiquetar a conversa, criar uma oportunidade ou avisar a equipe.",
 				Behavior: "Cada resposta inicia a sua própria execução, mesmo quando a mesma pessoa responde o formulário de novo. " +
 					"Disponibiliza {{form_id}}, {{form_response_id}} e {{form.<chave_do_campo>}} com o valor exibido de cada resposta (campos sensíveis mascarados). " +
-					"Sem formulários escolhidos, dispara para qualquer formulário.",
+					"Só dispara para os formulários escolhidos; sem formulário escolhido o fluxo não pode ser publicado.",
 			},
 		},
 		{

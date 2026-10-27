@@ -35,7 +35,7 @@ func (channelAINoNames) ResolveNames(...string) (map[string]string, error) { ret
 
 func channelAIWith(d ChannelAIReplyDeps) *ChannelAIReplyService {
 	if d.Assembler == nil {
-		d.Assembler = agentturn.New(nil, nil, nil)
+		d.Assembler = agentturn.New(nil, nil, nil, nil)
 	}
 	if d.TurnLock == nil {
 		d.TurnLock = NewAgentTurnLock(newLockState())
@@ -54,7 +54,7 @@ func channelAIWith(d ChannelAIReplyDeps) *ChannelAIReplyService {
 
 func channelAIDefaults(s *ChannelAIReplyService) *ChannelAIReplyService {
 	if s.assembler == nil {
-		s.assembler = agentturn.New(nil, nil, nil)
+		s.assembler = agentturn.New(nil, nil, nil, nil)
 	}
 	if s.turnLock == nil {
 		s.turnLock = NewAgentTurnLock(newLockState())
@@ -144,7 +144,7 @@ func whatsappDefaults(uc *handleWhatsAppMessageUseCase) *handleWhatsAppMessageUs
 		uc.live = whatsappLiveOff{}
 	}
 	if uc.turnAssembler == nil {
-		uc.turnAssembler = agentturn.New(uc.toolRegistry, uc.ragService, nil)
+		uc.turnAssembler = agentturn.New(uc.toolRegistry, uc.ragService, nil, nil)
 	}
 	if uc.workflowNames == nil {
 		uc.workflowNames = channelAINoNames{}

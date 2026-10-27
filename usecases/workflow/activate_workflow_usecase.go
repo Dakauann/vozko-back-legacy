@@ -311,12 +311,9 @@ func (uc *activateWorkflowUseCase) referenceValidators(w *workflow.Workflow) []w
 func collectExecuteModeLeafNodes(g *workflow.Graph) map[string]bool {
 
 	executeAgents := make(map[string]bool)
-	for _, node := range g.Nodes {
-		if node.Type != workflow.NodeTypeActionAIAgent {
-			continue
-		}
-		toolMode, _ := node.Config["tool_mode"].(string)
-		if toolMode == "execute" {
+	for i := range g.Nodes {
+		node := &g.Nodes[i]
+		if node.Type == workflow.NodeTypeActionAIAgent && workflow.ToolModeOf(node) == workflow.ToolModeExecute {
 			executeAgents[node.ID] = true
 		}
 	}
@@ -413,8 +410,8 @@ func (v *agentValidator) Validate(n *workflow.Node) error {
 	}
 
 	if n.Type == workflow.NodeTypeActionAIAgent {
-		toolMode, _ := n.Config["tool_mode"].(string)
-		if toolMode != "" && toolMode != "route" && toolMode != "execute" {
+		toolMode, _ := n.Config[workflow.ToolModeKey].(string)
+		if !workflow.ValidToolMode(toolMode) {
 			return fmt.Errorf("%w: node %q tool_mode %q", workflow.ErrNodeInvalidToolMode, n.ID, toolMode)
 		}
 		responseMode, _ := n.Config["response_mode"].(string)

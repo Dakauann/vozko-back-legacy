@@ -4,8 +4,10 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"vozko/domain/conversation"
+	"vozko/domain/shared"
 	"vozko/domain/shared/deps"
 )
 
@@ -49,12 +51,20 @@ func (w arrivalWorkspaces) GetEntryCampaignID(string, string) (string, error) {
 	return w.campaignID, nil
 }
 
+type arrivalReplies struct{ journal *arrivalJournal }
+
+func (r arrivalReplies) ContactReplied(entryID, entryType string, _ time.Time) error {
+	r.journal.steps = append(r.journal.steps, "reply "+entryType+"/"+entryID)
+	return nil
+}
+
 func arrivalsFor(journal *arrivalJournal, workspaces arrivalWorkspaces) conversation.EventBroadcaster {
 	b, err := NewMessageArrivals(MessageArrivalsDeps{
 		Broadcaster: arrivalHub{journal: journal},
 		Workspaces:  workspaces,
 		Stages:      arrivalStages{journal: journal},
 		Status:      arrivalStatus{journal: journal},
+		Replies:     arrivalReplies{journal: journal},
 	})
 	if err != nil {
 		panic(err)
@@ -87,7 +97,40 @@ func TestAConversationOutsideACampaignGetsNoInitialStage(t *testing.T) {
 func TestMessageArrivalsRefuseMissingDependencies(t *testing.T) {
 	b, err := NewMessageArrivals(MessageArrivalsDeps{})
 	var missing *deps.MissingError
-	if b != nil || !errors.As(err, &missing) || len(missing.Missing) != 4 {
+	if b != nil || !errors.As(err, &missing) || len(missing.Missing) != 5 {
 		t.Fatalf("b = %v err = %v, want every dependency refused", b, err)
+	}
+}
+
+func TestAContactMessageOnAnyChannelCancelsItsFollowUpsBeforeAnythingElse(t *testing.T) {
+	for _, entryType := range shared.ConversationViewableEntryTypes() {
+		t.Run(string(entryType), func(t *testing.T) {
+			journal := &arrivalJournal{}
+			inbound := &conversation.Message{SentBy: conversation.SentByContact("contact-1"), CreatedAt: time.Now()}
+			arrivalsFor(journal, arrivalWorkspaces{workspaceID: "ws-1"}).
+				BroadcastNewMessage("entry-1", string(entryType), inbound)
+
+			want := []string{"reply " + string(entryType) + "/entry-1", "status entry-1", "broadcast entry-1"}
+			if !reflect.DeepEqual(journal.steps, want) {
+				t.Fatalf("steps = %v, want %v", journal.steps, want)
+			}
+		})
+	}
+}
+
+func TestABusinessMessageCancelsNoFollowUp(t *testing.T) {
+	agent, _ := conversation.SentByAutomation("ai:agent-1")
+	for _, message := range []*conversation.Message{
+		{SentBy: conversation.SentByPerson("user-1")},
+		{SentBy: agent},
+		nil,
+	} {
+		journal := &arrivalJournal{}
+		arrivalsFor(journal, arrivalWorkspaces{workspaceID: "ws-1"}).BroadcastNewMessage("entry-1", "instagram", message)
+		for _, step := range journal.steps {
+			if step == "reply instagram/entry-1" {
+				t.Fatalf("an outbound message cancelled follow-ups: %v", journal.steps)
+			}
+		}
 	}
 }

@@ -1,7 +1,6 @@
 package openrouter
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -22,15 +21,26 @@ func cachesExplicitly(model string) bool {
 	return strings.HasPrefix(model, explicitCacheModelPrefix)
 }
 
-func brazilClock(asOf time.Time) string {
+var defaultClockZone = loadDefaultClockZone()
+
+func loadDefaultClockZone() *time.Location {
+	loc, err := time.LoadLocation("America/Sao_Paulo")
+	if err != nil {
+		return time.FixedZone("BRT", -3*60*60)
+	}
+	return loc
+}
+
+func turnClock(input ai.GenerateInput) string {
+	asOf := input.AsOf
 	if asOf.IsZero() {
 		asOf = time.Now()
 	}
-	loc, err := time.LoadLocation("America/Sao_Paulo")
-	if err != nil {
-		loc = time.FixedZone("BRT", -3*60*60)
+	zone := input.Zone
+	if zone == nil {
+		zone = defaultClockZone
 	}
-	return fmt.Sprintf("[Current Date/Time in Brazil: %s]", asOf.In(loc).Format("02/01/2006 15:04"))
+	return ai.ClockLine(asOf, zone)
 }
 
 func breakpoint() *openrouter.CacheControl {

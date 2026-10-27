@@ -12,7 +12,7 @@ func alwaysCallsOut(t NodeType) bool {
 	switch t.Canonical() {
 	case NodeTypeActionHTTPRequest, NodeTypeActionSendEmail, NodeTypeActionSendPlatformEmail,
 		NodeTypeActionCreateCalendarEvent, NodeTypeActionRescheduleCalendarEvent, NodeTypeActionCheckCalendarAvailability,
-		NodeTypeActionAddSheetRow:
+		NodeTypeActionAddSheetRow, NodeTypeActionExportMessagesSheet:
 		return true
 	}
 	return false

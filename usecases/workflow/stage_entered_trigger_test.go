@@ -46,12 +46,12 @@ func (r *startedRuns) Create(run *workflow.WorkflowRun) error {
 	return r.recordingRunRepo.Create(run)
 }
 
-func evaluatorOver(runs *startedRuns, workflows ...*workflow.Workflow) workflow.CheckedTriggerEvaluator {
+func evaluatorOver(runs *startedRuns, responsible string, workflows ...*workflow.Workflow) workflow.CheckedTriggerEvaluator {
 	byID := map[string]*workflow.Workflow{}
 	for _, w := range workflows {
 		byID[w.ID] = w
 	}
-	return NewTriggerEvaluator(stubWorkflowRepo{byID: byID, active: workflows}, runs, testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
+	return NewTriggerEvaluator(stubWorkflowRepo{byID: byID, active: workflows}, runs, testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil, responsibleIs(responsible))
 }
 
 func entered(cause stage.MoveCause) stage.Entered {
@@ -327,15 +327,15 @@ func TestTheConsumerRefusesToStartWithoutItsDependencies(t *testing.T) {
 	}
 }
 
-func TestAStageMoveStartsEveryMatchingWorkflowButTheOneThatMadeIt(t *testing.T) {
+func TestAStageMoveStartsOnlyTheConversationsWorkflowWhenItsStageMatches(t *testing.T) {
 	runs := &startedRuns{}
-	maker, other, elsewhere := stageWorkflow("wf-a", nil), stageWorkflow("wf-b", map[string]interface{}{workflow.DataKeyStageID: "s1"}), stageWorkflow("wf-c", map[string]interface{}{workflow.DataKeyStageID: "s9"})
-	f := startStageConsumer(t, evaluatorOver(runs, maker, other, elsewhere))
+	maker, own, sameStageElsewhere := stageWorkflow("wf-a", nil), stageWorkflow("wf-b", map[string]interface{}{workflow.DataKeyStageID: "s1"}), stageWorkflow("wf-d", map[string]interface{}{workflow.DataKeyStageID: "s1"})
+	f := startStageConsumer(t, evaluatorOver(runs, "wf-b", maker, own, sameStageElsewhere))
 
 	f.deliver(t, publishedMove(t, entered(stage.MoveCause{WorkflowID: "wf-a", RunID: "run-0"})))
 
 	if len(runs.runs) != 1 || runs.runs[0].WorkflowID != "wf-b" {
-		t.Fatalf("started %v, want only wf-b (wf-a made the move, wf-c filters another stage)", runs.createdFor)
+		t.Fatalf("started %v, want only wf-b (the conversation's workflow; wf-a and wf-d share the stage, not the conversation)", runs.createdFor)
 	}
 	if got := workflow.StageChainOf(runs.runs[0].State); got != 1 {
 		t.Fatalf("chain in the new run = %d, want 1", got)
@@ -344,7 +344,7 @@ func TestAStageMoveStartsEveryMatchingWorkflowButTheOneThatMadeIt(t *testing.T) 
 
 func TestTheSameMoveDeliveredTwiceNamesTheSameRun(t *testing.T) {
 	runs := &startedRuns{}
-	f := startStageConsumer(t, evaluatorOver(runs, stageWorkflow("wf-a", nil)))
+	f := startStageConsumer(t, evaluatorOver(runs, "wf-a", stageWorkflow("wf-a", nil)))
 	payload := publishedMove(t, entered(stage.MoveCause{}))
 
 	f.deliver(t, payload)
@@ -363,7 +363,7 @@ func (unreadableWorkflows) FindActiveByTrigger(string, workflow.TriggerType) ([]
 
 func TestAnEvaluationThatCannotReadTheWorkflowsReportsItSoTheMoveIsRetried(t *testing.T) {
 	runs := &startedRuns{}
-	evaluator := NewTriggerEvaluator(unreadableWorkflows{}, runs, testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
+	evaluator := NewTriggerEvaluator(unreadableWorkflows{}, runs, testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil, responsibleIs("wf-a"))
 	event, _ := workflow.StageAddedEvent(workflow.StageEntry{MoveID: "row-1", WorkspaceID: "ws1", EntryID: "conv-1", StageID: "s1"})
 
 	if err := evaluator.EvaluateChecked(event); err == nil {
@@ -441,5 +441,16 @@ func TestStageMovesAreEvaluatedConcurrentlyAndAckedOnlyWhenTheirEvaluationEnds(t
 		if !ack.acked {
 			t.Fatalf("ack %+v", ack)
 		}
+	}
+}
+
+func TestTheConversationsWorkflowFilteringAnotherStageStartsNothing(t *testing.T) {
+	runs := &startedRuns{}
+	f := startStageConsumer(t, evaluatorOver(runs, "wf-c", stageWorkflow("wf-c", map[string]interface{}{workflow.DataKeyStageID: "s9"}), stageWorkflow("wf-any", nil)))
+
+	f.deliver(t, publishedMove(t, entered(stage.MoveCause{})))
+
+	if len(runs.runs) != 0 {
+		t.Fatalf("started %v, want nothing: the conversation's workflow waits for another stage", runs.createdFor)
 	}
 }

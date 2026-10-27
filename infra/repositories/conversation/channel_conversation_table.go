@@ -14,6 +14,7 @@ type ChannelConversationTable struct {
 	DB              *gorm.DB
 	NewModel        func() any
 	ContainerColumn string
+	GroupColumn     string
 	NotFound        error
 }
 
@@ -98,12 +99,19 @@ func (t ChannelConversationTable) SetAutomationEnabled(ctx context.Context, id s
 func (t ChannelConversationTable) CountByStatus(ctx context.Context, workspaceID, containerID string) (map[string]int64, error) {
 	type row struct {
 		Status string `gorm:"column:status"`
+		Group  bool   `gorm:"column:is_group"`
 		Count  int64  `gorm:"column:cnt"`
 	}
 	const statusExpr = "COALESCE(NULLIF(conversation_status, ''), 'new')"
+	selected, grouped := statusExpr+" AS status", statusExpr
+	if t.GroupColumn != "" {
+		groupExpr := "(" + t.GroupColumn + " IS TRUE)"
+		selected += ", " + groupExpr + " AS is_group"
+		grouped += ", " + groupExpr
+	}
 
 	query := t.model(ctx).
-		Select(statusExpr + " AS status, COUNT(*) AS cnt").
+		Select(selected + ", COUNT(*) AS cnt").
 		Where("deleted_at IS NULL").
 		Where("last_message_at IS NOT NULL")
 	switch {
@@ -116,12 +124,12 @@ func (t ChannelConversationTable) CountByStatus(ctx context.Context, workspaceID
 	}
 
 	var rows []row
-	if err := query.Group(statusExpr).Scan(&rows).Error; err != nil {
+	if err := query.Group(grouped).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	out := make(map[string]int64, len(rows))
+	tallies := make([]conversation.StatusTally, 0, len(rows))
 	for _, rw := range rows {
-		out[rw.Status] = rw.Count
+		tallies = append(tallies, conversation.StatusTally{Status: rw.Status, Group: rw.Group, Count: rw.Count})
 	}
-	return out, nil
+	return conversation.FoldStatusCounts(tallies), nil
 }

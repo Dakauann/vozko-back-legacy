@@ -54,11 +54,6 @@ func TestTheFactsOfOneWorkflowSplitTheWorkspaceChannels(t *testing.T) {
 			{EntryChannel: EntryChannel{Kind: ChannelFacebookPage, ID: "p-1", WorkflowEnabled: true}, WorkflowID: "wf-1"},
 			{EntryChannel: EntryChannel{Kind: ChannelWhatsAppCampaign, ID: "c-1"}, WorkflowID: "wf-2"},
 		},
-		EnabledChannels: []WorkspaceChannel{
-			{EntryChannel: EntryChannel{Kind: ChannelWebchatWidget, ID: "w-1", WorkflowEnabled: true}},
-			{EntryChannel: EntryChannel{Kind: ChannelUnofficialWhatsAppCampaign, ID: "u-1", WorkflowEnabled: true}, WorkflowID: "wf-9"},
-			{EntryChannel: EntryChannel{Kind: ChannelTelegramAccount, ID: "t-1", WorkflowEnabled: true}, WorkflowID: "wf-9"},
-		},
 		LastStarts:     map[string]map[EntryPointKind]time.Time{"wf-1": {EntryLeadExit: at}},
 		LastDeliveries: map[string]EntryDelivery{"wf-1": {At: at, Outcome: WebhookOutcomeAccepted}},
 	}
@@ -69,10 +64,36 @@ func TestTheFactsOfOneWorkflowSplitTheWorkspaceChannels(t *testing.T) {
 	if len(facts.Channels) != 1 || facts.Channels[0].ID != "p-1" {
 		t.Fatalf("bound channels = %+v, want only the ones bound to wf-1", facts.Channels)
 	}
-	if len(facts.OpenChannels) != 1 || facts.OpenChannels[0].ID != "w-1" {
-		t.Fatalf("open channels = %+v, want only enabled channels bound to no workflow", facts.OpenChannels)
-	}
 	if other := sources.FactsOf("wf-3"); other.Webhook != nil || len(other.Channels) != 0 || other.LastDelivery != nil {
 		t.Fatalf("a workflow with nothing linked = %+v", other)
+	}
+}
+
+func TestTheSourceQueryAsksForTheChosenStagesAndLinesOnce(t *testing.T) {
+	triggers := map[string][]Node{
+		"wf-1": {
+			triggerOf(NodeTypeTriggerStageAdded, map[string]interface{}{DataKeyStageID: "s-1"}),
+			triggerOf(NodeTypeTriggerCallReceived, map[string]interface{}{TrunkIDKey: " tr-1 "}),
+		},
+		"wf-2": {
+			triggerOf(NodeTypeTriggerStageAdded, map[string]interface{}{DataKeyStageID: "s-1"}),
+			triggerOf(NodeTypeTriggerStageAdded, map[string]interface{}{DataKeyStageID: ""}),
+		},
+	}
+	q := EntryPointQueryFor("ws-1", triggers)
+	sort.Strings(q.WorkflowIDs)
+	if !reflect.DeepEqual(q.WorkflowIDs, []string{"wf-1", "wf-2"}) || !reflect.DeepEqual(q.StageIDs, []string{"s-1"}) || !reflect.DeepEqual(q.TrunkIDs, []string{"tr-1"}) {
+		t.Fatalf("query = %+v", q)
+	}
+}
+
+func TestTheFactsOfOneWorkflowCarryTheWorkspaceStageAndLineNames(t *testing.T) {
+	sources := &EntryPointSources{
+		Stages: map[string]string{"s-1": "Pago"},
+		Trunks: map[string]EntryTrunk{"tr-1": {Name: "Central", Enabled: true}},
+	}
+	facts := sources.FactsOf("wf-1")
+	if facts.Stages["s-1"] != "Pago" || facts.Trunks["tr-1"].Name != "Central" {
+		t.Fatalf("facts = %+v", facts)
 	}
 }

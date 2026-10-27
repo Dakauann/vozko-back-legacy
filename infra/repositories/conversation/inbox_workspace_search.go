@@ -48,6 +48,7 @@ func workspaceInboxSet(input conversation.SearchEntriesInput) (inboxSet, bool) {
 		ConversationStatus:     string(input.ConversationStatus),
 		ExcludeFinished:        true,
 		Origins:                conversation.OriginScope(input.Origin),
+		Groups:                 input.Groups,
 		DepartmentIDs:          input.DepartmentIDs,
 		RestrictDepartments:    input.RestrictDepartments,
 		AssigneeOverrideUserID: input.AssigneeOverrideUserID,
@@ -173,10 +174,6 @@ func workspaceInboxConditions(input conversation.SearchEntriesInput) ([]string, 
 
 	if input.WindowOpen != nil {
 		whereConditions = append(whereConditions, windowFilterCondition(*input.WindowOpen, "ae.entry_type", "ae.entry_id", input.EntryType))
-	}
-
-	if input.IsGroup != nil {
-		whereConditions = append(whereConditions, groupFilterCondition(*input.IsGroup, "ae.entry_type", "ae.entry_id", input.EntryType))
 	}
 
 	if input.MinMessageCount != nil || input.MaxMessageCount != nil {

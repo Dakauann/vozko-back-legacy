@@ -2,6 +2,7 @@ package ws
 
 import (
 	"encoding/json"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -71,6 +72,7 @@ const (
 	WSEventConversationStatusCountsUpdate WSEventType = "conversation:conversation_status_counts_update"
 	WSEventAdOrigin                       WSEventType = "conversation:ad_origin"
 	WSEventPersonalMark                   WSEventType = "conversation:personal_mark"
+	WSEventInboxPreferences               WSEventType = "conversation:inbox_preferences"
 	WSEventViewers                        WSEventType = "conversation:viewers"
 	WSEventNote                           WSEventType = "conversation:note"
 	WSEventNoteDeleted                    WSEventType = "conversation:note_deleted"
@@ -132,9 +134,19 @@ type WSConnection struct {
 	CampaignWorkspaceID  string
 	ViewMode             string
 	ConversationStatus   string
+	GroupsView           bool
 	Done                 chan struct{}
 	viewSeq              uint64
 	connectedAt          time.Time
+	hidesGroups          atomic.Bool
+}
+
+func (c *WSConnection) groupScope(requested *bool) conversation.GroupScope {
+	wantsGroups := c.GroupsView
+	if requested != nil {
+		wantsGroups = *requested
+	}
+	return conversation.InboxGroupScope(wantsGroups, c.hidesGroups.Load())
 }
 
 type SubscribePayload struct {
@@ -458,9 +470,14 @@ type InboxPayload struct {
 }
 
 type EntryUpdatePayload struct {
-	Entry  conversation.InboxEntry `json:"entry"`
-	Silent bool                    `json:"silent,omitempty"`
-	Alert  bool                    `json:"alert,omitempty"`
+	Entry    conversation.InboxEntry `json:"entry"`
+	Silent   bool                    `json:"silent,omitempty"`
+	Alert    bool                    `json:"alert,omitempty"`
+	Unlisted bool                    `json:"unlisted,omitempty"`
+}
+
+type InboxPreferencesPayload struct {
+	HideGroups bool `json:"hide_groups"`
 }
 
 type AssignedToYouPayload struct {
@@ -609,6 +626,7 @@ type SwitchViewPayload struct {
 	WhatsAppCampaignType string `json:"whatsapp_campaign_type,omitempty"`
 	ContainerKind        string `json:"container_kind,omitempty"`
 	ConversationStatus   string `json:"conversation_status,omitempty"`
+	IsGroup              bool   `json:"is_group,omitempty"`
 }
 
 type ViewSwitchedPayload struct {
@@ -618,4 +636,5 @@ type ViewSwitchedPayload struct {
 	ContainerKind        string `json:"container_kind,omitempty"`
 	ViewMode             string `json:"view_mode"`
 	ConversationStatus   string `json:"conversation_status,omitempty"`
+	IsGroup              bool   `json:"is_group,omitempty"`
 }

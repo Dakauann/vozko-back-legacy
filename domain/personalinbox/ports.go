@@ -20,4 +20,6 @@ type UseCases interface {
 	ClearUnreadMark(ctx context.Context, by shared.Person, workspaceID string, entry shared.EntryRef) (Mark, error)
 	MarkRead(ctx context.Context, by shared.Person, workspaceID string, entry shared.EntryRef)
 	PageMarks(ctx context.Context, userID string, entries []shared.EntryRef) []Mark
+	InboxPreferences(ctx context.Context, workspaceID, userID string) Preferences
+	SaveInboxPreferences(ctx context.Context, by shared.Person, workspaceID string, prefs Preferences) (Preferences, error)
 }

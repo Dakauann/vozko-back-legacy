@@ -42,7 +42,7 @@ func TestTheCatalogOffersTheFormSubmittedTrigger(t *testing.T) {
 			field = &def.ConfigSchema[i]
 		}
 	}
-	if field == nil || field.Type != "multi-select" || field.Required || field.OptionsSource == "" {
+	if field == nil || field.Type != "multi-select" || !field.Required || field.OptionsSource == "" {
 		t.Fatalf("form_ids field = %+v", field)
 	}
 	keys := map[string]bool{}

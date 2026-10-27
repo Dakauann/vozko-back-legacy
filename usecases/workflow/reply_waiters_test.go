@@ -64,7 +64,7 @@ func TestAMessageRoutedToAWaitingRunIsNotWokenOrStartedAgainByTheEvaluator(t *te
 	wf := replyMenuWorkflow()
 	runs := &recordingRunRepo{waitingReply: waitingMenuRun()}
 	te := NewTriggerEvaluator(stubWorkflowRepo{byID: map[string]*workflow.Workflow{wf.ID: wf}, active: []*workflow.Workflow{wf}}, runs,
-		testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
+		testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil, responsibleIs(""))
 
 	event := messageEvent()
 	event.Reply = &workflow.ReplyRouting{RunID: "run-woken", WorkflowID: wf.ID}
@@ -82,7 +82,7 @@ func TestAMessageRoutedToNoRunSkipsTheLookupButStillStartsTriggers(t *testing.T)
 	wf := replyMenuWorkflow()
 	runs := &recordingRunRepo{waitingReply: waitingMenuRun()}
 	te := NewTriggerEvaluator(stubWorkflowRepo{byID: map[string]*workflow.Workflow{wf.ID: wf}, active: []*workflow.Workflow{wf}}, runs,
-		testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
+		testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil, responsibleIs(""))
 
 	event := messageEvent()
 	event.Reply = &workflow.ReplyRouting{}
@@ -101,7 +101,7 @@ func TestAnUnroutedMessageWhoseLookupFailsStartsNothing(t *testing.T) {
 	inner := &recordingRunRepo{}
 	runs := lookupFailingRuns{inner}
 	te := NewTriggerEvaluator(stubWorkflowRepo{byID: map[string]*workflow.Workflow{wf.ID: wf}, active: []*workflow.Workflow{wf}}, runs,
-		testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil)
+		testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil, responsibleIs(""))
 
 	te.Evaluate(messageEvent())
 

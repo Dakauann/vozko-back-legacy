@@ -23,6 +23,7 @@ type Assembler struct {
 	memories  leadmemory.ListUseCase
 	citable   tools_usecase.RecentMessages
 	agentRuns AgentRunContext
+	zones     shared_usecase.WorkspaceZones
 }
 
 type AgentRunContext interface {
@@ -35,8 +36,8 @@ func (a *Assembler) TrackAgentRuns(runs AgentRunContext) {
 	a.agentRuns = runs
 }
 
-func New(toolRegistry tools.Service, ragService rag.RAGService, memories leadmemory.ListUseCase) *Assembler {
-	return &Assembler{tools: toolRegistry, rag: ragService, memories: memories}
+func New(toolRegistry tools.Service, ragService rag.RAGService, memories leadmemory.ListUseCase, zones shared_usecase.WorkspaceZones) *Assembler {
+	return &Assembler{tools: toolRegistry, rag: ragService, memories: memories, zones: zones}
 }
 
 func (a *Assembler) CiteMessagesFrom(messages tools_usecase.RecentMessages) {
@@ -143,6 +144,7 @@ func (a *Assembler) Assemble(ctx context.Context, req Request) Assembled {
 	return Assembled{
 		Input: ai.GenerateInput{
 			WorkspaceID:       workspaceID,
+			Zone:              shared_usecase.WorkspaceZone(ctx, a.zones, workspaceID),
 			Model:             req.Model,
 			SystemPrompt:      a.systemPrompt(ctx, req, basePrompt, toolNames),
 			Messages:          messages,

@@ -271,6 +271,7 @@ func autoMigratedModels() [][]any {
 			&schema.WebchatConversation{},
 			&schema.ConversationDelegation{},
 			&schema.ConversationPersonalMark{},
+			&schema.PersonalInboxPreference{},
 			&schema.ConversationNote{},
 			&schema.TeamChatThread{},
 			&schema.TeamChatMember{},

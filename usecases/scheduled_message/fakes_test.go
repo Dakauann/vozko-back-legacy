@@ -17,6 +17,8 @@ type fakeRepo struct {
 
 	claimAttempts int
 	createErr     error
+	capped        int
+	replies       []time.Time
 }
 
 func newFakeRepo() *fakeRepo {
@@ -51,6 +53,22 @@ func (r *fakeRepo) Create(m *sm.ScheduledMessage) error {
 		r.byKey[m.WorkspaceID+"|"+*m.IdempotencyKey] = m.ID
 	}
 	return nil
+}
+
+func (r *fakeRepo) CreateCapped(m *sm.ScheduledMessage, limit int) error {
+	r.mu.Lock()
+	pending := 0
+	for _, existing := range r.messages {
+		if existing.EntryID == m.EntryID && existing.EntryType == m.EntryType && existing.Status == sm.StatusPending && existing.ByAutomation() {
+			pending++
+		}
+	}
+	r.mu.Unlock()
+	if pending >= limit {
+		return sm.ErrFollowUpLimitReached
+	}
+	r.capped++
+	return r.Create(m)
 }
 
 func (r *fakeRepo) FindByID(id string) (*sm.ScheduledMessage, error) {
@@ -173,15 +191,40 @@ func (r *fakeRepo) MarkFailed(id string, reason sm.FailureReason, detail string)
 	return nil
 }
 
-func (r *fakeRepo) Cancel(id string) error {
+func (r *fakeRepo) Cancel(id string, reason sm.CancelReason) error {
+	return r.cancelFrom(id, sm.StatusPending, reason)
+}
+
+func (r *fakeRepo) CancelClaimed(id string, reason sm.CancelReason) error {
+	return r.cancelFrom(id, sm.StatusSending, reason)
+}
+
+func (r *fakeRepo) cancelFrom(id string, from sm.Status, reason sm.CancelReason) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	m, ok := r.messages[id]
-	if !ok || m.Status != sm.StatusPending {
+	if !ok || m.Status != from {
 		return sm.ErrNotPending
 	}
 	m.Status = sm.StatusCanceled
+	m.CancelReason = &reason
 	return nil
+}
+
+func (r *fakeRepo) CancelOnReply(entryID, entryType string, repliedAt time.Time) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.replies = append(r.replies, repliedAt)
+	var n int64
+	for _, m := range r.messages {
+		if m.EntryID == entryID && string(m.EntryType) == entryType && m.Status == sm.StatusPending && m.CancelOnReply && m.CreatedAt.Before(repliedAt) {
+			reason := sm.CancelContactReplied
+			m.Status = sm.StatusCanceled
+			m.CancelReason = &reason
+			n++
+		}
+	}
+	return n, nil
 }
 
 func (r *fakeRepo) Reschedule(id string, at time.Time, windowExpiresAt *time.Time) error {

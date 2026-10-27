@@ -42,7 +42,6 @@ func TestEveryEntryPointKindAndReason(t *testing.T) {
 	active, paused, archived, draft := entryWorkflow(WorkflowStatusActive, true), entryWorkflow(WorkflowStatusPaused, true), entryWorkflow(WorkflowStatusArchived, true), entryWorkflow(WorkflowStatusDraft, false)
 	enabledBound := EntryChannel{Kind: ChannelUnofficialWhatsAppInstance, ID: "i-1", Name: "Comercial", WorkflowEnabled: true}
 	disabledBound := EntryChannel{Kind: ChannelInstagramAccount, ID: "ig-1", Name: "@loja"}
-	open := EntryChannel{Kind: ChannelWebchatWidget, ID: "wc-1", Name: "Site", WorkflowEnabled: true}
 	formTrigger := func(ids interface{}) Node {
 		return triggerOf(NodeTypeTriggerFormSubmitted, map[string]interface{}{FormTriggerFormIDsKey: ids})
 	}
@@ -58,14 +57,19 @@ func TestEveryEntryPointKindAndReason(t *testing.T) {
 		{"a draft never published refuses every call", draft, []Node{triggerOf(NodeTypeTriggerStageAdded, nil)}, EntryPointFacts{}, EntryStageAdded, EntryBlockedNotPublished},
 		{"a paused workflow refuses", paused, []Node{triggerOf(NodeTypeTriggerStageAdded, nil)}, EntryPointFacts{}, EntryStageAdded, EntryBlockedPaused},
 		{"an archived workflow refuses like a paused one", archived, []Node{triggerOf(NodeTypeTriggerStageAdded, nil)}, EntryPointFacts{}, EntryStageAdded, EntryBlockedPaused},
-		{"stage changes need only the workflow", active, []Node{triggerOf(NodeTypeTriggerStageAdded, nil)}, EntryPointFacts{}, EntryStageAdded, ""},
+		{"a stage trigger needs a number or campaign that uses the workflow", active, []Node{triggerOf(NodeTypeTriggerStageAdded, nil)}, EntryPointFacts{}, EntryStageAdded, EntryBlockedNoChannel},
+		{"a stage trigger whose channel has workflows switched off", active, []Node{triggerOf(NodeTypeTriggerStageAdded, nil)}, EntryPointFacts{Channels: []EntryChannel{disabledBound}}, EntryStageAdded, EntryBlockedChannelPaused},
+		{"a stage trigger on a channel that uses the workflow", active, []Node{triggerOf(NodeTypeTriggerStageAdded, nil)}, EntryPointFacts{Channels: []EntryChannel{enabledBound}}, EntryStageAdded, ""},
+		{"a first message trigger needs a channel too", active, []Node{triggerOf(NodeTypeTriggerFirstMessage, nil)}, EntryPointFacts{Channels: []EntryChannel{disabledBound}}, EntryFirstMessage, EntryBlockedChannelPaused},
+		{"birthdays need only the workflow", active, []Node{triggerOf(NodeTypeTriggerBirthday, nil)}, EntryPointFacts{}, EntryBirthday, ""},
 		{"calls need only the workflow", active, []Node{triggerOf(NodeTypeTriggerCallReceived, nil)}, EntryPointFacts{}, EntryCallReceived, ""},
 		{"not published wins over a missing webhook", draft, []Node{triggerOf(NodeTypeTriggerWebhook, nil)}, EntryPointFacts{}, EntryWebhook, EntryBlockedNotPublished},
 		{"a webhook trigger without a webhook", active, []Node{triggerOf(NodeTypeTriggerWebhook, nil)}, EntryPointFacts{}, EntryWebhook, EntryBlockedNoWebhook},
 		{"a switched off webhook", active, []Node{triggerOf(NodeTypeTriggerWebhook, nil)}, EntryPointFacts{Webhook: &WebhookEntry{AuthMode: WebhookAuthNone, Method: "POST"}}, EntryWebhook, EntryBlockedWebhookInactive},
 		{"an active webhook", active, []Node{triggerOf(NodeTypeTriggerWebhook, nil)}, EntryPointFacts{Webhook: activeWebhook()}, EntryWebhook, ""},
 		{"an active webhook with no trigger to start", active, []Node{triggerOf(NodeTypeTriggerStageAdded, nil)}, EntryPointFacts{Webhook: activeWebhook()}, EntryWebhook, EntryBlockedNoTrigger},
-		{"a form trigger for every form", active, []Node{formTrigger([]interface{}{})}, EntryPointFacts{}, EntryFormSubmitted, ""},
+		{"a form trigger with an empty list runs for no form", active, []Node{formTrigger([]interface{}{})}, EntryPointFacts{}, EntryFormSubmitted, EntryBlockedNoForm},
+		{"a form trigger with no list runs for no form", active, []Node{triggerOf(NodeTypeTriggerFormSubmitted, nil)}, EntryPointFacts{}, EntryFormSubmitted, EntryBlockedNoForm},
 		{"a form that no longer exists", active, []Node{formTrigger([]interface{}{"f-1"})}, EntryPointFacts{}, EntryFormSubmitted, EntryBlockedNoForm},
 		{"a form list that cannot be read", active, []Node{formTrigger(5)}, EntryPointFacts{}, EntryFormSubmitted, EntryBlockedNoForm},
 		{"a form never published", active, []Node{formTrigger([]interface{}{"f-1"})}, EntryPointFacts{Forms: map[string]EntryForm{"f-1": {ID: "f-1", Name: "Matrícula"}}}, EntryFormSubmitted, EntryBlockedFormInactive},
@@ -77,7 +81,6 @@ func TestEveryEntryPointKindAndReason(t *testing.T) {
 		{"no channel delivers messages", active, []Node{triggerOf(NodeTypeTriggerMessageReceived, nil)}, EntryPointFacts{}, EntryMessageReceived, EntryBlockedNoChannel},
 		{"the bound channel has workflows switched off", active, []Node{triggerOf(NodeTypeTriggerMessageReceived, nil)}, EntryPointFacts{Channels: []EntryChannel{disabledBound}}, EntryMessageReceived, EntryBlockedChannelPaused},
 		{"a bound channel runs it", active, []Node{triggerOf(NodeTypeTriggerMessageReceived, nil)}, EntryPointFacts{Channels: []EntryChannel{disabledBound, enabledBound}}, EntryMessageReceived, ""},
-		{"a channel that runs every workflow runs it", active, []Node{triggerOf(NodeTypeTriggerFirstMessage, nil)}, EntryPointFacts{Channels: []EntryChannel{disabledBound}, OpenChannels: []EntryChannel{open}}, EntryFirstMessage, ""},
 		{"a lead exit starts an active workflow at its message trigger", active, []Node{triggerOf(NodeTypeTriggerStageAdded, nil), triggerOf(NodeTypeTriggerMessageReceived, nil)}, EntryPointFacts{LeadExits: []LeadExitEntry{{Source: LeadExitFromTemplate, Name: "boas_vindas", Button: "Quero falar"}}}, EntryLeadExit, ""},
 		{"a first message trigger takes a lead exit too", active, []Node{triggerOf(NodeTypeTriggerFirstMessage, nil)}, EntryPointFacts{LeadExits: []LeadExitEntry{{Source: LeadExitFromTemplate, Name: "boas_vindas", Button: "Quero falar"}}}, EntryLeadExit, ""},
 		{"a lead exit into a workflow without a message trigger", active, []Node{triggerOf(NodeTypeTriggerStageAdded, nil), triggerOf(NodeTypeTriggerWebhook, nil)}, EntryPointFacts{LeadExits: []LeadExitEntry{{Source: LeadExitFromTemplate, Name: "boas_vindas", Button: "Quero falar"}}}, EntryLeadExit, EntryBlockedNeedsMessageTrigger},
@@ -151,15 +154,14 @@ func TestEntryPointsCarryTheirDetailsAndTheLastCall(t *testing.T) {
 	}
 }
 
-func TestOnlyALimitedSampleOfChannelsThatRunEveryWorkflowIsListed(t *testing.T) {
-	var open []EntryChannel
+func TestOnlyALimitedSampleOfLinkedChannelsIsListed(t *testing.T) {
+	var linked []EntryChannel
 	for i := 0; i < MaxListedChannels+5; i++ {
-		open = append(open, EntryChannel{Kind: ChannelWebchatWidget, ID: string(rune('a' + i)), WorkflowEnabled: true})
+		linked = append(linked, EntryChannel{Kind: ChannelWebchatWidget, ID: string(rune('a' + i)), WorkflowEnabled: true})
 	}
-	bound := EntryChannel{Kind: ChannelFacebookPage, ID: "p-1", WorkflowEnabled: true}
-	entry := onlyEntry(t, EntryPointsOf(entryWorkflow(WorkflowStatusActive, true), []Node{triggerOf(NodeTypeTriggerMessageReceived, nil)}, EntryPointFacts{Channels: []EntryChannel{bound}, OpenChannels: open}), EntryMessageReceived)
-	if len(entry.Details.Channels) != MaxListedChannels || !entry.Details.Channels[0].Bound || entry.Details.Channels[1].Bound {
-		t.Fatalf("channels = %+v, want the bound one first and at most %d", entry.Details.Channels, MaxListedChannels)
+	entry := onlyEntry(t, EntryPointsOf(entryWorkflow(WorkflowStatusActive, true), []Node{triggerOf(NodeTypeTriggerMessageReceived, nil)}, EntryPointFacts{Channels: linked}), EntryMessageReceived)
+	if len(entry.Details.Channels) != MaxListedChannels || !entry.Details.Channels[0].Bound || !entry.Details.Channels[MaxListedChannels-1].Bound {
+		t.Fatalf("channels = %+v, want at most %d, all linked to the workflow", entry.Details.Channels, MaxListedChannels)
 	}
 }
 

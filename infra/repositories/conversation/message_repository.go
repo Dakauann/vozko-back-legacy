@@ -304,6 +304,9 @@ func (r *repository) ListByEntry(entryID string, entryType shared.EntryType) ([]
 }
 
 func (r *repository) ListByEntryPaginated(input conversation.ListMessagesInput) ([]*conversation.Message, error) {
+	if input.Since != nil {
+		return r.listSince(input)
+	}
 	var dbMessages []schema.ConversationMessage
 
 	query := r.db.Where("entry_id = ? AND entry_type = ?", input.EntryID, string(input.EntryType))
@@ -336,6 +339,24 @@ func (r *repository) ListByEntryPaginated(input conversation.ListMessagesInput) 
 		reverseNewestFirst(messages)
 	}
 
+	return messages, nil
+}
+
+func (r *repository) listSince(input conversation.ListMessagesInput) ([]*conversation.Message, error) {
+	var dbMessages []schema.ConversationMessage
+	query := r.db.Where("entry_id = ? AND entry_type = ?", input.EntryID, string(input.EntryType)).
+		Where(`(created_at, id COLLATE "C") > (?, ? COLLATE "C")`, input.Since.At, input.Since.ID).
+		Order("created_at ASC").Order(`id COLLATE "C" ASC`)
+	if input.Limit > 0 {
+		query = query.Limit(input.Limit)
+	}
+	if err := query.Find(&dbMessages).Error; err != nil {
+		return nil, err
+	}
+	messages := make([]*conversation.Message, 0, len(dbMessages))
+	for i := range dbMessages {
+		messages = append(messages, mapSchemaToDomain(&dbMessages[i]))
+	}
 	return messages, nil
 }
 

@@ -18,6 +18,7 @@ import (
 	media_domain "vozko/domain/media"
 	"vozko/domain/messaging"
 	"vozko/domain/rag"
+	sm "vozko/domain/scheduled_message"
 	stage_domain "vozko/domain/stage"
 	"vozko/domain/tools"
 	businessphone "vozko/domain/whatsapp/business_phone"
@@ -29,6 +30,7 @@ import (
 	workspace_phone_access_domain "vozko/domain/workspace_phone_access"
 	"vozko/domain/workspacesecret"
 	email_usecase "vozko/usecases/email"
+	shared_usecase "vozko/usecases/shared"
 	"vozko/usecases/transactionalemail"
 	"vozko/usecases/workflow/node_executors"
 )
@@ -83,8 +85,12 @@ type ExecutorDeps struct {
 	Carrier               node_executors.CarrierSender
 	PlatformEmail         transactionalemail.Sender
 	SheetRows             node_executors.SheetRowSink
+	SheetExports          node_executors.SheetMessageExports
+	FollowUps             sm.FollowUpUseCase
+	ConversationMessages  node_executors.ConversationMessagesSince
 
 	AIAttendance       node_executors.WorkflowAIAttendance
+	WorkspaceZones     shared_usecase.WorkspaceZones
 	ConversationStatus conversation.ConversationStatusUpdater
 	Adapters           conversation.AdapterRegistry
 	ConversationEvents ce.Logger
@@ -100,6 +106,10 @@ var ErrChoiceRecorderRequired = errors.New("workflow executors: the choice click
 var ErrMediaURLsRequired = errors.New("workflow executors: the media URL resolver is required to check media sent by URL")
 
 var ErrAIAttendanceRequired = errors.New("workflow executors: the AI attendance recorder is required to count agent replies")
+
+var ErrFollowUpsRequired = errors.New("workflow executors: the follow-up scheduler is required to schedule and cancel messages")
+
+var ErrWorkspaceZonesRequired = errors.New("workflow executors: the workspace time zone reader is required to tell agents the local time")
 
 type discardedEvents struct{}
 
@@ -122,6 +132,12 @@ func RegisterProductionExecutors(registry *NodeExecutorRegistry, deps ExecutorDe
 	}
 	if deps.AIAttendance == nil {
 		return ErrAIAttendanceRequired
+	}
+	if deps.FollowUps == nil {
+		return ErrFollowUpsRequired
+	}
+	if deps.WorkspaceZones == nil {
+		return ErrWorkspaceZonesRequired
 	}
 	RegisterDefaultExecutors(registry, deps)
 	return nil
@@ -167,13 +183,14 @@ func RegisterDefaultExecutors(registry *NodeExecutorRegistry, deps ExecutorDeps)
 	registry.Register(workflow.NodeTypeActionSendInteractive, node_executors.NewInteractivePromptExecutor(waDeps))
 	registry.Register(workflow.NodeTypeActionSendForm, node_executors.NewSendFormExecutor(deps.Forms, waDeps))
 
-	aiAgentExec := node_executors.NewAIAgentExecutor(deps.AIService, deps.AgentRepo, deps.MessageRepo, deps.CachedBalanceChecker, node_executors.NewWhatsAppSenderFromDeps(waDeps), deps.RAGService, deps.AIAttendance)
+	aiAgentExec := node_executors.NewAIAgentExecutor(deps.AIService, deps.AgentRepo, deps.MessageRepo, deps.CachedBalanceChecker, node_executors.NewWhatsAppSenderFromDeps(waDeps), deps.RAGService, deps.AIAttendance, deps.WorkspaceZones)
 	registry.Register(workflow.NodeTypeActionAIAgent, aiAgentExec)
 
 	registry.Register(workflow.NodeTypeActionCreateCalendarEvent, node_executors.NewCreateCalendarEventExecutor(deps.CalendarRepo, deps.GoogleCalendar, deps.CalendarAccess))
 	registry.Register(workflow.NodeTypeActionRescheduleCalendarEvent, node_executors.NewRescheduleCalendarEventExecutor(deps.RescheduleEventUC))
 	registry.Register(workflow.NodeTypeActionCheckCalendarAvailability, node_executors.NewCheckCalendarAvailabilityExecutor(deps.CalendarRepo, deps.GoogleCalendar, deps.CalendarAccess))
 	registry.Register(workflow.NodeTypeActionAddSheetRow, node_executors.NewAddSheetRowExecutor(deps.SheetRows))
+	registry.Register(workflow.NodeTypeActionExportMessagesSheet, node_executors.NewExportMessagesSheetExecutor(deps.SheetExports, deps.ConversationMessages))
 	registry.Register(workflow.NodeTypeActionAssignLabel, node_executors.NewAssignLabelExecutor(deps.Labeler))
 	registry.Register(workflow.NodeTypeActionMoveStage, node_executors.NewMoveStageExecutor(deps.StageRepo, deps.AssignStage, deps.StageBroadcaster))
 	registry.Register(workflow.NodeTypeActionManageOpportunity, node_executors.NewManageOpportunityExecutor(deps.Deals))
@@ -190,6 +207,8 @@ func RegisterDefaultExecutors(registry *NodeExecutorRegistry, deps ExecutorDeps)
 	registry.Register(workflow.NodeTypeActionLoop, node_executors.NewLoopExecutor())
 	registry.Register(workflow.NodeTypeActionRunWorkflow, node_executors.NewRunWorkflowExecutor(deps.SubWorkflowRunner))
 	registry.Register(workflow.NodeTypeActionReplyToAgent, node_executors.NewReplyToAgentExecutor())
+	registry.Register(workflow.NodeTypeActionScheduleMessage, node_executors.NewScheduleMessageExecutor(deps.FollowUps))
+	registry.Register(workflow.NodeTypeActionCancelScheduledMessages, node_executors.NewCancelScheduledMessagesExecutor(deps.FollowUps))
 
 	registry.Register(workflow.NodeTypeWaitDuration, node_executors.NewWaitDurationExecutor())
 	registry.Register(workflow.NodeTypeWaitForReply, node_executors.NewWaitForReplyExecutor())

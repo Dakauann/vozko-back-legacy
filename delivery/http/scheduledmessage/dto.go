@@ -3,6 +3,7 @@ package scheduledmessage
 import (
 	"time"
 
+	"vozko/domain/actor"
 	sm "vozko/domain/scheduled_message"
 )
 
@@ -42,6 +43,10 @@ type ScheduledMessageResponse struct {
 	EntryType       string `json:"entryType"`
 	CreatedByUserID string `json:"createdByUserId"`
 
+	ScheduledBy   ScheduledByResponse `json:"scheduledBy"`
+	CancelOnReply bool                `json:"cancelOnReply" example:"true"`
+	CancelReason  *string             `json:"cancelReason,omitempty" example:"contact_replied"`
+
 	Kind     string                     `json:"kind" example:"template"`
 	Template *ScheduledTemplateResponse `json:"template,omitempty"`
 
@@ -62,6 +67,12 @@ type ScheduledMessageResponse struct {
 
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type ScheduledByResponse struct {
+	Kind string `json:"kind" example:"ai" enums:"human,ai,workflow"`
+	ID   string `json:"id" example:"4f1c2a9e-8b7d-4e21-9a3f-2c6d5e8f1b0a"`
+	Name string `json:"name,omitempty" example:"Cobrança"`
 }
 
 type ScheduledTemplateResponse struct {
@@ -106,13 +117,15 @@ func toWindowResponse(w sm.WindowState) WindowResponse {
 	}
 }
 
-func toResponse(m *sm.ScheduledMessage) ScheduledMessageResponse {
+func toResponse(m *sm.ScheduledMessage, names map[string]string) ScheduledMessageResponse {
 	out := ScheduledMessageResponse{
 		ID:               m.ID,
 		WorkspaceID:      m.WorkspaceID,
 		EntryID:          m.EntryID,
 		EntryType:        string(m.EntryType),
 		CreatedByUserID:  m.CreatedByUserID,
+		ScheduledBy:      scheduledByOf(m, names),
+		CancelOnReply:    m.CancelOnReply,
 		Kind:             string(m.Kind),
 		Template:         toTemplateResponse(m.Template),
 		Text:             m.Text,
@@ -132,7 +145,16 @@ func toResponse(m *sm.ScheduledMessage) ScheduledMessageResponse {
 		reason := string(*m.FailureReason)
 		out.FailureReason = &reason
 	}
+	if m.CancelReason != nil {
+		reason := string(*m.CancelReason)
+		out.CancelReason = &reason
+	}
 	return out
+}
+
+func scheduledByOf(m *sm.ScheduledMessage, names map[string]string) ScheduledByResponse {
+	id, kind := actor.Split(m.Author())
+	return ScheduledByResponse{Kind: string(kind), ID: id, Name: names[m.Author()]}
 }
 
 func toTemplateResponse(t *sm.TemplateContent) *ScheduledTemplateResponse {
@@ -148,10 +170,10 @@ func toTemplateResponse(t *sm.TemplateContent) *ScheduledTemplateResponse {
 	}
 }
 
-func toResponses(messages []*sm.ScheduledMessage) []ScheduledMessageResponse {
+func toResponses(messages []*sm.ScheduledMessage, names map[string]string) []ScheduledMessageResponse {
 	out := make([]ScheduledMessageResponse, 0, len(messages))
 	for _, m := range messages {
-		out = append(out, toResponse(m))
+		out = append(out, toResponse(m, names))
 	}
 	return out
 }

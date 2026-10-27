@@ -57,7 +57,7 @@ func anaMetadata() map[string]interface{} {
 
 func cachedAssembler(memories leadmemory.ListUseCase) *Assembler {
 	reg := stubRegistry{defs: []tools.Definition{{Name: "book_meeting"}, {Name: "manage_entry_stage"}}}
-	return New(reg, echoRAG{}, memories)
+	return New(reg, echoRAG{}, memories, nil)
 }
 
 func turnRequest(identity *shared_usecase.ConversationContext, history []ai.Message, customerMessage string) Request {
@@ -134,7 +134,7 @@ func TestTheLastMessageIsAContextNoteDeclaredVolatile(t *testing.T) {
 }
 
 func TestAnUngroundedTurnStillEndsWithAContextNote(t *testing.T) {
-	a := New(nil, nil, nil)
+	a := New(nil, nil, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{
 		Agent:       &agent.Agent{MessagingPrompt: "hi"},
@@ -167,7 +167,7 @@ func TestTheCustomersMessageStaysExactlyAsStored(t *testing.T) {
 }
 
 func TestAConversationWithNoMessagesGetsNoNote(t *testing.T) {
-	out := New(nil, nil, nil).Assemble(context.Background(), Request{Agent: &agent.Agent{MessagingPrompt: "hi"}})
+	out := New(nil, nil, nil, nil).Assemble(context.Background(), Request{Agent: &agent.Agent{MessagingPrompt: "hi"}})
 
 	if len(out.Input.Messages) != 0 || out.Input.VolatileTail != 0 {
 		t.Fatalf("messages = %+v, tail = %d, want neither", out.Input.Messages, out.Input.VolatileTail)

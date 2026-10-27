@@ -119,6 +119,7 @@ func (c *Container) googleJobs() cronJobs {
 type googleSheetsBundle struct {
 	Writer    *gsuc.Writer
 	Intake    *gsuc.Intake
+	Exports   *gsuc.Exports
 	Manager   *gsuc.Manager
 	Retention *gsuc.Retention
 }
@@ -158,9 +159,15 @@ func (c *Container) initGoogleSheets() {
 		WorkflowNames:   c.workflowName,
 		FrontendBaseURL: c.cfg.FrontendBaseURL,
 	})
+	intake := gsuc.NewIntake(sheets, rows, resolver, writer)
+	exports, err := gsuc.NewExports(gsuc.ExportsDeps{Intake: intake, Exports: googlesheet_repository.NewExportRepository(c.db)})
+	if err != nil {
+		log.Fatalf("[google-sheets] message exports: %v", err)
+	}
 	c.googleSheets = &googleSheetsBundle{
-		Writer: writer,
-		Intake: gsuc.NewIntake(sheets, rows, resolver, writer),
+		Writer:  writer,
+		Intake:  intake,
+		Exports: exports,
 		Manager: gsuc.NewManager(gsuc.ManagerDeps{
 			Sheets: sheets, Rows: rows, API: api, Errors: googlesheets.Classifier{}, Access: c.google.Tokens,
 			Limiter: limiter, Marks: shared, Alerts: alerts, Nudger: writer,

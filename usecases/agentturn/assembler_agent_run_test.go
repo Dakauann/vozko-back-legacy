@@ -25,7 +25,7 @@ func workflowToolAssembler(runs AgentRunContext) *Assembler {
 		{Name: "run_workflow", Instances: tools.PerTarget("workflow_id")},
 		{Name: "book_meeting"},
 	}}
-	a := New(reg, echoRAG{}, nil)
+	a := New(reg, echoRAG{}, nil, nil)
 	a.TrackAgentRuns(runs)
 	return a
 }

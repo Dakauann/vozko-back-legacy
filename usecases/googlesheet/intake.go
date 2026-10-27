@@ -62,23 +62,13 @@ func (in *Intake) Preview(ctx context.Context, workspaceID, sheetID string, valu
 }
 
 func (in *Intake) accept(ctx context.Context, workspaceID, sheetID string, values map[string]any, origin googlesheet.Origin) (*googlesheet.Sheet, googlesheet.Cells, error) {
-	if strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(sheetID) == "" {
-		return nil, nil, googlesheet.ErrSheetNotFound
-	}
-	sheet, err := in.sheets.FindInWorkspace(ctx, workspaceID, sheetID)
+	sheet, err := in.writableSheet(ctx, workspaceID, sheetID)
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := sheet.Writable(); err != nil {
+	system, err := in.systemValues(ctx, sheet, workspaceID, origin)
+	if err != nil {
 		return nil, nil, err
-	}
-	system := googlesheet.SystemValues{}
-	if needsContext(sheet) {
-		system, err = in.resolver.Resolve(ctx, workspaceID, origin)
-		if err != nil {
-			log.Printf("[googlesheet] system values of %s unreadable: %v", sheet.ID, err)
-			return nil, nil, err
-		}
 	}
 	cells, err := sheet.Accept(values, system, in.now())
 	if err != nil {
@@ -87,9 +77,35 @@ func (in *Intake) accept(ctx context.Context, workspaceID, sheetID string, value
 	return sheet, cells, nil
 }
 
+func (in *Intake) writableSheet(ctx context.Context, workspaceID, sheetID string) (*googlesheet.Sheet, error) {
+	if strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(sheetID) == "" {
+		return nil, googlesheet.ErrSheetNotFound
+	}
+	sheet, err := in.sheets.FindInWorkspace(ctx, workspaceID, sheetID)
+	if err != nil {
+		return nil, err
+	}
+	if err := sheet.Writable(); err != nil {
+		return nil, err
+	}
+	return sheet, nil
+}
+
+func (in *Intake) systemValues(ctx context.Context, sheet *googlesheet.Sheet, workspaceID string, origin googlesheet.Origin) (googlesheet.SystemValues, error) {
+	if !needsContext(sheet) {
+		return googlesheet.SystemValues{}, nil
+	}
+	system, err := in.resolver.Resolve(ctx, workspaceID, origin)
+	if err != nil {
+		log.Printf("[googlesheet] system values of %s unreadable: %v", sheet.ID, err)
+		return nil, err
+	}
+	return system, nil
+}
+
 func needsContext(sheet *googlesheet.Sheet) bool {
 	for _, col := range sheet.Columns {
-		if !col.Archived && col.Source.IsSystem() && col.Source != googlesheet.SourceWrittenAt {
+		if !col.Archived && col.Source.IsSystem() && col.Source != googlesheet.SourceWrittenAt && !col.Source.PerMessage() {
 			return true
 		}
 	}

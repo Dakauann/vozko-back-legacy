@@ -21,16 +21,6 @@ func (f fakeTriggerForms) Get(_ context.Context, workspaceID, formID string) (*w
 	return form, nil
 }
 
-func (f fakeTriggerForms) List(_ context.Context, q wf.FormQuery) ([]wf.FormSummary, error) {
-	var out []wf.FormSummary
-	for _, form := range f.forms {
-		if form.WorkspaceID == q.WorkspaceID {
-			out = append(out, wf.FormSummary{Form: *form})
-		}
-	}
-	return out, nil
-}
-
 type fakeTriggerVersions map[string]*wf.Version
 
 func (v fakeTriggerVersions) Get(_ context.Context, _, versionID string) (*wf.Version, error) {
@@ -61,10 +51,6 @@ func TestTheFormCatalogReadsThePublishedQuestionsWithTheKeysProductionUses(t *te
 	}
 	if _, err := catalog.TriggerForm("ws2", "f1"); !errors.Is(err, wf.ErrFormNotFound) {
 		t.Fatalf("another workspace must not read the form, got %v", err)
-	}
-	choices, err := catalog.TriggerFormChoices("ws1")
-	if err != nil || !reflect.DeepEqual(choices, []workflow_domain.TriggerInputOption{{Value: "f1", Label: "Inscrição"}}) {
-		t.Fatalf("choices = %+v err = %v", choices, err)
 	}
 }
 

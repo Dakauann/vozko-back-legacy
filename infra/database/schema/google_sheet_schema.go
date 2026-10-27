@@ -78,6 +78,18 @@ func (r *GoogleSheetRow) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+type GoogleSheetExportCursor struct {
+	SheetID       string    `gorm:"primaryKey;type:uuid"`
+	EntryType     string    `gorm:"primaryKey;size:32"`
+	EntryID       string    `gorm:"primaryKey;size:64"`
+	WorkspaceID   string    `gorm:"type:uuid;not null"`
+	LastMessageAt time.Time `gorm:"type:timestamptz;not null"`
+	LastMessageID string    `gorm:"type:text;not null"`
+	UpdatedAt     time.Time `gorm:"type:timestamptz;not null"`
+}
+
+func (GoogleSheetExportCursor) TableName() string { return "google_sheet_export_cursors" }
+
 func GoogleSheetModels() []any {
-	return []any{&GoogleSheet{}, &GoogleSheetRow{}}
+	return []any{&GoogleSheet{}, &GoogleSheetRow{}, &GoogleSheetExportCursor{}}
 }

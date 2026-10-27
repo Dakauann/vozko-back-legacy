@@ -237,3 +237,14 @@ func (uc *scopedWorkflows) Pause(scope workflow.Scope, workflowID string) (*work
 func (uc *scopedWorkflows) requireConsentGrant(scope workflow.Scope) error {
 	return workspace.RequireConsentGrant(uc.permissions, scope.WorkspaceID, scope.Requester)
 }
+
+func (uc *scopedWorkflows) PublishPreview(scope workflow.Scope, workflowID string) (*workflow.RunSummary, error) {
+	stored, err := uc.Get(scope, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	if uc.entryPoints == nil {
+		return nil, ErrEntryPointsUnavailable
+	}
+	return uc.entryPoints.Preview(scope.WorkspaceID, stored)
+}

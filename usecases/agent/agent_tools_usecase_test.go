@@ -62,7 +62,7 @@ func httpDraft(description string) agent.ToolDraft {
 	return agent.ToolDraft{Type: "http_request", Description: description, Config: map[string]interface{}{"url": "https://a.test/orders", "method": "GET"}}
 }
 
-func TestCreatingTwoHTTPToolsKeepsBothWithProposedNames(t *testing.T) {
+func TestCreatingTwoHTTPToolsKeepsBothNamedAfterTheType(t *testing.T) {
 	uc, store := toolsFixture()
 	first, err := uc.Create(context.Background(), "ag-1", httpDraft("Consultar status do pedido"), someone)
 	if err != nil {
@@ -72,7 +72,7 @@ func TestCreatingTwoHTTPToolsKeepsBothWithProposedNames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Function != "consultar_status_do_pedido" || second.Function != "criar_ticket" || first.ID == second.ID {
+	if first.Function != "http_request" || second.Function != "http_request_2" || first.ID == second.ID {
 		t.Fatalf("first %+v second %+v", first, second)
 	}
 	if got := store.byID["ag-1"].InternalTools; len(got) != 3 {
@@ -129,7 +129,7 @@ func TestDuplicatingAnHTTPToolCopiesItUnderAFreeName(t *testing.T) {
 	uc, _ := toolsFixture()
 	created, _ := uc.Create(context.Background(), "ag-1", httpDraft("Consultar pedido"), someone)
 	copied, err := uc.Duplicate(context.Background(), "ag-1", created.ID, someone)
-	if err != nil || copied.Function != "consultar_pedido_2" || copied.ID == created.ID || copied.Config["url"] != "https://a.test/orders" {
+	if err != nil || copied.Function != "http_request_2" || copied.ID == created.ID || copied.Config["url"] != "https://a.test/orders" {
 		t.Fatalf("copied %+v err %v", copied, err)
 	}
 	if _, err := uc.Duplicate(context.Background(), "ag-1", "t-mem", someone); !errors.Is(err, agenttool.ErrSingleTypeTaken) {

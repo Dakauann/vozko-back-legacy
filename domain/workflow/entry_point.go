@@ -79,6 +79,7 @@ const (
 	EntryBlockedChannelPaused       EntryBlockReason = "channel_paused"
 	EntryBlockedNoTrigger           EntryBlockReason = "no_trigger"
 	EntryBlockedNeedsMessageTrigger EntryBlockReason = "needs_message_trigger"
+	EntryBlockedNoTrunk             EntryBlockReason = "no_trunk"
 )
 
 const MaxListedChannels = 10
@@ -145,7 +146,6 @@ type LeadExitEntry struct {
 type EntryPointDetails struct {
 	Webhook   *WebhookEntry   `json:"webhook,omitempty"`
 	Forms     []EntryForm     `json:"forms,omitempty"`
-	AnyForm   bool            `json:"anyForm,omitempty"`
 	Agents    []EntryAgent    `json:"agents,omitempty"`
 	Channels  []EntryChannel  `json:"channels,omitempty"`
 	LeadExits []LeadExitEntry `json:"leadExits,omitempty"`
@@ -173,10 +173,11 @@ type EntryPointFacts struct {
 	Forms        map[string]EntryForm
 	Agents       []EntryAgent
 	Channels     []EntryChannel
-	OpenChannels []EntryChannel
 	LeadExits    []LeadExitEntry
 	LastStarts   map[EntryPointKind]time.Time
 	LastDelivery *EntryDelivery
+	Stages       map[string]string
+	Trunks       map[string]EntryTrunk
 }
 
 func WorkflowBlockReason(w *Workflow) EntryBlockReason {
@@ -252,6 +253,9 @@ func received(e EntryPoint, facts EntryPointFacts) EntryPoint {
 }
 
 func kindReadiness(node Node, kind EntryPointKind, facts EntryPointFacts) (EntryPointDetails, EntryBlockReason) {
+	if TriggerType(node.Type).FollowsResponsibleWorkflow() {
+		return linkedChannelReadiness(facts.Channels)
+	}
 	switch kind {
 	case EntryWebhook:
 		return webhookReadiness(facts)
@@ -259,8 +263,6 @@ func kindReadiness(node Node, kind EntryPointKind, facts EntryPointFacts) (Entry
 		return formReadiness(node, facts)
 	case EntryAgentCall:
 		return agentReadiness(facts)
-	case EntryMessageReceived, EntryFirstMessage:
-		return messageReadiness(facts)
 	}
 	return EntryPointDetails{}, ""
 }
@@ -277,16 +279,9 @@ func webhookReadiness(facts EntryPointFacts) (EntryPointDetails, EntryBlockReaso
 }
 
 func formReadiness(node Node, facts EntryPointFacts) (EntryPointDetails, EntryBlockReason) {
-	raw, present := node.Config[FormTriggerFormIDsKey]
-	if !present || raw == nil {
-		return EntryPointDetails{AnyForm: true}, ""
-	}
-	ids, readable := formIDList(raw)
+	ids, readable := FormTriggerFormIDs(node.Config)
 	if !readable {
 		return EntryPointDetails{}, EntryBlockedNoForm
-	}
-	if len(ids) == 0 {
-		return EntryPointDetails{AnyForm: true}, ""
 	}
 	details := EntryPointDetails{}
 	reason := EntryBlockedNoForm
@@ -324,19 +319,15 @@ func agentReadiness(facts EntryPointFacts) (EntryPointDetails, EntryBlockReason)
 	return details, ""
 }
 
-func messageReadiness(facts EntryPointFacts) (EntryPointDetails, EntryBlockReason) {
-	return channelReadiness(facts.Channels, facts.OpenChannels)
-}
-
-func channelReadiness(bound, others []EntryChannel) (EntryPointDetails, EntryBlockReason) {
+func linkedChannelReadiness(linked []EntryChannel) (EntryPointDetails, EntryBlockReason) {
 	var listed []EntryChannel
 	listedKeys := map[EntryChannel]bool{}
 	reason := EntryBlockedNoChannel
-	add := func(c EntryChannel, isBound bool) {
-		c.Bound = isBound
+	for _, c := range linked {
+		c.Bound = true
 		key := EntryChannel{Kind: c.Kind, ID: c.ID}
 		if listedKeys[key] {
-			return
+			continue
 		}
 		listedKeys[key] = true
 		if c.WorkflowEnabled {
@@ -347,12 +338,6 @@ func channelReadiness(bound, others []EntryChannel) (EntryPointDetails, EntryBlo
 		if len(listed) < MaxListedChannels {
 			listed = append(listed, c)
 		}
-	}
-	for _, c := range bound {
-		add(c, true)
-	}
-	for _, c := range others {
-		add(c, false)
 	}
 	return EntryPointDetails{Channels: listed}, reason
 }

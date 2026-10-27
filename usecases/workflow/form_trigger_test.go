@@ -57,7 +57,7 @@ func newTriggerHarness(t *testing.T, workflows ...*workflow.Workflow) triggerHar
 	registry := NewNodeExecutorRegistry()
 	RegisterDefaultExecutors(registry, ExecutorDeps{})
 	engine := testEngine(runs, NewMockWorkflowRunLogRepository(), registry)
-	return triggerHarness{runs: runs, firer: NewFormTriggerFirer(NewTriggerEvaluator(repo, runs, engine, nil))}
+	return triggerHarness{runs: runs, firer: NewFormTriggerFirer(NewTriggerEvaluator(repo, runs, engine, nil, responsibleIs("")))}
 }
 
 func (h triggerHarness) submit(t *testing.T, formID, responseID string) {
@@ -114,7 +114,7 @@ func TestFormSubmittedStartsOnlyTheWorkflowsForThatForm(t *testing.T) {
 	h.submit(t, "form-1", "resp-1")
 
 	got := h.runsByWorkflow()
-	for id, want := range map[string]int{"wf-form-1": 1, "wf-form-2": 0, "wf-any": 1, "wf-unset": 1} {
+	for id, want := range map[string]int{"wf-form-1": 1, "wf-form-2": 0, "wf-any": 0, "wf-unset": 0} {
 		if len(got[id]) != want {
 			t.Errorf("%s runs = %d, want %d", id, len(got[id]), want)
 		}

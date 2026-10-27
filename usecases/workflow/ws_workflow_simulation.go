@@ -21,9 +21,10 @@ import (
 	"vozko/domain/tools"
 	template_domain "vozko/domain/whatsapp/template"
 	"vozko/domain/workflow"
-	"vozko/domain/workspacesecret"
 	"vozko/domain/workspace"
 	"vozko/domain/workspace/workspace_department"
+	"vozko/domain/workspacesecret"
+	shared_usecase "vozko/usecases/shared"
 	"vozko/usecases/workflow/node_executors"
 )
 
@@ -109,6 +110,7 @@ type WSWorkflowSimulationDeps struct {
 	HTTPEgress        node_executors.HTTPEgress
 	MediaFetcher      node_executors.MediaFetcher
 	Secrets           workspacesecret.Resolver
+	WorkspaceZones    shared_usecase.WorkspaceZones
 
 	LabelRepo      label.Repository
 	StageRepo      node_executors.StageReader
@@ -198,6 +200,7 @@ func (s *wsWorkflowSimulation) newSimulationRegistry(box SimSandbox, voice workf
 		HTTPEgress:        s.deps.HTTPEgress,
 		MediaFetcher:      s.deps.MediaFetcher,
 		Secrets:           s.deps.Secrets,
+		WorkspaceZones:    s.deps.WorkspaceZones,
 		LabelRepo:         s.deps.LabelRepo,
 		StageRepo:         s.deps.StageRepo,
 		WorkspaceRepo:     s.deps.WorkspaceRepo,

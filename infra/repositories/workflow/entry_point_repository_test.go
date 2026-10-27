@@ -23,7 +23,6 @@ func TestEveryEntryPointQueryBindsExactlyTheArgumentsItIsGiven(t *testing.T) {
 		{"template exits", templateExitsSQL, 2},
 		{"campaign exits", campaignExitsSQL, 2},
 		{"linked channels", linkedChannelsSQL, len(linkedChannelArgs("ws", []string{"wf"}))},
-		{"enabled channels", enabledChannelsSQL, len(enabledChannelArgs("ws"))},
 	} {
 		if got := strings.Count(tc.sql, "?"); got != tc.args {
 			t.Errorf("%s: %d placeholders, %d arguments", tc.name, got, tc.args)
@@ -48,8 +47,7 @@ func TestEveryEntryKindFilterBindsExactlyTheArgumentsItReturns(t *testing.T) {
 
 func TestEveryChannelTableIsAskedForItsLiveRowsInTheWorkspace(t *testing.T) {
 	for _, c := range channelTables {
-		if !strings.Contains(linkedChannelsSQL, "FROM "+c.table+" WHERE workspace_id = ? AND deleted_at IS NULL") ||
-			!strings.Contains(enabledChannelsSQL, "FROM "+c.table+" WHERE workspace_id = ? AND deleted_at IS NULL") {
+		if !strings.Contains(linkedChannelsSQL, "FROM "+c.table+" WHERE workspace_id = ? AND deleted_at IS NULL") {
 			t.Errorf("%s is not read by workspace and liveness", c.table)
 		}
 	}

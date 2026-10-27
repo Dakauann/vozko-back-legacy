@@ -133,7 +133,7 @@ func TestAnOrdinaryReplyNeverAdvancesARunWaitingOnAForm(t *testing.T) {
 		t.Fatalf("AdvanceOnReply on a form node = %v", err)
 	}
 
-	te := NewTriggerEvaluator(h.workflows, h.runs, h.engine, nil)
+	te := NewTriggerEvaluator(h.workflows, h.runs, h.engine, nil, responsibleIs(""))
 	te.Evaluate(workflow.TriggerEvent{WorkspaceID: "ws-1", EntryID: "entry-1", EntryType: "whatsapp", TriggerType: workflow.TriggerMessageReceived, Data: map[string]interface{}{"message": "oi"}})
 
 	run, _ := h.runs.FindByID("run-1")

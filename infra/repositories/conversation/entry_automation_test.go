@@ -160,3 +160,35 @@ func TestEntryAIProfile_WithoutADelegateHasNone(t *testing.T) {
 		t.Fatalf("delegate = %+v, want none", got.Delegate)
 	}
 }
+
+func TestEntryAutomation_NamesTheResponsibleWorkflowOnEveryKnownChannel(t *testing.T) {
+	columns := append(aiProfileColumns(), "delegate_kind", "delegate_id")
+	for _, entryType := range shared.KnownEntryTypes() {
+		t.Run(string(entryType), func(t *testing.T) {
+			for _, tc := range []struct {
+				name         string
+				delegateKind string
+				delegateID   string
+				want         string
+			}{
+				{"container workflow", "", "", "wf-container"},
+				{"delegated workflow", "workflow", "wf-delegate", "wf-delegate"},
+			} {
+				db, mock, sqlDB := newStatusDB(t)
+				mock.ExpectQuery(`conversation_delegations`).
+					WithArgs("entry-1", "entry-1", string(entryType)).
+					WillReturnRows(sqlmock.NewRows(columns).
+						AddRow("", "", "", "", "", "wf-container", false, true, nil, "", tc.delegateKind, tc.delegateID))
+
+				profile, err := NewEntryAutomationReader(db).EntryAutomation("entry-1", string(entryType))
+				sqlDB.Close()
+				if err != nil {
+					t.Fatalf("%s: %v", tc.name, err)
+				}
+				if got, ok := profile.ResponsibleWorkflow(); !ok || got != tc.want {
+					t.Fatalf("%s: responsible workflow = %q (%v), want %q", tc.name, got, ok, tc.want)
+				}
+			}
+		})
+	}
+}

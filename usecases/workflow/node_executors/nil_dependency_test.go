@@ -25,7 +25,7 @@ func TestAnExecutorWithoutItsStoreRefusesInsteadOfPanicking(t *testing.T) {
 	}{
 		{"assign member without the member store", NewAssignMemberExecutor(nil, nil), map[string]interface{}{"member_id": "m-1"}},
 		{"check label without the label store", NewCheckLabelExecutor(nil), map[string]interface{}{"label_id": "l-1"}},
-		{"ai agent without the agent store", NewAIAgentExecutor(nil, nil, nil, nil, nil, nil, quietAttendance{}), map[string]interface{}{"source": "agent", "agent_id": "a-1"}},
+		{"ai agent without the agent store", NewAIAgentExecutor(nil, nil, nil, nil, nil, nil, quietAttendance{}, nil), map[string]interface{}{"source": "agent", "agent_id": "a-1"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -78,18 +78,12 @@ func (e *addSheetRowExecutor) Execute(ctx *workflow.NodeContext) (*workflow.Node
 	if e.rows == nil {
 		return sheetRowRefused(ctx, googlesheet.CodeInternal, "integração Google Planilhas indisponível no servidor"), nil
 	}
-	values, missing := e.values(ctx)
+	values, missing := sheetValues(ctx)
 	if len(missing) > 0 {
 		return sheetRowRefused(ctx, googlesheet.CodeUnresolvedVariable, "variáveis sem valor: "+strings.Join(missing, ", ")), nil
 	}
 	sheetID, _ := ctx.Node.Config[AddSheetRowSheetKey].(string)
-	origin := googlesheet.Origin{
-		Kind: googlesheet.OriginWorkflow, WorkflowID: ctx.Run.WorkflowID, RunID: ctx.Run.ID,
-		EntryID: ctx.Run.EntryID, EntryType: ctx.Run.EntryType,
-	}
-	if ctx.Run.OnLead() {
-		origin.LeadID = ctx.Run.EntryID
-	}
+	origin := workflowSheetOrigin(ctx.Run)
 	callCtx, release := ctx.CallContext()
 	defer release()
 	result, err := e.rows.Enqueue(callCtx, gsuc.EnqueueInput{
@@ -117,7 +111,7 @@ func (e *addSheetRowExecutor) Execute(ctx *workflow.NodeContext) (*workflow.Node
 	return routeOutput(&workflow.NodeResult{Output: output}, outgoingEdges(ctx), addSheetRowWritten), nil
 }
 
-func (e *addSheetRowExecutor) values(ctx *workflow.NodeContext) (map[string]any, []string) {
+func sheetValues(ctx *workflow.NodeContext) (map[string]any, []string) {
 	raw, _ := ctx.Node.Config[AddSheetRowValuesKey].(map[string]interface{})
 	values := make(map[string]any, len(raw))
 	var missing []string
@@ -132,6 +126,17 @@ func (e *addSheetRowExecutor) values(ctx *workflow.NodeContext) (map[string]any,
 	}
 	sort.Strings(missing)
 	return values, missing
+}
+
+func workflowSheetOrigin(run *workflow.WorkflowRun) googlesheet.Origin {
+	origin := googlesheet.Origin{
+		Kind: googlesheet.OriginWorkflow, WorkflowID: run.WorkflowID, RunID: run.ID,
+		EntryID: run.EntryID, EntryType: run.EntryType,
+	}
+	if run.OnLead() {
+		origin.LeadID = run.EntryID
+	}
+	return origin
 }
 
 func sheetRowCode(err error) string {

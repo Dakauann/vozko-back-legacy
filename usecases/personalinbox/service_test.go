@@ -22,16 +22,18 @@ var (
 )
 
 type fixture struct {
-	marks     *memoryMarks
-	announcer *announcer
-	service   *Service
+	marks       *memoryMarks
+	preferences *memoryPreferences
+	announcer   *announcer
+	service     *Service
 }
 
 func newFixture(t *testing.T, seed ...personalinbox.Mark) fixture {
 	t.Helper()
-	f := fixture{marks: newMemoryMarks(seed...), announcer: &announcer{}}
+	f := fixture{marks: newMemoryMarks(seed...), preferences: newMemoryPreferences(), announcer: &announcer{}}
 	service, err := New(Deps{
-		Marks: f.marks,
+		Marks:       f.marks,
+		Preferences: f.preferences,
 		Access: access{
 			readers: map[string]bool{"ana": true, "bia": true},
 			sees: map[markKey]bool{
@@ -60,7 +62,7 @@ func seeded(t *testing.T, user string, entry shared.EntryRef, change func(person
 
 func TestNewRefusesToRunWithoutItsPorts(t *testing.T) {
 	if _, err := New(Deps{}); err == nil {
-		t.Fatal("a service without marks, access and announcer must refuse to start")
+		t.Fatal("a service without marks, preferences, access and announcer must refuse to start")
 	}
 }
 

@@ -21,7 +21,7 @@ type googleSheetValidator struct {
 }
 
 func (v *googleSheetValidator) Validate(n *workflow.Node) error {
-	if n.Type != workflow.NodeTypeActionAddSheetRow {
+	if n.Type != workflow.NodeTypeActionAddSheetRow && n.Type != workflow.NodeTypeActionExportMessagesSheet {
 		return nil
 	}
 	sheetID, _ := n.Config[node_executors.AddSheetRowSheetKey].(string)
@@ -37,6 +37,9 @@ func (v *googleSheetValidator) Validate(n *workflow.Node) error {
 	}
 	if err := sheet.CheckMapping(sheetMapping(n.Config[node_executors.AddSheetRowValuesKey])); err != nil {
 		return fmt.Errorf("%w: node %q: %v", workflow.ErrNodeSheetMappingInvalid, n.ID, err)
+	}
+	if n.Type == workflow.NodeTypeActionExportMessagesSheet && !sheet.HasMessageColumns() {
+		return fmt.Errorf("%w: node %q: %w", workflow.ErrNodeSheetMappingInvalid, n.ID, googlesheet.ErrNoMessageColumns)
 	}
 	return nil
 }

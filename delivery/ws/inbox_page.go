@@ -16,6 +16,8 @@ type inboxView struct {
 	campaignID           string
 	campaignWorkspaceID  string
 	conversationStatus   string
+	groups               bool
+	hidesGroups          bool
 	isAdmin              bool
 	seq                  uint64
 }
@@ -32,6 +34,8 @@ func inboxViewOf(conn *WSConnection) inboxView {
 		campaignID:           conn.CampaignID,
 		campaignWorkspaceID:  conn.CampaignWorkspaceID,
 		conversationStatus:   conn.ConversationStatus,
+		groups:               conn.GroupsView,
+		hidesGroups:          conn.hidesGroups.Load(),
 		isAdmin:              conn.IsAdmin,
 		seq:                  conn.viewSeq,
 	}
@@ -47,6 +51,7 @@ func (v inboxView) searchInput(page, pageSize int) conversation.SearchInboxInput
 		AssignedUserID:       v.userID,
 		IsAdmin:              v.isAdmin,
 		Personal:             personalinbox.ViewInbox,
+		Groups:               conversation.InboxGroupScope(v.groups, v.hidesGroups),
 		Page:                 page,
 		PageSize:             pageSize,
 	}

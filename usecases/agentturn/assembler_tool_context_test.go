@@ -38,7 +38,7 @@ func TestContextualToolsSeeTheConversation(t *testing.T) {
 		tool:         contextRecordingTool{seen: seen},
 	}
 
-	New(reg, nil, nil).Assemble(context.Background(), Request{
+	New(reg, nil, nil, nil).Assemble(context.Background(), Request{
 		Agent:                &agent.Agent{WorkspaceID: "ws1", InternalTools: []agent.ToolBinding{{Name: "manage_entry_stage"}}},
 		ResolveInternalTools: true,
 		Visibility:           agent.ToolVisibilityMessaging,
@@ -53,7 +53,7 @@ func TestContextualToolsSeeTheConversation(t *testing.T) {
 
 func TestEveryToolConfigCarriesTheAgentVariables(t *testing.T) {
 	reg := stubRegistry{defs: []tools.Definition{{Name: "manage_entry_stage"}}}
-	assembled := New(reg, nil, nil).Assemble(context.Background(), Request{
+	assembled := New(reg, nil, nil, nil).Assemble(context.Background(), Request{
 		Agent:                &agent.Agent{WorkspaceID: "ws1", InternalTools: []agent.ToolBinding{{Name: "manage_entry_stage"}}},
 		ResolveInternalTools: true,
 		Visibility:           agent.ToolVisibilityMessaging,

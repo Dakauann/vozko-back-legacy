@@ -133,6 +133,7 @@ func (c *Container) initRouter() {
 		campaignDraftRoutes(c),
 		agentRoutes(c),
 		c.planDuplicateHandler(),
+		c.inboxPreferencesHandler(),
 	)
 
 }

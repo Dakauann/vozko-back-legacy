@@ -173,7 +173,7 @@ func TestAFormAnswerOnARunWhoseVersionIsGoneFailsTheRun(t *testing.T) {
 func TestATriggeredRunRecordsThePublishedVersion(t *testing.T) {
 	repo := versionedWorkflow(t)
 	runs := NewMockWorkflowRunRepository()
-	te := NewTriggerEvaluator(repo, runs, automationOnEngine(runs), nil).(*triggerEvaluator)
+	te := NewTriggerEvaluator(repo, runs, automationOnEngine(runs), nil, responsibleIs("wf-1")).(*triggerEvaluator)
 
 	te.Evaluate(workflow.TriggerEvent{WorkspaceID: "ws1", EntryID: "entry-1", EntryType: "whatsapp", TriggerType: workflow.TriggerMessageReceived, Data: map[string]interface{}{"message": "oi"}})
 
@@ -196,7 +196,7 @@ func TestAMessageRestartsAConversationOnTheLatestPublishedVersion(t *testing.T) 
 	_ = runs.Create(run)
 	engine := automationOnEngine(runs)
 	engine.registry.Register(workflow.NodeTypeWaitDuration, node_executors.NewWaitDurationExecutor())
-	te := NewTriggerEvaluator(repo, runs, engine, nil).(*triggerEvaluator)
+	te := NewTriggerEvaluator(repo, runs, engine, nil, responsibleIs("wf-1")).(*triggerEvaluator)
 
 	te.Evaluate(workflow.TriggerEvent{WorkspaceID: "ws1", EntryID: "entry-1", EntryType: "whatsapp", TriggerType: workflow.TriggerMessageReceived, Data: map[string]interface{}{"message": "oi"}})
 

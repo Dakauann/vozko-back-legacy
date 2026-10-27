@@ -3,7 +3,6 @@ package workflow_repository
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -67,6 +66,17 @@ func originValues() string {
 	}
 	return strings.Join(values, ", ")
 }
+
+const stagesSQL = `SELECT id, name FROM stages WHERE workspace_id = ? AND deleted_at IS NULL AND id IN ?`
+
+const trunksSQL = `SELECT CAST(id AS text) AS id, name, enabled FROM sip_trunks WHERE workspace_id = ? AND deleted_at IS NULL AND id IN ?`
+
+var activeTriggersSQL = `SELECT w.id AS workflow_id, w.name AS workflow_name, COALESCE(CAST(w.trigger_config AS text), '') AS legacy_config, CAST(n.node AS text) AS node
+FROM workflows w
+JOIN workflow_versions v ON v.workflow_id = w.id AND v.version = w.published_version
+CROSS JOIN LATERAL jsonb_array_elements(` + jsonArrayOf("v.graph -> 'nodes'") + `) WITH ORDINALITY AS n(node, position)
+WHERE w.workspace_id = ? AND w.deleted_at IS NULL AND w.status = 'active' AND n.node ->> 'type' IN ?
+ORDER BY w.name, w.id, n.position`
 
 const formsSQL = `SELECT id, name, archived_at IS NULL AND published_version_id IS NOT NULL AS active
 FROM whatsapp_forms WHERE workspace_id = ? AND id IN ?`
@@ -176,34 +186,20 @@ func (c channelTable) linked() string {
 	return c.selectLive() + " AND workflow_id IN ?"
 }
 
-func (c channelTable) enabledSample() string {
-	return "(" + c.selectLive() + " AND enable_workflow ORDER BY (workflow_id IS NULL) DESC, updated_at DESC LIMIT " + strconv.Itoa(workflow.MaxListedChannels) + ")"
-}
+var linkedChannelsSQL = linkedChannelUnion()
 
-var linkedChannelsSQL, enabledChannelsSQL = channelUnions()
-
-func channelUnions() (string, string) {
+func linkedChannelUnion() string {
 	linked := make([]string, len(channelTables))
-	enabled := make([]string, len(channelTables))
 	for i, c := range channelTables {
-		linked[i], enabled[i] = c.linked(), c.enabledSample()
+		linked[i] = c.linked()
 	}
-	return strings.Join(linked, "\nUNION ALL\n") + "\nORDER BY kind, name, id",
-		"SELECT kind, id, name, workflow_id, enable_workflow FROM (\n" + strings.Join(enabled, "\nUNION ALL\n") + "\n) enabled ORDER BY kind, updated_at DESC, id"
+	return strings.Join(linked, "\nUNION ALL\n") + "\nORDER BY kind, name, id"
 }
 
 func linkedChannelArgs(workspaceID string, workflowIDs []string) []interface{} {
 	var args []interface{}
 	for range channelTables {
 		args = append(args, workspaceID, workflowIDs)
-	}
-	return args
-}
-
-func enabledChannelArgs(workspaceID string) []interface{} {
-	args := make([]interface{}, len(channelTables))
-	for i := range channelTables {
-		args[i] = workspaceID
 	}
 	return args
 }
@@ -250,12 +246,14 @@ func (r *entryPointRepository) EntryPointSources(q workflow.EntryPointSourceQuer
 		LeadExits:      map[string][]workflow.LeadExitEntry{},
 		LastStarts:     map[string]map[workflow.EntryPointKind]time.Time{},
 		LastDeliveries: map[string]workflow.EntryDelivery{},
+		Stages:         map[string]string{},
+		Trunks:         map[string]workflow.EntryTrunk{},
 	}
 	if len(ids) == 0 || strings.TrimSpace(q.WorkspaceID) == "" {
 		return sources, nil
 	}
 	for _, read := range []func(workflow.EntryPointSourceQuery, []string, *workflow.EntryPointSources) error{
-		r.webhooks, r.lastDeliveries, r.lastStarts, r.forms, r.agents, r.channels, r.leadExits,
+		r.webhooks, r.lastDeliveries, r.lastStarts, r.forms, r.agents, r.channels, r.leadExits, r.stages, r.trunks,
 	} {
 		if err := read(q, ids, sources); err != nil {
 			return nil, err
@@ -378,18 +376,12 @@ func (row channelRow) workspaceChannel() workflow.WorkspaceChannel {
 }
 
 func (r *entryPointRepository) channels(q workflow.EntryPointSourceQuery, ids []string, s *workflow.EntryPointSources) error {
-	var linked, enabled []channelRow
+	var linked []channelRow
 	if err := r.db.Raw(linkedChannelsSQL, linkedChannelArgs(q.WorkspaceID, ids)...).Scan(&linked).Error; err != nil {
-		return err
-	}
-	if err := r.db.Raw(enabledChannelsSQL, enabledChannelArgs(q.WorkspaceID)...).Scan(&enabled).Error; err != nil {
 		return err
 	}
 	for _, row := range linked {
 		s.LinkedChannels = append(s.LinkedChannels, row.workspaceChannel())
-	}
-	for _, row := range enabled {
-		s.EnabledChannels = append(s.EnabledChannels, row.workspaceChannel())
 	}
 	return nil
 }
@@ -420,4 +412,84 @@ func (r *entryPointRepository) leadExits(q workflow.EntryPointSourceQuery, ids [
 		s.LeadExits[row.WorkflowID] = append(s.LeadExits[row.WorkflowID], workflow.LeadExitEntry{Source: workflow.LeadExitFromTemplate, Name: row.TemplateName, Language: row.Language, Button: row.ButtonText})
 	}
 	return nil
+}
+
+func nonBlank(ids []string) []string {
+	var out []string
+	for _, id := range ids {
+		if trimmed := strings.TrimSpace(id); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func (r *entryPointRepository) stages(q workflow.EntryPointSourceQuery, _ []string, s *workflow.EntryPointSources) error {
+	stageIDs := nonBlank(q.StageIDs)
+	if len(stageIDs) == 0 {
+		return nil
+	}
+	var rows []struct {
+		ID   string
+		Name string
+	}
+	if err := r.db.Raw(stagesSQL, q.WorkspaceID, stageIDs).Scan(&rows).Error; err != nil {
+		return err
+	}
+	for _, row := range rows {
+		s.Stages[row.ID] = row.Name
+	}
+	return nil
+}
+
+func (r *entryPointRepository) trunks(q workflow.EntryPointSourceQuery, _ []string, s *workflow.EntryPointSources) error {
+	trunkIDs := uuidsOf(q.TrunkIDs)
+	if len(trunkIDs) == 0 {
+		return nil
+	}
+	var rows []struct {
+		ID      string
+		Name    string
+		Enabled bool
+	}
+	if err := r.db.Raw(trunksSQL, q.WorkspaceID, trunkIDs).Scan(&rows).Error; err != nil {
+		return err
+	}
+	for _, row := range rows {
+		s.Trunks[row.ID] = workflow.EntryTrunk{Name: row.Name, Enabled: row.Enabled}
+	}
+	return nil
+}
+
+func (r *entryPointRepository) ActiveTriggers(workspaceID string, types []workflow.TriggerType) ([]workflow.ActiveTrigger, error) {
+	if strings.TrimSpace(workspaceID) == "" || len(types) == 0 {
+		return nil, nil
+	}
+	names := make([]string, len(types))
+	for i, t := range types {
+		names[i] = string(t)
+	}
+	var rows []struct {
+		WorkflowID   string
+		WorkflowName string
+		LegacyConfig string
+		Node         string
+	}
+	if err := r.db.Raw(activeTriggersSQL, workspaceID, names).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]workflow.ActiveTrigger, 0, len(rows))
+	for _, row := range rows {
+		trigger := workflow.ActiveTrigger{WorkflowID: row.WorkflowID, WorkflowName: row.WorkflowName}
+		if err := json.Unmarshal([]byte(row.Node), &trigger.Node); err != nil {
+			return nil, fmt.Errorf("decode an active trigger of workflow %s: %w", row.WorkflowID, err)
+		}
+		if strings.TrimSpace(row.LegacyConfig) != "" {
+			if err := json.Unmarshal([]byte(row.LegacyConfig), &trigger.LegacyConfig); err != nil {
+				return nil, fmt.Errorf("decode the trigger config of workflow %s: %w", row.WorkflowID, err)
+			}
+		}
+		out = append(out, trigger)
+	}
+	return out, nil
 }

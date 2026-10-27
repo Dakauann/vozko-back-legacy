@@ -55,6 +55,11 @@ const (
 	SourceLeadEmail        Source = "lead_email"
 	SourceConversationLink Source = "conversation_link"
 	SourceOrigin           Source = "origin"
+	SourceMessageSentAt    Source = "message_sent_at"
+	SourceMessageSender    Source = "message_sender"
+	SourceMessageDirection Source = "message_direction"
+	SourceMessageText      Source = "message_text"
+	SourceMessageMediaURL  Source = "message_media_url"
 )
 
 var systemSourceTypes = map[Source]ColumnType{
@@ -64,10 +69,18 @@ var systemSourceTypes = map[Source]ColumnType{
 	SourceLeadEmail:        TypeEmail,
 	SourceConversationLink: TypeURL,
 	SourceOrigin:           TypeText,
+	SourceMessageSentAt:    TypeDateTime,
+	SourceMessageSender:    TypeText,
+	SourceMessageDirection: TypeText,
+	SourceMessageText:      TypeLongText,
+	SourceMessageMediaURL:  TypeURL,
 }
 
 func SystemSources() []Source {
-	return []Source{SourceWrittenAt, SourceLeadName, SourceLeadPhone, SourceLeadEmail, SourceConversationLink, SourceOrigin}
+	return []Source{
+		SourceWrittenAt, SourceLeadName, SourceLeadPhone, SourceLeadEmail, SourceConversationLink, SourceOrigin,
+		SourceMessageSentAt, SourceMessageSender, SourceMessageDirection, SourceMessageText, SourceMessageMediaURL,
+	}
 }
 
 func (s Source) Valid() bool {
@@ -79,6 +92,14 @@ func (s Source) Valid() bool {
 }
 
 func (s Source) IsSystem() bool { return s != SourceInput }
+
+func (s Source) PerMessage() bool {
+	switch s {
+	case SourceMessageSentAt, SourceMessageSender, SourceMessageDirection, SourceMessageText, SourceMessageMediaURL:
+		return true
+	}
+	return false
+}
 
 func (s Source) ColumnType() (ColumnType, bool) {
 	t, ok := systemSourceTypes[s]
@@ -141,6 +162,9 @@ func (c Column) validate() error {
 	}
 	if want, system := c.Source.ColumnType(); system && want != c.Type {
 		return invalidSheet("column %q filled with %s must have type %s", c.Header, c.Source, want)
+	}
+	if c.Required && c.Source.PerMessage() {
+		return invalidSheet("column %q is filled per message and cannot be required", c.Header)
 	}
 	if c.Type != TypeChoice {
 		if len(c.Options) > 0 {

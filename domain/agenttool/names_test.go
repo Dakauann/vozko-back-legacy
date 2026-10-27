@@ -26,22 +26,19 @@ func TestValidNamesAreLowercaseSnakeCaseUpTo64WithoutTheMCPSeparator(t *testing.
 	}
 }
 
-func TestProposeNameUsesTheFirstWordsOfTheDescription(t *testing.T) {
+func TestProposeNameStartsFromTheToolTypeAndNeverFromTheDescription(t *testing.T) {
 	none := func(string) bool { return false }
-	if got := ProposeName("http_request", "Consultar status do pedido pelo número informado pelo cliente", none); got != "consultar_status_do_pedido_pelo" {
+	if got := ProposeName("http_request", none); got != "http_request" {
 		t.Fatalf("got %q", got)
 	}
-	if got := ProposeName("http_request", "", none); got != "http_request" {
-		t.Fatalf("got %q", got)
-	}
-	if got := ProposeName("http_request", "123 itens!", none); got != "tool_123_itens" {
+	if got := ProposeName("123 itens!", none); got != "tool_123_itens" {
 		t.Fatalf("got %q", got)
 	}
 }
 
 func TestProposeNameAddsASuffixUntilTheNameIsFree(t *testing.T) {
-	taken := map[string]bool{"criar_ticket": true, "criar_ticket_2": true}
-	if got := ProposeName("http_request", "Criar ticket", func(n string) bool { return taken[n] }); got != "criar_ticket_3" {
+	taken := map[string]bool{"transfer_to_human": true, "transfer_to_human_2": true}
+	if got := ProposeName("transfer_to_human", func(n string) bool { return taken[n] }); got != "transfer_to_human_3" {
 		t.Fatalf("got %q", got)
 	}
 }

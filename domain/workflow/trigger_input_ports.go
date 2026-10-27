@@ -30,7 +30,6 @@ func TriggerInputIssuesOf(err error) ([]TriggerInputIssue, bool) {
 }
 
 type TriggerFormCatalog interface {
-	TriggerFormChoices(workspaceID string) ([]TriggerInputOption, error)
 	TriggerForm(workspaceID, formID string) (TriggerForm, error)
 }
 

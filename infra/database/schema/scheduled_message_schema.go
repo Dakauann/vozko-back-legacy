@@ -13,7 +13,11 @@ type ScheduledMessage struct {
 	EntryID     string `gorm:"type:uuid;not null;index:idx_sched_msg_entry,priority:1"`
 	EntryType   string `gorm:"size:32;not null;index:idx_sched_msg_entry,priority:2"`
 
-	CreatedByUserID string `gorm:"type:uuid;not null;index"`
+	CreatedByUserID     *string `gorm:"type:uuid;index"`
+	CreatedByAutomation *string `gorm:"size:80"`
+
+	CancelOnReply bool    `gorm:"not null;default:false"`
+	CancelReason  *string `gorm:"size:40"`
 
 	Kind                 string  `gorm:"size:20;not null;default:'text'"`
 	TemplateID           *string `gorm:"type:uuid"`

@@ -33,6 +33,40 @@ func (r *repository) Create(m *sm.ScheduledMessage) error {
 	return nil
 }
 
+func (r *repository) CreateCapped(m *sm.ScheduledMessage, limit int) error {
+	row, err := fromDomain(m)
+	if err != nil {
+		return err
+	}
+	err = r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", followUpLockKey(row.EntryType, row.EntryID)).Error; err != nil {
+			return err
+		}
+		var pending int64
+		if err := tx.Model(&schema.ScheduledMessage{}).
+			Where("entry_id = ? AND entry_type = ? AND status = ? AND created_by_automation IS NOT NULL AND deleted_at IS NULL",
+				row.EntryID, row.EntryType, string(sm.StatusPending)).
+			Count(&pending).Error; err != nil {
+			return err
+		}
+		if pending >= int64(limit) {
+			return sm.ErrFollowUpLimitReached
+		}
+		return tx.Create(&row).Error
+	})
+	if err != nil {
+		return err
+	}
+	m.ID = row.ID
+	m.CreatedAt = row.CreatedAt
+	m.UpdatedAt = row.UpdatedAt
+	return nil
+}
+
+func followUpLockKey(entryType, entryID string) string {
+	return "scheduled_follow_ups:" + entryType + ":" + entryID
+}
+
 func (r *repository) FindByID(id string) (*sm.ScheduledMessage, error) {
 	var row schema.ScheduledMessage
 	if err := r.db.Where("id = ?", id).First(&row).Error; err != nil {
@@ -178,11 +212,28 @@ func (r *repository) MarkFailed(id string, reason sm.FailureReason, detail strin
 	return nil
 }
 
-func (r *repository) Cancel(id string) error {
-	return r.transitionFrom(id, sm.StatusPending, map[string]interface{}{
-		"status":     string(sm.StatusCanceled),
-		"updated_at": time.Now().UTC(),
-	})
+func (r *repository) Cancel(id string, reason sm.CancelReason) error {
+	return r.transitionFrom(id, sm.StatusPending, cancelled(reason))
+}
+
+func (r *repository) CancelClaimed(id string, reason sm.CancelReason) error {
+	return r.transitionFrom(id, sm.StatusSending, cancelled(reason))
+}
+
+func (r *repository) CancelOnReply(entryID, entryType string, repliedAt time.Time) (int64, error) {
+	result := r.db.Model(&schema.ScheduledMessage{}).
+		Where("entry_id = ? AND entry_type = ? AND status = ? AND cancel_on_reply AND created_at < ? AND deleted_at IS NULL",
+			entryID, entryType, string(sm.StatusPending), repliedAt).
+		Updates(cancelled(sm.CancelContactReplied))
+	return result.RowsAffected, result.Error
+}
+
+func cancelled(reason sm.CancelReason) map[string]interface{} {
+	return map[string]interface{}{
+		"status":        string(sm.StatusCanceled),
+		"cancel_reason": string(reason),
+		"updated_at":    time.Now().UTC(),
+	}
 }
 
 func (r *repository) Reschedule(id string, at time.Time, windowExpiresAt *time.Time) error {

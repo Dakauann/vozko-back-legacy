@@ -25,30 +25,8 @@ func (q channelQuery) windowOpenOn(entryIDColumn string) string {
 	return fmt.Sprintf(q.WindowOpenPredicate, entryIDColumn)
 }
 
-func (q channelQuery) groupOn(entryIDColumn string) string {
-	if q.GroupPredicate == "" {
-		return ""
-	}
-	return fmt.Sprintf(q.GroupPredicate, entryIDColumn)
-}
-
-func (q channelQuery) groupCondition(groups bool, entryIDColumn string) string {
-	matched := "1 = 0"
-	if q.GroupPredicate != "" {
-		matched = q.groupOn(entryIDColumn)
-	}
-	if groups {
-		return "(" + matched + ")"
-	}
-	return "NOT (" + matched + ")"
-}
-
 func windowFilterCondition(open bool, entryTypeColumn, entryIDColumn string, entryType shared.EntryType) string {
 	return channelFilterCondition(open, channelQuery.windowOpenOn, entryTypeColumn, entryIDColumn, entryType)
-}
-
-func groupFilterCondition(groups bool, entryTypeColumn, entryIDColumn string, entryType shared.EntryType) string {
-	return channelFilterCondition(groups, channelQuery.groupOn, entryTypeColumn, entryIDColumn, entryType)
 }
 
 func channelFilterCondition(include bool, predicate func(channelQuery, string) string, entryTypeColumn, entryIDColumn string, entryType shared.EntryType) string {
@@ -174,9 +152,6 @@ var unofficialWindowOpen = `EXISTS (SELECT 1 FROM unofficial_whatsapp_conversati
 		  AND (uwi_w.restriction_until IS NULL OR uwi_w.restriction_until <= NOW())
 		  AND uwi_w.restriction_can_send_new IS DISTINCT FROM false
 		  AND NOT uwct_w.blocked)`
-
-var unofficialGroup = `EXISTS (SELECT 1 FROM unofficial_whatsapp_conversations uwc_g
-		WHERE uwc_g.id = %[1]s AND uwc_g.deleted_at IS NULL AND uwc_g.is_group)`
 
 var mercadoLivreWindowOpen = `EXISTS (SELECT 1 FROM mercadolivre_conversations mlc_w
 		JOIN mercadolivre_accounts mla_w ON mla_w.id = mlc_w.account_id

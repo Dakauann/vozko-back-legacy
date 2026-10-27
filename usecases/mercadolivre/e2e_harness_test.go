@@ -594,7 +594,7 @@ func newHarness(t testing.TB) *harness {
 	h.sender = conversation_usecase.NewMessageSenderService(h.messages, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, adapterRegistry{h: h})
 	replies := conversation_usecase.NewChannelAIReplyService(conversation_usecase.ChannelAIReplyDeps{
 		Agents: agentRepo, AI: h.ai, Messages: h.messages, Sender: h.sender, Adapters: adapterRegistry{h: h}, HandOff: h.handOffs,
-		Events: events{}, Guard: loopguard.AlwaysAllow{}, Assembler: agentturn.New(nil, nil, nil),
+		Events: events{}, Guard: loopguard.AlwaysAllow{}, Assembler: agentturn.New(nil, nil, nil, nil),
 		TurnLock: conversation_usecase.NewAgentTurnLock(redis.SharedState()), Attendance: quietAttendance{}, Leads: noContinuationLeads{}, WorkflowNames: noWorkflowNames{},
 	})
 	gate := conversation_usecase.NewAutomationGate(conversation_usecase.AutomationGateDeps{

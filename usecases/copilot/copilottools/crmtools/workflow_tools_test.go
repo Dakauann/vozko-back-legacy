@@ -74,6 +74,10 @@ func (f *fakeScopedWorkflows) Version(workflow.Scope, string, int) (*workflow.Wo
 	return nil, nil
 }
 
+func (f *fakeScopedWorkflows) PublishPreview(workflow.Scope, string) (*workflow.RunSummary, error) {
+	return nil, nil
+}
+
 func TestActivateWorkflowPublishesTheCurrentDraft(t *testing.T) {
 	wfs := &fakeScopedWorkflows{}
 	res := NewActivateWorkflowTool(wfs).Execute(context.Background(), tooltest.Member(), map[string]interface{}{"workflow_id": knownWorkflow})

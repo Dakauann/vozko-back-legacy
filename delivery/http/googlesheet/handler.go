@@ -347,6 +347,8 @@ var refusals = []response.ErrorRefusal{
 	{Err: googlesheet.ErrInvalidSheet, Refusal: refusal(http.StatusBadRequest, googlesheet.CodeInvalidSheet, "Definição de planilha inválida")},
 	{Err: googlesheet.ErrIdempotencyKeyRequired, Refusal: refusal(http.StatusBadRequest, googlesheet.CodeIdempotencyKeyRequired, "Informe o cabeçalho Idempotency-Key")},
 	{Err: googlesheet.ErrRowTooLarge, Refusal: refusal(http.StatusRequestEntityTooLarge, googlesheet.CodeRowTooLarge, "A linha é grande demais para uma gravação")},
+	{Err: googlesheet.ErrNoMessageColumns, Refusal: refusal(http.StatusUnprocessableEntity, googlesheet.CodeNoMessageColumns, "A planilha não tem colunas preenchidas por mensagem")},
+	{Err: googlesheet.ErrNeedsConversation, Refusal: refusal(http.StatusUnprocessableEntity, googlesheet.CodeNeedsConversation, "Exportar mensagens precisa de uma conversa")},
 }
 
 type valueRefusal struct {

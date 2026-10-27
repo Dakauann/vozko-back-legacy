@@ -90,7 +90,7 @@ func TestCheckReplyAnswersBeforeAnyModelIsCalled(t *testing.T) {
 func TestTheAgentNodeDoesNotPayForAReplyItCannotSend(t *testing.T) {
 	service := &catalogAgentAI{}
 	sender := replyingSender(lastMessageWindow{last: repliedAt(-time.Second)}, &countingWhatsAppClient{})
-	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, sender, nil, quietAttendance{})
+	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, sender, nil, quietAttendance{}, nil)
 	state := workflow.NewRunState()
 	ctx := agentNodeContext(&state, nil)
 	ctx.Run = refusedRunAt("ai-1")

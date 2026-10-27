@@ -118,6 +118,7 @@ func newSimulationRegistry(deps ExecutorDeps, box SimSandbox) *NodeExecutorRegis
 		VoiceAudio:            deps.VoiceAudio,
 		HTTPEgress:            deps.HTTPEgress,
 		MediaFetcher:          simMediaFetcher{confirmed: box.RealCallsConfirmed, guarded: deps.MediaFetcher},
+		WorkspaceZones:        deps.WorkspaceZones,
 		Secrets:               deps.Secrets,
 		Forms:                 newSimFormSender(channel),
 		LabelRepo:             deps.LabelRepo,
@@ -130,6 +131,7 @@ func newSimulationRegistry(deps ExecutorDeps, box SimSandbox) *NodeExecutorRegis
 		DepartmentRepo:        deps.DepartmentRepo,
 		ConversationHandOff:   handOff,
 		AIAttendance:          sandboxRuntime{},
+		FollowUps:             simFollowUps{effects: effects},
 	})
 	return registry
 }

@@ -70,6 +70,7 @@ func (uc *conversationTemplateUseCase) Send(ctx context.Context, in wo.Conversat
 		headerParams: in.HeaderParams,
 		workspaceID:  in.WorkspaceID,
 		userID:       in.UserID,
+		automation:   in.Automation,
 		to:           target.contact.Number,
 		leadID:       target.contact.ID,
 		phoneID:      target.phone.ID,

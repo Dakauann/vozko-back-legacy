@@ -114,7 +114,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Adicionar uma ferramenta ao agente
-// @Description	Cria uma instância de ferramenta. Tipos que aceitam várias instâncias (como Requisição HTTP) podem aparecer quantas vezes forem precisas, cada uma com seu nome, descrição e configuração. O nome da função é opcional: sem ele o backend propõe um a partir da descrição.
+// @Description	Cria uma instância de ferramenta. Tipos que aceitam várias instâncias (como Requisição HTTP) podem aparecer quantas vezes forem precisas, cada uma com seu nome, descrição e configuração. O nome da função é opcional: sem ele o backend propõe o nome do tipo, numerado quando o agente já tem outra instância (http_request, http_request_2).
 // @Description
 // @Description	| Regra | Código |
 // @Description	|---|---|

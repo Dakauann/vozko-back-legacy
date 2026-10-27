@@ -156,7 +156,7 @@ type SearchInboxInput struct {
 	MessageSearch    string
 	WindowOpen       *bool
 	HasUnread        *bool
-	IsGroup          *bool
+	Groups           GroupScope
 	Channel          string
 	DateFrom         *time.Time
 	DateTo           *time.Time
@@ -286,6 +286,7 @@ type ButtonPayload struct {
 
 type SendOrigin struct {
 	SenderUserID     string
+	Automation       SentBy
 	ReplyToMessageID string
 	ClientRequestID  string
 }

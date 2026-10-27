@@ -137,18 +137,24 @@ func TestTheFormSpecUsesTheQuestionsKeyedAsProductionKeysTheAnswers(t *testing.T
 		t.Fatalf("issues = %+v", spec.Issues)
 	}
 
-	anyForm := Node{ID: "t", Type: NodeTypeTriggerFormSubmitted, Config: map[string]interface{}{}}
+	twoForms := Node{ID: "t", Type: NodeTypeTriggerFormSubmitted, Config: map[string]interface{}{FormTriggerFormIDsKey: []interface{}{"f1", "f2"}}}
 	choices := []TriggerInputOption{{Value: "f1", Label: "Inscrição"}, {Value: "f2", Label: "Contato"}}
-	spec = onlySpec(t, triggerGraph(anyForm, sendText("n1", "{{form.nome}}")), TriggerInputSources{FormChoices: choices})
+	spec = onlySpec(t, triggerGraph(twoForms, sendText("n1", "{{form.nome}}")), TriggerInputSources{
+		Forms: map[string]TriggerForm{"f1": {ID: "f1", Name: "Inscrição"}, "f2": {ID: "f2", Name: "Contato"}},
+	})
 	formID := fieldByKey(spec, DataKeyFormID)
 	if formID == nil || !formID.Required || !reflect.DeepEqual(formID.Options, choices) {
-		t.Fatalf("any form needs the form choice: %+v", spec)
+		t.Fatalf("several forms need the form choice: %+v", spec)
 	}
-	if f := fieldByKey(spec, "form.nome"); f == nil || f.Required || !reflect.DeepEqual(f.ReadBy, []string{"n1"}) {
-		t.Fatalf("an answer the flow reads becomes an optional field: %+v", f)
+	if !reflect.DeepEqual(spec.Issues, []TriggerInputIssue{{Code: IssueReadNotDeclared, Key: "form.nome"}}) {
+		t.Fatalf("an answer no chosen form declares is an issue: %+v", spec.Issues)
 	}
-	if len(spec.Issues) != 0 {
-		t.Fatalf("issues = %+v", spec.Issues)
+}
+
+func TestAFormTriggerWithoutFormsNeedsNoFormFromAnywhere(t *testing.T) {
+	needs := TriggerInputNeedsOf(triggerGraph(Node{ID: "t", Type: NodeTypeTriggerFormSubmitted, Config: map[string]interface{}{}}))
+	if len(needs.FormIDs) != 0 || len(needs.FormNodes) != 1 {
+		t.Fatalf("a trigger without forms reads no form: %+v", needs)
 	}
 }
 
@@ -301,7 +307,7 @@ func TestTheTesterSeedsTheRunWithTheProductionBuilders(t *testing.T) {
 func TestARecordedRunMapsBackToTheSpecInputWithItsMaskedKeys(t *testing.T) {
 	agent := onlySpec(t, triggerGraph(agentCallTestTrigger()), TriggerInputSources{})
 	webhook := onlySpec(t, triggerGraph(Node{ID: "t", Type: NodeTypeTriggerWebhook}), TriggerInputSources{})
-	form := onlySpec(t, triggerGraph(Node{ID: "t", Type: NodeTypeTriggerFormSubmitted}), TriggerInputSources{FormChoices: []TriggerInputOption{{Value: "f1"}}})
+	form := onlySpec(t, triggerGraph(Node{ID: "t", Type: NodeTypeTriggerFormSubmitted, Config: map[string]interface{}{FormTriggerFormIDsKey: []interface{}{"f1", "f2"}}}), TriggerInputSources{Forms: map[string]TriggerForm{"f1": {ID: "f1"}, "f2": {ID: "f2"}}})
 	message := onlySpec(t, triggerGraph(Node{ID: "t", Type: NodeTypeTriggerMessageReceived}), TriggerInputSources{})
 	cases := []struct {
 		name   string

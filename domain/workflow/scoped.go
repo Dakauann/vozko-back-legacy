@@ -30,4 +30,5 @@ type ScopedWorkflowsUseCase interface {
 	Versions(scope Scope, workflowID string, options shared.QueryOptions) (*shared.PaginatedResult[*WorkflowVersion], error)
 	RestoreVersion(ctx context.Context, scope Scope, workflowID string, version, revision int) (*Workflow, error)
 	Version(scope Scope, workflowID string, version int) (*WorkflowVersion, error)
+	PublishPreview(scope Scope, workflowID string) (*RunSummary, error)
 }

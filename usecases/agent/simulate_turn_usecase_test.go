@@ -98,7 +98,7 @@ func simOutput() *ai.GenerateOutput {
 
 func newSimUC(t *testing.T, repo agent.Repository, aiSvc ai.Service, memories leadmemory.ListUseCase) agent.SimulateTurnUseCase {
 	t.Helper()
-	assembler := agentturn.New(simRegistry{defs: []tools.Definition{{Name: "manage_lead_memory"}}}, nil, memories)
+	assembler := agentturn.New(simRegistry{defs: []tools.Definition{{Name: "manage_lead_memory"}}}, nil, memories, nil)
 	uc, err := NewSimulateTurnUseCase(repo, assembler, aiSvc)
 	if err != nil {
 		t.Fatal(err)
@@ -355,7 +355,7 @@ func TestSimulateReportsGroundingCarriedByTheContextNote(t *testing.T) {
 	grounded := simAgent()
 	grounded.RAGEnabled = true
 	grounded.KnowledgeBaseIDs = []string{"kb-1"}
-	assembler := agentturn.New(simRegistry{defs: []tools.Definition{{Name: "manage_lead_memory"}}}, simRAG{}, nil)
+	assembler := agentturn.New(simRegistry{defs: []tools.Definition{{Name: "manage_lead_memory"}}}, simRAG{}, nil, nil)
 	uc, err := NewSimulateTurnUseCase(simAgentRepo{agent: grounded}, assembler, aiSvc)
 	if err != nil {
 		t.Fatal(err)

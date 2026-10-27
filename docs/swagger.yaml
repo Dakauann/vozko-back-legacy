@@ -496,26 +496,26 @@ definitions:
     type: object
   advertising.Destination:
     enum:
-    - WHATSAPP
-    - MESSENGER
-    - INSTAGRAM_DIRECT
     - WEBSITE
     - ON_AD
     - APP
     - ON_POST
     - NONE
     - CATALOG
+    - WHATSAPP
+    - MESSENGER
+    - INSTAGRAM_DIRECT
     type: string
     x-enum-varnames:
-    - DestinationWhatsApp
-    - DestinationMessenger
-    - DestinationInstagramDirect
     - DestinationWebsite
     - DestinationInstantForm
     - DestinationApp
     - DestinationOnPost
     - DestinationNone
     - DestinationCatalog
+    - DestinationWhatsApp
+    - DestinationMessenger
+    - DestinationInstagramDirect
   advertising.ExportLabels:
     properties:
       breakdowns:
@@ -806,7 +806,6 @@ definitions:
     - ObjectiveAppPromotion
   advertising.OptimizationGoal:
     enum:
-    - CONVERSATIONS
     - REACH
     - IMPRESSIONS
     - AD_RECALL_LIFT
@@ -820,9 +819,9 @@ definitions:
     - OFFSITE_CONVERSIONS
     - VALUE
     - APP_INSTALLS
+    - CONVERSATIONS
     type: string
     x-enum-varnames:
-    - GoalConversations
     - GoalReach
     - GoalImpressions
     - GoalAdRecallLift
@@ -836,6 +835,7 @@ definitions:
     - GoalOffsiteConversion
     - GoalValue
     - GoalAppInstalls
+    - GoalConversations
   advertising.Pixel:
     properties:
       creationTime:
@@ -4236,6 +4236,7 @@ definitions:
     type: object
   attendance.Section:
     enum:
+    - service_messages
     - summary
     - trend
     - stages
@@ -4243,9 +4244,9 @@ definitions:
     - team
     - rework
     - live
-    - service_messages
     type: string
     x-enum-varnames:
+    - SectionServiceMessages
     - SectionSummary
     - SectionTrend
     - SectionStages
@@ -4253,7 +4254,6 @@ definitions:
     - SectionTeam
     - SectionRework
     - SectionLive
-    - SectionServiceMessages
   attendance.ServiceMessageBucket:
     properties:
       bucket:
@@ -9906,6 +9906,11 @@ definitions:
       automationEnabled:
         type: boolean
     type: object
+  conversation.responsibleWorkflowResponse:
+    properties:
+      workflow:
+        $ref: '#/definitions/conversation_usecase.ResponsibleWorkflow'
+    type: object
   conversation_event.ConversationEvent:
     properties:
       actor_id:
@@ -10013,6 +10018,15 @@ definitions:
     - EventLeadSendRefused
     - EventAgentReplyWithheld
     - EventEmailForwardSkipped
+  conversation_usecase.ResponsibleWorkflow:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      state:
+        $ref: '#/definitions/workflow.RunningState'
+    type: object
   conversationnotehttp.CreateNoteRequest:
     properties:
       body:
@@ -13194,6 +13208,11 @@ definitions:
         - lead_email
         - conversation_link
         - origin
+        - message_sent_at
+        - message_sender
+        - message_direction
+        - message_text
+        - message_media_url
         example: input
         type: string
       type:
@@ -13401,6 +13420,8 @@ definitions:
         type: string
       tabName:
         type: string
+      takesMessages:
+        type: boolean
       timeZone:
         type: string
       title:
@@ -18159,6 +18180,16 @@ definitions:
       truncated:
         type: boolean
     type: object
+  personalinboxhttp.InboxPreferencesRequest:
+    properties:
+      hideGroups:
+        type: boolean
+    type: object
+  personalinboxhttp.InboxPreferencesResponse:
+    properties:
+      hideGroups:
+        type: boolean
+    type: object
   pipeline.CreatePipelineRequest:
     properties:
       copyStagesFromPipelineId:
@@ -18395,7 +18426,6 @@ definitions:
     type: object
   report.FailureCode:
     enum:
-    - forbidden
     - unknown_kind
     - unsupported_format
     - too_many_rows
@@ -18406,9 +18436,9 @@ definitions:
     - cancelled
     - workspace_required
     - empty_result
+    - forbidden
     type: string
     x-enum-varnames:
-    - FailureForbidden
     - FailureUnknownKind
     - FailureUnsupported
     - FailureTooManyRows
@@ -18419,6 +18449,7 @@ definitions:
     - FailureCancelled
     - FailureWorkspaceEmpty
     - FailureEmptyResult
+    - FailureForbidden
   report.Format:
     enum:
     - csv
@@ -18470,22 +18501,22 @@ definitions:
     type: object
   report.Kind:
     enum:
-    - leads
-    - whatsapp_dispatch
-    - whatsapp_form_responses
     - attendance_overview
     - conversation_entries
     - balance_transactions
     - opportunities
+    - leads
+    - whatsapp_dispatch
+    - whatsapp_form_responses
     type: string
     x-enum-varnames:
-    - KindLeads
-    - KindWhatsAppDispatch
-    - KindWhatsAppFormResponses
     - KindAttendanceOverview
     - KindConversationEntries
     - KindBalanceTransactions
     - KindOpportunities
+    - KindLeads
+    - KindWhatsAppDispatch
+    - KindWhatsAppFormResponses
   report.KindDescriptor:
     properties:
       formats:
@@ -18730,6 +18761,22 @@ definitions:
         example: 4f1c2a9e-8b7d-4e21-9a3f-2c6d5e8f1b0a
         type: string
     type: object
+  scheduledmessage.ScheduledByResponse:
+    properties:
+      id:
+        example: 4f1c2a9e-8b7d-4e21-9a3f-2c6d5e8f1b0a
+        type: string
+      kind:
+        enum:
+        - human
+        - ai
+        - workflow
+        example: ai
+        type: string
+      name:
+        example: Cobrança
+        type: string
+    type: object
   scheduledmessage.ScheduledMessageEnvelope:
     properties:
       scheduledMessage:
@@ -18748,6 +18795,12 @@ definitions:
     type: object
   scheduledmessage.ScheduledMessageResponse:
     properties:
+      cancelOnReply:
+        example: true
+        type: boolean
+      cancelReason:
+        example: contact_replied
+        type: string
       createdAt:
         type: string
       createdByUserId:
@@ -18773,6 +18826,8 @@ definitions:
         type: string
       scheduledAt:
         type: string
+      scheduledBy:
+        $ref: '#/definitions/scheduledmessage.ScheduledByResponse'
       sentAt:
         type: string
       sentMessageId:
@@ -24481,6 +24536,7 @@ definitions:
     - channel_paused
     - no_trigger
     - needs_message_trigger
+    - no_trunk
     type: string
     x-enum-varnames:
     - EntryBlockedNotPublished
@@ -24494,6 +24550,7 @@ definitions:
     - EntryBlockedChannelPaused
     - EntryBlockedNoTrigger
     - EntryBlockedNeedsMessageTrigger
+    - EntryBlockedNoTrunk
   workflow.EntryChannel:
     properties:
       bound:
@@ -24571,8 +24628,6 @@ definitions:
         items:
           $ref: '#/definitions/workflow.EntryAgent'
         type: array
-      anyForm:
-        type: boolean
       channels:
         items:
           $ref: '#/definitions/workflow.EntryChannel'
@@ -24751,6 +24806,8 @@ definitions:
     type: object
   workflow.LintIssueCode:
     enum:
+    - NODE_AGENT_CALL_INPUTS_INVALID
+    - NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER
     - GRAPH_EMPTY
     - GRAPH_TOO_MANY_NODES
     - GRAPH_TOO_MANY_EDGES
@@ -24799,16 +24856,16 @@ definitions:
     - NODE_CODE_READS_TEMPLATE
     - NODE_SECRET_IN_PLAIN_TEXT
     - NODE_PINNED_OUTPUT
+    - NODE_HTTP_URL_NOT_HTTPS
     - DATA_REF_NEVER_SET
     - DATA_REF_SOME_PATHS
     - SEND_OUTSIDE_WINDOW_RISK
-    - NODE_HTTP_URL_NOT_HTTPS
-    - NODE_CONSENT_GRANT_NEEDS_REPLY
-    - NODE_AGENT_CALL_INPUTS_INVALID
-    - NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER
     - NODE_INVALID_PLATFORM_EMAIL
+    - NODE_CONSENT_GRANT_NEEDS_REPLY
     type: string
     x-enum-varnames:
+    - LintAgentCallInputsInvalid
+    - LintReplyToAgentWithoutTrigger
     - LintGraphEmpty
     - LintGraphTooManyNodes
     - LintGraphTooManyEdges
@@ -24857,14 +24914,12 @@ definitions:
     - LintCodeReadsTemplate
     - LintSecretInPlainText
     - LintPinnedOutput
+    - LintHTTPURLNotHTTPS
     - LintDataRefNeverSet
     - LintDataRefSomePaths
     - LintSendOutsideWindowRisk
-    - LintHTTPURLNotHTTPS
-    - LintConsentGrantNeedsReply
-    - LintAgentCallInputsInvalid
-    - LintReplyToAgentWithoutTrigger
     - LintInvalidPlatformEmail
+    - LintConsentGrantNeedsReply
   workflow.LintSeverity:
     enum:
     - blocking
@@ -24958,6 +25013,7 @@ definitions:
     - action_reschedule_calendar_event
     - action_check_calendar_availability
     - action_add_sheet_row
+    - action_export_messages_sheet
     - action_assign_label
     - action_assign_member
     - action_transfer_department
@@ -24967,6 +25023,8 @@ definitions:
     - action_update_lead
     - action_consent
     - action_reply_to_agent
+    - action_schedule_message
+    - action_cancel_scheduled_messages
     - wait_duration
     - wait_for_reply
     - wait_schedule
@@ -25019,6 +25077,7 @@ definitions:
     - NodeTypeActionRescheduleCalendarEvent
     - NodeTypeActionCheckCalendarAvailability
     - NodeTypeActionAddSheetRow
+    - NodeTypeActionExportMessagesSheet
     - NodeTypeActionAssignLabel
     - NodeTypeActionAssignMember
     - NodeTypeActionTransferDepartment
@@ -25028,6 +25087,8 @@ definitions:
     - NodeTypeActionUpdateLead
     - NodeTypeActionConsent
     - NodeTypeActionReplyToAgent
+    - NodeTypeActionScheduleMessage
+    - NodeTypeActionCancelScheduledMessages
     - NodeTypeWaitDuration
     - NodeTypeWaitForReply
     - NodeTypeWaitSchedule
@@ -25059,6 +25120,27 @@ definitions:
         type: number
       "y":
         type: number
+    type: object
+  workflow.RunCondition:
+    properties:
+      hour:
+        type: integer
+      kind:
+        $ref: '#/definitions/workflow.EntryPointKind'
+      moreTargets:
+        type: integer
+      nodeId:
+        type: string
+      reason:
+        $ref: '#/definitions/workflow.EntryBlockReason'
+      scope:
+        $ref: '#/definitions/workflow.TriggerScope'
+      stage:
+        $ref: '#/definitions/workflow.RunTarget'
+      targets:
+        items:
+          $ref: '#/definitions/workflow.RunTarget'
+        type: array
     type: object
   workflow.RunDetail:
     properties:
@@ -25131,6 +25213,17 @@ definitions:
       workflowVersion:
         type: integer
     type: object
+  workflow.RunOverlap:
+    properties:
+      kind:
+        $ref: '#/definitions/workflow.EntryPointKind'
+      target:
+        $ref: '#/definitions/workflow.RunTarget'
+      workflows:
+        items:
+          $ref: '#/definitions/workflow.WorkflowRef'
+        type: array
+    type: object
   workflow.RunState:
     properties:
       vars:
@@ -25162,6 +25255,62 @@ definitions:
       total:
         type: integer
     type: object
+  workflow.RunSummary:
+    properties:
+      conditions:
+        items:
+          $ref: '#/definitions/workflow.RunCondition'
+        type: array
+      overlaps:
+        items:
+          $ref: '#/definitions/workflow.RunOverlap'
+        type: array
+      state:
+        $ref: '#/definitions/workflow.RunningState'
+    type: object
+  workflow.RunTarget:
+    properties:
+      button:
+        type: string
+      id:
+        type: string
+      kind:
+        $ref: '#/definitions/workflow.RunTargetKind'
+      language:
+        type: string
+      missing:
+        type: boolean
+      name:
+        type: string
+      "off":
+        type: boolean
+    type: object
+  workflow.RunTargetKind:
+    enum:
+    - form
+    - agent
+    - stage
+    - sip_trunk
+    - campaign_button
+    - template_button
+    type: string
+    x-enum-varnames:
+    - RunTargetForm
+    - RunTargetAgent
+    - RunTargetStage
+    - RunTargetSIPTrunk
+    - RunTargetCampaignButton
+    - RunTargetTemplateButton
+  workflow.RunningState:
+    enum:
+    - draft
+    - paused
+    - active
+    type: string
+    x-enum-varnames:
+    - RunningDraft
+    - RunningPaused
+    - RunningActive
   workflow.ScriptLog:
     properties:
       level:
@@ -25306,6 +25455,14 @@ definitions:
       windowEditable:
         type: boolean
     type: object
+  workflow.TriggerScope:
+    enum:
+    - conversation
+    - global
+    type: string
+    x-enum-varnames:
+    - TriggerScopeConversation
+    - TriggerScopeGlobal
   workflow.TriggerType:
     enum:
     - trigger_first_message
@@ -25519,6 +25676,8 @@ definitions:
         items:
           type: string
         type: array
+      runSummary:
+        $ref: '#/definitions/workflow.RunSummary'
       status:
         $ref: '#/definitions/workflow.WorkflowStatus'
       triggerConfig:
@@ -25533,6 +25692,13 @@ definitions:
       version:
         type: integer
       workspaceId:
+        type: string
+    type: object
+  workflow.WorkflowRef:
+    properties:
+      id:
+        type: string
+      name:
         type: string
     type: object
   workflow.WorkflowRun:
@@ -30254,7 +30420,7 @@ paths:
       consumes:
       - application/json
       description: |-
-        Cria uma instância de ferramenta. Tipos que aceitam várias instâncias (como Requisição HTTP) podem aparecer quantas vezes forem precisas, cada uma com seu nome, descrição e configuração. O nome da função é opcional: sem ele o backend propõe um a partir da descrição.
+        Cria uma instância de ferramenta. Tipos que aceitam várias instâncias (como Requisição HTTP) podem aparecer quantas vezes forem precisas, cada uma com seu nome, descrição e configuração. O nome da função é opcional: sem ele o backend propõe o nome do tipo, numerado quando o agente já tem outra instância (http_request, http_request_2).
 
         | Regra | Código |
         |---|---|
@@ -36837,11 +37003,62 @@ paths:
       summary: Enviar uma imagem para uma nota interna
       tags:
       - Notas Internas
+  /conversations/{entryType}/{entryId}/responsible-workflow:
+    get:
+      description: 'Informa o fluxo que responde por esta conversa, o mesmo que decide
+        os gatilhos Mensagem recebida, Primeira mensagem e Entrou na etapa: o fluxo
+        para o qual a conversa foi delegada ou, sem delegação, o fluxo do número,
+        conta ou campanha da conversa quando os fluxos estão ligados nele. workflow
+        é null quando nenhum fluxo responde (um agente de IA responde, os fluxos estão
+        desligados ou o fluxo não existe mais). state diz se o fluxo roda: active
+        (publicado e ativo), paused (publicado e pausado) ou draft (nunca publicado).
+        Só aparece para quem pode ver a conversa. Uma falha de leitura responde 500
+        responsible_workflow_failed, nunca um palpite.'
+      parameters:
+      - description: Tipo da entrada
+        in: path
+        name: entryType
+        required: true
+        type: string
+      - description: ID da entrada
+        in: path
+        name: entryId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/conversation.responsibleWorkflowResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: conversation_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: responsible_workflow_failed
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Fluxo responsável pela conversa
+      tags:
+      - Conversas
   /conversations/{entryType}/{entryId}/scheduled-messages:
     get:
       description: Lista as mensagens agendadas de uma conversa e o estado atual da
         janela de atendimento. Use o parâmetro `status` (separado por vírgula) para
-        filtrar.
+        filtrar. Cada mensagem diz quem a agendou em `scheduledBy` (uma pessoa, um
+        agente de IA ou um fluxo, com o nome); uma mensagem agendada por automação
+        com `cancelOnReply` é cancelada quando o contato responde antes do envio,
+        e `cancelReason` diz por que uma mensagem foi cancelada (person, automation,
+        contact_replied ou automation_stood_down, quando uma pessoa assumiu a conversa
+        antes do envio).
       parameters:
       - description: Tipo da entrada
         in: path
@@ -41031,6 +41248,74 @@ paths:
       summary: Ouvir música de espera pronta
       tags:
       - Filas de atendimento
+  /inbox/preferences:
+    get:
+      description: |-
+        Mostra as preferências de quem está logado na caixa de entrada do workspace do cabeçalho `X-Workspace-ID`. Cada pessoa só vê as próprias.
+
+        Os grupos de WhatsApp ficam sempre na aba Grupos, fora das abas e dos totais das conversas com clientes. Com `hideGroups` verdadeiro, a aba Grupos some para esta pessoa e as mensagens de grupo deixam de tocar som e de mostrar aviso na área de trabalho para ela. Sem preferência salva, ou quando ela não pode ser lida, vale o padrão `hideGroups: false`.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/personalinboxhttp.InboxPreferencesResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Preferências pessoais da caixa de entrada
+      tags:
+      - Conversas
+    put:
+      consumes:
+      - application/json
+      description: |-
+        Salva as preferências de quem está logado na caixa de entrada deste workspace. `hideGroups` é obrigatório: verdadeiro esconde a aba Grupos e silencia os avisos de mensagens de grupo só para esta pessoa; falso mostra a aba Grupos de novo. A mudança chega em `conversation:inbox_preferences` em todas as conexões da pessoa neste workspace e passa a valer na hora para a lista, a busca e os avisos.
+
+        Códigos: 400 `inbox_preferences_invalid`, 401 `unauthorized`, 403 `inbox_preferences_forbidden` (sem acesso ao atendimento), 500 `inbox_preferences_failed`.
+      parameters:
+      - description: preferências
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/personalinboxhttp.InboxPreferencesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/personalinboxhttp.InboxPreferencesResponse'
+        "400":
+          description: inbox_preferences_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: inbox_preferences_forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: inbox_preferences_failed
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Salvar as preferências pessoais da caixa de entrada
+      tags:
+      - Conversas
   /instagram/accounts:
     get:
       produces:
@@ -49638,7 +49923,8 @@ paths:
       - Visões Salvas
   /scheduled-messages:
     get:
-      description: Lista as mensagens agendadas de todo o workspace, com paginação.
+      description: Lista as mensagens agendadas de todo o workspace, com paginação,
+        incluindo as agendadas por agentes de IA e fluxos (`scheduledBy`).
       parameters:
       - description: Filtro de status separado por vírgula
         in: query
@@ -49670,8 +49956,9 @@ paths:
       - Mensagens Agendadas
   /scheduled-messages/{id}:
     delete:
-      description: Cancela uma mensagem ainda pendente. Uma mensagem já enviada não
-        pode ser cancelada — o cliente já a recebeu.
+      description: Cancela uma mensagem ainda pendente, inclusive uma agendada por
+        um agente de IA ou por um fluxo. Uma mensagem já enviada não pode ser cancelada,
+        porque o cliente já a recebeu.
       parameters:
       - description: ID da mensagem agendada
         in: path
@@ -59382,12 +59669,14 @@ paths:
     get:
       description: 'Lista paginada dos workflows do workspace (filtrada pelos departamentos
         de quem pede). Cada item traz entryPoints (as mesmas entradas do GET /workflows/{id}),
-        carregados para a página inteira num número fixo de consultas. entryKind filtra
-        no banco, antes da paginação (totalItems e totalPages contam só os que passam),
-        os fluxos que têm uma entrada desse tipo em entryPoints, pronta ou bloqueada:
-        um gatilho desse tipo na versão publicada (no rascunho quando nunca foi publicado)
-        ou, para webhook, agent_call e lead_exit, a ligação externa (webhook ativo,
-        agente ativo com Executar fluxo, saída do lead de campanha ou de template).'
+        carregados para a página inteira num número fixo de consultas. Cada item traz
+        também runSummary (o mesmo do GET /workflows/{id}), com os avisos de sobreposição
+        lidos uma única vez para a página. entryKind filtra no banco, antes da paginação
+        (totalItems e totalPages contam só os que passam), os fluxos que têm uma entrada
+        desse tipo em entryPoints, pronta ou bloqueada: um gatilho desse tipo na versão
+        publicada (no rascunho quando nunca foi publicado) ou, para webhook, agent_call
+        e lead_exit, a ligação externa (webhook ativo, agente ativo com Executar fluxo,
+        saída do lead de campanha ou de template).'
       parameters:
       - description: Página, a partir de 1
         in: query
@@ -60019,6 +60308,52 @@ paths:
                   $ref: '#/definitions/handlers.workflowNotPublishableDetails'
               type: object
       summary: Publicar o rascunho do workflow
+      tags:
+      - workflows
+  /workflows/{id}/publish-preview:
+    get:
+      description: 'Lê o rascunho salvo como se fosse publicado e ativado agora e
+        devolve o mesmo resumo de runSummary do GET /workflows: state é sempre active,
+        conditions traz uma condição por gatilho do rascunho (e as saídas do lead)
+        com kind, scope (conversation para Mensagem recebida, Primeira mensagem e
+        Entrou na etapa, que só disparam nas conversas pelas quais o fluxo responde;
+        global para os demais), o motivo quando a condição não roda (no_channel, channel_paused,
+        no_form, form_inactive, no_agent_bound, no_webhook, webhook_inactive, no_trunk,
+        needs_message_trigger) e os alvos com id e nome (números, contas e campanhas
+        ligados, formulários, agentes, a linha telefônica, os botões; off quando o
+        alvo está desligado e missing quando não existe mais). overlaps lista, para
+        os gatilhos globais que podem coincidir (formulário respondido, aniversário
+        e ligação na mesma linha), os OUTROS fluxos ativos da área de trabalho que
+        reagem ao mesmo evento. Salve o rascunho antes de pedir a prévia: a publicação
+        usa o rascunho salvo.'
+      parameters:
+      - description: ID do workflow
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflow.RunSummary'
+        "403":
+          description: 'workflow_access_denied: sem acesso ao departamento do workflow'
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: workflow_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: 'internal_error: as ligações do fluxo não puderam ser lidas'
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Prévia do que o fluxo vai rodar ao publicar
       tags:
       - workflows
   /workflows/{id}/runs:
@@ -62319,7 +62654,7 @@ paths:
         | `assign_to` | `conversations:assign` | `{"entry_id": string, "entry_type": string, "user_id": string}` | Sem resposta direta: você recebe `conversation:entry_update`. |
         | `request_funnel_column` | `conversations:read` | `{"stage_id": string, "page"?: number, "page_size"?: number}` | `conversation:funnel_column` |
         | `request_funnel_summary` | `conversations:read` | `{"stage_ids": string[]}` | `conversation:funnel_summary` |
-        | `switch_view` | | `{"campaign_id"?: string, "campaign_type"?: string, "whatsapp_campaign_type"?: "standard" \| "organic", "container_kind"?: "" \| "campaign", "conversation_status"?: "new" \| "ongoing" \| "finished"}` | `conversation:view_switched` e a primeira página em `conversation:inbox`. Cancela todas as inscrições em conversas. |
+        | `switch_view` | | `{"campaign_id"?: string, "campaign_type"?: string, "whatsapp_campaign_type"?: "standard" \| "organic", "container_kind"?: "" \| "campaign", "conversation_status"?: "new" \| "ongoing" \| "finished", "is_group"?: boolean}` | `conversation:view_switched` e a primeira página em `conversation:inbox`. Cancela todas as inscrições em conversas. Com `is_group: true` a lista é a aba Grupos (veja Grupos); sem ele, as conversas com clientes. |
         | `set_conversation_status` | `conversations:send` | `{"entry_id": string, "entry_type": string, "status": "ongoing" \| "finished", "outcome_code"?: string}` | Sem resposta direta: você recebe `conversation:conversation_status_update`. |
 
         `entry_type` é o canal da conversa: `whatsapp`, `unofficial_whatsapp`, `instagram`, `facebook` ou `telegram`.
@@ -62363,7 +62698,7 @@ paths:
 
         - `sort`: `recent` (padrão, a ordem de sempre: a mensagem mais recente primeiro) ou `waiting`: primeiro as conversas que esperam resposta (as que têm `waiting_since`), a que espera desde mais cedo no topo, depois as demais pela mais recente. É a mesma regra de `waiting_since`: conversa finalizada não espera. Outro valor responde `conversation:error` com `invalid_sort`.
         - `label_id`: só conversas com essa etiqueta. Um id ilegível responde `invalid_label`.
-        - `is_group`: `true`, só conversas de grupo (hoje, grupos do WhatsApp não oficial); `false`, só conversas com pessoas. Num canal sem grupos, `true` não traz nada.
+        - `is_group`: `true`, busca na aba Grupos (hoje, grupos do WhatsApp não oficial); `false`, nas conversas com clientes. Sem o campo, vale a aba da sua visão (`switch_view`). Num canal sem grupos, `true` não traz nada.
         - `personal`: sem valor, a sua caixa de entrada (as suas fixadas primeiro, todas as outras em seguida); `pinned`, só as que você fixou. Outro valor responde `invalid_personal`.
         - `origin`: só conversas com essa origem, pela primeira mensagem: `receptive` (o contato escreveu primeiro), `campaign` (começou por uma mensagem de campanha), `outreach` (a equipe, a IA ou um fluxo começou) ou `unknown` (remetente não registrado). Uma conversa ainda sem origem registrada só aparece sem o filtro. Vale também para os totais e a paginação. Outro valor responde `invalid_origin`. Cada `InboxEntry` traz a sua `origin` quando ela já está registrada.
         - Em qualquer `sort`, as conversas que você fixou vêm primeiro. `request_inbox_page`, a primeira página ao conectar e `switch_view` usam a sua caixa de entrada (sem `personal`) com `sort: "recent"`. As colunas do funil (`request_funnel_column`, `request_funnel_summary`) não usam marcas pessoais.
@@ -62376,6 +62711,13 @@ paths:
         - Abrir a conversa (`subscribe`) ou `mark_read` tira a sua marca de não lida. Para desfazer `mark_unread` use `clear_unread_mark`, que tira só a marca: `mark_read` marca as mensagens do contato como lidas e manda a confirmação de leitura a ele.
         - `conversation:inbox` e `conversation:search_results` trazem `personal_marks` com as suas marcas das conversas da página.
         - Os totais por status (`conversation_status_counts`) são da equipe: as suas marcas não os mudam.
+
+        ### Grupos
+
+        Os grupos de WhatsApp ficam sempre na aba Grupos, para todos: as conversas com clientes (a primeira página, `request_inbox_page`, `search_inbox`, as colunas do funil e os totais por status) nunca trazem grupos. A aba Grupos é `switch_view` com `is_group: true` e mostra todos os grupos, inclusive os finalizados; `conversation_status_counts` traz o total dela em `groups`.
+
+        - Cada pessoa pode esconder os grupos (PUT /inbox/preferences com `hideGroups: true`). Para ela, a aba Grupos e as buscas com `is_group: true` voltam vazias, e mensagens de grupo não chegam nem tocam aviso. A preferência chega em `conversation:inbox_preferences` logo depois de conectar e sempre que muda, em todas as suas conexões deste workspace. Quando ela não pode ser lida, vale o padrão: grupos visíveis na aba Grupos.
+        - Uma conversa sem a marca de grupo conta como conversa com cliente, para nada sumir por engano.
 
         Recusas de `pin_conversation`, `mark_unread` e `clear_unread_mark` chegam em `conversation:error` com `request_id`, `entry_id`, `entry_type` e o código: `not_allowed` (sem `conversations:read` ou sem acesso à conversa), `invalid` (falta `entry_id`, `entry_type` ou `pinned`), `unsupported` (servidor sem marcas pessoais) ou `failed` (não foi possível gravar).
 
@@ -62399,7 +62741,8 @@ paths:
         | `conversation:window_reopened` | `{"entry_id", "entry_type", "request_id"?, "template_id", "message_id"}` |
         | `conversation:funnel_column` | `{"stage_id", "entries": InboxEntry[], "page", "page_size", "total_items", "total_pages"}` |
         | `conversation:funnel_summary` | `{"columns": [{"stage_id": string, "total_items": number}]}` |
-        | `conversation:view_switched` | `{"view_mode": "global" \| "campaign", "campaign_id"?, "campaign_type"?, "whatsapp_campaign_type"?, "container_kind"?, "conversation_status"?}` |
+        | `conversation:view_switched` | `{"view_mode": "global" \| "campaign", "campaign_id"?, "campaign_type"?, "whatsapp_campaign_type"?, "container_kind"?, "conversation_status"?, "is_group"?: boolean}`. `is_group: true`: a visão é a aba Grupos. |
+        | `conversation:inbox_preferences` | `{"hide_groups": boolean}`. As suas preferências da caixa de entrada neste workspace: chega logo depois de conectar e sempre que mudam (em qualquer servidor). Com `hide_groups: true`, esconda a aba Grupos. |
         | `conversation:connected_users` | `{"users": [{"user_id", "workspace_id", "campaign_id", "campaign_type", "campaign_name"?, "view_mode", "username"?, "email"?, "connected_at"}]}`. Também chega sozinho quando alguém entra, sai ou troca de visão. Você só vê colegas dos seus departamentos, salvo se tiver acesso a todo o workspace. |
         | `conversation:message_error` | `{"request_id", "entry_id", "entry_type", "error": string, "code"?: string}`. Falha de `send`, `send_button` ou do envio de `resend_message`. |
         | `conversation:error` | Veja Erros. |
@@ -62429,9 +62772,9 @@ paths:
 
         | type | payload | Quando |
         |---|---|---|
-        | `conversation:entry_update` | `{"entry": InboxEntry, "silent"?: boolean, "alert"?: boolean}` | Nova mensagem, envio, troca de responsável, status ou etapa. `silent: true` indica atualização sem novidade para o atendente. `alert: true` só vem numa mensagem nova do cliente e só para quem deve ser avisado: o responsável humano; ninguém quando um agente ou fluxo é o responsável ou quando a distribuição automática vai entregar a conversa; na fila manual, quem pode pegá-la. Toque o som e mostre o aviso só quando `alert` vier. |
+        | `conversation:entry_update` | `{"entry": InboxEntry, "silent"?: boolean, "alert"?: boolean, "unlisted"?: boolean}` | Nova mensagem, envio, troca de responsável, status ou etapa. `silent: true` indica atualização sem novidade para o atendente. `alert: true` só vem numa mensagem nova do cliente e só para quem deve ser avisado: o responsável humano; ninguém quando um agente ou fluxo é o responsável ou quando a distribuição automática vai entregar a conversa; na fila manual, quem pode pegá-la. Toque o som e mostre o aviso só quando `alert` vier. `unlisted: true` vem com `alert` quando a conversa é de outra aba (um grupo enquanto você vê os clientes, ou o contrário): avise, mas não ponha a conversa na lista atual. Quem escondeu os grupos não recebe nada de grupos. |
         | `conversation:assigned_to_you` | `{"entry": InboxEntry, "assigned_at": string}` | Uma conversa passou a ser sua pela distribuição automática, por um colega, por uma transferência ou por um agente ou fluxo. Não chega quando você mesmo a pega. Chega uma vez por atribuição, em todas as suas conexões deste workspace. |
-        | `conversation:conversation_status_counts_update` | `{"counts": {"new": number, "ongoing": number, "finished": number}}` | Os totais por status mudaram. |
+        | `conversation:conversation_status_counts_update` | `{"counts": {"new": number, "ongoing": number, "finished": number, "groups"?: number}}` | Os totais por status mudaram. `new`, `ongoing` e `finished` contam só conversas com clientes; `groups` conta todos os grupos (a aba Grupos) e só vem quando a visão inclui um canal com grupos. |
         | `conversation:stage_update` | `{"entry_id", "entry_type", "stage": Stage \| null}` | A etapa da conversa mudou. |
         | `conversation:label_update` | `{"entry_id", "entry_type", "labels": Label[]}` | As etiquetas mudaram. |
         | `conversation:entry_removed` | `{"entry_id", "entry_type", "reason": "assigned"}` | A conversa foi para outra pessoa e você não a vê mais. |

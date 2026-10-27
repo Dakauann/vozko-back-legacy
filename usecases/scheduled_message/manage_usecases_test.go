@@ -37,7 +37,7 @@ func newManageFixture(t *testing.T) *manageFixture {
 	if f.reschedule, err = NewRescheduleUseCase(f.repo, f.windows, f.wake, f.clock); err != nil {
 		t.Fatalf("NewRescheduleUseCase: %v", err)
 	}
-	if f.list, err = NewListUseCase(f.repo, f.windows, f.clock); err != nil {
+	if f.list, err = NewListUseCase(f.repo, f.windows, f.clock, fakeNames{}); err != nil {
 		t.Fatalf("NewListUseCase: %v", err)
 	}
 	return f

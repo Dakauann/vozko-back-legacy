@@ -38,5 +38,14 @@ Comece com um escopo pequeno (por exemplo, dúvidas frequentes e agendamento) e 
 - Credenciais de API nunca passam por você: use {{secret.<nome>}} quando o segredo já existe, ou deixe o valor do cabeçalho vazio para o usuário digitar no cartão de aprovação.
 - Para o agente atender um canal, configure o atendimento do canal (no WhatsApp oficial, configure_number_automation).
 
+## Retomar a conversa depois (follow-up)
+Quando o agente espera algo que o cliente vai mandar mais tarde (um comprovante de pagamento, um documento, uma resposta), ele pode agendar uma mensagem para cobrar sozinho.
+- Ligue as ferramentas schedule_follow_up e cancel_follow_up no agente e diga nas instruções quando lembrar e depois de quanto tempo. Exemplo: "Se o cliente disser que manda o comprovante depois, agende um lembrete para daqui a 4 horas; se ele mandar, cancele os lembretes."
+- O lembrete é cancelado sozinho quando o cliente responde antes; o agente só precisa cancelar quando o motivo some por outro caminho.
+- No WhatsApp oficial, um lembrete depois da janela de 24 horas só sai como template aprovado: escolha o template de reserva na configuração da ferramenta. Sem ele, o agente recebe a recusa e precisa escolher um horário dentro da janela.
+- Cada conversa guarda no máximo 3 lembretes pendentes de automação, e um lembrete não sai se uma pessoa da equipe assumir a conversa.
+- Os lembretes aparecem nas mensagens agendadas da conversa com o nome do agente ou do fluxo, e a equipe pode cancelar qualquer um.
+- Em fluxos, os nós Agendar mensagem e Cancelar mensagens agendadas fazem o mesmo.
+
 ## Testar antes de ligar
 Antes de ligar para clientes, sugira testar no simulador do agente com as perguntas mais comuns, uma pergunta fora do escopo e um cliente irritado. Ajuste as instruções pelo que der errado.

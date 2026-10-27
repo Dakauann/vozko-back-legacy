@@ -59,6 +59,7 @@ import (
 	"vozko/delivery/http/notificationhttp"
 	opportunityhttp "vozko/delivery/http/opportunity"
 	opportunityboardhttp "vozko/delivery/http/opportunityboard"
+	"vozko/delivery/http/personalinboxhttp"
 	pipelinehttp "vozko/delivery/http/pipeline"
 	readmehttp "vozko/delivery/http/readme"
 	reporthttp "vozko/delivery/http/report"
@@ -189,6 +190,7 @@ type router struct {
 	campaignDrafts                 CampaignDraftRoutes
 	agentRoutes                    AgentRoutes
 	planDuplicateHandler           *handlers.WorkspacePlanDuplicateHandler
+	inboxPreferencesHandler        *personalinboxhttp.Handler
 	google                         GoogleRoutes
 	apiKeys                        APIKeyRoutes
 	choiceStatsHandler             *choicestatshttp.Handler
@@ -372,9 +374,11 @@ func NewRouter(
 	campaignDrafts CampaignDraftRoutes,
 	agentRoutes AgentRoutes,
 	planDuplicateHandler *handlers.WorkspacePlanDuplicateHandler,
+	inboxPreferencesHandler *personalinboxhttp.Handler,
 ) Router {
 	r := &router{
 		planDuplicateHandler:           planDuplicateHandler,
+		inboxPreferencesHandler:        inboxPreferencesHandler,
 		campaignDrafts:                 campaignDrafts,
 		agentRoutes:                    agentRoutes,
 		workflowRunExportHandler:       workflowRunExportHandler,
@@ -581,6 +585,7 @@ func (r *router) setupRoutes() {
 	templatehealthhttp.RegisterProtectedRoutes(protected, r.templateHealthHandler, r.ac)
 	campaignlaunchhttp.RegisterProtectedRoutes(protected, r.campaignLaunchHandler, r.ac)
 	notificationhttp.RegisterProtectedRoutes(protected, r.notificationHandler)
+	personalinboxhttp.RegisterProtectedRoutes(protected, r.inboxPreferencesHandler)
 	r.setupUnofficialWhatsAppRoutes(protected)
 	r.setupWhatsAppOutreachRoutes(protected)
 	r.setupWABARoutes(protected)
@@ -1132,6 +1137,7 @@ func (r *router) setupWorkflowRoutes(protected *mux.Router) {
 	protected.HandleFunc("/workflows/{id}/activate", r.ac(wf, workspace_domain.ActionUpdate, r.workflowHandler.Activate)).Methods(http.MethodPost)
 	protected.HandleFunc("/workflows/{id}/pause", r.ac(wf, workspace_domain.ActionUpdate, r.workflowHandler.Pause)).Methods(http.MethodPost)
 	protected.HandleFunc("/workflows/{id}/publish", r.ac(wf, workspace_domain.ActionUpdate, r.workflowHandler.Publish)).Methods(http.MethodPost)
+	protected.HandleFunc("/workflows/{id}/publish-preview", r.ac(wf, workspace_domain.ActionRead, r.workflowHandler.PublishPreview)).Methods(http.MethodGet)
 	protected.HandleFunc("/workflows/{id}/versions", r.ac(wf, workspace_domain.ActionRead, r.workflowHandler.ListVersions)).Methods(http.MethodGet)
 	protected.HandleFunc("/workflows/{id}/versions/{version}", r.ac(wf, workspace_domain.ActionRead, r.workflowHandler.GetVersion)).Methods(http.MethodGet)
 	protected.HandleFunc("/workflows/{id}/versions/{version}/restore", r.ac(wf, workspace_domain.ActionUpdate, r.workflowHandler.RestoreVersion)).Methods(http.MethodPost)

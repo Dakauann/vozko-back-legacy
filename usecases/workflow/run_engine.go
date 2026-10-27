@@ -551,6 +551,10 @@ func (e *RunEngine) execute(run *workflow.WorkflowRun, w *workflow.Workflow, run
 			e.scheduleWake(run, node, result.Wait.WakeAt)
 			return nil
 		case verdictPathEnded:
+			if agentID, back := workflow.ExecuteToolReturn(&w.Graph, &run.State); back {
+				nextNodeID = agentID
+				break
+			}
 			e.writeStep(run, ran)
 			run.SetCompleted()
 			return e.save(run)

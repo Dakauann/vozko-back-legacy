@@ -41,7 +41,7 @@ func stageAddedTriggerDefinition() NodeDefinition {
 		TestBehavior:  NodeTestTrigger,
 		Scopes:        []NodeScope{NodeScopeWhatsApp},
 		Label:         "Entrou na etapa",
-		Description:   "Dispara quando a conversa entra em uma etapa do funil.",
+		Description:   "Dispara quando uma conversa deste fluxo entra em uma etapa do funil.",
 		Icon:          "Kanban",
 		DefaultConfig: map[string]interface{}{DataKeyStageID: ""},
 		ConfigSchema: []ConfigField{
@@ -53,6 +53,7 @@ func stageAddedTriggerDefinition() NodeDefinition {
 		Guidance: NodeGuidance{
 			When: "Para agir quando a conversa muda de etapa no funil, por exemplo avisar a equipe ou mandar um template de acompanhamento.",
 			Behavior: "Disponibiliza {{stage_id}}. Sem etapa escolhida, dispara para qualquer etapa. Vale para toda entrada em etapa: CRM, inbox, Elo, agente de IA, outro fluxo e a etapa inicial de uma conversa nova. " +
+				"Só dispara nas conversas pelas quais este fluxo responde: as dos números, contas e campanhas que usam este fluxo, ou conversas delegadas a ele; outro fluxo com a mesma etapa não dispara junto. " +
 				"Uma etapa mudada por este mesmo fluxo não o inicia de novo, e uma sequência de fluxos movendo a conversa para depois de " + strconv.Itoa(MaxStageChain) + " fluxos seguidos. " +
 				"Enquanto este fluxo está em execução na conversa, uma nova mudança de etapa não inicia outra execução. A conversa pode estar fora da janela de atendimento: comece com um template.",
 		},

@@ -31,7 +31,6 @@ type prepared struct {
 	binding agent.ToolBinding
 	def     tools.Definition
 	current *agent.ToolBinding
-	typed   string
 }
 
 func PrepareSet(rules SetRules, current, next []agent.ToolBinding) ([]agent.ToolBinding, error) {
@@ -72,7 +71,7 @@ func matchIdentities(rules SetRules, current, next []agent.ToolBinding) ([]*prep
 			}
 			b.Config = normalized
 		}
-		item := &prepared{binding: b, def: def, typed: b.Description}
+		item := &prepared{binding: b, def: def}
 		if b.ID != "" {
 			i, found := byID[b.ID]
 			if !found || used[i] || !strings.EqualFold(current[i].Name, def.Name) {
@@ -177,7 +176,7 @@ func assignNames(rules SetRules, items []*prepared) error {
 		}
 		name := item.def.LegacyName(item.binding.Config)
 		if !item.def.Instances.IsPerTarget() || name == "" || taken(name) {
-			name = ProposeName(item.def.Name, item.typed, taken)
+			name = ProposeName(item.def.Name, taken)
 		}
 		if err := claim(item, name); err != nil {
 			return err

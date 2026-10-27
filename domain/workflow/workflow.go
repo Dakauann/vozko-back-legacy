@@ -104,6 +104,7 @@ const (
 	NodeTypeActionRescheduleCalendarEvent   NodeType = "action_reschedule_calendar_event"
 	NodeTypeActionCheckCalendarAvailability NodeType = "action_check_calendar_availability"
 	NodeTypeActionAddSheetRow               NodeType = "action_add_sheet_row"
+	NodeTypeActionExportMessagesSheet       NodeType = "action_export_messages_sheet"
 	NodeTypeActionAssignLabel               NodeType = "action_assign_label"
 	NodeTypeActionAssignMember              NodeType = "action_assign_member"
 	NodeTypeActionTransferDepartment        NodeType = "action_transfer_department"
@@ -113,6 +114,8 @@ const (
 	NodeTypeActionUpdateLead                NodeType = "action_update_lead"
 	NodeTypeActionConsent                   NodeType = "action_consent"
 	NodeTypeActionReplyToAgent              NodeType = "action_reply_to_agent"
+	NodeTypeActionScheduleMessage           NodeType = "action_schedule_message"
+	NodeTypeActionCancelScheduledMessages   NodeType = "action_cancel_scheduled_messages"
 
 	NodeTypeWaitDuration              NodeType = "wait_duration"
 	NodeTypeWaitForReply              NodeType = "wait_for_reply"
@@ -152,7 +155,7 @@ func (n NodeType) Valid() bool {
 		NodeTypeActionRunWorkflow, NodeTypeActionLoop,
 		NodeTypeActionGetCurrentTime,
 		NodeTypeActionCheckCalendarAvailability,
-		NodeTypeActionAddSheetRow,
+		NodeTypeActionAddSheetRow, NodeTypeActionExportMessagesSheet,
 		NodeTypeWaitDuration, NodeTypeWaitForReply,
 		NodeTypeWaitSchedule,
 		NodeTypeConditionBranch, NodeTypeConditionAIClassfy,
@@ -166,6 +169,8 @@ func (n NodeType) Valid() bool {
 		NodeTypeActionUpdateLead,
 		NodeTypeActionConsent,
 		NodeTypeActionReplyToAgent,
+		NodeTypeActionScheduleMessage,
+		NodeTypeActionCancelScheduledMessages,
 		NodeTypeConditionCheckLabel,
 		NodeTypeConditionCheckStage,
 		NodeTypeConditionCheckOpportunity,
@@ -373,6 +378,7 @@ type Workflow struct {
 	GraphVersion          *int       `json:"-"`
 
 	EntryPoints []EntryPoint `json:"entryPoints,omitempty"`
+	RunSummary  *RunSummary  `json:"runSummary,omitempty"`
 
 	Handles map[string][]HandleDefinition `json:"handles,omitempty"`
 }

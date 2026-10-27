@@ -650,8 +650,8 @@ func (h *ConversationHub) broadcastEntryUpdateLocal(entryID, entryType string, c
 
 	for _, connIDs := range h.userConnections {
 		for connID := range connIDs {
-			if conn, exists := h.connections[connID]; exists && h.entryUpdateReaches(update, allowEntry, conn) {
-				h.deliverEntryUpdate(conn, update, attention.Alerts(conn.UserID))
+			if conn, exists := h.connections[connID]; exists {
+				h.deliverEntryUpdate(conn, update, h.entryUpdateReach(update, allowEntry, conn), attention.Alerts(conn.UserID))
 			}
 		}
 	}
@@ -932,6 +932,7 @@ func (h *ConversationHub) handleRegister(conn *WSConnection) {
 
 	view := inboxViewOf(conn)
 	go func() {
+		view := h.loadInboxPreferences(conn, view)
 		payload, err := h.loadInboxPage(view, 1, conversation.DefaultInboxPageSize)
 		if err != nil {
 			log.Printf("[ConversationHub] Error getting inbox for user %s: %v", view.userID, err)
@@ -2137,7 +2138,7 @@ func (h *ConversationHub) handleSearchInbox(conn *WSConnection, payload json.Raw
 			MessageSearch:         p.MessageSearch,
 			WindowOpen:            p.WindowOpen,
 			HasUnread:             p.HasUnread,
-			IsGroup:               p.IsGroup,
+			Groups:                conn.groupScope(p.IsGroup),
 			Channel:               p.Channel,
 			DateFrom:              dateFrom,
 			DateTo:                dateTo,
@@ -2285,6 +2286,7 @@ func (h *ConversationHub) handleSwitchView(conn *WSConnection, payload json.RawM
 	}
 
 	conn.ConversationStatus = p.ConversationStatus
+	conn.GroupsView = p.IsGroup
 
 	h.sendToConnection(conn, &WSOutgoingMessage{
 		Type: WSEventViewSwitched,
@@ -2295,6 +2297,7 @@ func (h *ConversationHub) handleSwitchView(conn *WSConnection, payload json.RawM
 			ContainerKind:        conn.ContainerKind,
 			ViewMode:             conn.ViewMode,
 			ConversationStatus:   conn.ConversationStatus,
+			IsGroup:              conn.GroupsView,
 		},
 	})
 
@@ -3104,6 +3107,8 @@ func (h *ConversationHub) deliverWorkspaceBroadcast(p redisWorkspaceBroadcast) {
 		h.deliverLeadUpdate(p.WorkspaceID, p.Payload)
 	case notificationCreatedBroadcastType, personalMarkBroadcastType, teamChatBroadcastType, assignedToYouBroadcastType:
 		h.sendToUsers(p.WorkspaceID, p.UserIDs, p.Payload)
+	case inboxPreferencesBroadcastType:
+		h.applyRelayedInboxPreferences(p.WorkspaceID, p.UserIDs, p.Payload)
 	}
 }
 

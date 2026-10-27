@@ -519,6 +519,20 @@ func (s *HistoryProviderService) GetHistoryAfter(entryID string, entryType share
 	return messages, hasAfter, nil
 }
 
+func (s *HistoryProviderService) MessagesSince(entryID string, entryType shared.EntryType, since conversation.MessageKeyset, limit int) ([]*conversation.Message, error) {
+	messages, err := s.messageRepo.ListByEntryPaginated(conversation.ListMessagesInput{
+		EntryID:   entryID,
+		EntryType: entryType,
+		Limit:     limit,
+		Since:     &since,
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.present(entryID, entryType, messages)
+	return messages, nil
+}
+
 func (s *HistoryProviderService) GetHistoryAround(entryID string, entryType shared.EntryType, around time.Time, limit int) ([]*conversation.Message, bool, bool, int64, error) {
 	limit = conversation.HistoryPageSize(limit)
 
@@ -916,7 +930,7 @@ func entrySearchOf(input conversation.SearchInboxInput) (conversation.SearchEntr
 		MinMessageCount:        input.MinMessageCount,
 		MaxMessageCount:        input.MaxMessageCount,
 		HasUnread:              input.HasUnread,
-		IsGroup:                input.IsGroup,
+		Groups:                 input.Groups,
 		WindowOpen:             input.WindowOpen,
 		Channel:                input.Channel,
 		DateFrom:               input.DateFrom,
@@ -1651,15 +1665,15 @@ func NewMessageSenderService(
 func (s *MessageSenderService) SendTextMessage(entryID, entryType, text string, origin conversation.SendOrigin) (*conversation.Message, error) {
 	if adapter := s.adapterFor(entryType); adapter != nil {
 		replyProviderID := s.resolveProviderMessageID(origin.ReplyToMessageID)
-		return s.sendViaAdapter(adapter, entryID, entryType, conversation.SentByPerson(origin.SenderUserID), origin,
+		return s.sendViaAdapter(adapter, entryID, entryType, origin.Author(), origin,
 			func(ec *conversation.EntryContext) (*conversation.SendOutcome, error) {
 				return adapter.SendText(context.Background(), ec, conversation.SendTextRequest{
-					HumanInitiated:           true,
+					HumanInitiated:           origin.ByPerson(),
 					Body:                     text,
 					ReplyToProviderMessageID: replyProviderID,
 				})
 			},
-			conversation.MessageTypeOperator, text, "", "")
+			origin.MessageType(), text, "", "")
 	}
 
 	leadID, leadNumber, businessPhoneID, err := s.getEntryInfo(entryID, entryType)
@@ -2076,25 +2090,28 @@ func (s *MessageSenderService) SendButtonMessage(entryID, entryType string, inpu
 
 func officialOperatorMessage(entryID, entryType, leadNumber, providerMessageID, text string, origin conversation.SendOrigin) *conversation.Message {
 	now := time.Now().UTC()
-	author := origin.SenderUserID
+	sentBy := origin.Author()
+	author := sentBy.Participant()
 	message := &conversation.Message{
-		SentBy:            conversation.SentByPerson(author),
+		SentBy:            sentBy,
 		ID:                uuid.NewString(),
 		EntryID:           entryID,
 		EntryType:         shared.EntryType(entryType),
 		Channel:           conversation.MessageChannelWhatsApp,
-		MessageType:       conversation.MessageTypeOperator,
+		MessageType:       origin.MessageType(),
 		From:              author,
 		To:                leadNumber,
 		Text:              text,
 		Read:              true,
 		ReadAt:            &now,
-		ReadBy:            &author,
 		WhatsAppMessageID: &providerMessageID,
 		DeliveryStatus:    conversation.DeliveryStatusSent,
 		ClientRequestID:   origin.ClientRequestID,
 		CreatedAt:         now,
 		UpdatedAt:         now,
+	}
+	if origin.ByPerson() {
+		message.ReadBy = &author
 	}
 	if origin.ReplyToMessageID != "" {
 		replyTo := origin.ReplyToMessageID

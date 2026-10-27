@@ -14,7 +14,7 @@ type ColumnRequest struct {
 	Options     []string `json:"options,omitempty"`
 	Required    bool     `json:"required"`
 	Instruction string   `json:"instruction,omitempty" example:"Nome completo como o cliente informou"`
-	Source      string   `json:"source,omitempty" example:"input" enums:"input,written_at,lead_name,lead_phone,lead_email,conversation_link,origin"`
+	Source      string   `json:"source,omitempty" example:"input" enums:"input,written_at,lead_name,lead_phone,lead_email,conversation_link,origin,message_sent_at,message_sender,message_direction,message_text,message_media_url"`
 }
 
 func (c ColumnRequest) input() googlesheet.ColumnInput {
@@ -117,6 +117,7 @@ type SheetResponse struct {
 	ReasonDetail  string           `json:"reasonDetail,omitempty"`
 	Version       int              `json:"version"`
 	Columns       []ColumnResponse `json:"columns"`
+	TakesMessages bool             `json:"takesMessages"`
 	CreatedAt     time.Time        `json:"createdAt"`
 	UpdatedAt     time.Time        `json:"updatedAt"`
 	LastWrittenAt *time.Time       `json:"lastWrittenAt,omitempty"`
@@ -133,7 +134,7 @@ func toSheetResponse(s *googlesheet.Sheet) SheetResponse {
 	return SheetResponse{
 		ID: s.ID, Title: s.Title, TabName: s.TabName, Description: s.Description, TimeZone: s.TimeZone, URL: s.URL(),
 		Status: string(s.Status), Reason: string(s.Reason), ReasonDetail: s.ReasonDetail, Version: s.Version,
-		Columns: columns, CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, LastWrittenAt: s.LastWrittenAt,
+		Columns: columns, TakesMessages: s.HasMessageColumns(), CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, LastWrittenAt: s.LastWrittenAt,
 	}
 }
 

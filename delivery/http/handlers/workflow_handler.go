@@ -206,8 +206,28 @@ func (h *WorkflowHandler) Get(w http.ResponseWriter, r *http.Request) {
 	response.WriteSuccess(w, http.StatusOK, wf)
 }
 
+// @Summary Prévia do que o fluxo vai rodar ao publicar
+// @Description Lê o rascunho salvo como se fosse publicado e ativado agora e devolve o mesmo resumo de runSummary do GET /workflows: state é sempre active, conditions traz uma condição por gatilho do rascunho (e as saídas do lead) com kind, scope (conversation para Mensagem recebida, Primeira mensagem e Entrou na etapa, que só disparam nas conversas pelas quais o fluxo responde; global para os demais), o motivo quando a condição não roda (no_channel, channel_paused, no_form, form_inactive, no_agent_bound, no_webhook, webhook_inactive, no_trunk, needs_message_trigger) e os alvos com id e nome (números, contas e campanhas ligados, formulários, agentes, a linha telefônica, os botões; off quando o alvo está desligado e missing quando não existe mais). overlaps lista, para os gatilhos globais que podem coincidir (formulário respondido, aniversário e ligação na mesma linha), os OUTROS fluxos ativos da área de trabalho que reagem ao mesmo evento. Salve o rascunho antes de pedir a prévia: a publicação usa o rascunho salvo.
+// @Tags workflows
+// @Produce json
+// @Param id path string true "ID do workflow"
+// @Success 200 {object} workflow.RunSummary
+// @Failure 403 {object} response.ErrorResponse "workflow_access_denied: sem acesso ao departamento do workflow"
+// @Failure 404 {object} response.ErrorResponse "workflow_not_found"
+// @Failure 500 {object} response.ErrorResponse "internal_error: as ligações do fluxo não puderam ser lidas"
+// @Security BearerAuth
+// @Router /workflows/{id}/publish-preview [get]
+func (h *WorkflowHandler) PublishPreview(w http.ResponseWriter, r *http.Request) {
+	preview, err := h.workflows.PublishPreview(workflowScope(r), mux.Vars(r)["id"])
+	if err != nil {
+		h.handleDomainError(w, err)
+		return
+	}
+	response.WriteSuccess(w, http.StatusOK, preview)
+}
+
 // @Summary Listar os workflows
-// @Description Lista paginada dos workflows do workspace (filtrada pelos departamentos de quem pede). Cada item traz entryPoints (as mesmas entradas do GET /workflows/{id}), carregados para a página inteira num número fixo de consultas. entryKind filtra no banco, antes da paginação (totalItems e totalPages contam só os que passam), os fluxos que têm uma entrada desse tipo em entryPoints, pronta ou bloqueada: um gatilho desse tipo na versão publicada (no rascunho quando nunca foi publicado) ou, para webhook, agent_call e lead_exit, a ligação externa (webhook ativo, agente ativo com Executar fluxo, saída do lead de campanha ou de template).
+// @Description Lista paginada dos workflows do workspace (filtrada pelos departamentos de quem pede). Cada item traz entryPoints (as mesmas entradas do GET /workflows/{id}), carregados para a página inteira num número fixo de consultas. Cada item traz também runSummary (o mesmo do GET /workflows/{id}), com os avisos de sobreposição lidos uma única vez para a página. entryKind filtra no banco, antes da paginação (totalItems e totalPages contam só os que passam), os fluxos que têm uma entrada desse tipo em entryPoints, pronta ou bloqueada: um gatilho desse tipo na versão publicada (no rascunho quando nunca foi publicado) ou, para webhook, agent_call e lead_exit, a ligação externa (webhook ativo, agente ativo com Executar fluxo, saída do lead de campanha ou de template).
 // @Tags workflows
 // @Produce json
 // @Param page query int false "Página, a partir de 1"

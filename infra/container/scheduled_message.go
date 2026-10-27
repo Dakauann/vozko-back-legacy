@@ -5,6 +5,7 @@ import (
 
 	scheduled_message_domain "vozko/domain/scheduled_message"
 	whatsapp_outreach_domain "vozko/domain/whatsapp_outreach"
+	conversation_usecase "vozko/usecases/conversation"
 	scheduled_message_usecase "vozko/usecases/scheduled_message"
 	workspace_usecase "vozko/usecases/workspace"
 )
@@ -19,6 +20,7 @@ type scheduledMessageUseCases struct {
 	consume    scheduled_message_domain.ConsumeFireUseCase
 	sweep      scheduled_message_domain.SweepJob
 	purge      scheduled_message_domain.PurgeJob
+	followUps  scheduled_message_domain.FollowUpUseCase
 }
 
 func (c *Container) buildScheduledMessages(templates whatsapp_outreach_domain.ConversationTemplateUseCase) scheduledMessageUseCases {
@@ -45,13 +47,46 @@ func (c *Container) buildScheduledMessages(templates whatsapp_outreach_domain.Co
 		log.Fatalf("[container] scheduled messages: %v", err)
 	}
 	built.person = scheduled_message_usecase.NewPersonSchedulerUseCase(c.services.conversationAuth, permissions, repo, built.schedule, built.reschedule, built.cancel)
-	if built.list, err = scheduled_message_usecase.NewListUseCase(repo, windows, clock); err != nil {
+	if built.list, err = scheduled_message_usecase.NewListUseCase(repo, windows, clock, c.actorNames()); err != nil {
 		log.Fatalf("[container] scheduled messages: %v", err)
 	}
 
-	if built.dispatch, err = scheduled_message_usecase.NewDispatchUseCase(
-		repo, windows, c.services.liveOperatorSend, templates, permissions, c.services.messageArrivals, clock,
-	); err != nil {
+	automationSend, err := conversation_usecase.NewAutomationSend(conversation_usecase.AutomationSendDeps{
+		Sender:     c.services.messageSender,
+		Billing:    c.services.serviceMessageBilling,
+		EntryLeads: c.repositories.lead,
+		Leads:      c.repositories.lead,
+	})
+	if err != nil {
+		log.Fatalf("[container] scheduled messages: %v", err)
+	}
+	if built.dispatch, err = scheduled_message_usecase.NewDispatchUseCase(scheduled_message_usecase.DispatchDeps{
+		Repo:           repo,
+		Windows:        windows,
+		Send:           c.services.liveOperatorSend,
+		AutomationSend: automationSend,
+		Templates:      templates,
+		Permissions:    permissions,
+		Gate:           c.services.automationGate,
+		Broadcaster:    c.services.messageArrivals,
+		Clock:          clock,
+	}); err != nil {
+		log.Fatalf("[container] scheduled messages: %v", err)
+	}
+
+	followUps, err := scheduled_message_usecase.NewFollowUps(scheduled_message_usecase.FollowUpsDeps{
+		Repo:     repo,
+		Schedule: built.schedule,
+		Gate:     c.services.automationGate,
+		Zones:    c.attendanceScheduleResolver(),
+		Windows:  windows,
+		Clock:    clock,
+	})
+	if err != nil {
+		log.Fatalf("[container] scheduled messages: %v", err)
+	}
+	built.followUps = followUps
+	if err := c.followUpsHandle().Bind(followUps); err != nil {
 		log.Fatalf("[container] scheduled messages: %v", err)
 	}
 

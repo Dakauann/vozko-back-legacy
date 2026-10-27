@@ -20,6 +20,7 @@ import (
 	tools "vozko/domain/tools"
 	"vozko/domain/workflow"
 	rag_usecase "vozko/usecases/rag"
+	shared_usecase "vozko/usecases/shared"
 )
 
 type WorkflowAIAttendance interface {
@@ -54,10 +55,12 @@ type aiAgentExecutor struct {
 	waSender             *whatsappSender
 	ragService           rag.RAGService
 	aiAttendance         WorkflowAIAttendance
+	zones                shared_usecase.WorkspaceZones
 }
 
-func NewAIAgentExecutor(aiSvc ai.Service, agentRepo agent.Repository, msgRepo conversation.MessageRepository, cachedBalanceChecker balance.CachedBalanceChecker, waSender *whatsappSender, ragSvc rag.RAGService, attendance WorkflowAIAttendance) workflow.NodeExecutor {
+func NewAIAgentExecutor(aiSvc ai.Service, agentRepo agent.Repository, msgRepo conversation.MessageRepository, cachedBalanceChecker balance.CachedBalanceChecker, waSender *whatsappSender, ragSvc rag.RAGService, attendance WorkflowAIAttendance, zones shared_usecase.WorkspaceZones) workflow.NodeExecutor {
 	return &aiAgentExecutor{
+		zones:                zones,
 		aiAttendance:         attendance,
 		aiService:            aiSvc,
 		agentRepo:            agentRepo,
@@ -145,7 +148,7 @@ func (e *aiAgentExecutor) Definition() workflow.NodeDefinition {
 			When: "Para conversar com o contato usando IA, classificar intenção ou orquestrar ferramentas. source=prompt (defina model+instructions) para um agente ad-hoc; source=agent (defina agent_id) para reutilizar um agente salvo.",
 			Behavior: "ENVIO: em response_mode=segmented o PRÓPRIO NÓ envia as mensagens no WhatsApp (divididas, com indicador de 'digitando'), não conecte um send_text depois (envio duplicado, é bloqueado). " +
 				"Em response_mode=default o nó também envia a resposta no WhatsApp; use um send_text apenas para enviar por outro canal, transformar o texto, ou quando o agente roteia para ferramentas (aí o nó NÃO envia). " +
-				"tool_mode (campo oculto, essencial quando há custom_tools): 'route' = a IA escolhe uma ferramenta e o fluxo SAI pela saída cujo nome é o da ferramenta; 'execute' = as ferramentas rodam internamente e o fluxo segue pela saída padrão. Defina custom_tools e tool_mode ANTES de conectar. " +
+				"tool_mode (essencial quando há custom_tools): nos dois modos a IA escolhe uma ferramenta e o fluxo SAI pela saída cujo nome é o da ferramenta. 'route' (padrão) = o caminho da ferramenta segue só as arestas desenhadas; para a IA receber o resultado, conecte o fim do caminho de volta ao agente. 'execute' = quando o caminho da ferramenta termina sem próxima aresta, o fluxo volta sozinho ao agente com o resultado, e a resposta final sai pela saída padrão. Defina custom_tools e tool_mode ANTES de conectar. " +
 				"Ao chamar uma ferramenta, cada argumento fica acessível adiante como {{node.<id>.<arg>}} (ex.: {{node.n2.cep}}).",
 			Examples: []string{
 				"config: {\"source\":\"prompt\",\"model\":\"<find_resource ai_models>\",\"instructions\":\"Você é um atendente cordial de cartões...\",\"response_mode\":\"segmented\"}  // o nó envia sozinho; ligue só a 'default' (ex.: wait_for_reply)",
@@ -167,6 +170,7 @@ func (e *aiAgentExecutor) Definition() workflow.NodeDefinition {
 			"knowledge_base_ids": []interface{}{},
 			"mcp_collection_ids": []interface{}{},
 			"custom_tools":       []interface{}{},
+			workflow.ToolModeKey: string(workflow.ToolModeRoute),
 		},
 		Outputs: []workflow.HandleDefinition{
 			{ID: "default", Label: "Resposta (texto)"},
@@ -210,6 +214,10 @@ func (e *aiAgentExecutor) Definition() workflow.NodeDefinition {
 			{Key: "knowledge_base_ids", Label: "Bases de conhecimento", Type: "multi-select", Placeholder: "Selecione bases de conhecimento", OptionsSource: "knowledge_bases", Description: "Bases de conhecimento para RAG. Quando usando um agente, as bases vinculadas ao agente são usadas automaticamente."},
 			{Key: "mcp_collection_ids", Label: "Coleções MCP", Type: "multi-select", Placeholder: "Selecione coleções MCP", OptionsSource: "mcp_collections", Description: "Coleções MCP que delimitam as ferramentas disponíveis para esta IA."},
 			{Key: "custom_tools", Label: "Ferramentas", Type: "tools", Placeholder: ""},
+			{Key: workflow.ToolModeKey, Label: "Modo das ferramentas", Type: "select", Description: "Rotear: o caminho da ferramenta segue só as arestas desenhadas. Executar: quando o caminho da ferramenta termina, o fluxo volta ao agente com o resultado.", Options: []workflow.ConfigFieldOption{
+				{Value: string(workflow.ToolModeRoute), Label: "Rotear pelas saídas"},
+				{Value: string(workflow.ToolModeExecute), Label: "Executar e voltar ao agente"},
+			}},
 		},
 	}
 }
@@ -506,6 +514,7 @@ func (e *aiAgentExecutor) Execute(ctx *workflow.NodeContext) (*workflow.NodeResu
 
 	output, err := e.generate(ctxWithTimeout, ctx.Node, ai.GenerateInput{
 		WorkspaceID:       ctx.Workflow.WorkspaceID,
+		Zone:              shared_usecase.WorkspaceZone(ctxWithTimeout, e.zones, ctx.Workflow.WorkspaceID),
 		Model:             model,
 		SystemPrompt:      prompt,
 		Messages:          messages,
@@ -707,7 +716,7 @@ func (e *aiAgentExecutor) Execute(ctx *workflow.NodeContext) (*workflow.NodeResu
 		}
 		log.Printf("%s routing to node %s via tool edge %q", logPrefix, routed.NextNodeID, tc.Name)
 
-		ctx.State.Set("_pending_tool_call", map[string]interface{}{
+		ctx.State.Set(workflow.PendingToolCallKey, map[string]interface{}{
 			"id":             tc.ID,
 			"name":           tc.Name,
 			"args":           tc.Arguments,

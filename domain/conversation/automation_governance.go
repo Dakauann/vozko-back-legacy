@@ -47,6 +47,14 @@ func (p AutomationProfile) Configured() (Automation, bool) {
 	return Automation{}, false
 }
 
+func (p AutomationProfile) ResponsibleWorkflow() (string, bool) {
+	configured, ok := p.Configured()
+	if !ok || configured.Kind != AutomationWorkflow {
+		return "", false
+	}
+	return configured.ID, true
+}
+
 func (p AutomationProfile) Delegated() bool {
 	standing := p.Standing()
 	return standing.Delegated && AutomationAllowed(standing.Enabled)

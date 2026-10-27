@@ -3,71 +3,75 @@ package scheduled_message_usecase
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
-	"strings"
 
 	"vozko/domain/balance"
 	"vozko/domain/conversation"
 	sm "vozko/domain/scheduled_message"
 	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/domain/whatsapp/template"
 	wo "vozko/domain/whatsapp_outreach"
 	"vozko/domain/workspace"
 	"vozko/domain/workspace/workspace_plan"
 )
 
-type dispatchUseCase struct {
-	repo        sm.Repository
-	windows     *windowService
-	send        conversation.OperatorSendUseCase
-	templates   wo.ConversationTemplateUseCase
-	permission  templatePermission
-	broadcaster conversation.EventBroadcaster
-	clock       sm.Clock
+type AutomationStanding interface {
+	MayAct(workspaceID, entryID string, entryType shared.EntryType) (bool, error)
 }
 
-func NewDispatchUseCase(
-	repo sm.Repository,
-	windows sm.WindowReader,
-	send conversation.OperatorSendUseCase,
-	templates wo.ConversationTemplateUseCase,
-	permissions workspace.CheckAccessUseCase,
-	broadcaster conversation.EventBroadcaster,
-	clock sm.Clock,
-) (sm.DispatchUseCase, error) {
-	windowSvc, err := newWindowService(windows, clock)
+type DispatchDeps struct {
+	Repo           sm.Repository
+	Windows        sm.WindowReader
+	Send           conversation.OperatorSendUseCase
+	AutomationSend conversation.AutomationSendUseCase
+	Templates      wo.ConversationTemplateUseCase
+	Permissions    workspace.CheckAccessUseCase
+	Gate           AutomationStanding
+	Broadcaster    conversation.EventBroadcaster
+	Clock          sm.Clock
+}
+
+type dispatchUseCase struct {
+	repo           sm.Repository
+	windows        *windowService
+	send           conversation.OperatorSendUseCase
+	automationSend conversation.AutomationSendUseCase
+	templates      wo.ConversationTemplateUseCase
+	permission     templatePermission
+	gate           AutomationStanding
+	broadcaster    conversation.EventBroadcaster
+	clock          sm.Clock
+}
+
+func NewDispatchUseCase(d DispatchDeps) (sm.DispatchUseCase, error) {
+	if err := deps.Require("scheduled message dispatch use case", map[string]any{
+		"repository":      d.Repo,
+		"window reader":   d.Windows,
+		"operator send":   d.Send,
+		"automation send": d.AutomationSend,
+		"template sender": d.Templates,
+		"permissions":     d.Permissions,
+		"automation gate": d.Gate,
+		"broadcaster":     d.Broadcaster,
+		"clock":           d.Clock,
+	}); err != nil {
+		return nil, err
+	}
+	windowSvc, err := newWindowService(d.Windows, d.Clock)
 	if err != nil {
 		return nil, err
 	}
-	missing := []string{}
-	if repo == nil {
-		missing = append(missing, "repository")
-	}
-	if send == nil {
-		missing = append(missing, "operator send use case")
-	}
-	if templates == nil {
-		missing = append(missing, "template sender")
-	}
-	if permissions == nil {
-		missing = append(missing, "permission check")
-	}
-	if broadcaster == nil {
-		missing = append(missing, "event broadcaster")
-	}
-	if len(missing) > 0 {
-		return nil, fmt.Errorf("scheduled message dispatch use case: missing %s", strings.Join(missing, ", "))
-	}
-
 	return &dispatchUseCase{
-		repo:        repo,
-		windows:     windowSvc,
-		send:        send,
-		templates:   templates,
-		permission:  templatePermission{access: permissions},
-		broadcaster: broadcaster,
-		clock:       clock,
+		repo:           d.Repo,
+		windows:        windowSvc,
+		send:           d.Send,
+		automationSend: d.AutomationSend,
+		templates:      d.Templates,
+		permission:     templatePermission{access: d.Permissions},
+		gate:           d.Gate,
+		broadcaster:    d.Broadcaster,
+		clock:          d.Clock,
 	}, nil
 }
 
@@ -91,6 +95,11 @@ func (uc *dispatchUseCase) DispatchClaimed(ctx context.Context, message *sm.Sche
 }
 
 func (uc *dispatchUseCase) deliver(ctx context.Context, message *sm.ScheduledMessage) error {
+	if message.ByAutomation() {
+		if proceed, err := uc.automationStillActs(message); !proceed {
+			return err
+		}
+	}
 	if message.Kind == sm.KindTemplate {
 		return uc.deliverTemplate(ctx, message)
 	}
@@ -104,17 +113,7 @@ func (uc *dispatchUseCase) deliverText(ctx context.Context, message *sm.Schedule
 		return uc.fail(message, sm.ReasonWindowClosed, "the messaging window was closed at delivery time")
 	}
 
-	sent, err := uc.send.Execute(ctx, conversation.OperatorSendInput{
-		EntryID:          message.EntryID,
-		EntryType:        entryType,
-		WorkspaceID:      message.WorkspaceID,
-		SenderUserID:     message.CreatedByUserID,
-		Text:             message.Text,
-		MediaID:          deref(message.MediaID),
-		MediaType:        deref(message.MediaType),
-		ReplyToMessageID: deref(message.ReplyToMessageID),
-		Signed:           message.Signed,
-	})
+	sent, err := uc.sendText(ctx, message)
 	if err != nil {
 		return uc.fail(message, classify(err), err.Error())
 	}
@@ -127,14 +126,59 @@ func (uc *dispatchUseCase) deliverText(ctx context.Context, message *sm.Schedule
 	return nil
 }
 
+func (uc *dispatchUseCase) sendText(ctx context.Context, message *sm.ScheduledMessage) (*conversation.Message, error) {
+	entryType := string(message.EntryType)
+	if message.ByAutomation() {
+		return uc.automationSend.Execute(ctx, conversation.AutomationSendInput{
+			EntryID:     message.EntryID,
+			EntryType:   entryType,
+			WorkspaceID: message.WorkspaceID,
+			Author:      message.CreatedByAutomation,
+			Text:        message.Text,
+		})
+	}
+	return uc.send.Execute(ctx, conversation.OperatorSendInput{
+		EntryID:          message.EntryID,
+		EntryType:        entryType,
+		WorkspaceID:      message.WorkspaceID,
+		SenderUserID:     message.CreatedByUserID,
+		Text:             message.Text,
+		MediaID:          deref(message.MediaID),
+		MediaType:        deref(message.MediaType),
+		ReplyToMessageID: deref(message.ReplyToMessageID),
+		Signed:           message.Signed,
+	})
+}
+
+func (uc *dispatchUseCase) automationStillActs(message *sm.ScheduledMessage) (bool, error) {
+	mayAct, err := uc.gate.MayAct(message.WorkspaceID, message.EntryID, message.EntryType)
+	switch {
+	case errors.Is(err, conversation.ErrConversationNotFound):
+		return false, uc.fail(message, sm.ReasonEntryUnavailable, err.Error())
+	case err != nil:
+		return false, uc.fail(message, sm.ReasonCheckUnavailable, "who may answer this conversation could not be read: "+err.Error())
+	case !mayAct:
+		return false, uc.standDown(message)
+	}
+	return true, nil
+}
+
+func (uc *dispatchUseCase) standDown(message *sm.ScheduledMessage) error {
+	log.Printf("[scheduled_message] %s by %s not sent on %s (%s): automation may no longer act on the conversation",
+		message.ID, message.CreatedByAutomation, message.EntryID, message.EntryType)
+	return uc.repo.CancelClaimed(message.ID, sm.CancelAutomationStoodDown)
+}
+
 func (uc *dispatchUseCase) deliverTemplate(ctx context.Context, message *sm.ScheduledMessage) error {
-	creator := shared.Person{UserID: message.CreatedByUserID}
-	if err := uc.permission.require(creator, message.WorkspaceID); err != nil {
-		reason := sm.ReasonPermissionRevoked
-		if !errors.Is(err, sm.ErrTemplatePermission) {
-			reason = sm.ReasonDispatchInterrupted
+	if !message.ByAutomation() {
+		creator := shared.Person{UserID: message.CreatedByUserID}
+		if err := uc.permission.require(creator, message.WorkspaceID); err != nil {
+			reason := sm.ReasonPermissionRevoked
+			if !errors.Is(err, sm.ErrTemplatePermission) {
+				reason = sm.ReasonDispatchInterrupted
+			}
+			return uc.fail(message, reason, err.Error())
 		}
-		return uc.fail(message, reason, err.Error())
 	}
 
 	if _, err := uc.templates.Send(ctx, templateSend(message)); err != nil {
@@ -198,6 +242,8 @@ func classify(err error) sm.FailureReason {
 		return sm.ReasonBillingUnavailable
 	case errors.Is(err, wo.ErrSendOutcomeUnknown):
 		return sm.ReasonOutcomeUnknown
+	case errors.Is(err, conversation.ErrRecipientUnreadable):
+		return sm.ReasonCheckUnavailable
 	default:
 		return sm.ReasonProviderError
 	}

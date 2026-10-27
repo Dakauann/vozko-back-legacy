@@ -113,6 +113,9 @@ func (quietHubMarks) PageMarks(context.Context, string, []shared.EntryRef) []per
 	return nil
 }
 func (quietHubMarks) MarkRead(context.Context, shared.Person, string, shared.EntryRef) {}
+func (quietHubMarks) InboxPreferences(context.Context, string, string) personalinbox.Preferences {
+	return personalinbox.DefaultPreferences()
+}
 
 type quietHubTeamChat struct{}
 

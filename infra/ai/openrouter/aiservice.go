@@ -442,7 +442,7 @@ func (s *Service) buildRequest(input ai.GenerateInput) openrouter.ChatCompletion
 	messages := make([]openrouter.ChatCompletionMessage, 0, len(input.Messages)+1)
 	explicit := cachesExplicitly(s.modelFor(input))
 
-	clock := brazilClock(input.AsOf)
+	clock := turnClock(input)
 	history := input.Messages
 	if input.VolatileTail > 0 && len(history) > 0 {
 		history, clock = withClockInTail(history, clock), ""

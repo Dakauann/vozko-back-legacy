@@ -20,7 +20,9 @@ type ScheduleInput struct {
 	EntryID     string
 	EntryType   string
 
-	CreatedByUserID string
+	CreatedByUserID     string
+	CreatedByAutomation string
+	CancelOnReply       bool
 
 	Text             string
 	MediaID          string
@@ -68,6 +70,11 @@ type ListForEntryResult struct {
 type ListUseCase interface {
 	ForEntry(ctx context.Context, entryID, entryType string, statuses []Status) (*ListForEntryResult, error)
 	ForWorkspace(ctx context.Context, workspaceID string, q ListQuery) ([]*ScheduledMessage, int64, error)
+	AuthorNames(messages []*ScheduledMessage) map[string]string
+}
+
+type AuthorDirectory interface {
+	Names(actorIDs ...string) map[string]string
 }
 
 type DispatchUseCase interface {

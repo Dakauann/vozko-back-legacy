@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 
 	sm "vozko/domain/scheduled_message"
 	"vozko/domain/shared"
@@ -20,7 +21,9 @@ func toDomain(row *schema.ScheduledMessage) *sm.ScheduledMessage {
 		WorkspaceID:               row.WorkspaceID,
 		EntryID:                   row.EntryID,
 		EntryType:                 shared.EntryType(row.EntryType),
-		CreatedByUserID:           row.CreatedByUserID,
+		CreatedByUserID:           valueOf(row.CreatedByUserID),
+		CreatedByAutomation:       valueOf(row.CreatedByAutomation),
+		CancelOnReply:             row.CancelOnReply,
 		Kind:                      sm.Kind(row.Kind),
 		Template:                  templateFromRow(row),
 		Text:                      row.Text,
@@ -43,6 +46,10 @@ func toDomain(row *schema.ScheduledMessage) *sm.ScheduledMessage {
 		reason := sm.FailureReason(*row.FailureReason)
 		m.FailureReason = &reason
 	}
+	if row.CancelReason != nil {
+		reason := sm.CancelReason(*row.CancelReason)
+		m.CancelReason = &reason
+	}
 	return m
 }
 
@@ -60,7 +67,9 @@ func fromDomain(m *sm.ScheduledMessage) (schema.ScheduledMessage, error) {
 		WorkspaceID:               m.WorkspaceID,
 		EntryID:                   m.EntryID,
 		EntryType:                 string(m.EntryType),
-		CreatedByUserID:           m.CreatedByUserID,
+		CreatedByUserID:           nullable(m.CreatedByUserID),
+		CreatedByAutomation:       nullable(m.CreatedByAutomation),
+		CancelOnReply:             m.CancelOnReply,
 		Kind:                      string(m.Kind),
 		Text:                      m.Text,
 		MediaID:                   m.MediaID,
@@ -79,6 +88,10 @@ func fromDomain(m *sm.ScheduledMessage) (schema.ScheduledMessage, error) {
 	if m.FailureReason != nil {
 		reason := string(*m.FailureReason)
 		row.FailureReason = &reason
+	}
+	if m.CancelReason != nil {
+		reason := string(*m.CancelReason)
+		row.CancelReason = &reason
 	}
 	if err := templateToRow(m.Template, &row); err != nil {
 		return schema.ScheduledMessage{}, err
@@ -127,6 +140,20 @@ func decodeValues(id, part string, raw []byte) []string {
 		return nil
 	}
 	return values
+}
+
+func valueOf(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func nullable(value string) *string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return &value
 }
 
 func statusStrings(statuses []sm.Status) []string {

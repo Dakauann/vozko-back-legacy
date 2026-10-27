@@ -86,6 +86,7 @@ type GenerateInput struct {
 	BillingReference   string
 	SessionID          string
 	AsOf               time.Time
+	Zone               *time.Location
 	VolatileTail       int
 	AgentTurn          AgentTurn
 }

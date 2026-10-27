@@ -80,7 +80,7 @@ func TestToolCallsOfAnInvisibleConversationAreNotFound(t *testing.T) {
 func TestTheConversationHandlerRefusesMissingDependencies(t *testing.T) {
 	h, err := NewConversationHandler(ConversationHandlerDeps{})
 	var missing *deps.MissingError
-	if h != nil || !errors.As(err, &missing) || len(missing.Missing) != 8 {
+	if h != nil || !errors.As(err, &missing) || len(missing.Missing) != 9 {
 		t.Fatalf("h = %v err = %v, want every dependency refused", h, err)
 	}
 }

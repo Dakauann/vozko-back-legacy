@@ -20,6 +20,7 @@ const (
 	SimulatedDepartment SimulatedChangeKind = "department"
 	SimulatedDeal       SimulatedChangeKind = "deal"
 	SimulatedLeadField  SimulatedChangeKind = "lead_field"
+	SimulatedFollowUp   SimulatedChangeKind = "follow_up"
 )
 
 type SimulatedChange struct {

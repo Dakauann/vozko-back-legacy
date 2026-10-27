@@ -7,7 +7,7 @@ import (
 
 const cancelReasonPublishedVersionChanged = "published_workflow_version_changed"
 
-func conversationRunCurrent(runs workflow.WorkflowRunRepository, engine *RunEngine, run *workflow.WorkflowRun, published *workflow.Workflow, event workflow.TriggerEvent) (*workflow.WorkflowRun, error) {
+func conversationRunCurrent(runs workflow.WorkflowRunRepository, engine *RunEngine, run *workflow.WorkflowRun, published *workflow.Workflow, event workflow.TriggerEvent, responsible string) (*workflow.WorkflowRun, error) {
 	if run == nil || !run.FollowsConversationOwner() {
 		return run, nil
 	}
@@ -15,11 +15,7 @@ func conversationRunCurrent(runs workflow.WorkflowRunRepository, engine *RunEngi
 		return nil, fmt.Errorf("workflow: waiting run does not belong to the incoming conversation")
 	}
 	reason := ""
-	expected, _ := event.Data[workflow.DataKeyCampaignWorkflowID].(string)
-	if expected == "" {
-		expected, _ = event.Data[workflow.DataKeyAccountWorkflowID].(string)
-	}
-	if expected != "" && expected != run.WorkflowID {
+	if responsible != "" && responsible != run.WorkflowID {
 		reason = cancelReasonAutomationChanged
 	}
 	if published != nil && run.WorkflowVersion != nil && published.PublishedVersion != nil && *run.WorkflowVersion != *published.PublishedVersion {

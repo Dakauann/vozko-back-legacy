@@ -49,14 +49,14 @@ func writeToolHistory(ctx *workflow.NodeContext, messages []ai.Message) error {
 func workflowToolMessages(ctx *workflow.NodeContext) ([]ai.Message, error) {
 	if previous := ctx.Graph.FindNode(ctx.State.GetString("_prev_node_id")); previous != nil && (previous.Type.AwaitsContact() || previous.Type.IsTrigger()) {
 		ctx.State.Delete(toolHistoryKey(ctx.Node.ID))
-		ctx.State.Delete("_pending_tool_call")
+		ctx.State.Delete(workflow.PendingToolCallKey)
 		return nil, nil
 	}
 	messages, err := readToolHistory(ctx)
 	if err != nil {
 		return nil, err
 	}
-	raw, exists := ctx.State.Get("_pending_tool_call")
+	raw, exists := ctx.State.Get(workflow.PendingToolCallKey)
 	if !exists {
 		return messages, nil
 	}
@@ -101,7 +101,7 @@ func workflowToolMessages(ctx *workflow.NodeContext) ([]ai.Message, error) {
 	if err := writeToolHistory(ctx, messages); err != nil {
 		return nil, err
 	}
-	ctx.State.Delete("_pending_tool_call")
+	ctx.State.Delete(workflow.PendingToolCallKey)
 	return messages, nil
 }
 

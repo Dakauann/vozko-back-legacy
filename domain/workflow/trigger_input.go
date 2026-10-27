@@ -103,14 +103,12 @@ type TriggerForm struct {
 
 type TriggerInputSources struct {
 	Forms       map[string]TriggerForm
-	FormChoices []TriggerInputOption
 	Stages      []TriggerInputOption
 	Unreadable  map[string]bool
 }
 
 type TriggerInputNeeds struct {
 	FormIDs    []string
-	AnyForm    bool
 	Stages     bool
 	FormNodes  []string
 	StageNodes []string
@@ -156,9 +154,6 @@ func TriggerInputNeedsOf(g *Graph) TriggerInputNeeds {
 			ids, ok := FormTriggerFormIDs(n.Config)
 			if !ok {
 				continue
-			}
-			if len(ids) == 0 {
-				needs.AnyForm = true
 			}
 			for _, id := range ids {
 				if !seen[id] {
@@ -393,7 +388,8 @@ func formSpec(spec *TriggerInputSpec, reads []graphRead, sources TriggerInputSou
 	}
 	switch len(forms) {
 	case 0:
-		spec.Fields = append(spec.Fields, formChoiceField(sources.FormChoices))
+		spec.unreadable = true
+		return
 	case 1:
 		spec.formID = forms[0].ID
 	default:

@@ -233,6 +233,7 @@ type Container struct {
 	uwConnectionListener        *deps.Handle[uwuc.ConnectionListener]
 	callHandoffs                *deps.Handle[callrouting_domain.ConversationHandoff]
 	inboundCalls                *deps.Handle[conversation_domain.WhatsAppInboundCallHandler]
+	followUps                   *deps.Handle[scheduled_message_domain.FollowUpUseCase]
 	turnLock                    *conversation_usecase.AgentTurnLock
 	registeredChannels          map[shared.EntryType]bool
 	channelsSealed              bool
@@ -470,6 +471,7 @@ type services struct {
 	conversationStatusService     *conversation_usecase.ConversationStatusService
 	conversationAuthImpl          *conversation_infra.Authorizer
 	conversationHistory           conversation_domain.HistoryProvider
+	conversationMessagesSince     node_executors.ConversationMessagesSince
 	conversationHistoryReader     conversation_domain.HistoryReader
 	conversationEntryLookup       conversation_domain.EntryLookup
 	personSend                    conversation_domain.PersonSendUseCase

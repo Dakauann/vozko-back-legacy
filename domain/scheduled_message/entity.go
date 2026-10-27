@@ -37,7 +37,7 @@ func (s Status) CanTransitionTo(next Status) bool {
 	case StatusPending:
 		return next == StatusSending || next == StatusCanceled || next == StatusFailed
 	case StatusSending:
-		return next == StatusSent || next == StatusFailed
+		return next == StatusSent || next == StatusFailed || next == StatusCanceled
 	default:
 		return false
 	}
@@ -59,6 +59,7 @@ const (
 	ReasonSendWindowClosed      FailureReason = "send_window_closed"
 	ReasonBillingUnavailable    FailureReason = "billing_unavailable"
 	ReasonOutcomeUnknown        FailureReason = "outcome_unknown"
+	ReasonCheckUnavailable      FailureReason = "check_unavailable"
 )
 
 type Kind string
@@ -123,6 +124,11 @@ type ScheduledMessage struct {
 
 	CreatedByUserID string `json:"createdByUserId"`
 
+	CreatedByAutomation string `json:"createdByAutomation,omitempty"`
+
+	CancelOnReply bool          `json:"cancelOnReply"`
+	CancelReason  *CancelReason `json:"cancelReason,omitempty"`
+
 	Kind     Kind             `json:"kind"`
 	Template *TemplateContent `json:"template,omitempty"`
 
@@ -153,6 +159,8 @@ type ScheduledMessage struct {
 
 func (m *ScheduledMessage) Normalize() {
 	m.Text = strings.TrimSpace(m.Text)
+	m.CreatedByUserID = strings.TrimSpace(m.CreatedByUserID)
+	m.CreatedByAutomation = strings.TrimSpace(m.CreatedByAutomation)
 	m.MediaID = trimmedOrNil(m.MediaID)
 	m.MediaType = trimmedOrNil(m.MediaType)
 	m.ReplyToMessageID = trimmedOrNil(m.ReplyToMessageID)
@@ -178,8 +186,8 @@ func (m *ScheduledMessage) Validate() error {
 	if !m.EntryType.IsKnown() {
 		return ErrEntryTypeInvalid
 	}
-	if strings.TrimSpace(m.CreatedByUserID) == "" {
-		return ErrSenderRequired
+	if err := m.validateAuthor(); err != nil {
+		return err
 	}
 	switch m.Kind {
 	case KindText:

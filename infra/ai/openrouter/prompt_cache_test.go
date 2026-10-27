@@ -54,7 +54,7 @@ func TestThePromptPrefixStaysTheSameForEveryCallOfATurn(t *testing.T) {
 	if system != "Você é a Elo." {
 		t.Fatalf("with a volatile tail the system message is only the static prompt, got %q", system)
 	}
-	if tail := first.Messages[len(first.Messages)-1].Content.Text; !strings.HasSuffix(tail, "08/10/2026 16:21]") {
+	if tail := first.Messages[len(first.Messages)-1].Content.Text; !strings.HasSuffix(tail, "quinta-feira, 08/10/2026, 16:21 (America/Sao_Paulo)") {
 		t.Fatalf("the clock rides in the volatile tail, in Brazil time, to the minute, got %q", tail)
 	}
 	if second.Messages[0].Content.Text != system {
@@ -77,7 +77,7 @@ func TestClaudeGetsBreakpointsOnTheStaticSystemAndTheRollingTail(t *testing.T) {
 	if len(system) != 1 || system[0].Text != "Você é a Elo." || system[0].CacheControl == nil {
 		t.Fatalf("system = %+v", system)
 	}
-	if tail := req.Messages[len(req.Messages)-1].Content.Text; !strings.HasSuffix(tail, "08/10/2026 16:21]") {
+	if tail := req.Messages[len(req.Messages)-1].Content.Text; !strings.HasSuffix(tail, "quinta-feira, 08/10/2026, 16:21 (America/Sao_Paulo)") {
 		t.Fatalf("clock in the tail = %q", tail)
 	}
 	tail := req.Messages[1:]
@@ -117,11 +117,34 @@ func TestWithoutAVolatileTailTheClockClosesTheSystemPrompt(t *testing.T) {
 	input.VolatileTail = 0
 	req := s.buildRequest(input)
 	system := req.Messages[0].Content.Multi
-	if len(system) != 2 || system[0].CacheControl == nil || !strings.HasSuffix(system[1].Text, "08/10/2026 16:21]") {
+	if len(system) != 2 || system[0].CacheControl == nil || !strings.HasSuffix(system[1].Text, "quinta-feira, 08/10/2026, 16:21 (America/Sao_Paulo)") {
 		t.Fatalf("system = %+v", system)
 	}
 	plain := mustService(t, Config{DefaultModel: "openai/gpt-5"}, nil).buildRequest(ai.GenerateInput{Model: "openai/gpt-5", SystemPrompt: "Oi.", AsOf: turnStart, Messages: []ai.Message{{Role: ai.RoleUser, Content: "x"}}})
-	if got := plain.Messages[0].Content.Text; !strings.HasPrefix(got, "Oi.") || !strings.HasSuffix(got, "08/10/2026 16:21]") {
+	if got := plain.Messages[0].Content.Text; !strings.HasPrefix(got, "Oi.") || !strings.HasSuffix(got, "quinta-feira, 08/10/2026, 16:21 (America/Sao_Paulo)") {
 		t.Fatalf("system = %q", got)
+	}
+}
+
+func TestTheClockSpeaksTheZoneTheTurnAsksFor(t *testing.T) {
+	manaus, err := time.LoadLocation("America/Manaus")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := mustService(t, Config{DefaultModel: "openai/gpt-5"}, nil)
+	cases := map[*time.Location]string{
+		manaus:   "Agora: quinta-feira, 08/10/2026, 15:21 (America/Manaus)",
+		time.UTC: "Agora: quinta-feira, 08/10/2026, 19:21 (UTC)",
+	}
+	for zone, want := range cases {
+		input := loopInput("openai/gpt-5")
+		input.Zone = zone
+		req := s.buildRequest(input)
+		if tail := req.Messages[len(req.Messages)-1].Content.Text; !strings.HasSuffix(tail, "\n\n"+want) {
+			t.Errorf("tail = %q, want it to end with %q", tail, want)
+		}
+		if req.Messages[0].Content.Text != "Você é a Elo." {
+			t.Errorf("the zone must not touch the cached system prompt, got %q", req.Messages[0].Content.Text)
+		}
 	}
 }

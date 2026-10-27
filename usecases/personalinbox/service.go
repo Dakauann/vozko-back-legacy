@@ -20,13 +20,15 @@ type Access interface {
 
 type Announcer interface {
 	AnnouncePersonalMark(workspaceID string, mark personalinbox.Mark)
+	AnnounceInboxPreferences(workspaceID, userID string, prefs personalinbox.Preferences)
 }
 
 type Deps struct {
-	Marks     personalinbox.Repository
-	Access    Access
-	Announcer Announcer
-	Now       func() time.Time
+	Marks       personalinbox.Repository
+	Preferences personalinbox.PreferencesRepository
+	Access      Access
+	Announcer   Announcer
+	Now         func() time.Time
 }
 
 type Service struct {
@@ -37,6 +39,9 @@ func New(deps Deps) (*Service, error) {
 	missing := []string{}
 	if deps.Marks == nil {
 		missing = append(missing, "marks")
+	}
+	if deps.Preferences == nil {
+		missing = append(missing, "preferences")
 	}
 	if deps.Access == nil {
 		missing = append(missing, "access")

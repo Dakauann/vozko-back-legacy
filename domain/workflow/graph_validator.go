@@ -298,11 +298,27 @@ func numericConfigValue(v interface{}) (float64, bool) {
 }
 
 func isEmpty(v interface{}) bool {
-	if v == nil {
+	switch value := v.(type) {
+	case nil:
+		return true
+	case string:
+		return value == ""
+	case []string:
+		for _, item := range value {
+			if strings.TrimSpace(item) != "" {
+				return false
+			}
+		}
+		return true
+	case []interface{}:
+		for _, item := range value {
+			if text, isText := item.(string); !isText || strings.TrimSpace(text) != "" {
+				return false
+			}
+		}
 		return true
 	}
-	s, ok := v.(string)
-	return ok && s == ""
+	return false
 }
 
 func validateCycles(nodeMap map[string]*Node, outgoing map[string][]string) error {

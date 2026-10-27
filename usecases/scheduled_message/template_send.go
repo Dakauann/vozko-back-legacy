@@ -12,6 +12,7 @@ func templateSend(m *sm.ScheduledMessage) wo.ConversationTemplateInput {
 	return wo.ConversationTemplateInput{
 		WorkspaceID:    m.WorkspaceID,
 		UserID:         m.CreatedByUserID,
+		Automation:     m.CreatedByAutomation,
 		EntryID:        m.EntryID,
 		TemplateID:     m.Template.ID,
 		BodyParams:     m.Template.BodyParams,

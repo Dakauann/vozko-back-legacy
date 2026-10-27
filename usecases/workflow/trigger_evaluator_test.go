@@ -35,7 +35,7 @@ func TestEvaluateDoesNotStartASecondRunForAMessageThatResumedAWaitingRun(t *test
 	runs := &recordingRunRepo{waitingReply: waiting}
 	te := NewTriggerEvaluator(
 		stubWorkflowRepo{byID: map[string]*workflow.Workflow{wf.ID: wf}, active: []*workflow.Workflow{wf}},
-		runs, testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil,
+		runs, testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil, responsibleIs(""),
 	)
 
 	te.Evaluate(workflow.TriggerEvent{
@@ -86,7 +86,7 @@ func TestEvaluateStillStartsOtherWorkflowsWhenAnotherOnesRunWasResumed(t *testin
 			byID:   map[string]*workflow.Workflow{stale.ID: stale, linked.ID: linked},
 			active: []*workflow.Workflow{stale, linked},
 		},
-		runs, testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil,
+		runs, testEngine(runs, stubRunLogRepo{}, NewNodeExecutorRegistry()), nil, responsibleIs(""),
 	)
 
 	te.Evaluate(workflow.TriggerEvent{

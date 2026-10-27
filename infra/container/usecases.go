@@ -171,6 +171,8 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		tools_usecase.NewUpdateLeadProfileTool(leadProfiles),
 		tools_usecase.NewFinishConversationToolUseCase(c.services.conversationStatusUpdater, outcomeCaptureReader{configs: c.repositories.workspaceConfig}),
 		tools_usecase.NewTransferToHumanToolUseCase(c.services.assignmentService, c.repositories.workspaceDepartment),
+		tools_usecase.NewScheduleFollowUpTool(lateFollowUps{handle: c.followUpsHandle()}),
+		tools_usecase.NewCancelFollowUpTool(lateFollowUps{handle: c.followUpsHandle()}),
 		tools_usecase.NewManageOpportunityTool(opportunitySvc),
 		tools_usecase.NewAutoManageOpportunityTool(opportunitySvc, ia_usecase.NewConversationOwners(c.repositories.inboxAssignment)),
 		tools_usecase.NewCheckCalendarAvailabilityToolUseCase(c.repositories.calendar, c.services.googleCalendar, calendarAccess),
@@ -195,7 +197,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 	c.services.ai = aiService
 	log.Printf("AI provider: OpenRouter (model: %s)", c.cfg.OpenRouterDefaultModel)
 
-	turnAssembler := agentturn.New(c.services.toolRegistry, ragService, leadMemories.list)
+	turnAssembler := agentturn.New(c.services.toolRegistry, ragService, leadMemories.list, c.attendanceScheduleResolver())
 	c.citeConsentMessages(turnAssembler)
 	c.initConversationSenders(turnAssembler)
 
@@ -1121,6 +1123,8 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		GoogleCalendar:        c.services.googleCalendar,
 		CalendarAccess:        calendarAccess,
 		SheetRows:             c.googleSheets.Intake,
+		SheetExports:          c.googleSheets.Exports,
+		ConversationMessages:  c.services.conversationMessagesSince,
 		RescheduleEventUC:     rescheduleEventUC,
 		MessageRepo:           c.repositories.conversation,
 		HistoryManager:        messageHistoryManager,
@@ -1167,6 +1171,8 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		Carrier:               c.carrierSenderRelay,
 		PlatformEmail:         c.platformEmailRelay,
 		ChoiceStats:           c.choiceStatsRecorder(),
+		FollowUps:             scheduledMessages.followUps,
+		WorkspaceZones:        c.attendanceScheduleResolver(),
 	}
 	if err := workflow_usecase.RegisterProductionExecutors(wfRegistry, executorDeps); err != nil {
 		log.Fatalf("[workflow] executors: %v", err)
@@ -1211,7 +1217,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 	c.useCases.aichat = chats
 
 	c.useCases.workflowManager = workflow_usecase.NewWorkflowManager(c.repositories.workflow, c.repositories.workflowRun, wfEngine)
-	triggerEvaluator := workflow_usecase.NewTriggerEvaluator(c.repositories.workflow, c.repositories.workflowRun, wfEngine, c.redisProvider.SharedState())
+	triggerEvaluator := workflow_usecase.NewTriggerEvaluator(c.repositories.workflow, c.repositories.workflowRun, wfEngine, c.redisProvider.SharedState(), workflow_infra.NewConversationResponsibility(c.services.automationGate))
 	c.useCases.triggerEvaluator = triggerEvaluator
 	inboundTriggers, ok := triggerEvaluator.(conversation_usecase.InboundTriggers)
 	if !ok {
@@ -1270,6 +1276,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		HTTPEgress:        executorDeps.HTTPEgress,
 		MediaFetcher:      executorDeps.MediaFetcher,
 		Secrets:           executorDeps.Secrets,
+		WorkspaceZones:    executorDeps.WorkspaceZones,
 		LabelRepo:         executorDeps.LabelRepo,
 		StageRepo:         executorDeps.StageRepo,
 		WorkspaceRepo:     executorDeps.WorkspaceRepo,

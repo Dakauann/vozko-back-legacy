@@ -34,6 +34,7 @@ import (
 	livedecisions_usecase "vozko/usecases/livedecisions"
 	"vozko/usecases/messageaction"
 	"vozko/usecases/messagestate"
+	scheduled_message_usecase "vozko/usecases/scheduled_message"
 	stage_usecase "vozko/usecases/stage"
 	workflow_usecase "vozko/usecases/workflow"
 )
@@ -105,6 +106,7 @@ func (c *Container) wireConversationHub() {
 		log.Fatalf("[conversation-history] %v", err)
 	}
 	c.services.conversationHistory = historyProvider
+	c.services.conversationMessagesSince = historyProvider
 	c.services.conversationHistoryReader = conversation_usecase.NewHistoryReader(conversationAuthorizer, historyProvider, c.adOriginReader())
 
 	messageMarker := conversation_usecase.NewMessageMarkerService(
@@ -182,11 +184,16 @@ func (c *Container) wireConversationHub() {
 	c.services.conversationStatusService = conversationStatusUpdater
 	c.services.personFinish = conversation_usecase.NewPersonFinish(conversationAuthorizer, conversationStatusUpdater)
 	c.services.conversationStatusUpdater = conversationStatusUpdater
+	followUpReplies, err := scheduled_message_usecase.NewReplyCancellation(c.repositories.scheduledMessage)
+	if err != nil {
+		log.Fatalf("[message-arrivals] %v", err)
+	}
 	c.services.messageArrivals, err = conversation_usecase.NewMessageArrivals(conversation_usecase.MessageArrivalsDeps{
 		Broadcaster: hub,
 		Workspaces:  workspaceResolver,
 		Stages:      InitialStageAssigner,
 		Status:      conversationStatusUpdater,
+		Replies:     followUpReplies,
 	})
 	if err != nil {
 		log.Fatalf("[message-arrivals] %v", err)

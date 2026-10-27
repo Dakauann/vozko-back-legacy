@@ -35,7 +35,7 @@ func (s stubRegistry) ExecuteWithConfig(ctx context.Context, name string, config
 func (s stubRegistry) Handler(name string) (tools.Handler, bool) { return nil, false }
 
 func TestAssemble_PromptOrderingAndRAG(t *testing.T) {
-	a := New(nil, fakeRAG{results: []rag.QueryResult{{DocumentName: "precos", Content: "Admin: R$ 500", Score: 0.9}}}, nil)
+	a := New(nil, fakeRAG{results: []rag.QueryResult{{DocumentName: "precos", Content: "Admin: R$ 500", Score: 0.9}}}, nil, nil)
 
 	ag := &agent.Agent{
 		ID:               "a1",
@@ -93,7 +93,7 @@ func TestAssemble_PromptOrderingAndRAG(t *testing.T) {
 
 func TestAssemble_ResolvesToolsAndStampsSeeds(t *testing.T) {
 	reg := stubRegistry{defs: []tools.Definition{{Name: "book_meeting"}}}
-	a := New(reg, fakeRAG{}, nil)
+	a := New(reg, fakeRAG{}, nil, nil)
 
 	ag := &agent.Agent{
 		ID:              "a1",
@@ -122,7 +122,7 @@ func TestAssemble_ResolvesToolsAndStampsSeeds(t *testing.T) {
 }
 
 func TestAssemble_NoRAGWhenDisabled(t *testing.T) {
-	a := New(nil, fakeRAG{results: []rag.QueryResult{{Content: "SHOULD NOT APPEAR"}}}, nil)
+	a := New(nil, fakeRAG{results: []rag.QueryResult{{Content: "SHOULD NOT APPEAR"}}}, nil, nil)
 	ag := &agent.Agent{MessagingPrompt: "hi"}
 	out := a.Assemble(context.Background(), Request{Agent: ag, RAGQuery: "x", UserMessage: "x"})
 	if strings.Contains(out.Input.SystemPrompt, "SHOULD NOT APPEAR") {
@@ -152,9 +152,7 @@ func memoryItem(content string) leadmemory.MemoryView {
 }
 
 func TestAssemble_MemoryBlockBeforeSuffixWithGroundingInTheNote(t *testing.T) {
-	a := New(nil,
-		fakeRAG{results: []rag.QueryResult{{DocumentName: "d", Content: "RAG-CHUNK", Score: 0.9}}},
-		stubMemoryList{items: []leadmemory.MemoryView{memoryItem("Prefere boleto.")}})
+	a := New(nil, fakeRAG{results: []rag.QueryResult{{DocumentName: "d", Content: "RAG-CHUNK", Score: 0.9}}}, stubMemoryList{items: []leadmemory.MemoryView{memoryItem("Prefere boleto.")}}, nil)
 
 	ag := &agent.Agent{ID: "a1", WorkspaceID: "ws1", MessagingPrompt: "base", RAGEnabled: true, KnowledgeBaseIDs: []string{"kb"}}
 	out := a.Assemble(context.Background(), Request{
@@ -184,7 +182,7 @@ func TestAssemble_MemoryBlockBeforeSuffixWithGroundingInTheNote(t *testing.T) {
 }
 
 func TestAssemble_NoMemoryBlockWithoutLead(t *testing.T) {
-	a := New(nil, fakeRAG{}, stubMemoryList{items: []leadmemory.MemoryView{memoryItem("SHOULD NOT APPEAR")}})
+	a := New(nil, fakeRAG{}, stubMemoryList{items: []leadmemory.MemoryView{memoryItem("SHOULD NOT APPEAR")}}, nil)
 	out := a.Assemble(context.Background(), Request{Agent: &agent.Agent{MessagingPrompt: "hi"}})
 	if strings.Contains(out.Input.SystemPrompt, "SHOULD NOT APPEAR") {
 		t.Fatalf("memory injected without a lead: %q", out.Input.SystemPrompt)
@@ -194,7 +192,7 @@ func TestAssemble_NoMemoryBlockWithoutLead(t *testing.T) {
 func TestAssemble_MemoryToolLineFollowsBinding(t *testing.T) {
 	mem := stubMemoryList{items: []leadmemory.MemoryView{memoryItem("Prefere boleto.")}}
 
-	a := New(nil, fakeRAG{}, mem)
+	a := New(nil, fakeRAG{}, mem, nil)
 	out := a.Assemble(context.Background(), Request{Agent: &agent.Agent{WorkspaceID: "ws1", MessagingPrompt: "hi"}, LeadID: "lead-1"})
 	if !strings.Contains(out.Input.SystemPrompt, "Memórias sobre este lead") {
 		t.Fatal("memory block missing for agent without the tool")
@@ -204,7 +202,7 @@ func TestAssemble_MemoryToolLineFollowsBinding(t *testing.T) {
 	}
 
 	reg := stubRegistry{defs: []tools.Definition{{Name: "manage_lead_memory"}}}
-	a = New(reg, fakeRAG{}, mem)
+	a = New(reg, fakeRAG{}, mem, nil)
 	out = a.Assemble(context.Background(), Request{
 		Agent:                &agent.Agent{WorkspaceID: "ws1", MessagingPrompt: "hi", InternalTools: []agent.ToolBinding{{Name: "manage_lead_memory"}}},
 		LeadID:               "lead-1",

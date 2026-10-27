@@ -276,6 +276,7 @@ type entrySourceScope struct {
 	ConversationStatus   string
 	ExcludeFinished      bool
 	Origins              []conversation.Origin
+	Groups               conversation.GroupScope
 
 	DepartmentIDs          []string
 	RestrictDepartments    bool
@@ -286,6 +287,9 @@ type entrySourceScope struct {
 func (s entrySourceScope) selected() []entrySource {
 	out := make([]entrySource, 0, len(entrySources))
 	for _, src := range entrySources {
+		if groupScopeCondition(s.Groups, src.groupColumn()) == groupScopeMatchesNothing {
+			continue
+		}
 		if s.EntryType != "" && src.EntryType != s.EntryType {
 			continue
 		}
@@ -310,9 +314,13 @@ func (src entrySource) conditions(scope entrySourceScope) (string, []interface{}
 		if scope.ConversationStatus != "" {
 			sql.WriteString(" AND " + src.ConversationStatus + " = ?")
 			args = append(args, scope.ConversationStatus)
-		} else if scope.ExcludeFinished {
+		} else if scope.ExcludeFinished && !scope.Groups.ListsFinished() {
 			sql.WriteString(" AND " + src.ConversationStatus + " IS DISTINCT FROM 'finished'")
 		}
+	}
+
+	if condition := groupScopeCondition(scope.Groups, src.groupColumn()); condition != "" {
+		sql.WriteString(" AND " + condition)
 	}
 
 	if clause, originArgs := originClause(scope.Origins, src.EntryID, "'"+string(src.EntryType)+"'"); clause != "" {
@@ -397,6 +405,14 @@ func (src entrySource) inboxSelect(scope entrySourceScope, workspaceID string) (
 		" FROM " + src.From + " " + join + where
 
 	return sql, append(args, whereArgs...)
+}
+
+func (src entrySource) groupColumn() string {
+	ch, ok := channelQueryFor(src.EntryType)
+	if !ok {
+		return ""
+	}
+	return ch.GroupColumn
 }
 
 func (src entrySource) waitingSinceSQL() string {

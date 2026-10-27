@@ -7,6 +7,8 @@ google_sheet_google_busy
 google_sheet_idempotency_key_required
 google_sheet_invalid_definition
 google_sheet_invalid_value
+google_sheet_needs_conversation
+google_sheet_no_message_columns
 google_sheet_not_active
 google_sheet_not_found
 google_sheet_origin_required

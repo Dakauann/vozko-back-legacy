@@ -29,6 +29,7 @@ type ConversationHandler struct {
 	delegationService     ConversationDelegationService
 	toolCalls             ToolCallLister
 	emailHTML             EmailHTMLViewer
+	responsibleWorkflow   ResponsibleWorkflowReader
 }
 
 type ConversationAutomationService interface {
@@ -48,6 +49,7 @@ type ConversationHandlerDeps struct {
 	Delegation            ConversationDelegationService
 	ToolCalls             ToolCallLister
 	EmailHTML             EmailHTMLViewer
+	ResponsibleWorkflow   ResponsibleWorkflowReader
 }
 
 func NewConversationHandler(d ConversationHandlerDeps) (*ConversationHandler, error) {
@@ -60,6 +62,7 @@ func NewConversationHandler(d ConversationHandlerDeps) (*ConversationHandler, er
 		"delegation":              d.Delegation,
 		"tool calls":              d.ToolCalls,
 		"email html":              d.EmailHTML,
+		"responsible workflow":    d.ResponsibleWorkflow,
 	}); err != nil {
 		return nil, err
 	}
@@ -72,6 +75,7 @@ func NewConversationHandler(d ConversationHandlerDeps) (*ConversationHandler, er
 		delegationService:     d.Delegation,
 		toolCalls:             d.ToolCalls,
 		emailHTML:             d.EmailHTML,
+		responsibleWorkflow:   d.ResponsibleWorkflow,
 	}, nil
 }
 

@@ -10,7 +10,7 @@ import (
 
 func TestTheAgentNodeNamesItsTurnSoRoutedToolCallsCountOnTheSameSessionAsItsReplies(t *testing.T) {
 	service := &recordingAgentAI{}
-	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{})
+	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{}, nil)
 	state := workflow.NewRunState()
 	ctx := agentNodeContext(&state, nil)
 
@@ -28,7 +28,7 @@ func TestTheAgentNodeNamesItsTurnSoRoutedToolCallsCountOnTheSameSessionAsItsRepl
 
 func TestTheAgentNodeNeverRunsAgentToolsSoEveryStageMoveInARunGoesThroughTheMoveNodeAndItsCause(t *testing.T) {
 	service := &recordingAgentAI{}
-	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{})
+	executor := NewAIAgentExecutor(service, nil, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{}, nil)
 	state := workflow.NewRunState()
 	ctx := agentNodeContext(&state, map[string]interface{}{
 		"custom_tools": []interface{}{map[string]interface{}{"name": "manage_entry_stage", "description": "mover a conversa de etapa"}},
@@ -56,7 +56,7 @@ func (publishedAgentStore) FindByID(id string) (*agent.Agent, error) {
 
 func TestASavedAgentInTheNodeIsRecordedAsAWorkflowRunOfItsPublishedVersion(t *testing.T) {
 	service := &recordingAgentAI{}
-	executor := NewAIAgentExecutor(service, publishedAgentStore{}, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{})
+	executor := NewAIAgentExecutor(service, publishedAgentStore{}, &entryTranscript{history: agentNodeTranscript(2)}, nil, nil, nil, quietAttendance{}, nil)
 	state := workflow.NewRunState()
 	ctx := agentNodeContext(&state, map[string]interface{}{"source": "agent", "agent_id": "ag-9"})
 

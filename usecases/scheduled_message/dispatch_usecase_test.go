@@ -18,8 +18,10 @@ type dispatchFixture struct {
 	repo        *fakeRepo
 	windows     *fakeWindows
 	send        *fakeSend
+	automation  *fakeAutomationSend
 	templates   *fakeTemplates
 	permissions *fakePermissions
+	gate        *fakeGate
 	broadcaster *fakeBroadcaster
 	clock       *fixedClock
 	uc          sm.DispatchUseCase
@@ -31,17 +33,26 @@ func newDispatchFixture(t *testing.T) *dispatchFixture {
 		repo:        newFakeRepo(),
 		windows:     &fakeWindows{open: true},
 		send:        &fakeSend{},
+		automation:  &fakeAutomationSend{},
 		templates:   &fakeTemplates{},
 		permissions: &fakePermissions{},
+		gate:        &fakeGate{},
 		broadcaster: &fakeBroadcaster{},
 		clock:       &fixedClock{now: fixedNow},
 	}
-	uc, err := NewDispatchUseCase(f.repo, f.windows, f.send, f.templates, f.permissions, f.broadcaster, f.clock)
+	uc, err := NewDispatchUseCase(f.deps())
 	if err != nil {
 		t.Fatalf("NewDispatchUseCase: %v", err)
 	}
 	f.uc = uc
 	return f
+}
+
+func (f *dispatchFixture) deps() DispatchDeps {
+	return DispatchDeps{
+		Repo: f.repo, Windows: f.windows, Send: f.send, AutomationSend: f.automation, Templates: f.templates,
+		Permissions: f.permissions, Gate: f.gate, Broadcaster: f.broadcaster, Clock: f.clock,
+	}
 }
 
 func (f *dispatchFixture) pending(id string) *sm.ScheduledMessage {
@@ -112,7 +123,7 @@ func TestDispatchingACancelledMessageDoesNothing(t *testing.T) {
 	f := newDispatchFixture(t)
 	f.pending("sched-1")
 
-	if err := f.repo.Cancel("sched-1"); err != nil {
+	if err := f.repo.Cancel("sched-1", sm.CancelByPerson); err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
 	if err := f.uc.Execute(context.Background(), "sched-1"); err != nil {
@@ -287,28 +298,23 @@ func TestDispatchClaimedSkipsTheClaim(t *testing.T) {
 }
 
 func TestNewDispatchUseCaseRefusesMissingDependencies(t *testing.T) {
-	repo, windows, send, broadcaster, clock := newFakeRepo(), &fakeWindows{}, &fakeSend{}, &fakeBroadcaster{}, &fixedClock{}
-	templates, permissions := &fakeTemplates{}, &fakePermissions{}
-
-	if _, err := NewDispatchUseCase(nil, windows, send, templates, permissions, broadcaster, clock); err == nil {
-		t.Error("a nil repository was accepted")
+	f := newDispatchFixture(t)
+	missing := map[string]func(*DispatchDeps){
+		"repository":      func(d *DispatchDeps) { d.Repo = nil },
+		"window reader":   func(d *DispatchDeps) { d.Windows = nil },
+		"operator send":   func(d *DispatchDeps) { d.Send = nil },
+		"automation send": func(d *DispatchDeps) { d.AutomationSend = nil },
+		"template sender": func(d *DispatchDeps) { d.Templates = nil },
+		"permissions":     func(d *DispatchDeps) { d.Permissions = nil },
+		"automation gate": func(d *DispatchDeps) { d.Gate = nil },
+		"broadcaster":     func(d *DispatchDeps) { d.Broadcaster = nil },
+		"clock":           func(d *DispatchDeps) { d.Clock = nil },
 	}
-	if _, err := NewDispatchUseCase(repo, nil, send, templates, permissions, broadcaster, clock); err == nil {
-		t.Error("a nil window reader was accepted")
-	}
-	if _, err := NewDispatchUseCase(repo, windows, nil, templates, permissions, broadcaster, clock); err == nil {
-		t.Error("a nil send use case was accepted")
-	}
-	if _, err := NewDispatchUseCase(repo, windows, send, nil, permissions, broadcaster, clock); err == nil {
-		t.Error("a nil template sender was accepted")
-	}
-	if _, err := NewDispatchUseCase(repo, windows, send, templates, nil, broadcaster, clock); err == nil {
-		t.Error("a nil permission check was accepted: a revoked operator's templates would still go out")
-	}
-	if _, err := NewDispatchUseCase(repo, windows, send, templates, permissions, nil, clock); err == nil {
-		t.Error("a nil broadcaster was accepted")
-	}
-	if _, err := NewDispatchUseCase(repo, windows, send, templates, permissions, broadcaster, nil); err == nil {
-		t.Error("a nil clock was accepted")
+	for name, drop := range missing {
+		d := f.deps()
+		drop(&d)
+		if _, err := NewDispatchUseCase(d); err == nil {
+			t.Errorf("a missing %s was accepted", name)
+		}
 	}
 }

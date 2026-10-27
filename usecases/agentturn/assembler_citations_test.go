@@ -39,7 +39,7 @@ func agentWith(bindings ...agent.ToolBinding) *agent.Agent {
 
 func TestAgentsWithAConsentSkillSeeCitableMessageIDs(t *testing.T) {
 	reader := &recentMessages{}
-	a := New(citingRegistry(), nil, nil)
+	a := New(citingRegistry(), nil, nil, nil)
 	a.CiteMessagesFrom(reader)
 
 	out := a.Assemble(context.Background(), Request{
@@ -64,7 +64,7 @@ func TestAgentsWithAConsentSkillSeeCitableMessageIDs(t *testing.T) {
 
 func TestTheOfficialWhatsAppTurnCitesFromItsToolSeed(t *testing.T) {
 	reader := &recentMessages{}
-	a := New(citingRegistry(), nil, nil)
+	a := New(citingRegistry(), nil, nil, nil)
 	a.CiteMessagesFrom(reader)
 
 	out := a.Assemble(context.Background(), Request{
@@ -81,7 +81,7 @@ func TestTheOfficialWhatsAppTurnCitesFromItsToolSeed(t *testing.T) {
 
 func TestAgentsWithoutConsentSkillsGetNoMessageIDs(t *testing.T) {
 	reader := &recentMessages{}
-	a := New(citingRegistry(), nil, nil)
+	a := New(citingRegistry(), nil, nil, nil)
 	a.CiteMessagesFrom(reader)
 
 	out := a.Assemble(context.Background(), Request{
@@ -99,7 +99,7 @@ func TestAgentsWithoutConsentSkillsGetNoMessageIDs(t *testing.T) {
 }
 
 func TestAConsentSkillWithoutAMessageReaderSaysThereAreNoIDs(t *testing.T) {
-	out := New(citingRegistry(), nil, nil).Assemble(context.Background(), Request{
+	out := New(citingRegistry(), nil, nil, nil).Assemble(context.Background(), Request{
 		Agent:                agentWith(agent.ToolBinding{Name: tools_usecase.RecordOptOutToolName}),
 		ResolveInternalTools: true,
 		Visibility:           agent.ToolVisibilityMessaging,

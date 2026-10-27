@@ -40,16 +40,9 @@ func (e TriggerEvent) OccurrenceKey() string {
 }
 
 func FormTriggerAccepts(config map[string]interface{}, formID string) bool {
-	raw, present := config[FormTriggerFormIDsKey]
-	if !present || raw == nil {
-		return true
-	}
-	ids, readable := formIDList(raw)
+	ids, readable := FormTriggerFormIDs(config)
 	if !readable {
 		return false
-	}
-	if len(ids) == 0 {
-		return true
 	}
 	formID = strings.TrimSpace(formID)
 	for _, id := range ids {

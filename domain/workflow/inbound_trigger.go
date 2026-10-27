@@ -88,3 +88,12 @@ func (e TriggerEvent) AsFirstMessage() TriggerEvent {
 	first.Reply = nil
 	return first
 }
+
+func (e TriggerEvent) NamedResponsibleWorkflow() (string, bool) {
+	for _, key := range []string{DataKeyCampaignWorkflowID, DataKeyAccountWorkflowID} {
+		if id, _ := e.Data[key].(string); strings.TrimSpace(id) != "" {
+			return strings.TrimSpace(id), true
+		}
+	}
+	return "", false
+}

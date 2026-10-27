@@ -28,7 +28,7 @@ func (f waTurnRAG) QueryForAgent(context.Context, rag.AgentQueryInput) (*rag.Que
 
 func waTurnUseCase(results ...rag.QueryResult) *handleWhatsAppMessageUseCase {
 	uc := whatsappDefaults(&handleWhatsAppMessageUseCase{})
-	uc.turnAssembler = agentturn.New(nil, waTurnRAG{results: results}, nil)
+	uc.turnAssembler = agentturn.New(nil, waTurnRAG{results: results}, nil, nil)
 	return uc
 }
 

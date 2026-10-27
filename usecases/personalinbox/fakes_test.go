@@ -99,9 +99,34 @@ type announced struct {
 	mark        personalinbox.Mark
 }
 
+type announcedPreferences struct {
+	workspaceID string
+	userID      string
+	prefs       personalinbox.Preferences
+}
+
 type announcer struct {
-	mu   sync.Mutex
-	sent []announced
+	mu          sync.Mutex
+	sent        []announced
+	preferences []announcedPreferences
+}
+
+func (a *announcer) AnnounceInboxPreferences(workspaceID, userID string, prefs personalinbox.Preferences) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.preferences = append(a.preferences, announcedPreferences{workspaceID, userID, prefs})
+}
+
+func (a *announcer) preferencesTo(user string) []announcedPreferences {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	var out []announcedPreferences
+	for _, p := range a.preferences {
+		if p.userID == user {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func (a *announcer) AnnouncePersonalMark(workspaceID string, mark personalinbox.Mark) {

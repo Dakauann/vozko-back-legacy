@@ -82,6 +82,22 @@ func (g *AutomationGate) Governing(workspaceID, entryID string, entryType shared
 	return governing, governed, nil
 }
 
+func (g *AutomationGate) ResponsibleWorkflow(workspaceID, entryID string, entryType shared.EntryType) (string, bool, error) {
+	profile, err := g.profiles.EntryAutomation(entryID, string(entryType))
+	if errors.Is(err, conversation.ErrEntryTypeInvalid) || errors.Is(err, conversation.ErrConversationNotFound) {
+		slog.Warn("conversation.automation.no_conversation",
+			slog.String("workspace_id", workspaceID), slog.String("entry_id", entryID),
+			slog.String("entry_type", string(entryType)), slog.String("outcome", "no_responsible_workflow"),
+			slog.String("error", err.Error()))
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("automation of %s %s: %w", entryType, entryID, err)
+	}
+	id, ok := profile.ResponsibleWorkflow()
+	return id, ok, nil
+}
+
 func (g *AutomationGate) stored(workspaceID, entryID string, entryType shared.EntryType) (conversation.AutomationProfile, bool, error) {
 	profile, err := g.profiles.EntryAutomation(entryID, string(entryType))
 	if err != nil {

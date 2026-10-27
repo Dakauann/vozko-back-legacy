@@ -24,7 +24,7 @@ func purgeDB(t *testing.T) *gorm.DB {
 		&schema.InboxAssignment{}, &schema.EntryLabel{}, &schema.EntryStage{}, &schema.OpportunityConversation{},
 		&schema.ScheduledMessage{}, &schema.LeadExitRun{}, &schema.WhatsAppFormSend{}, &schema.WhatsAppFormResponse{},
 		&schema.LeadMemory{}, &schema.WorkflowRunSchema{}, &schema.WorkflowRunLogSchema{}, &schema.CustomerPortfolioEntry{},
-		&schema.AIToolCallSchema{}, &schema.WorkflowWebhookDeliverySchema{}, &schema.GoogleSheetRow{},
+		&schema.AIToolCallSchema{}, &schema.WorkflowWebhookDeliverySchema{}, &schema.GoogleSheetRow{}, &schema.GoogleSheetExportCursor{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}

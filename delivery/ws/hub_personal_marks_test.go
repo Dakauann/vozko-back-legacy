@@ -32,6 +32,14 @@ type fakePersonalMarks struct {
 	pageAsked []shared.EntryRef
 }
 
+func (f *fakePersonalMarks) InboxPreferences(context.Context, string, string) personalinbox.Preferences {
+	return personalinbox.DefaultPreferences()
+}
+
+func (f *fakePersonalMarks) SaveInboxPreferences(_ context.Context, _ shared.Person, _ string, prefs personalinbox.Preferences) (personalinbox.Preferences, error) {
+	return prefs, nil
+}
+
 func newFakePersonalMarks() *fakePersonalMarks {
 	return &fakePersonalMarks{calls: make(chan personalCall, 8)}
 }

@@ -70,8 +70,8 @@ func newAssembledService(t *testing.T) *ChannelAIReplyService {
 		assemblerTestRAG{results: []rag.QueryResult{
 			{DocumentName: "entregas", Content: "Entregamos em todo o Nordeste.", Score: 0.9},
 		}},
-		nil,
-	)
+		nil, nil)
+
 	return s
 }
 
@@ -216,8 +216,8 @@ func newAssembledServiceWithMemories(t *testing.T) *ChannelAIReplyService {
 				Category: leadmemory.CategoryPreference,
 				Content:  "Prefere boleto a PIX.",
 			},
-		}}},
-	)
+		}}}, nil)
+
 	return s
 }
 

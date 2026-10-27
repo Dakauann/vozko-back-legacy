@@ -24,6 +24,8 @@ var (
 	ErrAccountChanged         = errors.New("googlesheet: the sheet was created by a google account that is no longer connected for sheets")
 	ErrRowNotFound            = errors.New("googlesheet: row not found")
 	ErrGoogleBusy             = errors.New("googlesheet: the google quota for this minute is used up, try again in a minute")
+	ErrNoMessageColumns       = errors.New("googlesheet: the sheet has no column filled per message")
+	ErrNeedsConversation      = errors.New("googlesheet: exporting messages needs a conversation")
 )
 
 const (
@@ -45,6 +47,8 @@ const (
 	CodeAccountChanged         = "google_sheet_account_changed"
 	CodeRowNotFound            = "google_sheet_row_not_found"
 	CodeGoogleBusy             = "google_sheet_google_busy"
+	CodeNoMessageColumns       = "google_sheet_no_message_columns"
+	CodeNeedsConversation      = "google_sheet_needs_conversation"
 	CodeInternal               = "google_sheet_failed"
 )
 
@@ -70,6 +74,8 @@ var errorCodes = []struct {
 	{ErrAccountChanged, CodeAccountChanged},
 	{ErrRowNotFound, CodeRowNotFound},
 	{ErrGoogleBusy, CodeGoogleBusy},
+	{ErrNoMessageColumns, CodeNoMessageColumns},
+	{ErrNeedsConversation, CodeNeedsConversation},
 }
 
 func AllErrors() []error {

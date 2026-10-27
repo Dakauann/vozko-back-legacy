@@ -55,21 +55,23 @@ func (uc *scheduleUseCase) Execute(ctx context.Context, in sm.ScheduleInput) (*s
 	}
 
 	message := &sm.ScheduledMessage{
-		ID:               uuid.NewString(),
-		WorkspaceID:      in.WorkspaceID,
-		EntryID:          in.EntryID,
-		EntryType:        shared.EntryType(in.EntryType),
-		CreatedByUserID:  in.CreatedByUserID,
-		Text:             in.Text,
-		MediaID:          optional(in.MediaID),
-		MediaType:        optional(in.MediaType),
-		ReplyToMessageID: optional(in.ReplyToMessageID),
-		Signed:           in.Signed,
-		Kind:             kindOf(in),
-		Template:         templateOf(in),
-		ScheduledAt:      in.ScheduledAt.UTC(),
-		IdempotencyKey:   optional(in.IdempotencyKey),
-		Status:           sm.StatusPending,
+		ID:                  uuid.NewString(),
+		WorkspaceID:         in.WorkspaceID,
+		EntryID:             in.EntryID,
+		EntryType:           shared.EntryType(in.EntryType),
+		CreatedByUserID:     in.CreatedByUserID,
+		CreatedByAutomation: in.CreatedByAutomation,
+		CancelOnReply:       in.CancelOnReply,
+		Text:                in.Text,
+		MediaID:             optional(in.MediaID),
+		MediaType:           optional(in.MediaType),
+		ReplyToMessageID:    optional(in.ReplyToMessageID),
+		Signed:              in.Signed,
+		Kind:                kindOf(in),
+		Template:            templateOf(in),
+		ScheduledAt:         in.ScheduledAt.UTC(),
+		IdempotencyKey:      optional(in.IdempotencyKey),
+		Status:              sm.StatusPending,
 	}
 	message.Normalize()
 	if err := message.Validate(); err != nil {
@@ -88,12 +90,19 @@ func (uc *scheduleUseCase) Execute(ctx context.Context, in sm.ScheduleInput) (*s
 		}
 	}
 
-	if err := uc.repo.Create(message); err != nil {
-		return nil, err
+	if err := uc.store(message); err != nil {
+		return &sm.ScheduleResult{Window: window}, err
 	}
 
 	uc.enqueue(message)
 	return &sm.ScheduleResult{Message: message, Window: window}, nil
+}
+
+func (uc *scheduleUseCase) store(m *sm.ScheduledMessage) error {
+	if limit, capped := m.PendingLimit(); capped {
+		return uc.repo.CreateCapped(m, limit)
+	}
+	return uc.repo.Create(m)
 }
 
 func (uc *scheduleUseCase) checkTemplate(ctx context.Context, m *sm.ScheduledMessage) error {

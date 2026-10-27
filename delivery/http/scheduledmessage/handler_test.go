@@ -58,7 +58,13 @@ func (s *stubList) ForEntry(context.Context, string, string, []sm.Status) (*sm.L
 	return s.entryResult, s.err
 }
 func (s *stubList) ForWorkspace(context.Context, string, sm.ListQuery) ([]*sm.ScheduledMessage, int64, error) {
+	if s.entryResult != nil {
+		return s.entryResult.Messages, int64(len(s.entryResult.Messages)), s.err
+	}
 	return nil, 0, s.err
+}
+func (s *stubList) AuthorNames([]*sm.ScheduledMessage) map[string]string {
+	return map[string]string{"ai:agent-1": "Cobrança"}
 }
 
 type stubAuthorizer struct{ allow bool }
@@ -436,5 +442,40 @@ func TestCreateATemplateWithoutTheTemplatePermission(t *testing.T) {
 	}
 	if f.schedule.last.Template != nil {
 		t.Error("the use case ran for someone without the template permission")
+	}
+}
+
+func TestTheListSaysWhichAutomationScheduledAFollowUp(t *testing.T) {
+	f := newHandlerFixture(true)
+	followUp := message()
+	followUp.CreatedByAutomation = "ai:agent-1"
+	followUp.CancelOnReply = true
+	person := message()
+	person.ID = "sched-2"
+	person.CreatedByUserID = "user-1"
+	f.list.entryResult = &sm.ListForEntryResult{Messages: []*sm.ScheduledMessage{followUp, person}, Window: openWindow()}
+
+	f.router.HandleFunc("/scheduled-messages", NewScheduledMessageHandler(nil, f.list, stubAuthorizer{allow: true}).ListWorkspace).Methods(http.MethodGet)
+	for _, path := range []string{"/conversations/whatsapp/entry-1/scheduled-messages", "/scheduled-messages"} {
+		rec := f.do(http.MethodGet, path, "", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d: %s", path, rec.Code, rec.Body.String())
+		}
+		var body struct {
+			ScheduledMessages []ScheduledMessageResponse `json:"scheduledMessages"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatalf("%s: decode: %v", path, err)
+		}
+		got := body.ScheduledMessages
+		if len(got) != 2 {
+			t.Fatalf("%s: messages = %+v", path, got)
+		}
+		if got[0].ScheduledBy.Kind != "ai" || got[0].ScheduledBy.ID != "agent-1" || got[0].ScheduledBy.Name != "Cobrança" || !got[0].CancelOnReply {
+			t.Fatalf("%s: follow-up author = %+v", path, got[0])
+		}
+		if got[1].ScheduledBy.Kind != "human" || got[1].ScheduledBy.ID != "user-1" {
+			t.Fatalf("%s: person author = %+v", path, got[1].ScheduledBy)
+		}
 	}
 }

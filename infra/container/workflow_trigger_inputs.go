@@ -15,7 +15,6 @@ import (
 
 type triggerFormReads interface {
 	Get(ctx context.Context, workspaceID, formID string) (*wf.Form, error)
-	List(ctx context.Context, q wf.FormQuery) ([]wf.FormSummary, error)
 }
 
 type triggerFormVersions interface {
@@ -25,18 +24,6 @@ type triggerFormVersions interface {
 type triggerFormCatalog struct {
 	forms    triggerFormReads
 	versions triggerFormVersions
-}
-
-func (c triggerFormCatalog) TriggerFormChoices(workspaceID string) ([]workflow_domain.TriggerInputOption, error) {
-	summaries, err := c.forms.List(context.Background(), wf.FormQuery{WorkspaceID: workspaceID})
-	if err != nil {
-		return nil, err
-	}
-	choices := make([]workflow_domain.TriggerInputOption, 0, len(summaries))
-	for _, s := range summaries {
-		choices = append(choices, workflow_domain.TriggerInputOption{Value: s.Form.ID, Label: s.Form.Name})
-	}
-	return choices, nil
 }
 
 func (c triggerFormCatalog) TriggerForm(workspaceID, formID string) (workflow_domain.TriggerForm, error) {

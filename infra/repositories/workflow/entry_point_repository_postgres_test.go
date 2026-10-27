@@ -299,13 +299,6 @@ func TestEntryPointBindingsAgainstPostgres(t *testing.T) {
 	if want := "facebook_page:Loja:on,instagram_account:loja:off,whatsapp_campaign:Black Friday:on"; strings.Join(linked, ",") != want {
 		t.Fatalf("linked channels = %v\nwant %s", linked, want)
 	}
-	enabled := map[string]string{}
-	for _, c := range sources.EnabledChannels {
-		enabled[c.Name] = c.WorkflowID
-	}
-	if len(enabled) != 5 || enabled["Site"] != "" || enabled["Aberta"] != "" || enabled["lojabot"] != other || enabled["Black Friday"] != f.published || enabled["Loja"] != f.published {
-		t.Fatalf("enabled channels = %+v", enabled)
-	}
 
 	exits := sources.LeadExits[f.published]
 	if len(exits) != 2 || exits[0] != (workflow.LeadExitEntry{Source: workflow.LeadExitFromCampaign, ID: boundCampaign, Name: "Black Friday", Button: "Matricular"}) ||

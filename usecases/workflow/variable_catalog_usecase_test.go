@@ -24,10 +24,6 @@ type formCatalogStub struct {
 	err   error
 }
 
-func (s formCatalogStub) TriggerFormChoices(string) ([]workflow.TriggerInputOption, error) {
-	return nil, s.err
-}
-
 func (s formCatalogStub) TriggerForm(_ string, formID string) (workflow.TriggerForm, error) {
 	if s.err != nil {
 		return workflow.TriggerForm{}, s.err

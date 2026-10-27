@@ -140,7 +140,7 @@ func TestStatusTransitions(t *testing.T) {
 	all := []Status{StatusPending, StatusSending, StatusSent, StatusFailed, StatusCanceled}
 	allowed := map[Status]map[Status]bool{
 		StatusPending: {StatusSending: true, StatusCanceled: true, StatusFailed: true},
-		StatusSending: {StatusSent: true, StatusFailed: true},
+		StatusSending: {StatusSent: true, StatusFailed: true, StatusCanceled: true},
 	}
 
 	for _, from := range all {

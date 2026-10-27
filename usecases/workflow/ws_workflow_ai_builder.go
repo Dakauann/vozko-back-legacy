@@ -988,6 +988,9 @@ func (uc *aiBuilderUC) handleGetNodeSpec(st *builderState, tc ai.ToolCall) strin
 	st.inspectedSpecs[string(nt)] = true
 	var b strings.Builder
 	fmt.Fprintf(&b, "get_node_spec(%s): %s, %s\n", nt, def.Label, def.Description)
+	if scope := def.TriggerScope.Guide(); scope != "" {
+		fmt.Fprintf(&b, "  escopo: %s\n", scope)
+	}
 	if len(def.ConfigSchema) > 0 {
 		b.WriteString("  campos de config:\n")
 		for _, f := range def.ConfigSchema {
@@ -1103,8 +1106,9 @@ func (uc *aiBuilderUC) systemPrompt(st *builderState) string {
 	b.WriteString("- Para um workflow NOVO (sem nome ainda), defina um nome curto e uma descrição via set_meta logo no PRIMEIRO turno (junto das primeiras mutações).\n")
 	b.WriteString("- Use apenas tipos de nó do catálogo abaixo. Todo workflow precisa de ao menos um gatilho (trigger) e ao menos um caminho até um nó 'end'.\n")
 	b.WriteString("- O rótulo (label) de cada aresta deve ser o id exato de uma saída (handle) do nó de origem.\n")
-	b.WriteString("- Nós de saída DINÂMICA (action_ai_agent em tool_mode=route → uma saída por custom_tool; condition_text_match → uma saída por cases[].value): defina a config (custom_tools/cases/tool_mode) ANTES de conectar as arestas a essas saídas.\n")
-	b.WriteString("- O campo 'tool_mode' do action_ai_agent é OCULTO no schema mas essencial (route vs execute), veja get_node_spec.\n")
+	b.WriteString("- Nós de saída DINÂMICA (action_ai_agent com custom_tools → uma saída por custom_tool; condition_text_match → uma saída por cases[].value): defina a config (custom_tools/cases/tool_mode) ANTES de conectar as arestas a essas saídas.\n")
+	b.WriteString("- O campo 'tool_mode' do action_ai_agent é essencial quando há custom_tools: 'route' (padrão) segue só as arestas desenhadas, então conecte o fim do caminho da ferramenta de volta ao agente; 'execute' volta sozinho ao agente quando o caminho da ferramenta termina. Veja get_node_spec.\n")
+	b.WriteString("- ESCOPO DOS GATILHOS: gatilhos 'desta conversa' (trigger_message_received, trigger_first_message, trigger_stage_added) só disparam nas conversas pelas quais este fluxo responde: as dos números, contas e campanhas que usam este fluxo, ou conversas delegadas a ele. Dois fluxos com o mesmo gatilho de etapa não disparam juntos: só o da conversa. Para valer, o fluxo precisa estar ligado ao número, conta ou campanha. Gatilhos 'global' (webhook, formulário, agente de IA, aniversário, ligação) disparam conforme a própria configuração, em toda a área de trabalho.\n")
 	b.WriteString("- Resolva ids de recursos (modelos, agentes, templates, departamentos, etiquetas, membros...) via find_resource; nunca invente ids.\n")
 	b.WriteString("- MODELO DE IA (campo 'model' de action_ai_agent em modo prompt): use SEMPRE find_resource ai_models e copie um id EXATAMENTE como retornado (ex.: 'openai/gpt-4o', 'anthropic/claude-sonnet-4'). NUNCA escreva um id de memória nem invente variações/sufixos (ex.: '-latest', 'gpt-chat', 'gemini-3.5-flash'). Um modelo que não existe é REJEITADO na hora, não tente adivinhar; escolha um id da lista retornada.\n")
 	b.WriteString("- Use get_node_spec(tipo) para ver o schema completo, saídas e orientações de um nó antes de configurá-lo.\n")
@@ -1140,6 +1144,9 @@ func (uc *aiBuilderUC) catalogLines(st *builderState) []string {
 		}
 		if b := d.Guidance.Behavior; b != "" {
 			line += "\n    comportamento: " + b
+		}
+		if scope := d.TriggerScope.Guide(); scope != "" {
+			line += "\n    escopo: " + scope
 		}
 		if outs := staticHandleIDs(d.Outputs); outs != "" {
 			line += "\n    saídas: " + outs

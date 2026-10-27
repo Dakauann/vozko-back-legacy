@@ -98,7 +98,7 @@ func TestCancelIsGuardedOnPending(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "scheduled_messages" SET`)).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	err := NewRepository(db).Cancel("sched-1")
+	err := NewRepository(db).Cancel("sched-1", sm.CancelByPerson)
 	if !errors.Is(err, sm.ErrNotPending) {
 		t.Fatalf("err = %v, want ErrNotPending when the row already left pending", err)
 	}

@@ -86,13 +86,14 @@ func TestFormTriggerAcceptsTheFormsItNames(t *testing.T) {
 		formID string
 		want   bool
 	}{
-		{"no config means any form", nil, "f1", true},
-		{"an empty list means any form", map[string]interface{}{FormTriggerFormIDsKey: []interface{}{}}, "f1", true},
+		{"no config matches no form", nil, "f1", false},
+		{"an empty list matches no form", map[string]interface{}{FormTriggerFormIDsKey: []interface{}{}}, "f1", false},
+		{"a null list matches no form", map[string]interface{}{FormTriggerFormIDsKey: nil}, "f1", false},
 		{"a listed form", map[string]interface{}{FormTriggerFormIDsKey: []interface{}{"f0", "f1"}}, "f1", true},
 		{"a typed list", map[string]interface{}{FormTriggerFormIDsKey: []string{"f1"}}, "f1", true},
 		{"a form not on the list", map[string]interface{}{FormTriggerFormIDsKey: []interface{}{"f0"}}, "f1", false},
 		{"blank entries do not widen the list", map[string]interface{}{FormTriggerFormIDsKey: []interface{}{" ", "f0"}}, "f1", false},
-		{"a list of blanks still means any form", map[string]interface{}{FormTriggerFormIDsKey: []interface{}{" "}}, "f1", true},
+		{"a list of blanks matches no form", map[string]interface{}{FormTriggerFormIDsKey: []interface{}{" "}}, "f1", false},
 		{"an unreadable list refuses every form", map[string]interface{}{FormTriggerFormIDsKey: "f1"}, "f1", false},
 		{"no form id refuses a named list", map[string]interface{}{FormTriggerFormIDsKey: []interface{}{"f1"}}, "", false},
 	}
@@ -119,11 +120,11 @@ func TestFormUseNamesHowAWorkflowUsesAForm(t *testing.T) {
 		ok    bool
 	}{
 		{"a trigger on the form", []Node{trigger(map[string]interface{}{FormTriggerFormIDsKey: []interface{}{"f1"}})}, FormUseTrigger, true},
-		{"a trigger on any form", []Node{trigger(nil)}, FormUseTrigger, true},
+		{"a trigger with no form uses none", []Node{trigger(nil)}, "", false},
 		{"a trigger on another form", []Node{trigger(map[string]interface{}{FormTriggerFormIDsKey: []interface{}{"f2"}})}, "", false},
 		{"a node sending the form", []Node{{ID: "t", Type: NodeTypeTriggerMessageReceived}, sendForm("f1")}, FormUseNode, true},
 		{"a node sending another form", []Node{{ID: "t", Type: NodeTypeTriggerMessageReceived}, sendForm("f2")}, "", false},
-		{"the trigger wins over a node", []Node{trigger(nil), sendForm("f1")}, FormUseTrigger, true},
+		{"the trigger wins over a node", []Node{trigger(map[string]interface{}{FormTriggerFormIDsKey: []interface{}{"f1"}}), sendForm("f1")}, FormUseTrigger, true},
 		{"no form at all", []Node{{ID: "t", Type: NodeTypeTriggerMessageReceived}}, "", false},
 	}
 	for _, tc := range cases {

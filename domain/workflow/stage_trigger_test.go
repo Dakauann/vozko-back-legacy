@@ -138,8 +138,26 @@ func TestTheStageEntryPointShowsWhenAStageMoveLastStartedARun(t *testing.T) {
 	}
 	at := time.Date(2026, 10, 22, 9, 0, 0, 0, time.UTC)
 	w := entryWorkflow(WorkflowStatusActive, true)
-	entry := onlyEntry(t, EntryPointsOf(w, []Node{triggerOf(NodeTypeTriggerStageAdded, nil)}, EntryPointFacts{LastStarts: map[EntryPointKind]time.Time{EntryStageAdded: at}}), EntryStageAdded)
+	entry := onlyEntry(t, EntryPointsOf(w, []Node{triggerOf(NodeTypeTriggerStageAdded, nil)}, EntryPointFacts{Channels: []EntryChannel{{Kind: ChannelWhatsAppCampaign, ID: "c-1", WorkflowEnabled: true}}, LastStarts: map[EntryPointKind]time.Time{EntryStageAdded: at}}), EntryStageAdded)
 	if entry.LastReceivedAt == nil || !entry.LastReceivedAt.Equal(at) || entry.Readiness != EntryReady {
 		t.Fatalf("entry = %+v", entry)
+	}
+}
+
+func TestOnlyAStageMoveLeavesAParkedRunWaiting(t *testing.T) {
+	cases := []struct {
+		trigger TriggerType
+		wakes   bool
+	}{
+		{TriggerStageAdded, false},
+		{TriggerMessageReceived, true},
+		{TriggerFirstMessage, true},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.trigger), func(t *testing.T) {
+			if got := (TriggerEvent{TriggerType: tc.trigger}).WakesWaitingRun(); got != tc.wakes {
+				t.Fatalf("WakesWaitingRun() = %v, want %v", got, tc.wakes)
+			}
+		})
 	}
 }

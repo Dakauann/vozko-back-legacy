@@ -52,7 +52,7 @@ CREATE TABLE unofficial_whatsapp_instances (id uuid PRIMARY KEY, workspace_id uu
 CREATE TABLE unofficial_whatsapp_contacts (id uuid PRIMARY KEY, lead_id uuid);
 CREATE TABLE unofficial_whatsapp_campaigns (id uuid PRIMARY KEY, deleted_at timestamptz);
 CREATE TABLE unofficial_whatsapp_conversations (id uuid PRIMARY KEY, instance_id uuid, contact_id uuid, campaign_id text,
-	conversation_status text, created_at timestamptz, updated_at timestamptz, last_message_at timestamptz, deleted_at timestamptz);
+	is_group boolean NOT NULL DEFAULT false, conversation_status text, created_at timestamptz, updated_at timestamptz, last_message_at timestamptz, deleted_at timestamptz);
 `
 
 func entryUnionDB(t *testing.T) *gorm.DB {

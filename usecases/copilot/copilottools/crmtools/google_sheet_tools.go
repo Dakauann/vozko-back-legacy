@@ -86,7 +86,7 @@ type googleSheetColumnArgs struct {
 	Options     []string `json:"options" desc:"opções de uma coluna choice"`
 	Required    bool     `json:"required" desc:"true quando toda linha precisa deste valor"`
 	Instruction string   `json:"instruction" desc:"o que agentes de IA devem escrever nesta coluna"`
-	Source      string   `json:"source" enum:"input,written_at,lead_name,lead_phone,lead_email,conversation_link,origin" desc:"input quando agentes e fluxos preenchem; os demais são preenchidos pelo sistema"`
+	Source      string   `json:"source" enum:"input,written_at,lead_name,lead_phone,lead_email,conversation_link,origin,message_sent_at,message_sender,message_direction,message_text,message_media_url" desc:"input quando agentes e fluxos preenchem; os demais são preenchidos pelo sistema; as fontes message_* mudam a cada linha e só são preenchidas pelo passo Exportar mensagens para planilha"`
 }
 
 type createGoogleSheetArgs struct {

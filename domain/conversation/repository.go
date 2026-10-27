@@ -23,6 +23,12 @@ type ListMessagesInput struct {
 	Limit     int
 	Before    *time.Time
 	After     *time.Time
+	Since     *MessageKeyset
+}
+
+type MessageKeyset struct {
+	At time.Time
+	ID string
 }
 
 type UnreadCount struct {
@@ -73,7 +79,7 @@ type SearchEntriesInput struct {
 
 	HasUnread  *bool
 	WindowOpen *bool
-	IsGroup    *bool
+	Groups     GroupScope
 
 	Channel  string
 	DateFrom *time.Time

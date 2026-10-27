@@ -10,6 +10,8 @@ type ListQuery struct {
 
 type Repository interface {
 	Create(m *ScheduledMessage) error
+
+	CreateCapped(m *ScheduledMessage, limit int) error
 	FindByID(id string) (*ScheduledMessage, error)
 
 	FindByIdempotencyKey(workspaceID, key string) (*ScheduledMessage, error)
@@ -24,7 +26,11 @@ type Repository interface {
 	MarkSent(id, messageID string, sentAt time.Time) error
 	MarkFailed(id string, reason FailureReason, detail string) error
 
-	Cancel(id string) error
+	Cancel(id string, reason CancelReason) error
+
+	CancelClaimed(id string, reason CancelReason) error
+
+	CancelOnReply(entryID, entryType string, repliedAt time.Time) (int64, error)
 	Reschedule(id string, at time.Time, windowExpiresAt *time.Time) error
 
 	ListStuckClaims(claimedBefore time.Time, limit int) ([]*ScheduledMessage, error)

@@ -42,7 +42,7 @@ type channelQuery struct {
 
 	WindowOpenPredicate string
 
-	GroupPredicate string
+	GroupColumn string
 
 	CampaignCTE          string
 	CampaignCTEEntryCol  string
@@ -493,7 +493,7 @@ var channelQueries = []channelQuery{
 		DepartmentEntryCol: "uwc_f.id",
 
 		WindowOpenPredicate: unofficialWindowOpen,
-		GroupPredicate:      unofficialGroup,
+		GroupColumn:         "uwc." + UnofficialGroupColumn,
 
 		CampaignCTE: `SELECT DISTINCT uwce.conversation_id AS entry_id
 			FROM unofficial_whatsapp_campaign_entries uwce

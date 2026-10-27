@@ -44,7 +44,7 @@ func TestAssembleNamesTheConversationTurnSoItsToolCallsReachTheAttendanceSession
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := New(nil, nil, nil).Assemble(context.Background(), c.req).Input.AgentTurn
+			got := New(nil, nil, nil, nil).Assemble(context.Background(), c.req).Input.AgentTurn
 			if got != c.want {
 				t.Fatalf("agent turn = %+v, want %+v", got, c.want)
 			}

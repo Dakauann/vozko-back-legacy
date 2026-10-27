@@ -6,15 +6,17 @@ import (
 	"time"
 
 	"vozko/domain/cache"
+	"vozko/domain/shared/deps"
 	"vozko/domain/workflow"
 )
 
 type triggerEvaluator struct {
-	workflowRepo workflow.WorkflowRepository
-	runRepo      workflow.WorkflowRunRepository
-	engine       *RunEngine
-	sharedState  cache.SharedState
-	waiters      *ReplyWaiters
+	workflowRepo   workflow.WorkflowRepository
+	runRepo        workflow.WorkflowRunRepository
+	engine         *RunEngine
+	sharedState    cache.SharedState
+	waiters        *ReplyWaiters
+	responsibility workflow.ConversationResponsibility
 }
 
 func NewTriggerEvaluator(
@@ -22,13 +24,18 @@ func NewTriggerEvaluator(
 	runRepo workflow.WorkflowRunRepository,
 	engine *RunEngine,
 	sharedState cache.SharedState,
+	responsibility workflow.ConversationResponsibility,
 ) workflow.CheckedTriggerEvaluator {
+	if err := deps.Require("workflow trigger evaluator", map[string]any{"conversation responsibility": responsibility}); err != nil {
+		panic(err.Error())
+	}
 	return &triggerEvaluator{
-		workflowRepo: workflowRepo,
-		runRepo:      runRepo,
-		engine:       engine,
-		sharedState:  sharedState,
-		waiters:      NewReplyWaiters(workflowRepo, runRepo, engine),
+		workflowRepo:   workflowRepo,
+		runRepo:        runRepo,
+		engine:         engine,
+		sharedState:    sharedState,
+		waiters:        NewReplyWaiters(workflowRepo, runRepo, engine),
+		responsibility: responsibility,
 	}
 }
 
@@ -46,6 +53,7 @@ func eventLogAttrs(event workflow.TriggerEvent) []any {
 	return []any{
 		slog.String("workspace_id", event.WorkspaceID),
 		slog.String("entry_id", event.EntryID),
+		slog.String("entry_type", event.EntryType),
 		slog.String("trigger", string(event.TriggerType)),
 	}
 }
@@ -57,6 +65,11 @@ func (te *triggerEvaluator) Evaluate(event workflow.TriggerEvent) {
 func (te *triggerEvaluator) EvaluateChecked(event workflow.TriggerEvent) error {
 	slog.Debug("workflow.trigger.evaluate", eventLogAttrs(event)...)
 
+	if _, known := event.TriggerType.Scope(); !known {
+		slog.Error("workflow.trigger.unknown_scope", append(eventLogAttrs(event), slog.String("outcome", "not_fired"))...)
+		return nil
+	}
+
 	handledReplyRun := ""
 	handledReplyWorkflow := ""
 	if event.TriggerType == workflow.TriggerMessageReceived && event.EntryID != "" {
@@ -65,6 +78,16 @@ func (te *triggerEvaluator) EvaluateChecked(event workflow.TriggerEvent) error {
 			return nil
 		}
 		handledReplyRun, handledReplyWorkflow = routed.RunID, routed.WorkflowID
+	}
+
+	responsible, scoped, err := te.responsibleWorkflow(event)
+	if err != nil {
+		slog.Error("workflow.trigger.responsibility_unreadable", append(eventLogAttrs(event), slog.String("outcome", "not_fired"), slog.String("error", err.Error()))...)
+		return fmt.Errorf("responsible workflow for %s %s: %w", event.EntryType, event.EntryID, err)
+	}
+	if scoped && responsible == "" {
+		slog.Info("workflow.trigger.no_responsible_workflow", append(eventLogAttrs(event), slog.String("outcome", "not_fired"))...)
+		return nil
 	}
 
 	workflows, err := te.workflowRepo.FindActiveByTrigger(event.WorkspaceID, event.TriggerType)
@@ -76,6 +99,11 @@ func (te *triggerEvaluator) EvaluateChecked(event workflow.TriggerEvent) error {
 	slog.Debug("workflow.trigger.candidates", append(eventLogAttrs(event), slog.Int("workflows", len(workflows)))...)
 
 	for _, w := range workflows {
+
+		if scoped && w.ID != responsible {
+			slog.Debug("workflow.trigger.skip_not_responsible", append(eventLogAttrs(event), slog.String("workflow_id", w.ID), slog.String("responsible_workflow_id", responsible))...)
+			continue
+		}
 
 		if handledReplyWorkflow != "" && w.ID == handledReplyWorkflow {
 			slog.Info("workflow.trigger.message_already_consumed", append(eventLogAttrs(event), slog.String("workflow_id", w.ID), slog.String("run_id", handledReplyRun))...)
@@ -96,7 +124,7 @@ func (te *triggerEvaluator) EvaluateChecked(event workflow.TriggerEvent) error {
 			continue
 		}
 
-		existing, err := te.blockingRun(w, trigger, event)
+		existing, err := te.blockingRun(w, trigger, event, responsible)
 		if err != nil {
 			slog.Error("workflow.trigger.existing_run_check_failed", append(eventLogAttrs(event), slog.String("workflow_id", w.ID), slog.String("error", err.Error()))...)
 			continue
@@ -106,7 +134,7 @@ func (te *triggerEvaluator) EvaluateChecked(event workflow.TriggerEvent) error {
 			if existing.ID == handledReplyRun {
 				continue
 			}
-			wakesOnMessage := existing.Status == workflow.RunStatusWaiting && (existing.WaitReason == workflow.WaitReasonReply || existing.WaitReason == workflow.WaitReasonDuration)
+			wakesOnMessage := event.WakesWaitingRun() && existing.Status == workflow.RunStatusWaiting && (existing.WaitReason == workflow.WaitReasonReply || existing.WaitReason == workflow.WaitReasonDuration)
 			if !wakesOnMessage {
 				slog.Info("workflow.trigger.existing_run_blocks", append(runLogAttrs(existing, existing.CurrentNodeID), slog.String("status", string(existing.Status)))...)
 				continue
@@ -147,7 +175,21 @@ func (te *triggerEvaluator) EvaluateChecked(event workflow.TriggerEvent) error {
 	return nil
 }
 
-func (te *triggerEvaluator) blockingRun(w *workflow.Workflow, trigger *workflow.Node, event workflow.TriggerEvent) (*workflow.WorkflowRun, error) {
+func (te *triggerEvaluator) responsibleWorkflow(event workflow.TriggerEvent) (string, bool, error) {
+	if !event.TriggerType.FollowsResponsibleWorkflow() {
+		return "", false, nil
+	}
+	if named, ok := event.NamedResponsibleWorkflow(); ok {
+		return named, true, nil
+	}
+	id, _, err := te.responsibility.ResponsibleWorkflow(event.WorkspaceID, event.EntryID, event.EntryType)
+	if err != nil {
+		return "", true, err
+	}
+	return id, true, nil
+}
+
+func (te *triggerEvaluator) blockingRun(w *workflow.Workflow, trigger *workflow.Node, event workflow.TriggerEvent, responsible string) (*workflow.WorkflowRun, error) {
 	if event.StartsRunPerEvent() {
 		return nil, nil
 	}
@@ -155,7 +197,7 @@ func (te *triggerEvaluator) blockingRun(w *workflow.Workflow, trigger *workflow.
 	if err != nil {
 		return nil, err
 	}
-	return conversationRunCurrent(te.runRepo, te.engine, run, w, event)
+	return conversationRunCurrent(te.runRepo, te.engine, run, w, event, responsible)
 }
 
 func (te *triggerEvaluator) routeReply(event workflow.TriggerEvent) (workflow.ReplyRouting, bool) {
@@ -214,28 +256,15 @@ func (te *triggerEvaluator) wakeRunForMessage(run *workflow.WorkflowRun, w *work
 }
 
 func (te *triggerEvaluator) matchesTriggerConfig(w *workflow.Workflow, event workflow.TriggerEvent) bool {
-
-	if campaignWfID, ok := event.Data[workflow.DataKeyCampaignWorkflowID].(string); ok && campaignWfID != "" {
-		if w.ID != campaignWfID {
-			slog.Debug("workflow.trigger.skip_campaign_linked_elsewhere", append(eventLogAttrs(event), slog.String("workflow_id", w.ID), slog.String("linked_workflow_id", campaignWfID))...)
-			return false
-		}
-	}
-
-	if accountWfID, ok := event.Data[workflow.DataKeyAccountWorkflowID].(string); ok && accountWfID != "" {
-		if w.ID != accountWfID {
-			slog.Debug("workflow.trigger.skip_account_linked_elsewhere", append(eventLogAttrs(event), slog.String("workflow_id", w.ID), slog.String("linked_workflow_id", accountWfID))...)
-			return false
-		}
-	}
-
 	triggerNode := w.Graph.TriggerNodeByType(event.TriggerType)
-	cfg := map[string]interface{}{}
-	if triggerNode != nil && triggerNode.Config != nil {
-		cfg = triggerNode.Config
+	var nodeConfig map[string]interface{}
+	if triggerNode != nil {
+		nodeConfig = triggerNode.Config
 	}
-	if len(cfg) == 0 && len(w.TriggerConfig) > 0 {
-		cfg = w.TriggerConfig
+	cfg := workflow.EffectiveTriggerConfig(nodeConfig, w.TriggerConfig)
+	if event.TriggerType == workflow.TriggerFormSubmitted {
+		formID, _ := event.Data[workflow.DataKeyFormID].(string)
+		return workflow.FormTriggerAccepts(cfg, formID)
 	}
 	if len(cfg) == 0 {
 		return true
@@ -249,10 +278,6 @@ func (te *triggerEvaluator) matchesTriggerConfig(w *workflow.Workflow, event wor
 		}
 		eventTagID, _ := event.Data[workflow.DataKeyStageID].(string)
 		return StageID == eventTagID
-
-	case workflow.TriggerFormSubmitted:
-		formID, _ := event.Data[workflow.DataKeyFormID].(string)
-		return workflow.FormTriggerAccepts(cfg, formID)
 
 	default:
 		return true

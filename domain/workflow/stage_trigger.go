@@ -52,6 +52,10 @@ func (e TriggerEvent) MayStart(workflowID string) bool {
 	return e.CausedBy == "" || e.CausedBy != workflowID
 }
 
+func (e TriggerEvent) WakesWaitingRun() bool {
+	return e.TriggerType != TriggerStageAdded
+}
+
 func StageChainOf(state RunState) int {
 	raw, present := state.Get(StageChainKey)
 	if !present || raw == nil {

@@ -27,6 +27,7 @@ func NewConversationRepository(db *gorm.DB) uw.ConversationRepository {
 			DB:              db,
 			NewModel:        func() any { return &schema.UnofficialWhatsAppConversation{} },
 			ContainerColumn: "instance_id",
+			GroupColumn:     conversation_repository.UnofficialGroupColumn,
 			NotFound:        uw.ErrConversationNotFound,
 		},
 	}

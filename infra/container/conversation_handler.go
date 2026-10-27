@@ -4,6 +4,7 @@ import (
 	"log"
 
 	conversationhttp "vozko/delivery/http/conversation"
+	conversation_usecase "vozko/usecases/conversation"
 )
 
 func (c *Container) conversationHandler() *conversationhttp.ConversationHandler {
@@ -17,6 +18,11 @@ func (c *Container) conversationHandler() *conversationhttp.ConversationHandler 
 		Delegation:            c.automationDelegation(toggle),
 		ToolCalls:             c.listAIToolCalls(),
 		EmailHTML:             c.emailHTMLViewer(),
+		ResponsibleWorkflow: conversation_usecase.NewResponsibleWorkflowView(conversation_usecase.ResponsibleWorkflowViewDeps{
+			Gate:       c.services.automationGate,
+			Visibility: c.conversationVisibility(),
+			Workflows:  c.repositories.workflow,
+		}),
 	})
 	if err != nil {
 		log.Fatalf("[container] %v", err)

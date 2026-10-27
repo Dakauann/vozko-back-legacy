@@ -76,3 +76,31 @@ func TestAnUnreadableTemplateRowKeepsItsTemplateButNoValues(t *testing.T) {
 		t.Errorf("body params = %v, want none so the send rules refuse the missing values", out.Template.BodyParams)
 	}
 }
+
+func TestAnAutomationFollowUpStoresNoPersonAndKeepsItsFlags(t *testing.T) {
+	reason := sm.CancelContactReplied
+	in := &sm.ScheduledMessage{
+		ID:                  "sched-1",
+		EntryType:           shared.EntryTypeWhatsApp,
+		CreatedByAutomation: "ai:agent-1",
+		CancelOnReply:       true,
+		CancelReason:        &reason,
+		Kind:                sm.KindText,
+		Text:                "Oi, conseguiu enviar o comprovante?",
+	}
+
+	row, err := fromDomain(in)
+	if err != nil {
+		t.Fatalf("fromDomain: %v", err)
+	}
+	if row.CreatedByUserID != nil {
+		t.Fatalf("an automation row must leave the person column empty, got %q", *row.CreatedByUserID)
+	}
+	out := toDomain(&row)
+	if out.CreatedByAutomation != "ai:agent-1" || out.CreatedByUserID != "" || !out.CancelOnReply {
+		t.Fatalf("out = %+v", out)
+	}
+	if out.CancelReason == nil || *out.CancelReason != sm.CancelContactReplied {
+		t.Fatalf("cancel reason = %v", out.CancelReason)
+	}
+}

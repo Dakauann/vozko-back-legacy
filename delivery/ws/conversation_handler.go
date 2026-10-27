@@ -115,7 +115,7 @@ func resolveConnectionDepartmentID(r *http.Request) string {
 // @Description	| `assign_to` | `conversations:assign` | `{"entry_id": string, "entry_type": string, "user_id": string}` | Sem resposta direta: você recebe `conversation:entry_update`. |
 // @Description	| `request_funnel_column` | `conversations:read` | `{"stage_id": string, "page"?: number, "page_size"?: number}` | `conversation:funnel_column` |
 // @Description	| `request_funnel_summary` | `conversations:read` | `{"stage_ids": string[]}` | `conversation:funnel_summary` |
-// @Description	| `switch_view` | | `{"campaign_id"?: string, "campaign_type"?: string, "whatsapp_campaign_type"?: "standard" \| "organic", "container_kind"?: "" \| "campaign", "conversation_status"?: "new" \| "ongoing" \| "finished"}` | `conversation:view_switched` e a primeira página em `conversation:inbox`. Cancela todas as inscrições em conversas. |
+// @Description	| `switch_view` | | `{"campaign_id"?: string, "campaign_type"?: string, "whatsapp_campaign_type"?: "standard" \| "organic", "container_kind"?: "" \| "campaign", "conversation_status"?: "new" \| "ongoing" \| "finished", "is_group"?: boolean}` | `conversation:view_switched` e a primeira página em `conversation:inbox`. Cancela todas as inscrições em conversas. Com `is_group: true` a lista é a aba Grupos (veja Grupos); sem ele, as conversas com clientes. |
 // @Description	| `set_conversation_status` | `conversations:send` | `{"entry_id": string, "entry_type": string, "status": "ongoing" \| "finished", "outcome_code"?: string}` | Sem resposta direta: você recebe `conversation:conversation_status_update`. |
 // @Description
 // @Description	`entry_type` é o canal da conversa: `whatsapp`, `unofficial_whatsapp`, `instagram`, `facebook` ou `telegram`.
@@ -159,7 +159,7 @@ func resolveConnectionDepartmentID(r *http.Request) string {
 // @Description
 // @Description	- `sort`: `recent` (padrão, a ordem de sempre: a mensagem mais recente primeiro) ou `waiting`: primeiro as conversas que esperam resposta (as que têm `waiting_since`), a que espera desde mais cedo no topo, depois as demais pela mais recente. É a mesma regra de `waiting_since`: conversa finalizada não espera. Outro valor responde `conversation:error` com `invalid_sort`.
 // @Description	- `label_id`: só conversas com essa etiqueta. Um id ilegível responde `invalid_label`.
-// @Description	- `is_group`: `true`, só conversas de grupo (hoje, grupos do WhatsApp não oficial); `false`, só conversas com pessoas. Num canal sem grupos, `true` não traz nada.
+// @Description	- `is_group`: `true`, busca na aba Grupos (hoje, grupos do WhatsApp não oficial); `false`, nas conversas com clientes. Sem o campo, vale a aba da sua visão (`switch_view`). Num canal sem grupos, `true` não traz nada.
 // @Description	- `personal`: sem valor, a sua caixa de entrada (as suas fixadas primeiro, todas as outras em seguida); `pinned`, só as que você fixou. Outro valor responde `invalid_personal`.
 // @Description	- `origin`: só conversas com essa origem, pela primeira mensagem: `receptive` (o contato escreveu primeiro), `campaign` (começou por uma mensagem de campanha), `outreach` (a equipe, a IA ou um fluxo começou) ou `unknown` (remetente não registrado). Uma conversa ainda sem origem registrada só aparece sem o filtro. Vale também para os totais e a paginação. Outro valor responde `invalid_origin`. Cada `InboxEntry` traz a sua `origin` quando ela já está registrada.
 // @Description	- Em qualquer `sort`, as conversas que você fixou vêm primeiro. `request_inbox_page`, a primeira página ao conectar e `switch_view` usam a sua caixa de entrada (sem `personal`) com `sort: "recent"`. As colunas do funil (`request_funnel_column`, `request_funnel_summary`) não usam marcas pessoais.
@@ -172,6 +172,13 @@ func resolveConnectionDepartmentID(r *http.Request) string {
 // @Description	- Abrir a conversa (`subscribe`) ou `mark_read` tira a sua marca de não lida. Para desfazer `mark_unread` use `clear_unread_mark`, que tira só a marca: `mark_read` marca as mensagens do contato como lidas e manda a confirmação de leitura a ele.
 // @Description	- `conversation:inbox` e `conversation:search_results` trazem `personal_marks` com as suas marcas das conversas da página.
 // @Description	- Os totais por status (`conversation_status_counts`) são da equipe: as suas marcas não os mudam.
+// @Description
+// @Description	### Grupos
+// @Description
+// @Description	Os grupos de WhatsApp ficam sempre na aba Grupos, para todos: as conversas com clientes (a primeira página, `request_inbox_page`, `search_inbox`, as colunas do funil e os totais por status) nunca trazem grupos. A aba Grupos é `switch_view` com `is_group: true` e mostra todos os grupos, inclusive os finalizados; `conversation_status_counts` traz o total dela em `groups`.
+// @Description
+// @Description	- Cada pessoa pode esconder os grupos (PUT /inbox/preferences com `hideGroups: true`). Para ela, a aba Grupos e as buscas com `is_group: true` voltam vazias, e mensagens de grupo não chegam nem tocam aviso. A preferência chega em `conversation:inbox_preferences` logo depois de conectar e sempre que muda, em todas as suas conexões deste workspace. Quando ela não pode ser lida, vale o padrão: grupos visíveis na aba Grupos.
+// @Description	- Uma conversa sem a marca de grupo conta como conversa com cliente, para nada sumir por engano.
 // @Description
 // @Description	Recusas de `pin_conversation`, `mark_unread` e `clear_unread_mark` chegam em `conversation:error` com `request_id`, `entry_id`, `entry_type` e o código: `not_allowed` (sem `conversations:read` ou sem acesso à conversa), `invalid` (falta `entry_id`, `entry_type` ou `pinned`), `unsupported` (servidor sem marcas pessoais) ou `failed` (não foi possível gravar).
 // @Description
@@ -195,7 +202,8 @@ func resolveConnectionDepartmentID(r *http.Request) string {
 // @Description	| `conversation:window_reopened` | `{"entry_id", "entry_type", "request_id"?, "template_id", "message_id"}` |
 // @Description	| `conversation:funnel_column` | `{"stage_id", "entries": InboxEntry[], "page", "page_size", "total_items", "total_pages"}` |
 // @Description	| `conversation:funnel_summary` | `{"columns": [{"stage_id": string, "total_items": number}]}` |
-// @Description	| `conversation:view_switched` | `{"view_mode": "global" \| "campaign", "campaign_id"?, "campaign_type"?, "whatsapp_campaign_type"?, "container_kind"?, "conversation_status"?}` |
+// @Description	| `conversation:view_switched` | `{"view_mode": "global" \| "campaign", "campaign_id"?, "campaign_type"?, "whatsapp_campaign_type"?, "container_kind"?, "conversation_status"?, "is_group"?: boolean}`. `is_group: true`: a visão é a aba Grupos. |
+// @Description	| `conversation:inbox_preferences` | `{"hide_groups": boolean}`. As suas preferências da caixa de entrada neste workspace: chega logo depois de conectar e sempre que mudam (em qualquer servidor). Com `hide_groups: true`, esconda a aba Grupos. |
 // @Description	| `conversation:connected_users` | `{"users": [{"user_id", "workspace_id", "campaign_id", "campaign_type", "campaign_name"?, "view_mode", "username"?, "email"?, "connected_at"}]}`. Também chega sozinho quando alguém entra, sai ou troca de visão. Você só vê colegas dos seus departamentos, salvo se tiver acesso a todo o workspace. |
 // @Description	| `conversation:message_error` | `{"request_id", "entry_id", "entry_type", "error": string, "code"?: string}`. Falha de `send`, `send_button` ou do envio de `resend_message`. |
 // @Description	| `conversation:error` | Veja Erros. |
@@ -225,9 +233,9 @@ func resolveConnectionDepartmentID(r *http.Request) string {
 // @Description
 // @Description	| type | payload | Quando |
 // @Description	|---|---|---|
-// @Description	| `conversation:entry_update` | `{"entry": InboxEntry, "silent"?: boolean, "alert"?: boolean}` | Nova mensagem, envio, troca de responsável, status ou etapa. `silent: true` indica atualização sem novidade para o atendente. `alert: true` só vem numa mensagem nova do cliente e só para quem deve ser avisado: o responsável humano; ninguém quando um agente ou fluxo é o responsável ou quando a distribuição automática vai entregar a conversa; na fila manual, quem pode pegá-la. Toque o som e mostre o aviso só quando `alert` vier. |
+// @Description	| `conversation:entry_update` | `{"entry": InboxEntry, "silent"?: boolean, "alert"?: boolean, "unlisted"?: boolean}` | Nova mensagem, envio, troca de responsável, status ou etapa. `silent: true` indica atualização sem novidade para o atendente. `alert: true` só vem numa mensagem nova do cliente e só para quem deve ser avisado: o responsável humano; ninguém quando um agente ou fluxo é o responsável ou quando a distribuição automática vai entregar a conversa; na fila manual, quem pode pegá-la. Toque o som e mostre o aviso só quando `alert` vier. `unlisted: true` vem com `alert` quando a conversa é de outra aba (um grupo enquanto você vê os clientes, ou o contrário): avise, mas não ponha a conversa na lista atual. Quem escondeu os grupos não recebe nada de grupos. |
 // @Description	| `conversation:assigned_to_you` | `{"entry": InboxEntry, "assigned_at": string}` | Uma conversa passou a ser sua pela distribuição automática, por um colega, por uma transferência ou por um agente ou fluxo. Não chega quando você mesmo a pega. Chega uma vez por atribuição, em todas as suas conexões deste workspace. |
-// @Description	| `conversation:conversation_status_counts_update` | `{"counts": {"new": number, "ongoing": number, "finished": number}}` | Os totais por status mudaram. |
+// @Description	| `conversation:conversation_status_counts_update` | `{"counts": {"new": number, "ongoing": number, "finished": number, "groups"?: number}}` | Os totais por status mudaram. `new`, `ongoing` e `finished` contam só conversas com clientes; `groups` conta todos os grupos (a aba Grupos) e só vem quando a visão inclui um canal com grupos. |
 // @Description	| `conversation:stage_update` | `{"entry_id", "entry_type", "stage": Stage \| null}` | A etapa da conversa mudou. |
 // @Description	| `conversation:label_update` | `{"entry_id", "entry_type", "labels": Label[]}` | As etiquetas mudaram. |
 // @Description	| `conversation:entry_removed` | `{"entry_id", "entry_type", "reason": "assigned"}` | A conversa foi para outra pessoa e você não a vê mais. |

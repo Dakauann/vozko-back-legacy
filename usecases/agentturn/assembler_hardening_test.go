@@ -23,7 +23,7 @@ func ragAgent(prompt string) *agent.Agent {
 }
 
 func TestAssembleSurvivesAnEmptyRequest(t *testing.T) {
-	a := New(nil, nil, nil)
+	a := New(nil, nil, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{})
 
@@ -42,7 +42,7 @@ func TestAssembleSurvivesAnEmptyRequest(t *testing.T) {
 }
 
 func TestAssembleSurvivesToolResolutionWithoutARegistry(t *testing.T) {
-	a := New(nil, nil, nil)
+	a := New(nil, nil, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{
 		Agent:                &agent.Agent{MessagingPrompt: "hi", InternalTools: []agent.ToolBinding{{Name: "x"}}},
@@ -57,7 +57,7 @@ func TestAssembleSurvivesToolResolutionWithoutARegistry(t *testing.T) {
 }
 
 func TestAssembleSurvivesRAGWithoutAService(t *testing.T) {
-	a := New(nil, nil, nil)
+	a := New(nil, nil, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{Agent: ragAgent("hi"), RAGQuery: "anything"})
 
@@ -68,7 +68,7 @@ func TestAssembleSurvivesRAGWithoutAService(t *testing.T) {
 
 func TestSeedsAreStampedUnderTheKeyTheAIServiceReads(t *testing.T) {
 	reg := stubRegistry{defs: []tools.Definition{{Name: "Finish_Conversation"}}}
-	a := New(reg, nil, nil)
+	a := New(reg, nil, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{
 		Agent: &agent.Agent{
@@ -91,7 +91,7 @@ func TestSeedsAreStampedUnderTheKeyTheAIServiceReads(t *testing.T) {
 
 func TestSeedsMergeWithTheBindingConfigRatherThanReplacingIt(t *testing.T) {
 	reg := stubRegistry{defs: []tools.Definition{{Name: "book_meeting"}}}
-	a := New(reg, nil, nil)
+	a := New(reg, nil, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{
 		Agent: &agent.Agent{
@@ -116,7 +116,7 @@ func TestSeedsMergeWithTheBindingConfigRatherThanReplacingIt(t *testing.T) {
 
 func TestSeedsDoNotMutateTheCallersBindingConfig(t *testing.T) {
 	reg := stubRegistry{defs: []tools.Definition{{Name: "book_meeting"}}}
-	a := New(reg, nil, nil)
+	a := New(reg, nil, nil, nil)
 
 	binding := map[string]interface{}{"calendar_id": "cal-9"}
 	ag := &agent.Agent{InternalTools: []agent.ToolBinding{{Name: "book_meeting", Config: binding}}}
@@ -135,7 +135,7 @@ func TestSeedsDoNotMutateTheCallersBindingConfig(t *testing.T) {
 
 func TestSeparateAssembliesDoNotShareToolConfig(t *testing.T) {
 	reg := stubRegistry{defs: []tools.Definition{{Name: "book_meeting"}}}
-	a := New(reg, nil, nil)
+	a := New(reg, nil, nil, nil)
 	ag := &agent.Agent{InternalTools: []agent.ToolBinding{{
 		Name: "book_meeting", Config: map[string]interface{}{"calendar_id": "cal-9"},
 	}}}
@@ -163,7 +163,7 @@ func TestSeparateAssembliesDoNotShareToolConfig(t *testing.T) {
 
 func TestToolsAreOmittedUnlessExplicitlyRequested(t *testing.T) {
 	reg := stubRegistry{defs: []tools.Definition{{Name: "book_meeting"}}}
-	a := New(reg, nil, nil)
+	a := New(reg, nil, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{
 		Agent:    &agent.Agent{InternalTools: []agent.ToolBinding{{Name: "book_meeting"}}},
@@ -176,7 +176,7 @@ func TestToolsAreOmittedUnlessExplicitlyRequested(t *testing.T) {
 }
 
 func TestVarsAreInterpolatedIntoTheAgentPrompt(t *testing.T) {
-	a := New(nil, nil, nil)
+	a := New(nil, nil, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{
 		Agent: &agent.Agent{MessagingPrompt: "Olá {{nome}}, tudo bem?"},
@@ -193,7 +193,7 @@ func TestVarsAreInterpolatedIntoTheAgentPrompt(t *testing.T) {
 
 func TestIdentityReflectsResolvedToolsInThePrompt(t *testing.T) {
 	reg := stubRegistry{defs: []tools.Definition{{Name: "book_meeting"}}}
-	a := New(reg, nil, nil)
+	a := New(reg, nil, nil, nil)
 	identity := shared_usecase.ConversationContext{Channel: shared_usecase.ChannelMessaging, AgentName: "Bob"}
 
 	out := a.Assemble(context.Background(), Request{
@@ -212,7 +212,7 @@ func TestIdentityReflectsResolvedToolsInThePrompt(t *testing.T) {
 }
 
 func TestIdentityOmitsTheToolInstructionWhenNoToolsResolved(t *testing.T) {
-	a := New(stubRegistry{}, nil, nil)
+	a := New(stubRegistry{}, nil, nil, nil)
 	identity := shared_usecase.ConversationContext{Channel: shared_usecase.ChannelMessaging, AgentName: "Bob"}
 
 	out := a.Assemble(context.Background(), Request{
@@ -226,7 +226,7 @@ func TestIdentityOmitsTheToolInstructionWhenNoToolsResolved(t *testing.T) {
 }
 
 func TestWithoutIdentityThePromptIsJustTheAgentPrompt(t *testing.T) {
-	a := New(nil, nil, nil)
+	a := New(nil, nil, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{Agent: &agent.Agent{MessagingPrompt: "só isso"}})
 
@@ -236,7 +236,7 @@ func TestWithoutIdentityThePromptIsJustTheAgentPrompt(t *testing.T) {
 }
 
 func TestRAGIsSkippedWithoutAQuery(t *testing.T) {
-	a := New(nil, fakeRAG{results: []rag.QueryResult{{Content: "SHOULD NOT APPEAR"}}}, nil)
+	a := New(nil, fakeRAG{results: []rag.QueryResult{{Content: "SHOULD NOT APPEAR"}}}, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{Agent: ragAgent("hi")})
 
@@ -246,7 +246,7 @@ func TestRAGIsSkippedWithoutAQuery(t *testing.T) {
 }
 
 func TestExplicitKnowledgeBasesGroundAnAgentWithRAGDisabled(t *testing.T) {
-	a := New(nil, fakeRAG{results: []rag.QueryResult{{DocumentName: "faq", Content: "FROM KB", Score: 0.9}}}, nil)
+	a := New(nil, fakeRAG{results: []rag.QueryResult{{DocumentName: "faq", Content: "FROM KB", Score: 0.9}}}, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{
 		Agent:            &agent.Agent{MessagingPrompt: "hi"},
@@ -261,7 +261,7 @@ func TestExplicitKnowledgeBasesGroundAnAgentWithRAGDisabled(t *testing.T) {
 }
 
 func TestSuffixClosesTheSystemPromptWhileGroundingStaysOut(t *testing.T) {
-	a := New(nil, fakeRAG{results: []rag.QueryResult{{DocumentName: "d", Content: "GROUNDING", Score: 0.9}}}, nil)
+	a := New(nil, fakeRAG{results: []rag.QueryResult{{DocumentName: "d", Content: "GROUNDING", Score: 0.9}}}, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{
 		Agent:        ragAgent("BASE"),
@@ -280,7 +280,7 @@ func TestSuffixClosesTheSystemPromptWhileGroundingStaysOut(t *testing.T) {
 }
 
 func TestHistoryIsCopiedNotAliased(t *testing.T) {
-	a := New(nil, nil, nil)
+	a := New(nil, nil, nil, nil)
 	history := make([]ai.Message, 1, 4)
 	history[0] = ai.Message{Role: ai.RoleUser, Content: "primeira"}
 
@@ -303,7 +303,7 @@ func TestHistoryIsCopiedNotAliased(t *testing.T) {
 }
 
 func TestAnEmptyUserMessageIsNotAppended(t *testing.T) {
-	a := New(nil, nil, nil)
+	a := New(nil, nil, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{
 		Agent:       &agent.Agent{MessagingPrompt: "hi"},
@@ -319,7 +319,7 @@ func TestAnEmptyUserMessageIsNotAppended(t *testing.T) {
 
 func TestAssemblyIsDeterministic(t *testing.T) {
 	reg := stubRegistry{defs: []tools.Definition{{Name: "a_tool"}, {Name: "b_tool"}}}
-	a := New(reg, fakeRAG{results: []rag.QueryResult{{DocumentName: "d", Content: "G", Score: 0.9}}}, nil)
+	a := New(reg, fakeRAG{results: []rag.QueryResult{{DocumentName: "d", Content: "G", Score: 0.9}}}, nil, nil)
 
 	req := func() Request {
 		return Request{
@@ -352,7 +352,7 @@ func keysOf(m map[string]map[string]interface{}) []string {
 
 func TestConcurrentAssembliesDoNotInterfere(t *testing.T) {
 	reg := stubRegistry{defs: []tools.Definition{{Name: "book_meeting"}}}
-	a := New(reg, fakeRAG{results: []rag.QueryResult{{DocumentName: "d", Content: "G", Score: 0.9}}}, nil)
+	a := New(reg, fakeRAG{results: []rag.QueryResult{{DocumentName: "d", Content: "G", Score: 0.9}}}, nil, nil)
 	ag := &agent.Agent{
 		ID: "a1", WorkspaceID: "ws1", MessagingPrompt: "base",
 		RAGEnabled: true, KnowledgeBaseIDs: []string{"kb1"},
@@ -444,7 +444,7 @@ func (r contextualRegistry) Handler(string) (tools.Handler, bool) { return r.han
 func TestCampaignContextReachesContextualTools(t *testing.T) {
 	stub := &contextualStub{def: tools.Definition{Name: "manage_entry_stage"}}
 	reg := contextualRegistry{defs: []tools.Definition{{Name: "manage_entry_stage"}}, handler: stub}
-	a := New(reg, nil, nil)
+	a := New(reg, nil, nil, nil)
 
 	a.Assemble(context.Background(), Request{
 		Agent: &agent.Agent{
@@ -468,7 +468,7 @@ func TestCampaignContextReachesContextualTools(t *testing.T) {
 func TestNoCampaignStillResolvesContextualTools(t *testing.T) {
 	stub := &contextualStub{def: tools.Definition{Name: "manage_entry_stage"}}
 	reg := contextualRegistry{defs: []tools.Definition{{Name: "manage_entry_stage"}}, handler: stub}
-	a := New(reg, nil, nil)
+	a := New(reg, nil, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{
 		Agent: &agent.Agent{
@@ -488,7 +488,7 @@ func TestNoCampaignStillResolvesContextualTools(t *testing.T) {
 }
 
 func TestPreResolvedToolsGetTheSameTreatmentAsResolvedOnes(t *testing.T) {
-	a := New(nil, nil, nil)
+	a := New(nil, nil, nil, nil)
 	identity := shared_usecase.ConversationContext{Channel: shared_usecase.ChannelWhatsApp}
 
 	out := a.Assemble(context.Background(), Request{
@@ -518,7 +518,7 @@ func TestPreResolvedToolsGetTheSameTreatmentAsResolvedOnes(t *testing.T) {
 }
 
 func TestPreResolvedConfigsAreCopied(t *testing.T) {
-	a := New(nil, nil, nil)
+	a := New(nil, nil, nil, nil)
 	callerCfg := map[string]interface{}{"pipeline": "p1"}
 
 	a.Assemble(context.Background(), Request{
@@ -535,7 +535,7 @@ func TestPreResolvedConfigsAreCopied(t *testing.T) {
 
 func TestResolutionTakesPrecedenceOverPreResolved(t *testing.T) {
 	reg := stubRegistry{defs: []tools.Definition{{Name: "resolved_tool"}}}
-	a := New(reg, nil, nil)
+	a := New(reg, nil, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{
 		Agent: &agent.Agent{
@@ -554,7 +554,7 @@ func TestResolutionTakesPrecedenceOverPreResolved(t *testing.T) {
 
 func TestAgentWithNoBoundToolsResolvesToAnExplicitlyEmptySet(t *testing.T) {
 	reg := stubRegistry{defs: []tools.Definition{{Name: "book_meeting"}, {Name: "http_request"}}}
-	a := New(reg, nil, nil)
+	a := New(reg, nil, nil, nil)
 
 	out := a.Assemble(context.Background(), Request{
 		Agent:                &agent.Agent{InternalTools: []agent.ToolBinding{}},

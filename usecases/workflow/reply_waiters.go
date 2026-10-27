@@ -27,7 +27,8 @@ func (w *ReplyWaiters) WaitingForReply(event workflow.TriggerEvent) (*workflow.W
 		var published *workflow.Workflow
 		published, err = w.workflows.FindByID(run.WorkflowID)
 		if err == nil {
-			run, err = conversationRunCurrent(w.runs, w.engine, run, published, event)
+			named, _ := event.NamedResponsibleWorkflow()
+			run, err = conversationRunCurrent(w.runs, w.engine, run, published, event, named)
 		}
 	}
 	if err == nil {

@@ -11,6 +11,7 @@ var ErrEntryPointsUnavailable = errors.New("workflow: entry points cannot be rea
 
 type EntryPointAttacher interface {
 	Attach(workspaceID string, workflows []*workflow.Workflow) error
+	Preview(workspaceID string, w *workflow.Workflow) (*workflow.RunSummary, error)
 }
 
 type EntryPoints struct {
@@ -46,12 +47,48 @@ func (e *EntryPoints) Attach(workspaceID string, workflows []*workflow.Workflow)
 	if err != nil {
 		return err
 	}
+	active, err := e.activeTriggersFor(workspaceID, workflows, triggers)
+	if err != nil {
+		return err
+	}
 	for _, w := range workflows {
-		if w != nil {
-			w.EntryPoints = workflow.EntryPointsOf(w, workflow.RunningTriggers(w, triggers), sources.FactsOf(w.ID))
+		if w == nil {
+			continue
 		}
+		running, facts := workflow.RunningTriggers(w, triggers), sources.FactsOf(w.ID)
+		w.EntryPoints = workflow.EntryPointsOf(w, running, facts)
+		summary := workflow.RunSummaryOf(w, running, facts, active)
+		w.RunSummary = &summary
 	}
 	return nil
+}
+
+func (e *EntryPoints) activeTriggersFor(workspaceID string, workflows []*workflow.Workflow, triggers map[string][]workflow.Node) ([]workflow.ActiveTrigger, error) {
+	for _, w := range workflows {
+		if w != nil && workflow.RunningStateOf(w) == workflow.RunningActive && workflow.HasOverlappingTrigger(workflow.RunningTriggers(w, triggers)) {
+			return e.reader.ActiveTriggers(workspaceID, workflow.OverlappingTriggerTypes())
+		}
+	}
+	return nil, nil
+}
+
+func (e *EntryPoints) Preview(workspaceID string, w *workflow.Workflow) (*workflow.RunSummary, error) {
+	if e == nil || e.reader == nil || w == nil {
+		return nil, ErrEntryPointsUnavailable
+	}
+	draft := workflow.DraftTriggers(w)
+	sources, err := e.reader.EntryPointSources(workflow.EntryPointQueryFor(workspaceID, map[string][]workflow.Node{w.ID: draft}))
+	if err != nil {
+		return nil, err
+	}
+	var active []workflow.ActiveTrigger
+	if workflow.HasOverlappingTrigger(draft) {
+		if active, err = e.reader.ActiveTriggers(workspaceID, workflow.OverlappingTriggerTypes()); err != nil {
+			return nil, err
+		}
+	}
+	preview := workflow.PublishPreviewOf(w, sources.FactsOf(w.ID), active)
+	return &preview, nil
 }
 
 type listWithEntryPoints struct {
