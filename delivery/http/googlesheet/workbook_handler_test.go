@@ -3,11 +3,16 @@ package googlesheet
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/gorilla/mux"
 
 	"vozko/domain/googlesheet"
+	workspace_domain "vozko/domain/workspace"
 	"vozko/pkg/codegolden"
 	gsuc "vozko/usecases/googlesheet"
 )
@@ -79,7 +84,7 @@ func TestSheetResponsesCarryTheWorkbookFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := body.Sheet
-	if s.SpreadsheetID != "sp-1" || s.TabPeriod != "month" || s.Style != "green" || s.TabPattern == "" || !s.TakesInput {
+	if s.SpreadsheetID != "sp-1" || s.TabPeriod != "month" || s.Style != "green" || s.TabPattern == "" || !s.TakesInput || s.TabBaseName != "Pagamentos" {
 		t.Fatalf("sheet = %+v", s)
 	}
 	if s.Columns[0].Colors["SIM"] != "green" || s.Columns[1].LinkSheetID != "t1" || s.Columns[1].LinkLabel != "Ver" {
@@ -190,4 +195,68 @@ func TestTheCatalogCarriesStylesColoursAndPeriods(t *testing.T) {
 func TestPresetCopyKeysMatchTheGoldenSoTheFrontTranslatesThem(t *testing.T) {
 	codegolden.Compare(t, filepath.Join("testdata", "preset_keys.golden"), googlesheet.PresetCopyKeys(),
 		"update testdata/preset_keys.golden, and also translate googleSheets.presets.<key> in the vozko-front pt, en, es and de catalogs")
+}
+
+func TestFilesListEachGoogleFileOnceWithItsTabs(t *testing.T) {
+	written := time.Date(2026, 10, 27, 9, 30, 0, 0, time.UTC)
+	negotiations := &googlesheet.Sheet{ID: "neg", SpreadsheetID: "sp-1", Title: "Altiva: negociações", TabName: "Negociações", Status: googlesheet.StatusActive, LastWrittenAt: &written, CreatedAt: written.Add(-time.Hour)}
+	payments := &googlesheet.Sheet{ID: "pag", SpreadsheetID: "sp-1", Title: "Altiva: pagamentos", TabName: "Pagamentos · outubro 2026", TabID: 7, Status: googlesheet.StatusNeedsAttention, CreatedAt: written}
+	stub := &stubSheets{files: []googlesheet.Spreadsheet{{ID: "sp-1", Sheets: []*googlesheet.Sheet{negotiations, payments}}}}
+	rec := serve(NewHandler(stub, &stubRows{}), http.MethodGet, "/google-sheets/files?search=%20altiva%20&page=2&pageSize=10", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d %s", rec.Code, rec.Body.String())
+	}
+	if stub.list.Search != "altiva" || stub.list.Pagination.Page != 2 || stub.list.Pagination.PageSize != 10 || stub.list.TakesInput {
+		t.Fatalf("input = %+v", stub.list)
+	}
+	var body SheetFileListResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Page != 2 || body.TotalItems != 11 || body.TotalPages != 2 || len(body.Items) != 1 {
+		t.Fatalf("page = %+v", body)
+	}
+	file := body.Items[0]
+	if file.SpreadsheetID != "sp-1" || file.Title != "Altiva: negociações" || file.URL != "https://docs.google.com/spreadsheets/d/sp-1/edit" {
+		t.Fatalf("file = %+v", file)
+	}
+	if file.Status != "needs_attention" || file.LastWrittenAt == nil || !file.LastWrittenAt.Equal(written) {
+		t.Fatalf("file situation = %q, last written %v", file.Status, file.LastWrittenAt)
+	}
+	if len(file.Sheets) != 2 || file.Sheets[0].ID != "neg" || file.Sheets[1].ID != "pag" || file.Sheets[1].Status != "needs_attention" || file.Sheets[1].URL != "https://docs.google.com/spreadsheets/d/sp-1/edit#gid=7" {
+		t.Fatalf("tabs = %+v", file.Sheets)
+	}
+}
+
+func TestFilesAnswersAnEmptyPageWithAnEmptyList(t *testing.T) {
+	rec := serve(NewHandler(&stubSheets{}, &stubRows{}), http.MethodGet, "/google-sheets/files", "", nil)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"items":[]`) {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTheFilesRouteIsNotTakenForASheetID(t *testing.T) {
+	stub := &stubSheets{}
+	router := mux.NewRouter()
+	pass := func(_ workspace_domain.Resource, _ workspace_domain.Action, next http.HandlerFunc) http.HandlerFunc {
+		return next
+	}
+	RegisterProtectedRoutes(router, NewHandler(stub, &stubRows{}), pass)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/google-sheets/files", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"items":[]`) {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestFilesCanBeNarrowedToOneFileOrToFilesWithInputTabs(t *testing.T) {
+	stub := &stubSheets{}
+	serve(NewHandler(stub, &stubRows{}), http.MethodGet, "/google-sheets/files?spreadsheetId=%20sp-1%20&takesInput=true", "", nil)
+	if stub.list.SpreadsheetID != "sp-1" || !stub.list.TakesInput {
+		t.Fatalf("input = %+v", stub.list)
+	}
+	serve(NewHandler(stub, &stubRows{}), http.MethodGet, "/google-sheets/files?takesMessages=true", "", nil)
+	if !stub.list.TakesMessages || stub.list.TakesInput {
+		t.Fatalf("input = %+v", stub.list)
+	}
 }

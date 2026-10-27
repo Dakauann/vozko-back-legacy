@@ -61,10 +61,12 @@ type ErrorClassifier interface {
 }
 
 type ListInput struct {
-	WorkspaceID string
-	Search      string
-	TakesInput  bool
-	Pagination  shared.Pagination
+	WorkspaceID   string
+	SpreadsheetID string
+	Search        string
+	TakesInput    bool
+	TakesMessages bool
+	Pagination    shared.Pagination
 }
 
 type SheetRepository interface {
@@ -80,6 +82,7 @@ type SheetRepository interface {
 	Get(ctx context.Context, id string) (*Sheet, error)
 	FindInWorkspace(ctx context.Context, workspaceID, id string) (*Sheet, error)
 	List(ctx context.Context, in ListInput) (*shared.PaginatedResult[*Sheet], error)
+	ListSpreadsheets(ctx context.Context, in ListInput) (*shared.PaginatedResult[Spreadsheet], error)
 	Delete(ctx context.Context, workspaceID, id string) error
 	TouchWritten(ctx context.Context, id string, at time.Time) error
 }

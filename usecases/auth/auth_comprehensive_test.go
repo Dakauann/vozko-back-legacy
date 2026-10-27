@@ -900,7 +900,7 @@ func TestResetPassword_BruteForce_LocksAfterMaxAttempts(t *testing.T) {
 
 	uc := NewResetPasswordUseCase(userRepo, resetRepo, &testPasswordService{}, newTestSessionRepo(), newTestSharedState())
 
-	for i := 0; i < maxResetAttempts; i++ {
+	for i := 1; i < maxResetAttempts; i++ {
 		err := uc.Execute(auth.ResetPasswordInput{
 			Email:       "user@test.com",
 			Token:       "999999",
@@ -911,11 +911,20 @@ func TestResetPassword_BruteForce_LocksAfterMaxAttempts(t *testing.T) {
 		}
 	}
 
+	err := uc.Execute(auth.ResetPasswordInput{
+		Email:       "user@test.com",
+		Token:       "999999",
+		NewPassword: "NewStrong1Pass",
+	})
+	if !errors.Is(err, auth.ErrResetCodeAttemptsExceeded) {
+		t.Fatalf("the guess that reaches the cap must say so, got: %v", err)
+	}
+
 	if !resetRepo.tokens[tok.ID].Used {
 		t.Fatal("token should be burned after reaching the attempt cap")
 	}
 
-	err := uc.Execute(auth.ResetPasswordInput{
+	err = uc.Execute(auth.ResetPasswordInput{
 		Email:       "user@test.com",
 		Token:       "123456",
 		NewPassword: "NewStrong1Pass",
@@ -925,6 +934,25 @@ func TestResetPassword_BruteForce_LocksAfterMaxAttempts(t *testing.T) {
 	}
 	if userRepo.byID["u1"].Password != "old-hash" {
 		t.Error("password must never change once the token is locked")
+	}
+}
+
+func TestResetPassword_ATokenAlreadyAtTheCapIsRefusedAsTooManyAttempts(t *testing.T) {
+	userRepo := newTestUserRepo()
+	seedResetUser(userRepo, "u1", "user@test.com", "old-hash")
+
+	resetRepo := newTestPasswordResetRepo()
+	tok := seedResetToken(resetRepo, "u1", "user@test.com", "123456", time.Now().UTC().Add(1*time.Hour))
+	tok.Attempts = maxResetAttempts
+
+	uc := NewResetPasswordUseCase(userRepo, resetRepo, &testPasswordService{}, newTestSessionRepo(), newTestSharedState())
+
+	err := uc.Execute(auth.ResetPasswordInput{Email: "user@test.com", Token: "123456", NewPassword: "NewStrong1Pass"})
+	if !errors.Is(err, auth.ErrResetCodeAttemptsExceeded) {
+		t.Fatalf("expected ErrResetCodeAttemptsExceeded, got: %v", err)
+	}
+	if !resetRepo.tokens[tok.ID].Used || userRepo.byID["u1"].Password != "old-hash" {
+		t.Fatal("a capped token must be burned and the password kept")
 	}
 }
 
@@ -1043,10 +1071,29 @@ func TestResetPassword_WeakPassword(t *testing.T) {
 				Token:       "123456",
 				NewPassword: pw,
 			})
-			if !errors.Is(err, auth.ErrWeakPassword) {
-				t.Fatalf("expected ErrWeakPassword, got: %v", err)
+			var weak *auth.WeakPasswordError
+			if !errors.As(err, &weak) || len(weak.Unmet) == 0 {
+				t.Fatalf("expected a WeakPasswordError naming the broken rules, got: %v", err)
 			}
 		})
+	}
+}
+
+func TestResetPassword_AWeakPasswordIsRefusedBeforeTheCodeSoNoAttemptIsSpent(t *testing.T) {
+	userRepo := newTestUserRepo()
+	seedResetUser(userRepo, "u1", "user@test.com", "old-hash")
+
+	resetRepo := newTestPasswordResetRepo()
+	tok := seedResetToken(resetRepo, "u1", "user@test.com", "123456", time.Now().UTC().Add(1*time.Hour))
+
+	uc := NewResetPasswordUseCase(userRepo, resetRepo, &testPasswordService{}, newTestSessionRepo(), newTestSharedState())
+
+	err := uc.Execute(auth.ResetPasswordInput{Email: "user@test.com", Token: "000000", NewPassword: "12345678901!"})
+	if !errors.Is(err, auth.ErrWeakPassword) {
+		t.Fatalf("expected ErrWeakPassword, got: %v", err)
+	}
+	if resetRepo.tokens[tok.ID].Attempts != 0 {
+		t.Errorf("a weak password must not spend a code attempt, got %d", resetRepo.tokens[tok.ID].Attempts)
 	}
 }
 
@@ -1126,34 +1173,6 @@ func TestResetPassword_UpdateError(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error for update failure")
-	}
-}
-
-func TestIsStrongPassword(t *testing.T) {
-	tests := []struct {
-		password string
-		expected bool
-	}{
-		{"Abcdefg1", true},
-		{"StrongPass123", true},
-		{"MyP@ssw0rd", true},
-		{"short", false},
-		{"abcdefgh1", false},
-		{"ABCDEFGH1", false},
-		{"Abcdefgh", false},
-		{"Ab1", false},
-		{"", false},
-		{"12345678", false},
-		{"abcdefgh", false},
-		{"ABCDEFGH", false},
-		{"aB1cD2eF", true},
-	}
-
-	for _, tt := range tests {
-		result := isStrongPassword(tt.password)
-		if result != tt.expected {
-			t.Errorf("isStrongPassword(%q) = %v, want %v", tt.password, result, tt.expected)
-		}
 	}
 }
 

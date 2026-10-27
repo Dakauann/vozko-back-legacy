@@ -131,7 +131,7 @@ func labelRoutedNodes(t *testing.T) map[string]labelRouted {
 			return executed(t, NewFinishConversationExecutor(&finishStatusMock{err: failing}), finishConvCtx("e-1", "whatsapp", map[string]interface{}{}, edges))
 		}},
 		"move stage succeeds": {output: "sucesso", run: func(t *testing.T, edges []workflow.Edge) *workflow.NodeResult {
-			return executed(t, NewMoveStageExecutor(stagePipelines(), &stageMoverStub{}, nil), routedCtx(workflow.NodeTypeActionMoveStage, map[string]interface{}{"stage_id": "st-won"}, edges))
+			return executed(t, NewMoveStageExecutor(stagePipelines(), salesMover(), nil), routedCtx(workflow.NodeTypeActionMoveStage, map[string]interface{}{"stage_id": "st-won"}, edges))
 		}},
 		"move stage fails": {output: "erro", run: func(t *testing.T, edges []workflow.Edge) *workflow.NodeResult {
 			return executed(t, NewMoveStageExecutor(nil, nil, nil), routedCtx(workflow.NodeTypeActionMoveStage, map[string]interface{}{"stage_id": "st-won"}, edges))

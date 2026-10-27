@@ -4,7 +4,9 @@ import (
 	"log"
 
 	automationneeds_repository "vozko/infra/repositories/automationneeds"
+	conversation_repository "vozko/infra/repositories/conversation"
 	automationneeds_usecase "vozko/usecases/automationneeds"
+	"vozko/usecases/campaigncreate"
 	conversationvars_usecase "vozko/usecases/conversationvars"
 	workflow_usecase "vozko/usecases/workflow"
 )
@@ -102,13 +104,17 @@ func (c *Container) automationQueries() *automationneeds_usecase.Queries {
 		log.Fatalf("[automation-needs] the conversation access check must exist before the variables form")
 	}
 	queries, err := automationneeds_usecase.NewQueries(automationneeds_usecase.QueriesDeps{
-		Service:   wiring.service,
-		Guard:     c.automationPublishGuard(),
-		Agents:    c.repositories.agent,
-		Workflows: c.repositories.workflow,
-		Records:   wiring.records,
-		Store:     wiring.variables,
-		Access:    c.services.conversationAuthImpl,
+		Service:       wiring.service,
+		Guard:         c.automationPublishGuard(),
+		Agents:        c.repositories.agent,
+		Workflows:     c.repositories.workflow,
+		Records:       wiring.records,
+		Store:         wiring.variables,
+		Access:        c.services.conversationAuthImpl,
+		Conversations: wiring.reader,
+		Definitions:   c.repositories.customField,
+		Subjects:      campaigncreate.SubjectSource{Leads: c.repositories.lead, Contacts: c.repositories.lead, Names: c.actorNames()},
+		Profiles:      conversation_repository.NewEntryAutomationReader(c.db),
 	})
 	if err != nil {
 		log.Fatalf("[automation-needs] %v", err)

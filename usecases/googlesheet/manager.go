@@ -226,6 +226,10 @@ func (m *Manager) List(ctx context.Context, in googlesheet.ListInput) (*shared.P
 	return m.sheets.List(ctx, in)
 }
 
+func (m *Manager) ListSpreadsheets(ctx context.Context, in googlesheet.ListInput) (*shared.PaginatedResult[googlesheet.Spreadsheet], error) {
+	return m.sheets.ListSpreadsheets(ctx, in)
+}
+
 type DetailsInput struct {
 	WorkspaceID string
 	ID          string

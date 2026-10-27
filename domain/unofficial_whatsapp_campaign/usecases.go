@@ -33,7 +33,7 @@ type ListCampaignsUseCase interface {
 }
 
 type GetSummaryUseCase interface {
-	Execute(filter WorkspaceSummaryFilter) (*campaign.Metrics, error)
+	Execute(filter WorkspaceSummaryFilter) (*campaign.SendsSummary, error)
 }
 
 type ListEntriesUseCase interface {

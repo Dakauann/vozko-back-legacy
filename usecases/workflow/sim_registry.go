@@ -124,7 +124,7 @@ func newSimulationRegistry(deps ExecutorDeps, box SimSandbox) *NodeExecutorRegis
 		LabelRepo:             deps.LabelRepo,
 		Labeler:               simLabeler{labels: deps.LabelRepo, effects: effects},
 		StageRepo:             deps.StageRepo,
-		AssignStage:           simStageMover{stages: deps.StageRepo, effects: effects},
+		AssignStage:           simStageMover{stages: deps.StageRepo, destinations: deps.StageDestinations, effects: effects},
 		Deals:                 simDeals{previews: deps.DealPreviews, effects: effects},
 		LeadProfiles:          simLeadProfiles{previews: deps.LeadPreviews, effects: effects},
 		WorkspaceRepo:         deps.WorkspaceRepo,

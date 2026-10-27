@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"vozko/domain/googlesheet"
 	"vozko/domain/shared"
@@ -186,5 +187,138 @@ func TestTheExportAnchorIsTheFirstRowOfTheLatestBlock(t *testing.T) {
 	}
 	if moved.RowID != m4 {
 		t.Fatalf("anchor = %s, want the first row of the new block %s", moved.RowID, m4)
+	}
+}
+
+func tabOfFile(t *testing.T, db *gorm.DB, workspaceID, spreadsheetID, title string, tabID int64, born time.Time) *googlesheet.Sheet {
+	t.Helper()
+	s, err := googlesheet.NewSheet(googlesheet.NewSheetInput{
+		WorkspaceID: workspaceID, AccountID: uuid.NewString(), Title: title,
+		Columns: []googlesheet.ColumnInput{{Header: "Valor", Type: googlesheet.TypeMoney}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.SpreadsheetID, s.TabID = spreadsheetID, tabID
+	if err := NewSheetRepository(db).Create(context.Background(), s); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec("UPDATE google_sheets SET created_at = ? WHERE id = ?", born, s.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestSpreadsheetsArePagedByFileWithEveryTabOfEachFile(t *testing.T) {
+	db := integrationDB(t)
+	repo := NewSheetRepository(db)
+	ctx := context.Background()
+	ws := uuid.NewString()
+	day := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	tabOfFile(t, db, ws, "file-3", "Antiga", 0, day)
+	negotiations := tabOfFile(t, db, ws, "file-1", "Negociações", 0, day.Add(time.Hour))
+	tabOfFile(t, db, ws, "file-2", "Pedidos", 0, day.Add(2*time.Hour))
+	payments := tabOfFile(t, db, ws, "file-1", "Pagamentos", 7, day.Add(3*time.Hour))
+	tabOfFile(t, db, uuid.NewString(), "file-1", "Outro workspace", 0, day.Add(4*time.Hour))
+
+	first, err := repo.ListSpreadsheets(ctx, googlesheet.ListInput{WorkspaceID: ws, Pagination: shared.Pagination{Page: 1, PageSize: 2}})
+	if err != nil {
+		t.Fatalf("ListSpreadsheets: %v", err)
+	}
+	if first.TotalItems != 3 || first.TotalPages != 2 || len(first.Items) != 2 {
+		t.Fatalf("page = %d items of %d in %d pages", len(first.Items), first.TotalItems, first.TotalPages)
+	}
+	if first.Items[0].ID != "file-1" || first.Items[1].ID != "file-2" {
+		t.Fatalf("files must come newest first: %s, %s", first.Items[0].ID, first.Items[1].ID)
+	}
+	tabs := first.Items[0].Sheets
+	if len(tabs) != 2 || tabs[0].ID != negotiations.ID || tabs[1].ID != payments.ID {
+		t.Fatalf("tabs of file-1 = %+v", tabs)
+	}
+	second, err := repo.ListSpreadsheets(ctx, googlesheet.ListInput{WorkspaceID: ws, Pagination: shared.Pagination{Page: 2, PageSize: 2}})
+	if err != nil || len(second.Items) != 1 || second.Items[0].ID != "file-3" {
+		t.Fatalf("second page = %+v, %v", second, err)
+	}
+}
+
+func TestASpreadsheetSearchFindsTheFileAndKeepsAllOfItsTabs(t *testing.T) {
+	db := integrationDB(t)
+	repo := NewSheetRepository(db)
+	ctx := context.Background()
+	ws := uuid.NewString()
+	day := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	tabOfFile(t, db, ws, "file-1", "Pagamentos", 0, day)
+	negotiations := tabOfFile(t, db, ws, "file-1", "Negociações", 7, day.Add(time.Hour))
+	tabOfFile(t, db, ws, "file-2", "Pedidos", 0, day.Add(2*time.Hour))
+	search := func(text string) *shared.PaginatedResult[googlesheet.Spreadsheet] {
+		t.Helper()
+		page, err := repo.ListSpreadsheets(ctx, googlesheet.ListInput{WorkspaceID: ws, Search: text, Pagination: shared.Pagination{Page: 1, PageSize: 10}})
+		if err != nil {
+			t.Fatalf("ListSpreadsheets(%q): %v", text, err)
+		}
+		return page
+	}
+
+	found := search("negocia")
+	if found.TotalItems != 1 || len(found.Items) != 1 || found.Items[0].ID != "file-1" {
+		t.Fatalf("search = %+v", found)
+	}
+	if len(found.Items[0].Sheets) != 2 {
+		t.Fatalf("a file found by one tab lost its other tabs: %d", len(found.Items[0].Sheets))
+	}
+	if err := repo.Delete(ctx, ws, negotiations.ID); err != nil {
+		t.Fatal(err)
+	}
+	if gone := search("negocia"); gone.TotalItems != 0 || len(gone.Items) != 0 {
+		t.Fatalf("a removed tab is still found: %+v", gone)
+	}
+	rest := search("")
+	if rest.TotalItems != 2 || rest.Items[1].ID != "file-1" || len(rest.Items[1].Sheets) != 1 {
+		t.Fatalf("files after removing a tab = %+v", rest)
+	}
+}
+
+func TestSpreadsheetsCanBeNarrowedToOneFile(t *testing.T) {
+	db := integrationDB(t)
+	repo := NewSheetRepository(db)
+	ctx := context.Background()
+	ws := uuid.NewString()
+	day := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	tabOfFile(t, db, ws, "file-1", "Negociações", 0, day)
+	tabOfFile(t, db, ws, "file-1", "Pagamentos", 7, day.Add(time.Hour))
+	tabOfFile(t, db, ws, "file-2", "Pedidos", 0, day.Add(2*time.Hour))
+
+	page, err := repo.ListSpreadsheets(ctx, googlesheet.ListInput{WorkspaceID: ws, SpreadsheetID: "file-1", Pagination: shared.Pagination{Page: 1, PageSize: 10}})
+	if err != nil || page.TotalItems != 1 || len(page.Items) != 1 || page.Items[0].ID != "file-1" || len(page.Items[0].Sheets) != 2 {
+		t.Fatalf("one file = %+v, %v", page, err)
+	}
+	other, err := repo.ListSpreadsheets(ctx, googlesheet.ListInput{WorkspaceID: uuid.NewString(), SpreadsheetID: "file-1", Pagination: shared.Pagination{Page: 1, PageSize: 10}})
+	if err != nil || other.TotalItems != 0 {
+		t.Fatalf("another workspace saw the file: %+v, %v", other, err)
+	}
+}
+
+func TestSpreadsheetsCanBeNarrowedToFilesWithAMessageTab(t *testing.T) {
+	db := integrationDB(t)
+	repo := NewSheetRepository(db)
+	ctx := context.Background()
+	ws := uuid.NewString()
+	timeline, err := googlesheet.NewSheet(googlesheet.NewSheetInput{
+		WorkspaceID: ws, AccountID: uuid.NewString(), Title: "Negociações",
+		Columns: []googlesheet.ColumnInput{{Header: "Texto", Type: googlesheet.TypeLongText, Source: googlesheet.SourceMessageText}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	timeline.SpreadsheetID, timeline.TabID = "file-1", 0
+	if err := repo.Create(ctx, timeline); err != nil {
+		t.Fatal(err)
+	}
+	tabOfFile(t, db, ws, "file-1", "Pagamentos", 7, time.Now())
+	tabOfFile(t, db, ws, "file-2", "Pedidos", 0, time.Now())
+
+	page, err := repo.ListSpreadsheets(ctx, googlesheet.ListInput{WorkspaceID: ws, TakesMessages: true, Pagination: shared.Pagination{Page: 1, PageSize: 10}})
+	if err != nil || page.TotalItems != 1 || page.Items[0].ID != "file-1" || len(page.Items[0].Sheets) != 2 {
+		t.Fatalf("files with a message tab = %+v, %v", page, err)
 	}
 }

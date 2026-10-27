@@ -7473,7 +7473,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Altera a senha do usuário autenticado e revoga todas as suas sessões. Exige a senha atual.",
+                "description": "Altera a senha do usuário autenticado e revoga todas as suas sessões. Exige a senha atual. A nova senha segue as regras de ` + "`" + `GET /auth/password-policy` + "`" + `.\n\nToda recusa traz um ` + "`" + `code` + "`" + ` estável e, em ` + "`" + `details` + "`" + `, o campo envolvido (` + "`" + `field` + "`" + `) e, quando a senha é fraca, todas as regras não atendidas (` + "`" + `unmetRules` + "`" + `).\n\n| code | Quando |\n| --- | --- |\n| ` + "`" + `unauthorized` + "`" + ` | Sem sessão |\n| ` + "`" + `invalid_body` + "`" + ` | Corpo ilegível |\n| ` + "`" + `current_password_required` + "`" + ` | Senha atual ausente |\n| ` + "`" + `new_password_required` + "`" + ` | Nova senha ausente |\n| ` + "`" + `current_password_invalid` + "`" + ` | Senha atual incorreta |\n| ` + "`" + `password_too_short` + "`" + `, ` + "`" + `password_missing_uppercase` + "`" + `, ` + "`" + `password_missing_lowercase` + "`" + `, ` + "`" + `password_missing_digit` + "`" + `, ` + "`" + `weak_password` + "`" + ` | Nova senha fora das regras |\n| ` + "`" + `password_change_failed` + "`" + ` | Falha inesperada |",
                 "consumes": [
                     "application/json"
                 ],
@@ -7505,19 +7505,55 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/auth.PasswordRefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/auth.PasswordRefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/auth.PasswordRefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -7555,7 +7591,25 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "invalid_body / reset_email_required",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/auth.PasswordRefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -7714,6 +7768,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/password-policy": {
+            "get": {
+                "description": "Lista as regras que toda nova senha precisa atender (redefinição e troca de senha). Cada regra tem um ` + "`" + `code` + "`" + ` estável e o mínimo exigido em ` + "`" + `min` + "`" + `: ` + "`" + `min_length` + "`" + ` conta caracteres, ` + "`" + `uppercase` + "`" + ` letras maiúsculas, ` + "`" + `lowercase` + "`" + ` letras minúsculas e ` + "`" + `digit` + "`" + ` números. A validação acontece no servidor; esta lista serve para mostrar os requisitos enquanto a pessoa digita.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Autenticação"
+                ],
+                "summary": "Regras de senha",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auth.PasswordPolicyResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/refresh": {
             "post": {
                 "description": "Rotaciona o token de atualização e retorna um novo par de tokens. O token de atualização pode ser enviado no corpo ou, para clientes SPA de navegador, como o cookie httpOnly ` + "`" + `refreshToken` + "`" + `.",
@@ -7825,7 +7899,7 @@ const docTemplate = `{
         },
         "/auth/reset-password": {
             "post": {
-                "description": "Conclui a redefinição de senha usando o token enviado por email.",
+                "description": "Conclui a redefinição de senha usando o código enviado por email. A nova senha segue as regras de ` + "`" + `GET /auth/password-policy` + "`" + ` e é usada exatamente como digitada.\n\nToda recusa traz um ` + "`" + `code` + "`" + ` estável e, em ` + "`" + `details` + "`" + `, o campo envolvido (` + "`" + `field` + "`" + `) e, quando a senha é fraca, todas as regras não atendidas (` + "`" + `unmetRules` + "`" + `).\n\n| code | Quando |\n| --- | --- |\n| ` + "`" + `invalid_body` + "`" + ` | Corpo ilegível |\n| ` + "`" + `reset_email_required` + "`" + ` | Email ausente |\n| ` + "`" + `reset_code_required` + "`" + ` | Código ausente |\n| ` + "`" + `new_password_required` + "`" + ` | Nova senha ausente |\n| ` + "`" + `password_too_short` + "`" + ` | Menos caracteres que o mínimo |\n| ` + "`" + `password_missing_uppercase` + "`" + ` | Sem letra maiúscula |\n| ` + "`" + `password_missing_lowercase` + "`" + ` | Sem letra minúscula |\n| ` + "`" + `password_missing_digit` + "`" + ` | Sem número |\n| ` + "`" + `weak_password` + "`" + ` | Outra regra não atendida |\n| ` + "`" + `invalid_reset_code` + "`" + ` | Código inválido ou expirado |\n| ` + "`" + `reset_code_used` + "`" + ` | Código já usado |\n| ` + "`" + `reset_code_attempts_exceeded` + "`" + ` | Tentativas esgotadas; peça um novo código |\n| ` + "`" + `password_reset_failed` + "`" + ` | Falha inesperada |",
                 "consumes": [
                     "application/json"
                 ],
@@ -7835,10 +7909,10 @@ const docTemplate = `{
                 "tags": [
                     "Autenticação"
                 ],
-                "summary": "Redefinir a senha com um token",
+                "summary": "Redefinir a senha com um código",
                 "parameters": [
                     {
-                        "description": "Token de redefinição e nova senha",
+                        "description": "Email, código de redefinição e nova senha",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7857,13 +7931,43 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/auth.PasswordRefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/auth.PasswordRefusalDetails"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -9971,7 +10075,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/campaignaudience_usecase.Field"
+                                "$ref": "#/definitions/campaignaudience.Field"
                             }
                         }
                     }
@@ -10102,7 +10206,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/campaignaudience_usecase.Field"
+                                "$ref": "#/definitions/campaignaudience.Field"
                             }
                         }
                     }
@@ -15121,13 +15225,92 @@ const docTemplate = `{
             }
         },
         "/conversations/{entryType}/{entryId}/variables": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Antes de passar a conversa para um agente ou fluxo (ou religar a automação dela), devolve uma linha por variável que a automação exige nesta conversa, já seguindo o agente que um nó de IA usa, os subfluxos e os fluxos que o agente chama. Cada linha traz quem usa a variável (via), o valor que a conversa já tem (current: da campanha ou de uma passagem anterior; vazio quando não tem) e o campo do lead sugerido (suggested: o campo personalizado com a mesma chave). fields lista os campos do lead que podem preencher uma variável, na mesma ordem e com as mesmas regras da etapa de variáveis da campanha, com o valor do lead desta conversa (value vazio quando o lead não tem). Sem kind e id, a automação é a que a conversa volta a ter ao religar a automação; automation vem nula quando não há nenhuma. lead_name, lead_number e campaign_name nunca aparecem: a plataforma sempre preenche. Exige acesso à conversa.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Conversas"
+                ],
+                "summary": "Variáveis da conversa para uma automação",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tipo da entrada",
+                        "name": "entryType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID da entrada",
+                        "name": "entryId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "agent",
+                            "workflow"
+                        ],
+                        "type": "string",
+                        "description": "agent ou workflow (junto com id)",
+                        "name": "kind",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID do agente ou do fluxo (junto com kind)",
+                        "name": "id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/automationneedshttp.ConversationVariablesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "conversation_variable_invalid: tipo de conversa desconhecido, ou kind sem id",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "automation_needs_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "automation_needs_unreadable",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            },
             "put": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Guarda valores de variáveis só para esta conversa, para que o agente ou o fluxo escolhido possa atendê-la. É o formulário que aparece quando passar a conversa para uma automação (ou religar a automação dela) é recusado com 409 automation_variables_missing. Só aceita variáveis que a automação informada exige; lead_name, lead_number e campaign_name são da plataforma e não podem ser gravadas. Os valores valem mais que os da campanha e são lidos por agentes e fluxos pelo mesmo caminho. Exige acesso à conversa.",
+                "description": "Guarda de onde vem cada variável que o agente ou o fluxo exige nesta conversa, com as mesmas origens da etapa de variáveis da campanha. Cada item de bindings tem name e source: um campo do lead (lead.first_name, lead.name, lead.nickname, lead.district, lead.city, lead.owner_name, lead.custom:\u003cchave\u003e), literal com value (texto fixo) ou conversation (manter o valor que a conversa já tem, da campanha ou de uma passagem anterior). O backend lê o campo do lead desta conversa, grava o valor resolvido, e os agentes e fluxos leem pelo caminho de sempre; conversation não grava nada. values ({nome: texto}) continua aceito e vale como texto fixo. Só aceita variáveis que a automação exige; lead_name, lead_number e campaign_name são da plataforma. Uma origem que sai vazia nesta conversa é recusada com 422 conversation_variable_empty e details.variables com os nomes, e nada é gravado. Os valores valem mais que os da campanha. Exige acesso à conversa.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15154,7 +15337,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Automação e valores",
+                        "description": "Automação e origem de cada variável",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -15168,9 +15351,21 @@ const docTemplate = `{
                         "description": "No Content"
                     },
                     "400": {
-                        "description": "conversation_variable_invalid ou conversation_variable_not_needed",
+                        "description": "conversation_variable_invalid, conversation_variable_source_invalid ou conversation_variable_not_needed",
                         "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedshttp.VariablesErrorDetails"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "403": {
@@ -15180,7 +15375,25 @@ const docTemplate = `{
                         }
                     },
                     "422": {
-                        "description": "automation_needs_not_found",
+                        "description": "conversation_variable_empty ou automation_needs_not_found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.ErrorResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "details": {
+                                            "$ref": "#/definitions/automationneedshttp.VariablesErrorDetails"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "503": {
+                        "description": "automation_needs_unreadable",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -20351,6 +20564,69 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/googlesheet.CatalogResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/google-sheets/files": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Uma entrada por arquivo do Google, com as planilhas do workspace que são abas dele. title é o nome da planilha mais antiga do arquivo, o nome que o arquivo recebeu ao ser criado. status é needs_attention quando alguma aba precisa de atenção, e lastWrittenAt é a gravação mais recente entre as abas. A busca, spreadsheetId, takesInput e takesMessages escolhem os arquivos; cada arquivo vem com todas as abas, e cada aba diz em takesInput e takesMessages o que pode receber. A paginação conta arquivos, não abas.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Google Planilhas"
+                ],
+                "summary": "Listar arquivos com as suas abas",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Busca pelo título de uma aba",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Só este arquivo do Google",
+                        "name": "spreadsheetId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Só arquivos com alguma aba que recebe valores de agentes ou fluxos",
+                        "name": "takesInput",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Só arquivos com alguma aba que recebe mensagens exportadas",
+                        "name": "takesMessages",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Página",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Tamanho da página",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.SheetFileListResponse"
                         }
                     }
                 }
@@ -34519,7 +34795,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Move uma conversa ou chamada (entryType 'voice' ou 'whatsapp') para uma etapa. Notifica os operadores em tempo real e registra o evento na conversa.",
+                "description": "Move uma conversa ou chamada (entryType 'voice' ou 'whatsapp') para uma etapa. Notifica os operadores em tempo real e registra o evento na conversa. Uma etapa de funil de oportunidades é recusada com 409 e code stage_not_conversation_funnel.",
                 "consumes": [
                     "application/json"
                 ],
@@ -34685,7 +34961,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Move a conversa para uma etapa de OUTRO funil. Rota separada de /stages/entries porque exige uma permissão distinta (stages:transfer): mover um card entre as colunas do próprio funil é atendimento comum, tirar a conversa do quadro de uma equipe e colocá-la no de outra não é.",
+                "description": "Move a conversa para uma etapa de OUTRO funil. Rota separada de /stages/entries porque exige uma permissão distinta (stages:transfer): mover um card entre as colunas do próprio funil é atendimento comum, tirar a conversa do quadro de uma equipe e colocá-la no de outra não é. Uma etapa de funil de oportunidades é recusada com 409 e code stage_not_conversation_funnel; o evento da conversa registra o funil de origem e o de destino.",
                 "consumes": [
                     "application/json"
                 ],
@@ -37850,6 +38126,69 @@ const docTemplate = `{
                     },
                     "503": {
                         "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/unofficial-whatsapp/campaigns/summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Conta os contatos das campanhas não oficiais pelo momento em que cada um aconteceu: quando saiu ou falhou, e uma decisão que não envia (proteção anti-spam, número fora do WhatsApp, recusa antes do envio) quando o contato entrou na campanha. Envios anteriores aos carimbos de envio não têm data: com período eles ficam de fora e ` + "`" + `undated` + "`" + ` diz quantos são; sem período tudo conta pelo status atual. ` + "`" + `instanceId` + "`" + ` restringe aos números que enviaram ou que a campanha usa.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Unofficial WhatsApp Campaigns"
+                ],
+                "summary": "Resumo de envios das campanhas não oficiais",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Início do período (AAAA-MM-DD)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Fim do período (AAAA-MM-DD, inclusive)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Números, separados por vírgula",
+                        "name": "instanceId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/campaign.SendsSummary"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -43540,6 +43879,63 @@ const docTemplate = `{
                     },
                     "503": {
                         "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/whatsapp/campaigns/summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Conta todo modelo que o workspace enviou a um lead: os envios de campanhas e os avulsos (o botão WhatsApp oficial do CRM, um modelo dentro de uma conversa, modelos agendados, a Elo e os fluxos). Conversas que o cliente começou nunca contam. Cada envio entra no período pelo momento em que aconteceu: o avulso quando foi enviado, o de campanha quando saiu ou falhou, e uma decisão que não envia (proteção anti-spam, número fora do WhatsApp, recusa antes do envio) quando o lead entrou na campanha. Envios de campanha anteriores aos carimbos de envio não têm data: com período eles ficam de fora e ` + "`" + `undated` + "`" + ` diz quantos são; sem período tudo conta pelo status atual. ` + "`" + `bySource` + "`" + ` separa os envios de campanhas dos avulsos. A categoria vem do modelo enviado. Membros de departamento veem as campanhas dos seus departamentos e os avulsos enviados a partir delas.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "WhatsApp Campaigns"
+                ],
+                "summary": "Resumo de envios do WhatsApp oficial",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Início do período (AAAA-MM-DD)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Fim do período (AAAA-MM-DD, inclusive)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/campaign.SendsSummary"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -57566,24 +57962,24 @@ const docTemplate = `{
         "attendance.Section": {
             "type": "string",
             "enum": [
+                "service_messages",
                 "summary",
                 "trend",
                 "stages",
                 "backlog",
                 "team",
                 "rework",
-                "live",
-                "service_messages"
+                "live"
             ],
             "x-enum-varnames": [
+                "SectionServiceMessages",
                 "SectionSummary",
                 "SectionTrend",
                 "SectionStages",
                 "SectionBacklog",
                 "SectionTeam",
                 "SectionRework",
-                "SectionLive",
-                "SectionServiceMessages"
+                "SectionLive"
             ]
         },
         "attendance.ServiceMessageBucket": {
@@ -59491,6 +59887,61 @@ const docTemplate = `{
                 }
             }
         },
+        "auth.PasswordPolicyResponse": {
+            "type": "object",
+            "properties": {
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/auth.PasswordRuleResponse"
+                    }
+                }
+            }
+        },
+        "auth.PasswordRefusalDetails": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "type": "string",
+                    "enum": [
+                        "email",
+                        "token",
+                        "newPassword",
+                        "currentPassword"
+                    ],
+                    "example": "newPassword"
+                },
+                "unmetRules": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "uppercase",
+                        "lowercase"
+                    ]
+                }
+            }
+        },
+        "auth.PasswordRuleResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "enum": [
+                        "min_length",
+                        "uppercase",
+                        "lowercase",
+                        "digit"
+                    ],
+                    "example": "min_length"
+                },
+                "min": {
+                    "type": "integer",
+                    "example": 8
+                }
+            }
+        },
         "auth.RefreshTokenRequest": {
             "type": "object",
             "properties": {
@@ -59642,16 +60093,77 @@ const docTemplate = `{
                 }
             }
         },
+        "automationneedshttp.ConversationFieldResponse": {
+            "type": "object",
+            "properties": {
+                "column": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "kind": {
+                    "enum": [
+                        "lead",
+                        "custom"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/campaignaudience.FieldKind"
+                        }
+                    ]
+                },
+                "label": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/campaign.BindingSource"
+                },
+                "type": {
+                    "$ref": "#/definitions/customfield.FieldType"
+                },
+                "value": {
+                    "type": "string",
+                    "example": "Dakauann"
+                }
+            }
+        },
         "automationneedshttp.ConversationVariablesRequest": {
             "type": "object",
             "properties": {
                 "automation": {
                     "$ref": "#/definitions/automationneedshttp.AutomationRequest"
                 },
+                "bindings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/automationneedshttp.VariableBindingRequest"
+                    }
+                },
                 "values": {
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
+                    }
+                }
+            }
+        },
+        "automationneedshttp.ConversationVariablesResponse": {
+            "type": "object",
+            "properties": {
+                "automation": {
+                    "$ref": "#/definitions/automationneedsx.LinkResponse"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/automationneedshttp.ConversationFieldResponse"
+                    }
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/automationneedshttp.VariableRowResponse"
                     }
                 }
             }
@@ -59732,6 +60244,64 @@ const docTemplate = `{
             "properties": {
                 "notice": {
                     "$ref": "#/definitions/automationneedshttp.SwitchOffNoticeResponse"
+                }
+            }
+        },
+        "automationneedshttp.VariableBindingRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "matricula"
+                },
+                "source": {
+                    "type": "string",
+                    "example": "lead.custom:matricula"
+                },
+                "value": {
+                    "type": "string",
+                    "example": "2026-17"
+                }
+            }
+        },
+        "automationneedshttp.VariableRowResponse": {
+            "type": "object",
+            "properties": {
+                "current": {
+                    "type": "string",
+                    "example": "2026-17"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Matrícula do aluno"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "matricula"
+                },
+                "suggested": {
+                    "type": "string",
+                    "example": "lead.custom:matricula"
+                },
+                "via": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/automationneedsx.LinkResponse"
+                    }
+                }
+            }
+        },
+        "automationneedshttp.VariablesErrorDetails": {
+            "type": "object",
+            "properties": {
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "matricula"
+                    ]
                 }
             }
         },
@@ -62481,6 +63051,67 @@ const docTemplate = `{
                 }
             }
         },
+        "campaign.SendsSummary": {
+            "type": "object",
+            "properties": {
+                "byCategory": {
+                    "$ref": "#/definitions/campaign.CategoryDispatches"
+                },
+                "bySource": {
+                    "$ref": "#/definitions/campaign.SourceDispatches"
+                },
+                "completionRate": {
+                    "type": "number"
+                },
+                "delivered": {
+                    "type": "integer"
+                },
+                "dispatches": {
+                    "type": "integer"
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "notEligiblePossibleSpam": {
+                    "type": "integer"
+                },
+                "pending": {
+                    "type": "integer"
+                },
+                "processed": {
+                    "type": "integer"
+                },
+                "read": {
+                    "type": "integer"
+                },
+                "sent": {
+                    "type": "integer"
+                },
+                "skippedNotOnWhatsApp": {
+                    "type": "integer"
+                },
+                "successRate": {
+                    "type": "number"
+                },
+                "totalNumbers": {
+                    "type": "integer"
+                },
+                "undated": {
+                    "type": "integer"
+                }
+            }
+        },
+        "campaign.SourceDispatches": {
+            "type": "object",
+            "properties": {
+                "campaigns": {
+                    "type": "integer"
+                },
+                "oneOff": {
+                    "type": "integer"
+                }
+            }
+        },
         "campaign.Status": {
             "type": "string",
             "enum": [
@@ -62726,6 +63357,48 @@ const docTemplate = `{
                 }
             }
         },
+        "campaignaudience.Field": {
+            "type": "object",
+            "properties": {
+                "column": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "kind": {
+                    "enum": [
+                        "lead",
+                        "custom"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/campaignaudience.FieldKind"
+                        }
+                    ]
+                },
+                "label": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/campaign.BindingSource"
+                },
+                "type": {
+                    "$ref": "#/definitions/customfield.FieldType"
+                }
+            }
+        },
+        "campaignaudience.FieldKind": {
+            "type": "string",
+            "enum": [
+                "lead",
+                "custom"
+            ],
+            "x-enum-varnames": [
+                "FieldLead",
+                "FieldCustom"
+            ]
+        },
         "campaignaudience.LeadStatus": {
             "type": "string",
             "enum": [
@@ -62884,40 +63557,6 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "campaignaudience_usecase.Field": {
-            "type": "object",
-            "properties": {
-                "column": {
-                    "type": "string"
-                },
-                "key": {
-                    "type": "string"
-                },
-                "kind": {
-                    "$ref": "#/definitions/campaignaudience_usecase.FieldKind"
-                },
-                "label": {
-                    "type": "string"
-                },
-                "source": {
-                    "$ref": "#/definitions/campaign.BindingSource"
-                },
-                "type": {
-                    "$ref": "#/definitions/customfield.FieldType"
-                }
-            }
-        },
-        "campaignaudience_usecase.FieldKind": {
-            "type": "string",
-            "enum": [
-                "lead",
-                "custom"
-            ],
-            "x-enum-varnames": [
-                "FieldLead",
-                "FieldCustom"
-            ]
         },
         "campaignaudience_usecase.Preview": {
             "type": "object",
@@ -66614,6 +67253,32 @@ const docTemplate = `{
         "crmfilter.Field": {
             "type": "string",
             "enum": [
+                "id",
+                "phone_any",
+                "email",
+                "nickname",
+                "birthday",
+                "birth_date",
+                "zip",
+                "state",
+                "city",
+                "district",
+                "geo_precision",
+                "geo_status",
+                "has_address",
+                "has_identity",
+                "opted_out",
+                "whatsapp_opt_in",
+                "relation_kind",
+                "relatives_count",
+                "referred_count",
+                "referred_by",
+                "geo_placement",
+                "opt_out_source",
+                "opted_out_at",
+                "company",
+                "sentiment",
+                "area_approximate",
                 "owner",
                 "carteira",
                 "pipeline",
@@ -66645,35 +67310,35 @@ const docTemplate = `{
                 "memory_count",
                 "memory_updated_at",
                 "custom",
-                "area",
-                "id",
-                "phone_any",
-                "email",
-                "nickname",
-                "birthday",
-                "birth_date",
-                "zip",
-                "state",
-                "city",
-                "district",
-                "geo_precision",
-                "geo_status",
-                "has_address",
-                "has_identity",
-                "opted_out",
-                "whatsapp_opt_in",
-                "relation_kind",
-                "relatives_count",
-                "referred_count",
-                "referred_by",
-                "geo_placement",
-                "opt_out_source",
-                "opted_out_at",
-                "company",
-                "sentiment",
-                "area_approximate"
+                "area"
             ],
             "x-enum-varnames": [
+                "FieldID",
+                "FieldPhoneAny",
+                "FieldEmail",
+                "FieldNickname",
+                "FieldBirthday",
+                "FieldBirthDate",
+                "FieldZip",
+                "FieldState",
+                "FieldCity",
+                "FieldDistrict",
+                "FieldGeoPrecision",
+                "FieldGeoStatus",
+                "FieldHasAddress",
+                "FieldHasIdentity",
+                "FieldOptedOut",
+                "FieldWhatsAppOptIn",
+                "FieldRelationKind",
+                "FieldRelativesCount",
+                "FieldReferredCount",
+                "FieldReferredBy",
+                "FieldGeoPlacement",
+                "FieldOptOutSource",
+                "FieldOptedOutAt",
+                "FieldCompany",
+                "FieldSentiment",
+                "FieldAreaApproximate",
                 "FieldOwner",
                 "FieldCarteira",
                 "FieldPipeline",
@@ -66705,33 +67370,7 @@ const docTemplate = `{
                 "FieldMemoryCount",
                 "FieldMemoryUpdatedAt",
                 "FieldCustom",
-                "FieldArea",
-                "FieldID",
-                "FieldPhoneAny",
-                "FieldEmail",
-                "FieldNickname",
-                "FieldBirthday",
-                "FieldBirthDate",
-                "FieldZip",
-                "FieldState",
-                "FieldCity",
-                "FieldDistrict",
-                "FieldGeoPrecision",
-                "FieldGeoStatus",
-                "FieldHasAddress",
-                "FieldHasIdentity",
-                "FieldOptedOut",
-                "FieldWhatsAppOptIn",
-                "FieldRelationKind",
-                "FieldRelativesCount",
-                "FieldReferredCount",
-                "FieldReferredBy",
-                "FieldGeoPlacement",
-                "FieldOptOutSource",
-                "FieldOptedOutAt",
-                "FieldCompany",
-                "FieldSentiment",
-                "FieldAreaApproximate"
+                "FieldArea"
             ]
         },
         "crmfilter.Filter": {
@@ -67922,22 +68561,22 @@ const docTemplate = `{
         "emailcampaign.HoldReason": {
             "type": "string",
             "enum": [
-                "test_batch_bounces",
-                "test_batch_complaints",
                 "",
                 "daily_cap",
                 "account_paused",
                 "sender_unavailable",
-                "balance_insufficient"
+                "balance_insufficient",
+                "test_batch_bounces",
+                "test_batch_complaints"
             ],
             "x-enum-varnames": [
-                "HoldTestBatchBounces",
-                "HoldTestBatchComplaints",
                 "HoldNone",
                 "HoldDailyCap",
                 "HoldAccountPaused",
                 "HoldSenderUnavailable",
-                "HoldBalanceShort"
+                "HoldBalanceShort",
+                "HoldTestBatchBounces",
+                "HoldTestBatchComplaints"
             ]
         },
         "emailcampaign.Issue": {
@@ -71253,6 +71892,63 @@ const docTemplate = `{
                 }
             }
         },
+        "googlesheet.SheetFileListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.SheetFileResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "pageSize": {
+                    "type": "integer"
+                },
+                "totalItems": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "googlesheet.SheetFileResponse": {
+            "type": "object",
+            "properties": {
+                "lastWrittenAt": {
+                    "type": "string"
+                },
+                "sheets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.SheetResponse"
+                    }
+                },
+                "spreadsheetId": {
+                    "type": "string",
+                    "example": "1AbC"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "needs_attention"
+                    ],
+                    "example": "active"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Altiva: negociações"
+                },
+                "url": {
+                    "type": "string",
+                    "example": "https://docs.google.com/spreadsheets/d/1AbC/edit"
+                }
+            }
+        },
         "googlesheet.SheetListResponse": {
             "type": "object",
             "properties": {
@@ -71324,6 +72020,10 @@ const docTemplate = `{
                         "green",
                         "purple"
                     ]
+                },
+                "tabBaseName": {
+                    "type": "string",
+                    "example": "Pagamentos"
                 },
                 "tabName": {
                     "type": "string"
@@ -88083,19 +88783,21 @@ const docTemplate = `{
                 },
                 "severity": {
                     "$ref": "#/definitions/workflow.LintSeverity"
+                },
+                "values": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 }
             }
         },
         "workflow.LintIssueCode": {
             "type": "string",
             "enum": [
+                "NODE_CONSENT_GRANT_NEEDS_REPLY",
                 "DATA_REF_NEVER_SET",
                 "DATA_REF_SOME_PATHS",
-                "NODE_AGENT_CALL_INPUTS_INVALID",
-                "NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER",
-                "NODE_INVALID_PLATFORM_EMAIL",
-                "NODE_HTTP_URL_NOT_HTTPS",
-                "NODE_CONSENT_GRANT_NEEDS_REPLY",
                 "SEND_OUTSIDE_WINDOW_RISK",
                 "GRAPH_EMPTY",
                 "GRAPH_TOO_MANY_NODES",
@@ -88144,16 +88846,17 @@ const docTemplate = `{
                 "NODE_CONFIG_SHAPE_MISMATCH",
                 "NODE_CODE_READS_TEMPLATE",
                 "NODE_SECRET_IN_PLAIN_TEXT",
-                "NODE_PINNED_OUTPUT"
+                "NODE_PINNED_OUTPUT",
+                "NODE_AGENT_CALL_INPUTS_INVALID",
+                "NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER",
+                "NODE_HTTP_URL_NOT_HTTPS",
+                "NODE_STAGE_DESTINATION",
+                "NODE_INVALID_PLATFORM_EMAIL"
             ],
             "x-enum-varnames": [
+                "LintConsentGrantNeedsReply",
                 "LintDataRefNeverSet",
                 "LintDataRefSomePaths",
-                "LintAgentCallInputsInvalid",
-                "LintReplyToAgentWithoutTrigger",
-                "LintInvalidPlatformEmail",
-                "LintHTTPURLNotHTTPS",
-                "LintConsentGrantNeedsReply",
                 "LintSendOutsideWindowRisk",
                 "LintGraphEmpty",
                 "LintGraphTooManyNodes",
@@ -88202,7 +88905,12 @@ const docTemplate = `{
                 "LintConfigShapeMismatch",
                 "LintCodeReadsTemplate",
                 "LintSecretInPlainText",
-                "LintPinnedOutput"
+                "LintPinnedOutput",
+                "LintAgentCallInputsInvalid",
+                "LintReplyToAgentWithoutTrigger",
+                "LintHTTPURLNotHTTPS",
+                "LintStageDestination",
+                "LintInvalidPlatformEmail"
             ]
         },
         "workflow.LintSeverity": {

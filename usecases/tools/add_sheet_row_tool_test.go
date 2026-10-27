@@ -86,6 +86,16 @@ func TestAddSheetRowIsOneToolPerSheet(t *testing.T) {
 	}
 }
 
+func TestAddSheetRowIsChosenAsASpreadsheetThenOneOfItsTabs(t *testing.T) {
+	field := NewAddSheetRowTool(&sheetRowsStub{sheet: sheetForTool(t)}).Definition().ConfigSchema[addSheetRowConfigKey]
+	if field.DisplayName != "Aba" || field.OptionsSource != GoogleSheetsOptionsSource {
+		t.Fatalf("tab field = %+v", field)
+	}
+	if field.ParentOptions == nil || field.ParentOptions.Source != GoogleSheetFilesOptionsSource || field.ParentOptions.DisplayName != "Planilha" {
+		t.Fatalf("spreadsheet field = %+v", field.ParentOptions)
+	}
+}
+
 func TestAddSheetRowExposesOnlyInputColumns(t *testing.T) {
 	handler := NewAddSheetRowTool(&sheetRowsStub{sheet: sheetForTool(t)}).(tools.ContextualHandler)
 	def := handler.DefinitionWithContext(toolContext("sheet-1"))

@@ -179,6 +179,7 @@ func TestOperatorResume_AFailedHandBackSurfaces(t *testing.T) {
 	f := newAIFixture(agentGoverned)
 	f.seed("entry-1", "bob")
 	f.profiles.err = errors.New("db down")
+	f.profiles.readsFirst = 1
 	toggle, _ := newToggle(f)
 
 	_, err := toggle.SetAutomation(context.Background(), toggleInput(pauseOn()))

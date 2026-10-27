@@ -612,6 +612,12 @@ func (h *AgentHandler) ListTools(w http.ResponseWriter, r *http.Request) {
 		DisplayDescription string `json:"displayDescription"`
 	}
 
+	type camelParentOptions struct {
+		Source             string `json:"source"`
+		DisplayName        string `json:"displayName"`
+		DisplayDescription string `json:"displayDescription"`
+	}
+
 	type camelConfigParam struct {
 		Type               string `json:"type"`
 		Description        string `json:"description"`
@@ -622,8 +628,9 @@ func (h *AgentHandler) ListTools(w http.ResponseWriter, r *http.Request) {
 			Value string `json:"value"`
 			Label string `json:"label"`
 		} `json:"options,omitempty"`
-		OptionsSource string `json:"optionsSource,omitempty"`
-		Required      bool   `json:"required"`
+		OptionsSource string              `json:"optionsSource,omitempty"`
+		ParentOptions *camelParentOptions `json:"parentOptions,omitempty"`
+		Required      bool                `json:"required"`
 	}
 
 	type camelTool struct {
@@ -685,6 +692,11 @@ func (h *AgentHandler) ListTools(w http.ResponseWriter, r *http.Request) {
 					}{Value: option.Value, Label: option.Label})
 				}
 
+				var parent *camelParentOptions
+				if v.ParentOptions != nil {
+					parent = &camelParentOptions{Source: v.ParentOptions.Source, DisplayName: v.ParentOptions.DisplayName, DisplayDescription: v.ParentOptions.DisplayDescription}
+				}
+
 				configSchema[k] = camelConfigParam{
 					Type:               v.Type,
 					Description:        displayDescription,
@@ -693,6 +705,7 @@ func (h *AgentHandler) ListTools(w http.ResponseWriter, r *http.Request) {
 					DefaultValue:       v.Default,
 					Options:            options,
 					OptionsSource:      v.OptionsSource,
+					ParentOptions:      parent,
 					Required:           v.Required,
 				}
 			}

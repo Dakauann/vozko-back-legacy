@@ -6,4 +6,6 @@ automation_needs_unreadable
 automation_needs_not_found
 automation_needs_too_many
 conversation_variable_invalid
+conversation_variable_source_invalid
 conversation_variable_not_needed
+conversation_variable_empty

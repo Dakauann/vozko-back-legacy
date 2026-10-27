@@ -172,6 +172,20 @@ func (uc *startConversationUseCase) Execute(ctx context.Context, in wo.StartConv
 		}
 	}
 
+	d := delivery{
+		entry:          entry,
+		recordsOnEntry: campaign.RecordsOneOffSendOn(entry),
+		tmpl:           tmpl,
+		bodyParams:     in.BodyParams,
+		headerParams:   in.HeaderParams,
+		workspaceID:    in.WorkspaceID,
+		userID:         in.UserID,
+		to:             leadRecord.Number,
+		leadID:         leadRecord.ID,
+		phoneID:        phone.ID,
+		campaignID:     campaign.ID,
+	}
+
 	hold, err := uc.deps.Starts.HoldForStarter(ia.ConversationStart{
 		WorkspaceID: in.WorkspaceID,
 		EntryID:     entry.ID,
@@ -180,22 +194,10 @@ func (uc *startConversationUseCase) Execute(ctx context.Context, in wo.StartConv
 		StarterID:   in.UserID,
 	})
 	if err != nil {
-		uc.markEntryFailed(entry.ID, nil, err)
+		uc.markEntryFailed(d, nil, err)
 		return nil, err
 	}
 
-	d := delivery{
-		entry:        entry,
-		tmpl:         tmpl,
-		bodyParams:   in.BodyParams,
-		headerParams: in.HeaderParams,
-		workspaceID:  in.WorkspaceID,
-		userID:       in.UserID,
-		to:           leadRecord.Number,
-		leadID:       leadRecord.ID,
-		phoneID:      phone.ID,
-		campaignID:   campaign.ID,
-	}
 	sendResult, err := uc.charge(ctx, d, template.BilledSendInput{
 		WorkspaceID:     in.WorkspaceID,
 		UserID:          in.UserID,

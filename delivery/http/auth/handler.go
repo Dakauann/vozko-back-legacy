@@ -500,20 +500,19 @@ func (h *AuthHandler) clearAuthCookies(w http.ResponseWriter) {
 // @Produce		json
 // @Param			request	body		ForgotPasswordRequest	true	"Email da conta"
 // @Success		200		{object}	MessageResponse
-// @Failure		400		{object}	response.ErrorResponse
+// @Failure		400		{object}	response.ErrorResponse{details=PasswordRefusalDetails}	"invalid_body / reset_email_required"
+// @Failure		429		{object}	response.ErrorResponse
 // @Router			/auth/forgot-password [post]
 func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	var req ForgotPasswordRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteInvalidBodyError(w, map[string]string{
-			"email": "string (required)",
-		})
+		writePasswordFlowRefusal(w, refusalPasswordInvalidBody, nil)
 		return
 	}
 
-	if errs := req.Validate(); errs != nil {
-		response.WriteValidationError(w, errs)
+	if refusal, ok := req.Validate(); !ok {
+		writePasswordFlowRefusal(w, refusal, nil)
 		return
 	}
 
@@ -526,30 +525,45 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary		Redefinir a senha com um token
-// @Description	Conclui a redefinição de senha usando o token enviado por email.
+// @Summary		Redefinir a senha com um código
+// @Description	Conclui a redefinição de senha usando o código enviado por email. A nova senha segue as regras de `GET /auth/password-policy` e é usada exatamente como digitada.
+// @Description
+// @Description	Toda recusa traz um `code` estável e, em `details`, o campo envolvido (`field`) e, quando a senha é fraca, todas as regras não atendidas (`unmetRules`).
+// @Description
+// @Description	| code | Quando |
+// @Description	| --- | --- |
+// @Description	| `invalid_body` | Corpo ilegível |
+// @Description	| `reset_email_required` | Email ausente |
+// @Description	| `reset_code_required` | Código ausente |
+// @Description	| `new_password_required` | Nova senha ausente |
+// @Description	| `password_too_short` | Menos caracteres que o mínimo |
+// @Description	| `password_missing_uppercase` | Sem letra maiúscula |
+// @Description	| `password_missing_lowercase` | Sem letra minúscula |
+// @Description	| `password_missing_digit` | Sem número |
+// @Description	| `weak_password` | Outra regra não atendida |
+// @Description	| `invalid_reset_code` | Código inválido ou expirado |
+// @Description	| `reset_code_used` | Código já usado |
+// @Description	| `reset_code_attempts_exceeded` | Tentativas esgotadas; peça um novo código |
+// @Description	| `password_reset_failed` | Falha inesperada |
 // @Tags			Autenticação
 // @Accept			json
 // @Produce		json
-// @Param			request	body		ResetPasswordRequest	true	"Token de redefinição e nova senha"
+// @Param			request	body		ResetPasswordRequest	true	"Email, código de redefinição e nova senha"
 // @Success		200		{object}	MessageResponse
-// @Failure		400		{object}	response.ErrorResponse
-// @Failure		500		{object}	response.ErrorResponse
+// @Failure		400		{object}	response.ErrorResponse{details=PasswordRefusalDetails}
+// @Failure		429		{object}	response.ErrorResponse
+// @Failure		500		{object}	response.ErrorResponse{details=PasswordRefusalDetails}
 // @Router			/auth/reset-password [post]
 func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	var req ResetPasswordRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteInvalidBodyError(w, map[string]string{
-			"email":       "string (required)",
-			"token":       "string (required)",
-			"newPassword": "string (required)",
-		})
+		writePasswordFlowRefusal(w, refusalPasswordInvalidBody, nil)
 		return
 	}
 
-	if errs := req.Validate(); errs != nil {
-		response.WriteValidationError(w, errs)
+	if refusal, ok := req.Validate(); !ok {
+		writePasswordFlowRefusal(w, refusal, nil)
 		return
 	}
 
@@ -559,27 +573,31 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		NewPassword: req.NewPassword,
 	})
 	if err != nil {
-		if errors.Is(err, authdomain.ErrInvalidResetToken) {
-			response.WriteError(w, http.StatusBadRequest, "Invalid or expired reset token", nil)
-			return
-		}
-		if errors.Is(err, authdomain.ErrResetTokenUsed) {
-			response.WriteError(w, http.StatusBadRequest, "Reset token has already been used", nil)
-			return
-		}
-		if errors.Is(err, authdomain.ErrWeakPassword) {
-			response.WriteValidationError(w, map[string]string{
-				"newPassword": "Password must be at least 8 characters with uppercase, lowercase, and a number",
-			})
-			return
-		}
-		response.WriteError(w, http.StatusInternalServerError, "Password reset failed", nil)
+		writePasswordFlowError(w, err, refusalPasswordResetFailed)
 		return
 	}
 
 	response.WriteSuccess(w, http.StatusOK, MessageResponse{
 		Message: "Password has been reset successfully",
 	})
+}
+
+// @Summary		Regras de senha
+// @Description	Lista as regras que toda nova senha precisa atender (redefinição e troca de senha). Cada regra tem um `code` estável e o mínimo exigido em `min`: `min_length` conta caracteres, `uppercase` letras maiúsculas, `lowercase` letras minúsculas e `digit` números. A validação acontece no servidor; esta lista serve para mostrar os requisitos enquanto a pessoa digita.
+// @Tags			Autenticação
+// @Produce		json
+// @Success		200	{object}	PasswordPolicyResponse
+// @Router			/auth/password-policy [get]
+func (h *AuthHandler) PasswordPolicy(w http.ResponseWriter, r *http.Request) {
+	response.WriteSuccess(w, http.StatusOK, passwordPolicyResponseOf(authdomain.CurrentPasswordPolicy()))
+}
+
+func passwordPolicyResponseOf(policy authdomain.PasswordPolicy) PasswordPolicyResponse {
+	rules := make([]PasswordRuleResponse, len(policy.Rules))
+	for i, rule := range policy.Rules {
+		rules[i] = PasswordRuleResponse{Code: string(rule.Code), Min: rule.Min}
+	}
+	return PasswordPolicyResponse{Rules: rules}
 }
 
 // @Summary		Enviar um código de verificação de email
@@ -668,36 +686,45 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Alterar a senha do usuário atual
-// @Description	Altera a senha do usuário autenticado e revoga todas as suas sessões. Exige a senha atual.
+// @Description	Altera a senha do usuário autenticado e revoga todas as suas sessões. Exige a senha atual. A nova senha segue as regras de `GET /auth/password-policy`.
+// @Description
+// @Description	Toda recusa traz um `code` estável e, em `details`, o campo envolvido (`field`) e, quando a senha é fraca, todas as regras não atendidas (`unmetRules`).
+// @Description
+// @Description	| code | Quando |
+// @Description	| --- | --- |
+// @Description	| `unauthorized` | Sem sessão |
+// @Description	| `invalid_body` | Corpo ilegível |
+// @Description	| `current_password_required` | Senha atual ausente |
+// @Description	| `new_password_required` | Nova senha ausente |
+// @Description	| `current_password_invalid` | Senha atual incorreta |
+// @Description	| `password_too_short`, `password_missing_uppercase`, `password_missing_lowercase`, `password_missing_digit`, `weak_password` | Nova senha fora das regras |
+// @Description	| `password_change_failed` | Falha inesperada |
 // @Tags			Autenticação
 // @Accept			json
 // @Produce		json
 // @Param			request	body		ChangePasswordRequest	true	"Senha atual e nova senha"
 // @Success		200		{object}	MessageResponse
-// @Failure		400		{object}	response.ErrorResponse
-// @Failure		401		{object}	response.ErrorResponse
-// @Failure		500		{object}	response.ErrorResponse
+// @Failure		400		{object}	response.ErrorResponse{details=PasswordRefusalDetails}
+// @Failure		401		{object}	response.ErrorResponse{details=PasswordRefusalDetails}
+// @Failure		500		{object}	response.ErrorResponse{details=PasswordRefusalDetails}
 // @Security		BearerAuth
 // @Router			/auth/change-password [post]
 func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("X-User-ID")
 	if userID == "" {
-		response.WriteError(w, http.StatusUnauthorized, "Authentication required", nil)
+		writePasswordFlowRefusal(w, refusalPasswordUnauthorized, nil)
 		return
 	}
 
 	var req ChangePasswordRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteInvalidBodyError(w, map[string]string{
-			"currentPassword": "string (required)",
-			"newPassword":     "string (required)",
-		})
+		writePasswordFlowRefusal(w, refusalPasswordInvalidBody, nil)
 		return
 	}
 
-	if errs := req.Validate(); errs != nil {
-		response.WriteValidationError(w, errs)
+	if refusal, ok := req.Validate(); !ok {
+		writePasswordFlowRefusal(w, refusal, nil)
 		return
 	}
 
@@ -707,17 +734,7 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		NewPassword:     req.NewPassword,
 	})
 	if err != nil {
-		if errors.Is(err, authdomain.ErrCurrentPasswordInvalid) {
-			response.WriteError(w, http.StatusUnauthorized, "Current password is incorrect", nil)
-			return
-		}
-		if errors.Is(err, authdomain.ErrWeakPassword) {
-			response.WriteValidationError(w, map[string]string{
-				"newPassword": "Password must be at least 8 characters with uppercase, lowercase, and a number",
-			})
-			return
-		}
-		response.WriteError(w, http.StatusInternalServerError, "Password change failed", nil)
+		writePasswordFlowError(w, err, refusalPasswordChangeFailed)
 		return
 	}
 

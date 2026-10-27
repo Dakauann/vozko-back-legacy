@@ -2,6 +2,7 @@ package workflow_usecase
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	label_domain "vozko/domain/label"
@@ -34,7 +35,7 @@ func (l *crmLabels) AssignLabel(*label_domain.EntryLabel) error {
 	return nil
 }
 
-type crmStages struct{}
+type crmStages struct{ current *stage_domain.EntryStage }
 
 func (crmStages) FindByID(id string) (*stage_domain.Stage, error) {
 	if id == "st-proposta" {
@@ -43,8 +44,35 @@ func (crmStages) FindByID(id string) (*stage_domain.Stage, error) {
 	return nil, stage_domain.ErrTagNotFound
 }
 
-func (crmStages) GetEntryStage(string, string, string) (*stage_domain.EntryStage, error) {
-	return nil, nil
+func (s crmStages) GetEntryStage(string, string, string) (*stage_domain.EntryStage, error) {
+	return s.current, nil
+}
+
+type crmDestinations struct{}
+
+func (crmDestinations) Destination(workspaceID, stageID string) (stage_domain.FunnelStage, error) {
+	destinations := map[string]stage_domain.FunnelStage{
+		"st-proposta": {StageID: "st-proposta", StageName: "Proposta", PipelineID: "p1", PipelineName: "Vendas"},
+		"st-novo":     {StageID: "st-novo", StageName: "novo", PipelineID: "p-atendimento", PipelineName: "Atendimento"},
+	}
+	if workspaceID != "ws1" {
+		return stage_domain.FunnelStage{}, stage_domain.ErrUnauthorized
+	}
+	if stageID == "st-deal" {
+		return stage_domain.FunnelStage{}, stage_domain.ErrStageNotConversationFunnel
+	}
+	if found, ok := destinations[stageID]; ok {
+		return found, nil
+	}
+	return stage_domain.FunnelStage{}, stage_domain.ErrTagNotFound
+}
+
+func (d crmDestinations) Execute(string, stage_domain.AssignEntryStageInput) (*stage_domain.EntryStage, error) {
+	panic("the sandbox must not write a stage")
+}
+
+func (d crmDestinations) Move(string, stage_domain.AssignEntryStageInput) (stage_domain.Move, error) {
+	panic("the sandbox must not write a stage")
 }
 
 type crmMembers struct {
@@ -92,7 +120,7 @@ func (crmLeadPreviews) Preview(in lead_usecase.ProfileUpdate) (lead_usecase.Prof
 
 func crmDeps(labels *crmLabels) ExecutorDeps {
 	return ExecutorDeps{
-		LabelRepo: labels, StageRepo: crmStages{}, WorkspaceRepo: crmMembers{}, DepartmentRepo: crmDepartments{},
+		LabelRepo: labels, StageRepo: crmStages{}, StageDestinations: crmDestinations{}, WorkspaceRepo: crmMembers{}, DepartmentRepo: crmDepartments{},
 		DealPreviews: crmDealPreviews{}, LeadPreviews: crmLeadPreviews{},
 	}
 }
@@ -144,6 +172,15 @@ func (l *liveCRM) Execute(string, stage_domain.AssignEntryStageInput) (*stage_do
 	return &stage_domain.EntryStage{}, nil
 }
 
+func (l *liveCRM) Move(string, stage_domain.AssignEntryStageInput) (stage_domain.Move, error) {
+	l.calls++
+	return stage_domain.Move{}, nil
+}
+
+func (l *liveCRM) Destination(workspaceID, stageID string) (stage_domain.FunnelStage, error) {
+	return crmDestinations{}.Destination(workspaceID, stageID)
+}
+
 func TestTheSandboxNeverUsesTheLiveCRMWritersItIsHanded(t *testing.T) {
 	live := &liveCRM{}
 	deps := crmDeps(&crmLabels{})
@@ -189,6 +226,8 @@ func TestACRMNodeWhoseTargetCannotBeResolvedFailsInTheSandbox(t *testing.T) {
 		{"label of another workspace", func() ExecutorDeps { return crmDeps(&crmLabels{}) }, workflow.Node{ID: "n1", Type: workflow.NodeTypeActionAssignLabel, Config: map[string]interface{}{"label_id": "l-foreign"}}},
 		{"no label store", func() ExecutorDeps { return ExecutorDeps{} }, workflow.Node{ID: "n1", Type: workflow.NodeTypeActionAssignLabel, Config: map[string]interface{}{"label_id": "l-vip"}}},
 		{"unknown stage", func() ExecutorDeps { return crmDeps(&crmLabels{}) }, workflow.Node{ID: "n1", Type: workflow.NodeTypeActionMoveStage, Config: map[string]interface{}{"stage_id": "st-gone"}}},
+		{"opportunity stage", func() ExecutorDeps { return crmDeps(&crmLabels{}) }, workflow.Node{ID: "n1", Type: workflow.NodeTypeActionMoveStage, Config: map[string]interface{}{"stage_id": "st-deal"}}},
+		{"no stage destinations", func() ExecutorDeps { return ExecutorDeps{StageRepo: crmStages{}} }, workflow.Node{ID: "n1", Type: workflow.NodeTypeActionMoveStage, Config: map[string]interface{}{"stage_id": "st-proposta"}}},
 		{"unknown member", func() ExecutorDeps { return crmDeps(&crmLabels{}) }, workflow.Node{ID: "n1", Type: workflow.NodeTypeActionAssignMember, Config: map[string]interface{}{"member_id": "u-gone"}}},
 		{"unknown department", func() ExecutorDeps { return crmDeps(&crmLabels{}) }, workflow.Node{ID: "n1", Type: workflow.NodeTypeActionTransferDepartment, Config: map[string]interface{}{"department_id": "d-gone"}}},
 		{"no department store", func() ExecutorDeps { return ExecutorDeps{} }, workflow.Node{ID: "n1", Type: workflow.NodeTypeActionTransferDepartment, Config: map[string]interface{}{"department_id": "d-fin"}}},
@@ -208,5 +247,23 @@ func TestACRMNodeWhoseTargetCannotBeResolvedFailsInTheSandbox(t *testing.T) {
 				t.Fatalf("a failed node must not claim a change: %+v", changes)
 			}
 		})
+	}
+}
+
+func TestTheSandboxMovesAConversationAcrossFunnelsLikeTheLiveRun(t *testing.T) {
+	deps := crmDeps(&crmLabels{})
+	deps.StageRepo = crmStages{current: &stage_domain.EntryStage{StageID: "st-novo", StageName: "novo"}}
+	box := newSandboxRun(deps)
+	result := box.execute(t, workflow.Node{ID: "n1", Type: workflow.NodeTypeActionMoveStage, Config: map[string]interface{}{"stage_id": "st-proposta"}})
+
+	if result.Output["success"] != true || result.Output["pipeline_changed"] != true {
+		t.Fatalf("output = %v, want a would-do funnel change", result.Output)
+	}
+	if result.Output["from_pipeline_name"] != "Atendimento" || result.Output["pipeline_name"] != "Vendas" {
+		t.Fatalf("output = %v, want both funnels named", result.Output)
+	}
+	changes := box.effects.drain().Changes
+	if len(changes) != 1 || changes[0].TargetName != "Proposta" || !strings.Contains(changes[0].Description, "Vendas") {
+		t.Fatalf("changes = %+v, want the move described with the new funnel", changes)
 	}
 }

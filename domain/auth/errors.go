@@ -11,6 +11,7 @@ var (
 	ErrInvalidCustomerDocument       = errors.New("invalid customer document")
 	ErrInvalidResetToken             = errors.New("invalid or expired reset token")
 	ErrResetTokenUsed                = errors.New("reset token already used")
+	ErrResetCodeAttemptsExceeded     = errors.New("too many wrong reset codes")
 	ErrWeakPassword                  = errors.New("password does not meet security requirements")
 	ErrInvalidVerificationToken      = errors.New("invalid or expired verification token")
 	ErrVerificationTokenUsed         = errors.New("verification token already used")

@@ -38,17 +38,26 @@ func NewReader(d ReaderDeps) (*Reader, error) {
 }
 
 func (r *Reader) Values(ctx context.Context, entryID string, entryType shared.EntryType) (map[string]string, error) {
+	snapshot, err := r.Snapshot(ctx, entryID, entryType)
+	if err != nil {
+		return nil, err
+	}
+	return snapshot.Values, nil
+}
+
+func (r *Reader) Snapshot(ctx context.Context, entryID string, entryType shared.EntryType) (domain.Snapshot, error) {
 	info, err := r.facts.GetEntryInfo(entryID, string(entryType))
 	if err != nil {
-		return nil, fmt.Errorf("%w: lead of %s %s: %w", domain.ErrUnavailable, entryType, entryID, err)
+		return domain.Snapshot{}, fmt.Errorf("%w: lead of %s %s: %w", domain.ErrUnavailable, entryType, entryID, err)
 	}
 	campaign, err := r.campaigns.CampaignOf(ctx, entryID, entryType)
 	if err != nil {
-		return nil, fmt.Errorf("%w: campaign of %s %s: %w", domain.ErrUnavailable, entryType, entryID, err)
+		return domain.Snapshot{}, fmt.Errorf("%w: campaign of %s %s: %w", domain.ErrUnavailable, entryType, entryID, err)
 	}
 	stored, err := r.store.Values(ctx, entryID, entryType)
 	if err != nil {
-		return nil, fmt.Errorf("%w: stored values of %s %s: %w", domain.ErrUnavailable, entryType, entryID, err)
+		return domain.Snapshot{}, fmt.Errorf("%w: stored values of %s %s: %w", domain.ErrUnavailable, entryType, entryID, err)
 	}
-	return domain.Merge(domain.Lead{Name: info.LeadName, Number: info.LeadNumber}, campaign, stored), nil
+	values := domain.Merge(domain.Lead{Name: info.LeadName, Number: info.LeadNumber}, campaign, stored)
+	return domain.Snapshot{LeadID: info.LeadID, Values: values}, nil
 }

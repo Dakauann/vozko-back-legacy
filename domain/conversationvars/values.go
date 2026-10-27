@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 	"time"
-	"unicode/utf8"
 
 	"vozko/domain/agent"
 	"vozko/domain/automationneeds"
@@ -44,6 +42,11 @@ type Ref struct {
 	WorkspaceID string
 	EntryID     string
 	EntryType   shared.EntryType
+}
+
+type Snapshot struct {
+	LeadID string
+	Values map[string]string
 }
 
 type Stored struct {
@@ -93,26 +96,4 @@ func CampaignVars(values map[string]string) map[string]interface{} {
 		out[k] = v
 	}
 	return out
-}
-
-func Normalize(values map[string]string) (map[string]string, error) {
-	if len(values) == 0 {
-		return nil, ErrNothingToSave
-	}
-	out := make(map[string]string, len(values))
-	for rawName, rawValue := range values {
-		name := strings.TrimSpace(rawName)
-		if !namePattern.MatchString(name) || utf8.RuneCountInString(name) > MaxNameRunes {
-			return nil, fmt.Errorf("%w: %q", ErrNameInvalid, name)
-		}
-		if automationneeds.IsSystemKey(name) {
-			return nil, fmt.Errorf("%w: %q", ErrNameReserved, name)
-		}
-		value := strings.TrimSpace(rawValue)
-		if value == "" || utf8.RuneCountInString(value) > MaxValueRunes {
-			return nil, fmt.Errorf("%w: %q", ErrValueInvalid, name)
-		}
-		out[name] = value
-	}
-	return out, nil
 }

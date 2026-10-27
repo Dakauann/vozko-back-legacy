@@ -292,12 +292,12 @@ func NewGetSummaryUseCase(aggregator uwc.SummaryAggregator) uwc.GetSummaryUseCas
 	return &getSummaryUseCase{aggregator: aggregator}
 }
 
-func (uc *getSummaryUseCase) Execute(filter uwc.WorkspaceSummaryFilter) (*campaign.Metrics, error) {
-	counts, err := uc.aggregator.CountByStatusForWorkspace(filter)
+func (uc *getSummaryUseCase) Execute(filter uwc.WorkspaceSummaryFilter) (*campaign.SendsSummary, error) {
+	tally, err := uc.aggregator.TallySends(filter)
 	if err != nil {
 		return nil, err
 	}
-	return campaign.NewMetrics(counts), nil
+	return campaign.SummarizeSends(tally)
 }
 
 type listEntriesUseCase struct {

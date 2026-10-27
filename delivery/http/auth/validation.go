@@ -116,33 +116,27 @@ func (r *AdminRegisterRequest) Validate() map[string]string {
 	return nil
 }
 
-func (r *ForgotPasswordRequest) Validate() map[string]string {
+func (r *ForgotPasswordRequest) Validate() (passwordFlowRefusal, bool) {
 	r.Email = strings.TrimSpace(r.Email)
 	if r.Email == "" {
-		return map[string]string{"email": "required"}
+		return refusalResetEmailRequired, false
 	}
-	return nil
+	return passwordFlowRefusal{}, true
 }
 
-func (r *ResetPasswordRequest) Validate() map[string]string {
+func (r *ResetPasswordRequest) Validate() (passwordFlowRefusal, bool) {
 	r.Email = strings.TrimSpace(r.Email)
 	r.Token = strings.TrimSpace(r.Token)
-	r.NewPassword = strings.TrimSpace(r.NewPassword)
 
-	if r.Email == "" || r.Token == "" || r.NewPassword == "" {
-		expected := map[string]string{}
-		if r.Email == "" {
-			expected["email"] = "required"
-		}
-		if r.Token == "" {
-			expected["token"] = "required"
-		}
-		if r.NewPassword == "" {
-			expected["newPassword"] = "required"
-		}
-		return expected
+	switch {
+	case r.Email == "":
+		return refusalResetEmailRequired, false
+	case r.Token == "":
+		return refusalResetCodeRequired, false
+	case r.NewPassword == "":
+		return refusalNewPasswordRequired, false
 	}
-	return nil
+	return passwordFlowRefusal{}, true
 }
 
 func (r *SendEmailVerificationRequest) Validate() map[string]string {
@@ -161,16 +155,12 @@ func (r *VerifyEmailRequest) Validate() map[string]string {
 	return nil
 }
 
-func (r *ChangePasswordRequest) Validate() map[string]string {
-	errs := map[string]string{}
-	if r.CurrentPassword == "" {
-		errs["currentPassword"] = "required"
+func (r *ChangePasswordRequest) Validate() (passwordFlowRefusal, bool) {
+	switch {
+	case r.CurrentPassword == "":
+		return refusalCurrentPasswordRequired, false
+	case r.NewPassword == "":
+		return refusalNewPasswordRequired, false
 	}
-	if r.NewPassword == "" {
-		errs["newPassword"] = "required"
-	}
-	if len(errs) == 0 {
-		return nil
-	}
-	return errs
+	return passwordFlowRefusal{}, true
 }

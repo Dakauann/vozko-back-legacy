@@ -138,7 +138,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 	leadMemories := c.buildLeadMemories()
 	leadProfiles := c.initLeadProfiles(searchCEPUC)
 
-	assignEntryStageUC := stage_usecase.NewAssignEntryStageUseCase(c.repositories.stage, timeline)
+	assignEntryStageUC := stage_usecase.NewAssignEntryStageUseCase(c.repositories.stage, c.repositories.pipeline, timeline)
 	assignEntryLabelUC := label_usecase.NewAssignEntryLabelUseCase(c.repositories.label, timeline)
 	removeEntryLabelUC := label_usecase.NewRemoveEntryLabelUseCase(c.repositories.label, timeline)
 	getEntryLabelsUC := label_usecase.NewGetEntryLabelsUseCase(c.repositories.label)
@@ -275,14 +275,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 	assignWCCampaignDepartmentUC := wc_usecase.NewAssignDepartmentUseCase(c.repositories.wcCampaign, resolveCreationDepartmentUC)
 	deleteWCCampaignUC := wc_usecase.NewDeleteCampaignUseCase(c.repositories.wcCampaign, c.repositories.wcEntry)
 	getWCCampaignUC := wc_usecase.NewGetCampaignUseCase(c.repositories.wcCampaign, c.repositories.wcEntry)
-	var waChargeAgg balance_domain.WhatsAppChargeAggregator
-	if agg, ok := c.repositories.balance.(balance_domain.WhatsAppChargeAggregator); ok {
-		waChargeAgg = agg
-	}
-	getWCCampaignsSummaryUC := wc_usecase.NewGetSummaryUseCase(
-		c.repositories.wcEntry.(wc_entry_domain.SummaryAggregator),
-		waChargeAgg,
-	)
+	getWCCampaignsSummaryUC := wc_usecase.NewGetSummaryUseCase(c.repositories.wcEntry.(wc_entry_domain.SummaryAggregator))
 	getWCDispatchReportUC := wc_usecase.NewGetDispatchReportUseCase(c.repositories.wcCampaign, c.repositories.wcDispatchReport, c.attendanceScheduleResolver(), c.dispatchReportCaching())
 	listWCEntriesUC := wc_usecase.NewListEntriesUseCase(c.repositories.wcCampaign, c.repositories.wcEntry)
 	resetWCCampaignUC := wc_usecase.NewResetCampaignUseCase(c.repositories.wcCampaign, c.repositories.wcEntry)
@@ -1146,6 +1139,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		Labeler:               automationLabeler,
 		StageRepo:             c.repositories.stage,
 		AssignStage:           assignEntryStageUC,
+		StageDestinations:     assignEntryStageUC,
 		StageBroadcaster:      c.services.conversationHub,
 		Deals:                 opportunitySvc,
 		DealPreviews:          opportunitySvc,
@@ -1280,6 +1274,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		WorkspaceZones:    executorDeps.WorkspaceZones,
 		LabelRepo:         executorDeps.LabelRepo,
 		StageRepo:         executorDeps.StageRepo,
+		StageDestinations: executorDeps.StageDestinations,
 		WorkspaceRepo:     executorDeps.WorkspaceRepo,
 		DepartmentRepo:    executorDeps.DepartmentRepo,
 		DealPreviews:      executorDeps.DealPreviews,
@@ -1295,27 +1290,28 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 	}
 	aiModelValidator := openrouter_service.NewModelValidator(openRouter, 1*time.Hour)
 	activateWorkflow, err := workflow_usecase.NewActivateWorkflowUseCase(workflow_usecase.ActivateWorkflowDeps{
-		Workflows:      c.repositories.workflow,
-		Catalog:        wfRegistry.Catalog,
-		Templates:      c.repositories.whatsappTemplate,
-		Agents:         c.repositories.agent,
-		Media:          c.repositories.media,
-		Labels:         c.repositories.label,
-		Stages:         c.repositories.stage,
-		DealFunnels:    opportunitySvc,
-		Departments:    c.repositories.workspaceDepartment,
-		Members:        c.repositories.workspace,
-		BusinessPhones: c.repositories.businessPhone,
-		MCPCollections: c.mcpCollection,
-		KnowledgeBases: c.repositories.ragKnowledgeBase,
-		CustomFields:   c.repositories.customField,
-		Sheets:         c.googleSheets.Manager,
-		Models:         aiModelValidator,
-		ModelCatalog:   c.services.ai,
-		InboundTrunks:  sip_trunk_usecase.NewInboundTrunks(c.sipTrunks.Repository),
-		CallQueues:     c.callRouting.Queues,
-		Switching:      c.workflowSwitchingPublisher(),
-		Planner:        c.automationPublishGuard(),
+		Workflows:         c.repositories.workflow,
+		Catalog:           wfRegistry.Catalog,
+		Templates:         c.repositories.whatsappTemplate,
+		Agents:            c.repositories.agent,
+		Media:             c.repositories.media,
+		Labels:            c.repositories.label,
+		Stages:            c.repositories.stage,
+		StageDestinations: executorDeps.StageDestinations,
+		DealFunnels:       opportunitySvc,
+		Departments:       c.repositories.workspaceDepartment,
+		Members:           c.repositories.workspace,
+		BusinessPhones:    c.repositories.businessPhone,
+		MCPCollections:    c.mcpCollection,
+		KnowledgeBases:    c.repositories.ragKnowledgeBase,
+		CustomFields:      c.repositories.customField,
+		Sheets:            c.googleSheets.Manager,
+		Models:            aiModelValidator,
+		ModelCatalog:      c.services.ai,
+		InboundTrunks:     sip_trunk_usecase.NewInboundTrunks(c.sipTrunks.Repository),
+		CallQueues:        c.callRouting.Queues,
+		Switching:         c.workflowSwitchingPublisher(),
+		Planner:           c.automationPublishGuard(),
 	})
 	if err != nil {
 		log.Fatalf("[workflows] %v", err)

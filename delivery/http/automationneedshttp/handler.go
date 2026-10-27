@@ -13,6 +13,8 @@ import (
 	"vozko/delivery/http/httpx"
 	"vozko/delivery/http/response"
 	domain "vozko/domain/automationneeds"
+	"vozko/domain/campaign"
+	"vozko/domain/campaignaudience"
 	"vozko/domain/conversation"
 	"vozko/domain/conversationvars"
 	"vozko/domain/shared"
@@ -26,6 +28,7 @@ type Queries interface {
 	Eligibility(workspaceID string, asked []conversation.Automation) ([]automationneeds_usecase.Eligibility, error)
 	PublishImpact(ctx context.Context, workspaceID string, a conversation.Automation) ([]domain.SwitchOff, error)
 	OpenSwitchOff(ctx context.Context, workspaceID string, kind domain.SlotKind, slotID string) (*automationneeds_usecase.OpenSwitchOff, error)
+	VariablesForm(ctx context.Context, in automationneeds_usecase.ConversationRef, target *conversation.Automation) (automationneeds_usecase.VariablesForm, error)
 	SaveConversationValues(ctx context.Context, in automationneeds_usecase.SaveValues) error
 }
 
@@ -73,9 +76,39 @@ type AutomationRequest struct {
 	ID   string `json:"id" example:"5b1f0c9e-2a4d-4c55-9d3e-1f2a3b4c5d6e"`
 }
 
+type VariableBindingRequest struct {
+	Name   string `json:"name" example:"matricula"`
+	Source string `json:"source" example:"lead.custom:matricula"`
+	Value  string `json:"value,omitempty" example:"2026-17"`
+}
+
 type ConversationVariablesRequest struct {
-	Automation AutomationRequest `json:"automation"`
-	Values     map[string]string `json:"values"`
+	Automation AutomationRequest        `json:"automation"`
+	Values     map[string]string        `json:"values,omitempty"`
+	Bindings   []VariableBindingRequest `json:"bindings,omitempty"`
+}
+
+type VariableRowResponse struct {
+	Name        string                          `json:"name" example:"matricula"`
+	Description string                          `json:"description,omitempty" example:"Matrícula do aluno"`
+	Via         []automationneedsx.LinkResponse `json:"via"`
+	Current     string                          `json:"current,omitempty" example:"2026-17"`
+	Suggested   string                          `json:"suggested,omitempty" example:"lead.custom:matricula"`
+}
+
+type ConversationFieldResponse struct {
+	campaignaudience.Field
+	Value string `json:"value" example:"Dakauann"`
+}
+
+type ConversationVariablesResponse struct {
+	Automation *automationneedsx.LinkResponse `json:"automation"`
+	Variables  []VariableRowResponse          `json:"variables"`
+	Fields     []ConversationFieldResponse    `json:"fields"`
+}
+
+type VariablesErrorDetails struct {
+	Variables []string `json:"variables" example:"matricula"`
 }
 
 func idsOf(raw string) []string {
@@ -193,42 +226,77 @@ func (h *Handler) SwitchOff(w http.ResponseWriter, r *http.Request) {
 	}})
 }
 
+// @Summary		Variáveis da conversa para uma automação
+// @Description	Antes de passar a conversa para um agente ou fluxo (ou religar a automação dela), devolve uma linha por variável que a automação exige nesta conversa, já seguindo o agente que um nó de IA usa, os subfluxos e os fluxos que o agente chama. Cada linha traz quem usa a variável (via), o valor que a conversa já tem (current: da campanha ou de uma passagem anterior; vazio quando não tem) e o campo do lead sugerido (suggested: o campo personalizado com a mesma chave). fields lista os campos do lead que podem preencher uma variável, na mesma ordem e com as mesmas regras da etapa de variáveis da campanha, com o valor do lead desta conversa (value vazio quando o lead não tem). Sem kind e id, a automação é a que a conversa volta a ter ao religar a automação; automation vem nula quando não há nenhuma. lead_name, lead_number e campaign_name nunca aparecem: a plataforma sempre preenche. Exige acesso à conversa.
+// @Tags			Conversas
+// @Produce		json
+// @Param			entryType	path		string	true	"Tipo da entrada"
+// @Param			entryId		path		string	true	"ID da entrada"
+// @Param			kind		query		string	false	"agent ou workflow (junto com id)"	Enums(agent, workflow)
+// @Param			id			query		string	false	"ID do agente ou do fluxo (junto com kind)"
+// @Success		200			{object}	ConversationVariablesResponse
+// @Failure		400			{object}	response.ErrorResponse	"conversation_variable_invalid: tipo de conversa desconhecido, ou kind sem id"
+// @Failure		403			{object}	response.ErrorResponse	"forbidden"
+// @Failure		422			{object}	response.ErrorResponse	"automation_needs_not_found"
+// @Failure		503			{object}	response.ErrorResponse	"automation_needs_unreadable"
+// @Security		BearerAuth
+// @Router			/conversations/{entryType}/{entryId}/variables [get]
+func (h *Handler) ConversationVariables(w http.ResponseWriter, r *http.Request) {
+	ref, ok := conversationRefOf(w, r)
+	if !ok {
+		return
+	}
+	q := r.URL.Query()
+	kind, id := strings.TrimSpace(q.Get("kind")), strings.TrimSpace(q.Get("id"))
+	var target *conversation.Automation
+	if kind != "" || id != "" {
+		if kind == "" || id == "" {
+			response.WriteErrorWithCode(w, http.StatusBadRequest, "conversation_variable_invalid", "Informe kind e id juntos.", nil)
+			return
+		}
+		target = &conversation.Automation{Kind: conversation.AutomationKind(kind), ID: id}
+	}
+	form, err := h.queries.VariablesForm(r.Context(), ref, target)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	response.WriteSuccess(w, http.StatusOK, formResponse(form))
+}
+
 // @Summary		Preencher variáveis da conversa
-// @Description	Guarda valores de variáveis só para esta conversa, para que o agente ou o fluxo escolhido possa atendê-la. É o formulário que aparece quando passar a conversa para uma automação (ou religar a automação dela) é recusado com 409 automation_variables_missing. Só aceita variáveis que a automação informada exige; lead_name, lead_number e campaign_name são da plataforma e não podem ser gravadas. Os valores valem mais que os da campanha e são lidos por agentes e fluxos pelo mesmo caminho. Exige acesso à conversa.
+// @Description	Guarda de onde vem cada variável que o agente ou o fluxo exige nesta conversa, com as mesmas origens da etapa de variáveis da campanha. Cada item de bindings tem name e source: um campo do lead (lead.first_name, lead.name, lead.nickname, lead.district, lead.city, lead.owner_name, lead.custom:<chave>), literal com value (texto fixo) ou conversation (manter o valor que a conversa já tem, da campanha ou de uma passagem anterior). O backend lê o campo do lead desta conversa, grava o valor resolvido, e os agentes e fluxos leem pelo caminho de sempre; conversation não grava nada. values ({nome: texto}) continua aceito e vale como texto fixo. Só aceita variáveis que a automação exige; lead_name, lead_number e campaign_name são da plataforma. Uma origem que sai vazia nesta conversa é recusada com 422 conversation_variable_empty e details.variables com os nomes, e nada é gravado. Os valores valem mais que os da campanha. Exige acesso à conversa.
 // @Tags			Conversas
 // @Accept			json
 // @Produce		json
 // @Param			entryType	path	string							true	"Tipo da entrada"
 // @Param			entryId		path	string							true	"ID da entrada"
-// @Param			request		body	ConversationVariablesRequest	true	"Automação e valores"
+// @Param			request		body	ConversationVariablesRequest	true	"Automação e origem de cada variável"
 // @Success		204
-// @Failure		400	{object}	response.ErrorResponse	"conversation_variable_invalid ou conversation_variable_not_needed"
-// @Failure		403	{object}	response.ErrorResponse	"forbidden"
-// @Failure		422	{object}	response.ErrorResponse	"automation_needs_not_found"
+// @Failure		400	{object}	response.ErrorResponse{details=VariablesErrorDetails}	"conversation_variable_invalid, conversation_variable_source_invalid ou conversation_variable_not_needed"
+// @Failure		403	{object}	response.ErrorResponse									"forbidden"
+// @Failure		422	{object}	response.ErrorResponse{details=VariablesErrorDetails}	"conversation_variable_empty ou automation_needs_not_found"
+// @Failure		503	{object}	response.ErrorResponse									"automation_needs_unreadable"
 // @Security		BearerAuth
 // @Router			/conversations/{entryType}/{entryId}/variables [put]
 func (h *Handler) SaveConversationVariables(w http.ResponseWriter, r *http.Request) {
-	claims := middleware.GetClaims(r)
-	workspaceID, ok := httpx.RequireWorkspace(w, r)
-	if !ok || claims == nil {
-		response.WriteError(w, http.StatusUnauthorized, "Unauthorized", nil)
+	ref, ok := conversationRefOf(w, r)
+	if !ok {
 		return
 	}
 	var req ConversationVariablesRequest
 	if !httpx.DecodeStrictJSON(w, r, &req) {
 		return
 	}
-	vars := mux.Vars(r)
-	entryType := shared.EntryType(vars["entryType"])
-	if !entryType.IsKnown() {
-		response.WriteErrorWithCode(w, http.StatusBadRequest, "conversation_variable_invalid", "Tipo de conversa desconhecido.", nil)
-		return
+	bindings := make([]conversationvars.Binding, 0, len(req.Bindings))
+	for _, b := range req.Bindings {
+		bindings = append(bindings, conversationvars.Binding{Name: b.Name, Source: campaign.BindingSource(b.Source), Value: b.Value})
 	}
 	err := h.queries.SaveConversationValues(r.Context(), automationneeds_usecase.SaveValues{
-		WorkspaceID: workspaceID, UserID: claims.UserID, IsAdmin: claims.Role == string(user.RoleAdmin),
-		EntryID: vars["entryId"], EntryType: entryType,
-		Automation: conversation.Automation{Kind: conversation.AutomationKind(req.Automation.Kind), ID: strings.TrimSpace(req.Automation.ID)},
-		Values:     req.Values,
+		ConversationRef: ref,
+		Automation:      conversation.Automation{Kind: conversation.AutomationKind(req.Automation.Kind), ID: strings.TrimSpace(req.Automation.ID)},
+		Values:          req.Values,
+		Bindings:        bindings,
 	})
 	if err != nil {
 		writeError(w, err)
@@ -237,16 +305,57 @@ func (h *Handler) SaveConversationVariables(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func conversationRefOf(w http.ResponseWriter, r *http.Request) (automationneeds_usecase.ConversationRef, bool) {
+	claims := middleware.GetClaims(r)
+	workspaceID, ok := httpx.RequireWorkspace(w, r)
+	if !ok {
+		return automationneeds_usecase.ConversationRef{}, false
+	}
+	if claims == nil {
+		response.WriteError(w, http.StatusUnauthorized, "Unauthorized", nil)
+		return automationneeds_usecase.ConversationRef{}, false
+	}
+	vars := mux.Vars(r)
+	entryType := shared.EntryType(vars["entryType"])
+	if !entryType.IsKnown() {
+		response.WriteErrorWithCode(w, http.StatusBadRequest, "conversation_variable_invalid", "Tipo de conversa desconhecido.", nil)
+		return automationneeds_usecase.ConversationRef{}, false
+	}
+	return automationneeds_usecase.ConversationRef{
+		WorkspaceID: workspaceID, UserID: claims.UserID, IsAdmin: claims.Role == string(user.RoleAdmin),
+		EntryID: strings.TrimSpace(vars["entryId"]), EntryType: entryType,
+	}, true
+}
+
+func formResponse(form automationneeds_usecase.VariablesForm) ConversationVariablesResponse {
+	out := ConversationVariablesResponse{Variables: make([]VariableRowResponse, 0, len(form.Rows)), Fields: make([]ConversationFieldResponse, 0, len(form.Fields))}
+	if form.Automation != nil {
+		link := automationneedsx.Link(*form.Automation)
+		out.Automation = &link
+	}
+	for _, row := range form.Rows {
+		need := automationneedsx.Needs(domain.Needs{row.Need})[0]
+		out.Variables = append(out.Variables, VariableRowResponse{Name: need.Name, Description: need.Description, Via: need.Via, Current: row.Current, Suggested: string(row.Suggested)})
+	}
+	for _, f := range form.Fields {
+		out.Fields = append(out.Fields, ConversationFieldResponse{Field: f.Field, Value: f.Value})
+	}
+	return out
+}
+
 var valueRefusals = []struct {
-	err  error
-	code string
-	text string
+	err    error
+	status int
+	code   string
+	text   string
 }{
-	{conversationvars.ErrNothingToSave, "conversation_variable_invalid", "Preencha pelo menos um valor."},
-	{conversationvars.ErrNameInvalid, "conversation_variable_invalid", "O nome da variável tem só letras, números e _."},
-	{conversationvars.ErrNameReserved, "conversation_variable_invalid", "Essa variável é preenchida pela plataforma."},
-	{conversationvars.ErrValueInvalid, "conversation_variable_invalid", "Cada valor tem de 1 a 2000 caracteres."},
-	{conversationvars.ErrNotNeeded, "conversation_variable_not_needed", "Essa automação não usa essa variável."},
+	{conversationvars.ErrNothingToSave, http.StatusBadRequest, "conversation_variable_invalid", "Preencha pelo menos um valor."},
+	{conversationvars.ErrNameInvalid, http.StatusBadRequest, "conversation_variable_invalid", "O nome da variável tem só letras, números e _."},
+	{conversationvars.ErrNameReserved, http.StatusBadRequest, "conversation_variable_invalid", "Essa variável é preenchida pela plataforma."},
+	{conversationvars.ErrValueInvalid, http.StatusBadRequest, "conversation_variable_invalid", "Cada valor tem até 2000 caracteres."},
+	{conversationvars.ErrSourceInvalid, http.StatusBadRequest, "conversation_variable_source_invalid", "Essa origem não pode preencher a variável."},
+	{conversationvars.ErrNotNeeded, http.StatusBadRequest, "conversation_variable_not_needed", "Essa automação não usa essa variável."},
+	{conversationvars.ErrValueEmpty, http.StatusUnprocessableEntity, "conversation_variable_empty", "Essa origem não tem valor nesta conversa."},
 }
 
 func ValueCodes() []string {
@@ -266,10 +375,16 @@ func writeError(w http.ResponseWriter, err error) {
 		return
 	}
 	for _, refusal := range valueRefusals {
-		if errors.Is(err, refusal.err) {
-			response.WriteErrorWithCode(w, http.StatusBadRequest, refusal.code, refusal.text, nil)
+		if !errors.Is(err, refusal.err) {
+			continue
+		}
+		var named *conversationvars.VariablesError
+		if errors.As(err, &named) {
+			response.WriteErrorWithDetails(w, refusal.status, refusal.code, refusal.text, VariablesErrorDetails{Variables: named.Names})
 			return
 		}
+		response.WriteErrorWithCode(w, refusal.status, refusal.code, refusal.text, nil)
+		return
 	}
 	response.WriteErrorWithCode(w, http.StatusInternalServerError, "internal_error", "Não foi possível concluir agora.", nil)
 }
@@ -287,5 +402,6 @@ func RegisterRoutes(
 		h.publishImpact(w, r, conversation.AutomationWorkflow)
 	})).Methods(http.MethodGet)
 	protected.HandleFunc("/automation-switch-offs", h.SwitchOff).Methods(http.MethodGet)
+	protected.HandleFunc("/conversations/{entryType}/{entryId}/variables", h.ConversationVariables).Methods(http.MethodGet)
 	protected.HandleFunc("/conversations/{entryType}/{entryId}/variables", h.SaveConversationVariables).Methods(http.MethodPut)
 }

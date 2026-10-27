@@ -295,29 +295,44 @@ func (h *CampaignHandler) Estimate(w http.ResponseWriter, r *http.Request) {
 	response.WriteSuccess(w, http.StatusOK, draftEstimateToDTO(draft))
 }
 
+// @Summary		Resumo de envios das campanhas não oficiais
+// @Description	Conta os contatos das campanhas não oficiais pelo momento em que cada um aconteceu: quando saiu ou falhou, e uma decisão que não envia (proteção anti-spam, número fora do WhatsApp, recusa antes do envio) quando o contato entrou na campanha. Envios anteriores aos carimbos de envio não têm data: com período eles ficam de fora e `undated` diz quantos são; sem período tudo conta pelo status atual. `instanceId` restringe aos números que enviaram ou que a campanha usa.
+// @Tags			Unofficial WhatsApp Campaigns
+// @Produce		json
+// @Param			from		query		string	false	"Início do período (AAAA-MM-DD)"
+// @Param			to			query		string	false	"Fim do período (AAAA-MM-DD, inclusive)"
+// @Param			instanceId	query		string	false	"Números, separados por vírgula"
+// @Success		200			{object}	campaign.SendsSummary
+// @Failure		401			{object}	response.ErrorResponse
+// @Failure		403			{object}	response.ErrorResponse
+// @Failure		500			{object}	response.ErrorResponse
+// @Security		BearerAuth
+// @Router			/unofficial-whatsapp/campaigns/summary [get]
 func (h *CampaignHandler) Summary(w http.ResponseWriter, r *http.Request) {
 	workspaceID, _, ok := h.campaignScope(w, r)
 	if !ok {
 		return
 	}
 	if httpx.ShouldReturnEmptyDepartmentList(r) {
-		response.WriteSuccess(w, http.StatusOK, campaign.NewMetrics(nil))
+		response.WriteSuccess(w, http.StatusOK, campaign.NewSendsSummary(campaign.SendsTally{}))
 		return
 	}
 
 	values := r.URL.Query()
-	metrics, err := h.summary.Execute(uwc.WorkspaceSummaryFilter{
+	summary, err := h.summary.Execute(uwc.WorkspaceSummaryFilter{
 		WorkspaceID:   workspaceID,
 		DepartmentIDs: httpx.DepartmentFilterIDs(r),
 		InstanceIDs:   httpx.ParseCSVQuery(values["instanceId"]),
-		CreatedFrom:   httpx.ParseDateBound(values.Get("from"), false),
-		CreatedTo:     httpx.ParseDateBound(values.Get("to"), true),
+		Window: campaign.SendWindow{
+			From: httpx.ParseDateBound(values.Get("from"), false),
+			To:   httpx.ParseDateBound(values.Get("to"), true),
+		},
 	})
 	if err != nil {
 		response.WriteError(w, http.StatusInternalServerError, "failed to load the campaigns summary", nil)
 		return
 	}
-	response.WriteSuccess(w, http.StatusOK, metrics)
+	response.WriteSuccess(w, http.StatusOK, summary)
 }
 
 // @Summary		Números e grupos de uma campanha não oficial

@@ -20,13 +20,17 @@ import (
 )
 
 type stubAutomationProfiles struct {
-	profile conversation.AutomationProfile
-	err     error
-	calls   int
+	profile    conversation.AutomationProfile
+	err        error
+	calls      int
+	readsFirst int
 }
 
 func (s *stubAutomationProfiles) EntryAutomation(string, string) (conversation.AutomationProfile, error) {
 	s.calls++
+	if s.calls <= s.readsFirst {
+		return s.profile, nil
+	}
 	return s.profile, s.err
 }
 

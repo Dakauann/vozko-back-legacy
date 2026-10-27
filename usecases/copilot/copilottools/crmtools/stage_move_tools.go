@@ -122,6 +122,8 @@ func stageMoveFailure(tool string, err error) copilot.Result {
 		return copilot.Result{Status: copilot.StatusDenied, Message: "o usuário não tem acesso a esta conversa ou etapa"}
 	case errors.Is(err, stage.ErrStagePipelineMismatch):
 		return copilot.Result{Status: copilot.StatusError, Message: "essa etapa é de outro funil; para trocar de funil use move_conversation_funnel"}
+	case errors.Is(err, stage.ErrStageNotConversationFunnel):
+		return copilot.Result{Status: copilot.StatusError, Message: "essa etapa é de um funil de oportunidades; uma conversa só vai para etapas de funis de conversa"}
 	case errors.Is(err, stage.ErrTagNotFound):
 		return copilot.Result{Status: copilot.StatusError, Message: "etapa desconhecida; use os ids de list_pipelines"}
 	case errors.Is(err, stage.ErrInvalidEntryType):

@@ -157,3 +157,16 @@ func TestAPlanWithoutSlotsResolvesToNoValues(t *testing.T) {
 		t.Fatalf("Resolve = %q, %v", got, err)
 	}
 }
+
+func TestSameKeyBindingSuggestsOnlyABindableLeadField(t *testing.T) {
+	defs := bindingDefs()
+	if got := SameKeyBinding(defs, "escola"); got != CustomBinding("escola") {
+		t.Fatalf("escola = %q", got)
+	}
+	if got := SameKeyBinding(defs, "classificacao"); got != "" {
+		t.Fatalf("a sensitive field is never suggested: %q", got)
+	}
+	if got := SameKeyBinding(defs, "matricula"); got != "" {
+		t.Fatalf("no field with that key: %q", got)
+	}
+}

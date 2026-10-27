@@ -19,6 +19,7 @@ func RegisterProtectedRoutes(
 	protected.HandleFunc("/google-sheets", ac(res, workspace_domain.ActionCreate, h.Create)).Methods(http.MethodPost)
 	protected.HandleFunc("/google-sheets/presets", ac(res, workspace_domain.ActionRead, h.Presets)).Methods(http.MethodGet)
 	protected.HandleFunc("/google-sheets/spreadsheets", ac(res, workspace_domain.ActionRead, h.Spreadsheets)).Methods(http.MethodGet)
+	protected.HandleFunc("/google-sheets/files", ac(res, workspace_domain.ActionRead, h.Files)).Methods(http.MethodGet)
 	protected.HandleFunc("/google-sheets/workbook", ac(res, workspace_domain.ActionCreate, h.CreateWorkbook)).Methods(http.MethodPost)
 	protected.HandleFunc("/google-sheets/tab-name-preview", ac(res, workspace_domain.ActionRead, h.PreviewTabName)).Methods(http.MethodPost)
 	protected.HandleFunc("/google-sheets/{id}/layout", ac(res, workspace_domain.ActionUpdate, h.UpdateLayout)).Methods(http.MethodPatch)

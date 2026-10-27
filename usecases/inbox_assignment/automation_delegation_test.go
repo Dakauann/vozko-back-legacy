@@ -201,6 +201,7 @@ func TestAFailedHandOverRestoresThePreviousDelegation(t *testing.T) {
 	previous := conversation.Automation{Kind: conversation.AutomationWorkflow, ID: "wf-old"}
 	f.profiles.profile.Delegate = &previous
 	f.profiles.err = errors.New("db down")
+	f.profiles.readsFirst = 1
 	delegation, _, _ := newDelegation(f)
 
 	_, err := delegation.Delegate(context.Background(), delegateInput(conversation.AutomationAgent, "agent-9"))

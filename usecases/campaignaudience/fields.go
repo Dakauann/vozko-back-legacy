@@ -5,27 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"vozko/domain/campaign"
 	"vozko/domain/campaignaudience"
 	"vozko/domain/customfield"
 	"vozko/domain/whatsapp/template"
 )
-
-type FieldKind string
-
-const (
-	FieldLead   FieldKind = "lead"
-	FieldCustom FieldKind = "custom"
-)
-
-type Field struct {
-	Source campaign.BindingSource `json:"source"`
-	Kind   FieldKind              `json:"kind"`
-	Column string                 `json:"column"`
-	Key    string                 `json:"key,omitempty"`
-	Label  string                 `json:"label,omitempty"`
-	Type   customfield.FieldType  `json:"type,omitempty"`
-}
 
 func (s *Service) definitions(workspaceID string) ([]*customfield.Definition, error) {
 	defs, err := s.deps.Definitions.ListByObject(workspaceID, customfield.ObjectLead)
@@ -35,20 +18,12 @@ func (s *Service) definitions(workspaceID string) ([]*customfield.Definition, er
 	return defs, nil
 }
 
-func (s *Service) Fields(_ context.Context, a Actor) ([]Field, error) {
+func (s *Service) Fields(_ context.Context, a Actor) ([]campaignaudience.Field, error) {
 	defs, err := s.definitions(a.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
-	fields := make([]Field, 0, len(campaign.BindableSources()))
-	for _, source := range campaign.BindableSources() {
-		fields = append(fields, Field{Source: source, Kind: FieldLead, Column: campaign.FieldColumn(source, nil)})
-	}
-	for _, def := range campaign.BindableCustomFields(defs) {
-		source := campaign.CustomBinding(def.Key)
-		fields = append(fields, Field{Source: source, Kind: FieldCustom, Column: campaign.FieldColumn(source, defs), Key: def.Key, Label: def.Label, Type: def.Type})
-	}
-	return fields, nil
+	return campaignaudience.FieldsOf(defs), nil
 }
 
 type TemplateReader interface {

@@ -64,17 +64,18 @@ func (uc *conversationTemplateUseCase) Send(ctx context.Context, in wo.Conversat
 	}
 
 	d := delivery{
-		entry:        target.entry,
-		tmpl:         target.tmpl,
-		bodyParams:   in.BodyParams,
-		headerParams: in.HeaderParams,
-		workspaceID:  in.WorkspaceID,
-		userID:       in.UserID,
-		automation:   in.Automation,
-		to:           target.contact.Number,
-		leadID:       target.contact.ID,
-		phoneID:      target.phone.ID,
-		campaignID:   target.campaign.ID,
+		entry:          target.entry,
+		recordsOnEntry: target.campaign.RecordsOneOffSendOn(target.entry),
+		tmpl:           target.tmpl,
+		bodyParams:     in.BodyParams,
+		headerParams:   in.HeaderParams,
+		workspaceID:    in.WorkspaceID,
+		userID:         in.UserID,
+		automation:     in.Automation,
+		to:             target.contact.Number,
+		leadID:         target.contact.ID,
+		phoneID:        target.phone.ID,
+		campaignID:     target.campaign.ID,
 	}
 	result, err := uc.charge(ctx, d, template.BilledSendInput{
 		WorkspaceID:     in.WorkspaceID,

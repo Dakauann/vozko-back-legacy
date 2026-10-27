@@ -61,7 +61,8 @@ type ExecutorDeps struct {
 	LabelRepo             label_domain.Repository
 	Labeler               label_domain.AutomationLabeler
 	StageRepo             node_executors.StageReader
-	AssignStage           stage_domain.AssignEntryStageUseCase
+	AssignStage           stage_domain.EntryMover
+	StageDestinations     stage_domain.DestinationReader
 	StageBroadcaster      node_executors.StageBroadcaster
 	Deals                 node_executors.DealDesk
 	DealPreviews          DealPreviewer

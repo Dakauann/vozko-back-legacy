@@ -30,13 +30,46 @@ func (s *stageStoreStub) GetEntryStage(entryID, _, _ string) (*stage.EntryStage,
 }
 
 type stageMoverStub struct {
-	calls []stage.AssignEntryStageInput
-	err   error
+	destinations map[string]stage.FunnelStage
+	from         stage.FunnelStage
+	calls        []stage.AssignEntryStageInput
+	destErr      error
+	err          error
 }
 
-func (m *stageMoverStub) Execute(_ string, in stage.AssignEntryStageInput) (*stage.EntryStage, error) {
+func (m *stageMoverStub) Execute(ws string, in stage.AssignEntryStageInput) (*stage.EntryStage, error) {
+	move, err := m.Move(ws, in)
+	return move.Entry, err
+}
+
+func (m *stageMoverStub) Destination(_ string, stageID string) (stage.FunnelStage, error) {
+	if m.destErr != nil {
+		return stage.FunnelStage{}, m.destErr
+	}
+	to, ok := m.destinations[stageID]
+	if !ok {
+		return stage.FunnelStage{}, stage.ErrTagNotFound
+	}
+	return to, nil
+}
+
+func (m *stageMoverStub) Move(_ string, in stage.AssignEntryStageInput) (stage.Move, error) {
 	m.calls = append(m.calls, in)
-	return &stage.EntryStage{StageID: in.StageID}, m.err
+	if m.err != nil {
+		return stage.Move{}, m.err
+	}
+	return stage.Move{Entry: &stage.EntryStage{StageID: in.StageID}, From: m.from, To: m.destinations[in.StageID]}, nil
+}
+
+func salesMover() *stageMoverStub {
+	return &stageMoverStub{
+		destinations: map[string]stage.FunnelStage{
+			"st-new":  {StageID: "st-new", StageName: "Novo", PipelineID: "pl-sales", PipelineName: "Vendas"},
+			"st-won":  {StageID: "st-won", StageName: "Ganho", PipelineID: "pl-sales", PipelineName: "Vendas"},
+			"st-paid": {StageID: "st-paid", StageName: "pagamento efetuado", PipelineID: "pl-altiva", PipelineName: "Altiva"},
+		},
+		from: stage.FunnelStage{StageID: "st-new", StageName: "Novo", PipelineID: "pl-sales", PipelineName: "Vendas"},
+	}
 }
 
 type stageBroadcastStub struct{ entries []string }
@@ -76,7 +109,7 @@ func checkEdges() []workflow.Edge {
 
 func TestStageNodesOfferThePipelineStages(t *testing.T) {
 	for _, def := range []workflow.NodeDefinition{
-		NewMoveStageExecutor(stagePipelines(), &stageMoverStub{}, nil).Definition(),
+		NewMoveStageExecutor(stagePipelines(), salesMover(), nil).Definition(),
 		NewCheckStageExecutor(stagePipelines()).Definition(),
 	} {
 		var source string
@@ -90,8 +123,23 @@ func TestStageNodesOfferThePipelineStages(t *testing.T) {
 	}
 }
 
+func TestMoveStageDocumentsTheFunnelItLeftAndTheChange(t *testing.T) {
+	def := NewMoveStageExecutor(stagePipelines(), salesMover(), nil).Definition()
+	keys := map[string]workflow.VariableType{}
+	for _, k := range def.OutputKeys {
+		keys[k.Key] = k.Type
+	}
+	for _, key := range []string{"success", "changed", "stage_id", "stage_name", "pipeline_id", "pipeline_name", "from_stage_id", "from_stage_name", "from_pipeline_id", "from_pipeline_name", "pipeline_changed", "error", "error_code"} {
+		_, ok := keys[key]
+		require.True(t, ok, "output %s is not documented", key)
+	}
+	require.Equal(t, workflow.VariableTypeBoolean, keys["pipeline_changed"])
+	require.Contains(t, def.Guidance.Behavior, "outro funil")
+	require.NotEmpty(t, def.Guidance.Examples)
+}
+
 func TestMoveStageMovesTheConversationAsTheWorkflow(t *testing.T) {
-	mover := &stageMoverStub{}
+	mover := salesMover()
 	screens := &stageBroadcastStub{}
 	exec := NewMoveStageExecutor(stagePipelines(), mover, screens)
 
@@ -100,15 +148,41 @@ func TestMoveStageMovesTheConversationAsTheWorkflow(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "ok", res.NextNodeID)
 	require.Len(t, mover.calls, 1)
-	require.Equal(t, stage.AssignEntryStageInput{StageID: "st-won", EntryID: "e-1", EntryType: "unofficial_whatsapp", ActorID: actor.FormatWorkflow("wf-1"), Cause: stage.MoveCause{WorkflowID: "wf-1", RunID: "run1"}}, mover.calls[0])
+	require.Equal(t, stage.AssignEntryStageInput{StageID: "st-won", EntryID: "e-1", EntryType: "unofficial_whatsapp", ActorID: actor.FormatWorkflow("wf-1"), Cause: stage.MoveCause{WorkflowID: "wf-1", RunID: "run1"}, AllowCrossPipeline: true}, mover.calls[0])
 	require.Equal(t, []string{"e-1"}, screens.entries)
 	require.Equal(t, true, res.Output["changed"])
 	require.Equal(t, "Ganho", res.Output["stage_name"])
 	require.Equal(t, "Novo", res.Output["from_stage_name"])
+	require.Equal(t, false, res.Output["pipeline_changed"])
+	require.Equal(t, "pl-sales", res.Output["from_pipeline_id"])
+}
+
+func TestMoveStageCarriesAConversationIntoTheChosenStagesFunnel(t *testing.T) {
+	mover := salesMover()
+	res, err := NewMoveStageExecutor(stagePipelines(), mover, nil).
+		Execute(stageNodeCtx(workflow.NodeTypeActionMoveStage, map[string]interface{}{"stage_id": "st-paid"}, moveEdges()))
+
+	require.NoError(t, err)
+	require.Equal(t, "ok", res.NextNodeID)
+	require.Len(t, mover.calls, 1)
+	require.True(t, mover.calls[0].AllowCrossPipeline, "a stage the automation chose explicitly crosses funnels")
+	require.Equal(t, map[string]interface{}{
+		"success":            true,
+		"changed":            true,
+		"stage_id":           "st-paid",
+		"stage_name":         "pagamento efetuado",
+		"pipeline_id":        "pl-altiva",
+		"pipeline_name":      "Altiva",
+		"from_stage_id":      "st-new",
+		"from_stage_name":    "Novo",
+		"from_pipeline_id":   "pl-sales",
+		"from_pipeline_name": "Vendas",
+		"pipeline_changed":   true,
+	}, res.Output)
 }
 
 func TestMoveStageToTheCurrentStageChangesNothing(t *testing.T) {
-	mover := &stageMoverStub{}
+	mover := salesMover()
 	res, err := NewMoveStageExecutor(stagePipelines(), mover, nil).
 		Execute(stageNodeCtx(workflow.NodeTypeActionMoveStage, map[string]interface{}{"stage_id": "st-new"}, moveEdges()))
 
@@ -116,34 +190,52 @@ func TestMoveStageToTheCurrentStageChangesNothing(t *testing.T) {
 	require.Equal(t, "ok", res.NextNodeID)
 	require.Empty(t, mover.calls)
 	require.Equal(t, false, res.Output["changed"])
+	require.Equal(t, false, res.Output["pipeline_changed"])
+	require.Equal(t, "pl-sales", res.Output["from_pipeline_id"])
 }
 
 func TestMoveStageRefusalsLeaveThroughTheErrorHandle(t *testing.T) {
 	for name, tc := range map[string]struct {
 		stageID string
+		destErr error
 		err     error
 		want    string
+		code    string
 	}{
-		"other funnel":    {"st-won", stage.ErrStagePipelineMismatch, "funil"},
-		"deleted stage":   {"st-gone", nil, "não existe"},
-		"other workspace": {"st-foreign", nil, "não existe"},
-		"generic failure": {"st-won", stage.ErrEntryNotFound, "falha"},
+		"opportunity funnel": {"st-won", stage.ErrStageNotConversationFunnel, nil, "oportunidades", "stage_not_conversation_funnel"},
+		"deleted stage":      {"st-gone", nil, nil, "não existe", "stage_not_found"},
+		"other workspace":    {"st-won", stage.ErrUnauthorized, nil, "não existe", "stage_not_found"},
+		"refused on write":   {"st-won", nil, stage.ErrStageNotConversationFunnel, "oportunidades", "stage_not_conversation_funnel"},
+		"generic failure":    {"st-won", nil, stage.ErrEntryNotFound, "falha", "stage_move_failed"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			res, err := NewMoveStageExecutor(stagePipelines(), &stageMoverStub{err: tc.err}, nil).
+			mover := salesMover()
+			mover.destErr, mover.err = tc.destErr, tc.err
+			res, err := NewMoveStageExecutor(stagePipelines(), mover, nil).
 				Execute(stageNodeCtx(workflow.NodeTypeActionMoveStage, map[string]interface{}{"stage_id": tc.stageID}, moveEdges()))
 
 			require.NoError(t, err)
 			require.Equal(t, "fail", res.NextNodeID)
 			require.Contains(t, res.Output["error"], tc.want)
+			require.Equal(t, tc.code, res.Output["error_code"])
+			require.Equal(t, false, res.Output["success"])
+			require.Equal(t, false, res.Output["pipeline_changed"])
 		})
 	}
 }
 
 func TestMoveStageWithoutAStageIsAConfigError(t *testing.T) {
-	_, err := NewMoveStageExecutor(stagePipelines(), &stageMoverStub{}, nil).
+	_, err := NewMoveStageExecutor(stagePipelines(), salesMover(), nil).
 		Execute(stageNodeCtx(workflow.NodeTypeActionMoveStage, map[string]interface{}{}, moveEdges()))
 	require.ErrorIs(t, err, workflow.ErrNodeConfigMissing)
+}
+
+func TestMoveStageWithoutAMoverFailsClosed(t *testing.T) {
+	res, err := NewMoveStageExecutor(stagePipelines(), nil, nil).
+		Execute(stageNodeCtx(workflow.NodeTypeActionMoveStage, map[string]interface{}{"stage_id": "st-won"}, moveEdges()))
+	require.NoError(t, err)
+	require.Equal(t, "fail", res.NextNodeID)
+	require.Equal(t, "stage_move_failed", res.Output["error_code"])
 }
 
 func TestCheckStageBranchesOnTheCurrentStage(t *testing.T) {
@@ -167,7 +259,7 @@ func TestCheckStageBranchesOnTheCurrentStage(t *testing.T) {
 }
 
 func TestMoveStageTellsTheMoveWhichRunMadeItAndHowFarTheChainWent(t *testing.T) {
-	mover := &stageMoverStub{}
+	mover := salesMover()
 	ctx := stageNodeCtx(workflow.NodeTypeActionMoveStage, map[string]interface{}{"stage_id": "st-won"}, moveEdges())
 	ctx.State.Set(workflow.StageChainKey, float64(2))
 

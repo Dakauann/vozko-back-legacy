@@ -45,7 +45,7 @@ type API interface {
 	EditRow(ctx context.Context, a campaignaudience_usecase.Actor, ch campaignaudience.Channel, listID, rowID string, in campaignaudience_usecase.RowInput) (campaignaudience.Row, error)
 	RemoveRow(ctx context.Context, a campaignaudience_usecase.Actor, ch campaignaudience.Channel, listID, rowID string) error
 	Sample(ctx context.Context, a campaignaudience_usecase.Actor, ch campaignaudience.Channel, params campaignaudience_usecase.Params, vars []campaignaudience.Variable, format campaignaudience_usecase.SampleFormat) (campaignaudience_usecase.File, error)
-	Fields(ctx context.Context, a campaignaudience_usecase.Actor) ([]campaignaudience_usecase.Field, error)
+	Fields(ctx context.Context, a campaignaudience_usecase.Actor) ([]campaignaudience.Field, error)
 	TemplateSuggestions(ctx context.Context, a campaignaudience_usecase.Actor, templateID string) (campaignaudience_usecase.TemplateSuggestions, error)
 	SaveTemplateSuggestions(ctx context.Context, a campaignaudience_usecase.Actor, templateID string, suggestions []campaignaudience.Suggestion) (campaignaudience_usecase.TemplateSuggestions, error)
 }
@@ -511,7 +511,7 @@ const CodeSampleFormat = "audience_sample_format_invalid"
 // @Tags			Campaign audience
 // @Produce		json
 // @Param			channel	path		string	true	"Canal"	Enums(email, whatsapp, unofficial, carrier)
-// @Success		200		{array}		campaignaudience_usecase.Field
+// @Success		200		{array}		campaignaudience.Field
 // @Security		BearerAuth
 // @Router			/campaign-audience/{channel}/fields [get]
 func (h *Handler) Fields(w http.ResponseWriter, r *http.Request) {
@@ -531,7 +531,7 @@ func (h *Handler) Fields(w http.ResponseWriter, r *http.Request) {
 // @Description	A mesma lista de `GET /campaign-audience/{channel}/fields`, para o editor de modelos do WhatsApp. Exige `whatsapp_templates:read`.
 // @Tags			Campaign audience
 // @Produce		json
-// @Success		200		{array}		campaignaudience_usecase.Field
+// @Success		200		{array}		campaignaudience.Field
 // @Security		BearerAuth
 // @Router			/campaign-audience/template-fields [get]
 func (h *Handler) TemplateFields(w http.ResponseWriter, r *http.Request) {

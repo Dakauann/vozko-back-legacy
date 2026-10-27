@@ -18,6 +18,7 @@ import (
 	media_domain "vozko/domain/media"
 	"vozko/domain/messaging"
 	"vozko/domain/shared"
+	"vozko/domain/stage"
 	"vozko/domain/tools"
 	template_domain "vozko/domain/whatsapp/template"
 	"vozko/domain/workflow"
@@ -112,12 +113,13 @@ type WSWorkflowSimulationDeps struct {
 	Secrets           workspacesecret.Resolver
 	WorkspaceZones    shared_usecase.WorkspaceZones
 
-	LabelRepo      label.Repository
-	StageRepo      node_executors.StageReader
-	WorkspaceRepo  workspace.Repository
-	DepartmentRepo workspace_department.Repository
-	DealPreviews   DealPreviewer
-	LeadPreviews   LeadProfilePreviewer
+	LabelRepo         label.Repository
+	StageRepo         node_executors.StageReader
+	StageDestinations stage.DestinationReader
+	WorkspaceRepo     workspace.Repository
+	DepartmentRepo    workspace_department.Repository
+	DealPreviews      DealPreviewer
+	LeadPreviews      LeadProfilePreviewer
 
 	Runs             workflow.GetRunUseCase
 	Permissions      workspace.PermissionChecker
@@ -203,6 +205,7 @@ func (s *wsWorkflowSimulation) newSimulationRegistry(box SimSandbox, voice workf
 		WorkspaceZones:    s.deps.WorkspaceZones,
 		LabelRepo:         s.deps.LabelRepo,
 		StageRepo:         s.deps.StageRepo,
+		StageDestinations: s.deps.StageDestinations,
 		WorkspaceRepo:     s.deps.WorkspaceRepo,
 		DepartmentRepo:    s.deps.DepartmentRepo,
 		DealPreviews:      s.deps.DealPreviews,

@@ -167,3 +167,24 @@ func TestWorkbookRoomCountsEveryTab(t *testing.T) {
 		t.Fatalf("FreeTabID = %d", id)
 	}
 }
+
+func TestATabIsNamedWithoutItsPeriod(t *testing.T) {
+	cases := []struct {
+		name  string
+		sheet Sheet
+		want  string
+	}{
+		{"a fixed tab keeps its name", Sheet{Title: "Pedidos", TabName: "Pedidos do site", TabPeriod: PeriodNone}, "Pedidos do site"},
+		{"month and year at the end", Sheet{Title: "Altiva", TabName: "Pagamentos · outubro 2026", TabPeriod: PeriodMonth, TabPattern: "Pagamentos · {mes} {ano}"}, "Pagamentos"},
+		{"numbers at the start", Sheet{Title: "Altiva", TabName: "10-2026 Pagos", TabPeriod: PeriodMonth, TabPattern: "{mm}-{ano} Pagos"}, "Pagos"},
+		{"words around the period", Sheet{Title: "Altiva", TabName: "Caixa outubro 2026 fechado", TabPeriod: PeriodMonth, TabPattern: "Caixa {mes} {ano} fechado"}, "Caixa fechado"},
+		{"only the period falls back to the title", Sheet{Title: "Altiva: pagamentos", TabName: "10-2026", TabPeriod: PeriodMonth, TabPattern: "{mm}-{ano}"}, "Altiva: pagamentos"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.sheet.TabBaseName(); got != tc.want {
+				t.Fatalf("TabBaseName = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

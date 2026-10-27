@@ -103,9 +103,9 @@ func (f *fakeAPI) Sample(_ context.Context, a campaignaudience_usecase.Actor, ch
 	return f.sample, f.err
 }
 
-func (f *fakeAPI) Fields(_ context.Context, a campaignaudience_usecase.Actor) ([]campaignaudience_usecase.Field, error) {
+func (f *fakeAPI) Fields(_ context.Context, a campaignaudience_usecase.Actor) ([]campaignaudience.Field, error) {
 	f.seen(a, "")
-	return []campaignaudience_usecase.Field{{Source: "lead.first_name"}}, f.err
+	return []campaignaudience.Field{{Source: "lead.first_name"}}, f.err
 }
 
 func (f *fakeAPI) TemplateSuggestions(_ context.Context, a campaignaudience_usecase.Actor, id string) (campaignaudience_usecase.TemplateSuggestions, error) {

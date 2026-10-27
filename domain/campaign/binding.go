@@ -216,3 +216,12 @@ func (s boundSlot) value(subject BindingSubject) string {
 	}
 	return ""
 }
+
+func SameKeyBinding(defs []*customfield.Definition, name string) BindingSource {
+	for _, def := range BindableCustomFields(defs) {
+		if def.Key == name {
+			return CustomBinding(name)
+		}
+	}
+	return ""
+}

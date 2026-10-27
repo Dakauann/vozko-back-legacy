@@ -109,3 +109,28 @@ func TestTheToolCatalogTellsHowEachTypeIsTested(t *testing.T) {
 		t.Fatalf("test modes %v", got)
 	}
 }
+
+func TestTheToolCatalogTellsWhichChoiceAFieldDependsOn(t *testing.T) {
+	h := &AgentHandler{toolRegistry: catalogOnlyTools{defs: []tools.Definition{{
+		Name: "add_sheet_row",
+		ConfigSchema: map[string]tools.ConfigParameter{
+			"sheet_id": {Type: "string", DisplayName: "Aba", OptionsSource: "google_sheets", ParentOptions: &tools.ConfigParentOptions{Source: "google_sheet_files", DisplayName: "Planilha", DisplayDescription: "O arquivo do Google."}},
+			"when":     {Type: "string", DisplayName: "Quando registrar"},
+		},
+	}}}}
+	rec := httptest.NewRecorder()
+	h.ListTools(rec, httptest.NewRequest(http.MethodGet, "/agents/tools", nil))
+	var body []struct {
+		ConfigSchema map[string]map[string]interface{} `json:"configSchema"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	parent, ok := body[0].ConfigSchema["sheet_id"]["parentOptions"].(map[string]interface{})
+	if !ok || parent["source"] != "google_sheet_files" || parent["displayName"] != "Planilha" || parent["displayDescription"] != "O arquivo do Google." {
+		t.Fatalf("sheet_id = %+v", body[0].ConfigSchema["sheet_id"])
+	}
+	if _, present := body[0].ConfigSchema["when"]["parentOptions"]; present {
+		t.Fatalf("a plain field has no parent: %+v", body[0].ConfigSchema["when"])
+	}
+}

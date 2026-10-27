@@ -168,6 +168,10 @@ func (m *memorySheets) List(context.Context, googlesheet.ListInput) (*shared.Pag
 	return nil, errors.New("not used")
 }
 
+func (m *memorySheets) ListSpreadsheets(context.Context, googlesheet.ListInput) (*shared.PaginatedResult[googlesheet.Spreadsheet], error) {
+	return nil, errors.New("not used")
+}
+
 func (m *memorySheets) Delete(_ context.Context, ws, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

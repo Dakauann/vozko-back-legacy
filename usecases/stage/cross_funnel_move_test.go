@@ -17,7 +17,7 @@ func crossFunnelRepo() *coherenceRepo {
 
 func TestCrossFunnelMoveIsStillRefusedByDefault(t *testing.T) {
 	repo := crossFunnelRepo()
-	uc := NewAssignEntryStageUseCase(repo, nil)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, nil)
 
 	_, err := uc.Execute("ws", stage.AssignEntryStageInput{
 		StageID: "s-b", EntryID: "e-1", EntryType: "whatsapp",
@@ -32,7 +32,7 @@ func TestCrossFunnelMoveIsStillRefusedByDefault(t *testing.T) {
 
 func TestCrossFunnelMoveIsAllowedWhenExplicitlyRequested(t *testing.T) {
 	repo := crossFunnelRepo()
-	uc := NewAssignEntryStageUseCase(repo, nil)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, nil)
 
 	got, err := uc.Execute("ws", stage.AssignEntryStageInput{
 		StageID: "s-b", EntryID: "e-1", EntryType: "whatsapp",
@@ -58,7 +58,7 @@ func TestCrossFunnelMoveStillRefusesAnotherWorkspacesStage(t *testing.T) {
 	repo.stages["s-other"] = &stage.Stage{ID: "s-other", WorkspaceID: "outra-ws", PipelineID: "pipe-x"}
 	repo.entryStage = &stage.EntryStage{StageID: "s-a"}
 
-	uc := NewAssignEntryStageUseCase(repo, nil)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, nil)
 	_, err := uc.Execute("ws", stage.AssignEntryStageInput{
 		StageID: "s-other", EntryID: "e-1", EntryType: "whatsapp",
 		AllowCrossPipeline: true,
@@ -73,7 +73,7 @@ func TestCrossFunnelMoveStillRefusesAnotherWorkspacesStage(t *testing.T) {
 
 func TestCrossFunnelMoveStillValidatesTheEntryType(t *testing.T) {
 	repo := crossFunnelRepo()
-	uc := NewAssignEntryStageUseCase(repo, nil)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, nil)
 
 	if _, err := uc.Execute("ws", stage.AssignEntryStageInput{
 		StageID: "s-b", EntryID: "e-1", EntryType: "carrier-pigeon",
@@ -92,7 +92,7 @@ func TestCrossFunnelFlagDoesNotChangeASameFunnelMove(t *testing.T) {
 	repo.stages["s-2"] = &stage.Stage{ID: "s-2", WorkspaceID: "ws", PipelineID: "pipe-a"}
 	repo.entryStage = &stage.EntryStage{StageID: "s-1"}
 
-	uc := NewAssignEntryStageUseCase(repo, nil)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, nil)
 	if _, err := uc.Execute("ws", stage.AssignEntryStageInput{
 		StageID: "s-2", EntryID: "e-1", EntryType: "whatsapp",
 		AllowCrossPipeline: true,

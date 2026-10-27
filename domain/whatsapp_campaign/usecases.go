@@ -36,7 +36,7 @@ type ListCampaignsUseCase interface {
 }
 
 type GetSummaryUseCase interface {
-	Execute(filter wce.WorkspaceSummaryFilter) (*CampaignMetrics, error)
+	Execute(filter wce.WorkspaceSummaryFilter) (*campaign.SendsSummary, error)
 }
 
 type EnsureReceptiveContainerUseCase interface {

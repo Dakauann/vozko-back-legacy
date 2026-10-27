@@ -92,9 +92,9 @@ func TestAGroupCampaignIsStoredWithoutANumberAndWithTheNumbersItMayUse(t *testin
 		t.Fatalf("by the person number = %v", got)
 	}
 
-	counts, err := summary.CountByStatusForWorkspace(uwc.WorkspaceSummaryFilter{WorkspaceID: ws, InstanceIDs: []string{n2}})
-	if err != nil || counts.Total != 1 {
-		t.Fatalf("summary by sender = %+v, %v; want only the entry n2 sent", counts, err)
+	tally, err := summary.TallySends(uwc.WorkspaceSummaryFilter{WorkspaceID: ws, InstanceIDs: []string{n2}})
+	if err != nil || tally.Campaigns.Total != 1 {
+		t.Fatalf("summary by sender = %+v, %v; want only the entry n2 sent", tally, err)
 	}
 
 	if _, err := entries.ResetAllStatuses(groups.ID); err != nil {

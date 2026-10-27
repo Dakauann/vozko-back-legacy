@@ -27,6 +27,7 @@ type Sheets interface {
 	Create(ctx context.Context, in gsuc.CreateInput) (*googlesheet.Sheet, error)
 	Get(ctx context.Context, workspaceID, id string) (*googlesheet.Sheet, error)
 	List(ctx context.Context, in googlesheet.ListInput) (*shared.PaginatedResult[*googlesheet.Sheet], error)
+	ListSpreadsheets(ctx context.Context, in googlesheet.ListInput) (*shared.PaginatedResult[googlesheet.Spreadsheet], error)
 	UpdateDetails(ctx context.Context, in gsuc.DetailsInput) (*googlesheet.Sheet, error)
 	EditColumns(ctx context.Context, in gsuc.ColumnsInput) (*googlesheet.Sheet, error)
 	Delete(ctx context.Context, workspaceID, id string) error
@@ -102,6 +103,36 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, toListResponse(page))
+}
+
+// @Summary		Listar arquivos com as suas abas
+// @Description	Uma entrada por arquivo do Google, com as planilhas do workspace que são abas dele. title é o nome da planilha mais antiga do arquivo, o nome que o arquivo recebeu ao ser criado. status é needs_attention quando alguma aba precisa de atenção, e lastWrittenAt é a gravação mais recente entre as abas. A busca, spreadsheetId, takesInput e takesMessages escolhem os arquivos; cada arquivo vem com todas as abas, e cada aba diz em takesInput e takesMessages o que pode receber. A paginação conta arquivos, não abas.
+// @Tags			Google Planilhas
+// @Produce		json
+// @Param			search			query		string	false	"Busca pelo título de uma aba"
+// @Param			spreadsheetId	query		string	false	"Só este arquivo do Google"
+// @Param			takesInput		query		bool	false	"Só arquivos com alguma aba que recebe valores de agentes ou fluxos"
+// @Param			takesMessages	query		bool	false	"Só arquivos com alguma aba que recebe mensagens exportadas"
+// @Param			page		query		int		false	"Página"
+// @Param			pageSize	query		int		false	"Tamanho da página"
+// @Success		200			{object}	SheetFileListResponse
+// @Security		BearerAuth
+// @Router			/google-sheets/files [get]
+func (h *Handler) Files(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	page, err := h.sheets.ListSpreadsheets(r.Context(), googlesheet.ListInput{
+		WorkspaceID:   middleware.GetWorkspaceID(r),
+		SpreadsheetID: strings.TrimSpace(q.Get("spreadsheetId")),
+		Search:        strings.TrimSpace(q.Get("search")),
+		TakesInput:    q.Get("takesInput") == "true",
+		TakesMessages: q.Get("takesMessages") == "true",
+		Pagination:    httpx.ParsePagination(q),
+	})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	response.WriteSuccess(w, http.StatusOK, toFileListResponse(page))
 }
 
 // @Summary		Criar planilha

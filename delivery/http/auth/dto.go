@@ -49,6 +49,15 @@ type VerifyEmailRequest struct {
 	Token string `json:"token" validate:"required" example:"123456"`
 }
 
+type PasswordRuleResponse struct {
+	Code string `json:"code" enums:"min_length,uppercase,lowercase,digit" example:"min_length"`
+	Min  int    `json:"min" example:"8"`
+}
+
+type PasswordPolicyResponse struct {
+	Rules []PasswordRuleResponse `json:"rules"`
+}
+
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"currentPassword" validate:"required" example:"SenhaForte1"`
 	NewPassword     string `json:"newPassword" validate:"required" example:"NovaSenhaForte1"`

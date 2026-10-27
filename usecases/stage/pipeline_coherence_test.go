@@ -94,7 +94,7 @@ func TestAssignEntryStage_FirstPlacementIsUnconstrained(t *testing.T) {
 	repo := newCoherenceRepo()
 	repo.stages["s-b"] = &stage.Stage{ID: "s-b", WorkspaceID: "ws", PipelineID: "pipe-b"}
 
-	uc := NewAssignEntryStageUseCase(repo, nil)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, nil)
 	if _, err := uc.Execute("ws", whatsappInput("s-b")); err != nil {
 		t.Fatalf("first placement must be allowed: %v", err)
 	}
@@ -109,38 +109,12 @@ func TestAssignEntryStage_SameFunnelIsAllowed(t *testing.T) {
 	repo.stages["s-2"] = &stage.Stage{ID: "s-2", WorkspaceID: "ws", PipelineID: "pipe-a"}
 	repo.entryStage = &stage.EntryStage{StageID: "s-1"}
 
-	uc := NewAssignEntryStageUseCase(repo, nil)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, nil)
 	if _, err := uc.Execute("ws", whatsappInput("s-2")); err != nil {
 		t.Fatalf("moving within one funnel must be allowed: %v", err)
 	}
 	if len(repo.assigned) != 1 {
 		t.Fatal("expected the move to be applied")
-	}
-}
-
-func TestAssignEntryStage_CrossFunnelIsObservedNotBlocked(t *testing.T) {
-	repo := newCoherenceRepo()
-	repo.stages["s-a"] = &stage.Stage{ID: "s-a", WorkspaceID: "ws", PipelineID: "pipe-a"}
-	repo.stages["s-b"] = &stage.Stage{ID: "s-b", WorkspaceID: "ws", PipelineID: "pipe-b"}
-	repo.entryStage = &stage.EntryStage{StageID: "s-a"}
-
-	uc := NewAssignEntryStageUseCase(repo, nil)
-	_, err := uc.Execute("ws", whatsappInput("s-b"))
-
-	if enforcePipelineCoherence {
-		if err == nil {
-			t.Fatal("with enforcement on, a cross-funnel move must be rejected")
-		}
-		if len(repo.assigned) != 0 {
-			t.Fatal("a rejected move must not write")
-		}
-		return
-	}
-	if err != nil {
-		t.Fatalf("with enforcement off, the move must still go through: %v", err)
-	}
-	if len(repo.assigned) != 1 {
-		t.Fatal("observe mode must not block the write")
 	}
 }
 
@@ -150,7 +124,7 @@ func TestAssignEntryStage_LegacyStagesWithoutAPipelineNeverTrip(t *testing.T) {
 	repo.stages["s-new"] = &stage.Stage{ID: "s-new", WorkspaceID: "ws", PipelineID: "pipe-a"}
 	repo.entryStage = &stage.EntryStage{StageID: "s-old"}
 
-	uc := NewAssignEntryStageUseCase(repo, nil)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, nil)
 	if _, err := uc.Execute("ws", whatsappInput("s-new")); err != nil {
 		t.Fatalf("a legacy stage must not trip the rule: %v", err)
 	}
@@ -160,7 +134,7 @@ func TestAssignEntryStage_StillRejectsAnotherWorkspacesStage(t *testing.T) {
 	repo := newCoherenceRepo()
 	repo.stages["s-x"] = &stage.Stage{ID: "s-x", WorkspaceID: "other-ws", PipelineID: "pipe-x"}
 
-	uc := NewAssignEntryStageUseCase(repo, nil)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, nil)
 	if _, err := uc.Execute("ws", whatsappInput("s-x")); err != stage.ErrUnauthorized {
 		t.Fatalf("expected ErrUnauthorized, got %v", err)
 	}

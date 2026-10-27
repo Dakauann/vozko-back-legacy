@@ -74,7 +74,10 @@ func (r *funnelRepo) AssignStage(et *stagedomain.EntryStage) (string, error) {
 type anyFunnel struct{}
 
 func (anyFunnel) GetByID(workspaceID, id string) (*pipelinedomain.Pipeline, error) {
-	return &pipelinedomain.Pipeline{ID: id, WorkspaceID: workspaceID}, nil
+	if id == "pipe-deals" {
+		return &pipelinedomain.Pipeline{ID: id, WorkspaceID: workspaceID, ObjectType: pipelinedomain.ObjectOpportunity}, nil
+	}
+	return &pipelinedomain.Pipeline{ID: id, WorkspaceID: workspaceID, ObjectType: pipelinedomain.ObjectConversation}, nil
 }
 
 type entryAccess bool
@@ -92,7 +95,7 @@ func funnelHandlerWith(repo *funnelRepo, access entryAccess) *StageHandler {
 		nil,
 		stage_usecase.NewListStagesUseCase(repo),
 		nil,
-		stage_usecase.NewMoveEntryStageUseCase(access, stage_usecase.NewAssignEntryStageUseCase(repo, nil)),
+		stage_usecase.NewMoveEntryStageUseCase(access, stage_usecase.NewAssignEntryStageUseCase(repo, anyFunnel{}, nil)),
 		nil,
 		nil,
 		nil,
@@ -295,5 +298,30 @@ func TestAssignEntryStage_FirstPlacementSucceeds(t *testing.T) {
 
 	if rec.Code != http.StatusOK && rec.Code != http.StatusCreated {
 		t.Fatalf("a lead with no stage must be placeable, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMoveToFunnel_AnOpportunityStageIsRefusedWithItsCode(t *testing.T) {
+	repo := newFunnelRepo()
+	repo.stagesByID["s-a"] = &stagedomain.Stage{ID: "s-a", WorkspaceID: "ws-1", PipelineID: "pipe-a", Name: "triagem"}
+	repo.stagesByID["s-deal"] = &stagedomain.Stage{ID: "s-deal", WorkspaceID: "ws-1", PipelineID: "pipe-deals", Name: "proposta"}
+	repo.entryStage = &stagedomain.EntryStage{StageID: "s-a"}
+
+	body := `{"StageID":"s-deal","entryId":"e1","entryType":"whatsapp"}`
+	rec := httptest.NewRecorder()
+	newFunnelHandler(repo).MoveEntryToFunnel(rec, authed(
+		httptest.NewRequest(http.MethodPost, "/stages/entries/funnel", strings.NewReader(body))))
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("an opportunity stage must be 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var refusal struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &refusal); err != nil || refusal.Code != "stage_not_conversation_funnel" {
+		t.Fatalf("body = %s, want the stage_not_conversation_funnel code", rec.Body.String())
+	}
+	if len(repo.assigned) != 0 {
+		t.Error("a refused move must write nothing")
 	}
 }

@@ -4,20 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"vozko/domain/agent"
 	domain "vozko/domain/automationneeds"
 	"vozko/domain/conversation"
 	"vozko/domain/conversationvars"
-	"vozko/domain/shared"
+	"vozko/domain/shared/deps"
 	"vozko/domain/workflow"
 )
 
 var (
-	ErrQueriesUnwired = errors.New("automation needs: the queries need the service, the publish guard, the drafts, the records, the values and the access check")
-	ErrForbidden      = errors.New("automation needs: no access to this conversation")
-	ErrTooMany        = errors.New("automation needs: ask for at most 100 automations at once")
+	ErrForbidden = errors.New("automation needs: no access to this conversation")
+	ErrTooMany   = errors.New("automation needs: ask for at most 100 automations at once")
 )
 
 const maxAsked = 100
@@ -35,13 +33,17 @@ type EntryAccess interface {
 }
 
 type QueriesDeps struct {
-	Service   *Service
-	Guard     *PublishGuard
-	Agents    DraftAgents
-	Workflows DraftWorkflows
-	Records   domain.SwitchOffRecords
-	Store     conversationvars.Store
-	Access    EntryAccess
+	Service       *Service
+	Guard         *PublishGuard
+	Agents        DraftAgents
+	Workflows     DraftWorkflows
+	Records       domain.SwitchOffRecords
+	Store         conversationvars.Store
+	Access        EntryAccess
+	Conversations ConversationSnapshots
+	Definitions   LeadFieldDefinitions
+	Subjects      LeadSubjects
+	Profiles      conversation.EntryAutomationReader
 }
 
 type Queries struct {
@@ -49,8 +51,12 @@ type Queries struct {
 }
 
 func NewQueries(d QueriesDeps) (*Queries, error) {
-	if d.Service == nil || d.Guard == nil || d.Agents == nil || d.Workflows == nil || d.Records == nil || d.Store == nil || d.Access == nil {
-		return nil, ErrQueriesUnwired
+	if err := deps.Require("automation needs queries", map[string]any{
+		"service": d.Service, "publish guard": d.Guard, "agents": d.Agents, "workflows": d.Workflows, "switch-off records": d.Records,
+		"stored values": d.Store, "access check": d.Access, "conversation values": d.Conversations, "lead fields": d.Definitions,
+		"lead subjects": d.Subjects, "automation profiles": d.Profiles,
+	}); err != nil {
+		return nil, err
 	}
 	return &Queries{d: d}, nil
 }
@@ -130,35 +136,4 @@ func (q *Queries) OpenSwitchOff(ctx context.Context, workspaceID string, kind do
 	}
 	needs, err := q.d.Service.Needs(workspaceID, record.Automation.Automation)
 	return &OpenSwitchOff{Record: *record, Needs: needs, EligibleNow: err == nil && len(needs) == 0}, nil
-}
-
-type SaveValues struct {
-	WorkspaceID string
-	UserID      string
-	IsAdmin     bool
-	EntryID     string
-	EntryType   shared.EntryType
-	Automation  conversation.Automation
-	Values      map[string]string
-}
-
-func (q *Queries) SaveConversationValues(ctx context.Context, in SaveValues) error {
-	if !q.d.Access.CanAccessEntry(in.UserID, in.WorkspaceID, in.EntryID, string(in.EntryType), in.IsAdmin) {
-		return ErrForbidden
-	}
-	values, err := conversationvars.Normalize(in.Values)
-	if err != nil {
-		return err
-	}
-	needs, err := q.d.Service.Needs(in.WorkspaceID, in.Automation)
-	if err != nil {
-		return err
-	}
-	for name := range values {
-		if needs.Find(name) == nil {
-			return fmt.Errorf("%w: %q", conversationvars.ErrNotNeeded, name)
-		}
-	}
-	ref := conversationvars.Ref{WorkspaceID: in.WorkspaceID, EntryID: strings.TrimSpace(in.EntryID), EntryType: in.EntryType}
-	return q.d.Store.Save(ctx, ref, values, in.UserID)
 }

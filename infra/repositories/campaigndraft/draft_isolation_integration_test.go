@@ -83,12 +83,12 @@ func TestIntegrationADraftIsNeverSentListedScheduledOrCounted(t *testing.T) {
 			t.Fatal("the unofficial start job would pick a draft")
 		}
 	}
-	counts, err := uwc_repo.NewSummaryRepository(db).CountByStatusForWorkspace(uwc.WorkspaceSummaryFilter{WorkspaceID: ws})
+	tally, err := uwc_repo.NewSummaryRepository(db).TallySends(uwc.WorkspaceSummaryFilter{WorkspaceID: ws})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if counts != nil && (counts.Total != 0 || counts.Pending != 0) {
-		t.Fatalf("a draft was counted: %+v", counts)
+	if tally.Campaigns.Total != 0 || tally.Campaigns.Pending != 0 {
+		t.Fatalf("a draft was counted: %+v", tally)
 	}
 
 	var entries int64

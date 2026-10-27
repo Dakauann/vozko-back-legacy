@@ -55,6 +55,7 @@ var validationClasses = []validationClass{
 	{ErrNodeSensitiveCustomField, LintSensitiveCustomField, "Em Atualizar Lead, remova o campo sensível: fluxos nunca gravam campos sensíveis."},
 	{ErrNodeInvalidStageID, LintInvalidResourceRef, resourceRefHint},
 	{ErrNodeInvalidOpportunityPipeline, LintInvalidResourceRef, resourceRefHint},
+	{ErrNodeStageNotConversationFunnel, LintInvalidResourceRef, "Em Mover Etapa, escolha uma etapa de um funil de conversas. Etapas de funis de oportunidades são usadas pelo nó Gerenciar Oportunidade."},
 	{ErrNodeInvalidDepartmentID, LintInvalidResourceRef, resourceRefHint},
 	{ErrNodeInvalidMemberID, LintInvalidResourceRef, resourceRefHint},
 	{ErrNodeInvalidBusinessPhoneID, LintInvalidResourceRef, resourceRefHint},

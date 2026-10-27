@@ -249,8 +249,15 @@ type ConfigParameter struct {
 	Default            interface{}
 	Options            []ConfigParameterOption
 	OptionsSource      string
+	ParentOptions      *ConfigParentOptions
 	Required           bool
 	Sensitive          bool
+}
+
+type ConfigParentOptions struct {
+	Source             string
+	DisplayName        string
+	DisplayDescription string
 }
 
 type ConfigParameterOption struct {

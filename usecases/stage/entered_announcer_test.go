@@ -92,7 +92,7 @@ func TestAFailedMoveAnnouncesNothing(t *testing.T) {
 func TestAnAssignmentCarriesItsCauseToThePlacement(t *testing.T) {
 	repo := &coherenceRepo{stages: map[string]*stage.Stage{"s2": {ID: "s2", WorkspaceID: "ws1"}}}
 	heard := &heardEntries{}
-	uc := NewAssignEntryStageUseCase(AnnounceEntries(repo, heard), nil)
+	uc := NewAssignEntryStageUseCase(AnnounceEntries(repo, heard), conversationFunnels{}, nil)
 	cause := stage.MoveCause{WorkflowID: "wf-a", RunID: "run-1", Chain: 2}
 	if _, err := uc.Execute("ws1", stage.AssignEntryStageInput{StageID: "s2", EntryID: "conv-1", EntryType: "whatsapp", Cause: cause}); err != nil {
 		t.Fatal(err)
@@ -121,7 +121,7 @@ func TestAnInitialStageThatLostTheRaceIsNotAnnounced(t *testing.T) {
 func TestAnOperatorMoveIsAnnouncedWithoutACause(t *testing.T) {
 	repo := &coherenceRepo{stages: map[string]*stage.Stage{"s1": {ID: "s1", WorkspaceID: "ws1"}}}
 	heard := &heardEntries{}
-	move := NewMoveEntryStageUseCase(&entryAccessStub{allow: true}, NewAssignEntryStageUseCase(AnnounceEntries(repo, heard), nil))
+	move := NewMoveEntryStageUseCase(&entryAccessStub{allow: true}, NewAssignEntryStageUseCase(AnnounceEntries(repo, heard), conversationFunnels{}, nil))
 	in := moveInput("whatsapp")
 	in.Cause = stage.MoveCause{WorkflowID: "forged"}
 	if _, err := move.Execute("ws1", shared.Person{UserID: "u1"}, in); err != nil {

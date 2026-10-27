@@ -2,6 +2,7 @@ package crmtools
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"vozko/domain/conversation"
@@ -153,5 +154,12 @@ func TestStageMoveRefusesInventedIdsBeforeMoving(t *testing.T) {
 	}
 	if move.calls != 0 {
 		t.Fatal("moved with invented ids")
+	}
+}
+
+func TestFunnelMoveExplainsAnOpportunityStageRefusal(t *testing.T) {
+	res := NewMoveConversationFunnelTool(stageMoveDeps(&fakeMove{err: stage.ErrStageNotConversationFunnel}, &fakeEntries{}, &fakeStageBroadcast{})).Execute(context.Background(), tooltest.Member(), moveArgs())
+	if res.Status != copilot.StatusError || !strings.Contains(res.Message, "oportunidades") {
+		t.Fatalf("result = %+v, want the opportunity funnel named", res)
 	}
 }

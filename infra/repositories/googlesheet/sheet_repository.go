@@ -191,15 +191,62 @@ func (r *sheetRepository) find(query *gorm.DB) (*googlesheet.Sheet, error) {
 	return toSheetDomain(&record)
 }
 
-func (r *sheetRepository) List(ctx context.Context, in googlesheet.ListInput) (*shared.PaginatedResult[*googlesheet.Sheet], error) {
-	pagination := shared.NormalizePagination(in.Pagination)
+func (r *sheetRepository) matching(ctx context.Context, in googlesheet.ListInput) *gorm.DB {
 	query := r.db.WithContext(ctx).Model(&schema.GoogleSheet{}).Where("workspace_id = ?", in.WorkspaceID)
+	if in.SpreadsheetID != "" {
+		query = query.Where("spreadsheet_id = ?", in.SpreadsheetID)
+	}
 	if search := strings.TrimSpace(in.Search); search != "" {
 		query = query.Where("title ILIKE ?", "%"+escapeLike(search)+"%")
 	}
 	if in.TakesInput {
 		query = query.Where("columns @> ?::jsonb", `[{"source":"input","archived":false}]`)
 	}
+	if in.TakesMessages {
+		clauses := make([]string, 0, len(googlesheet.PerMessageSources()))
+		args := make([]any, 0, len(googlesheet.PerMessageSources()))
+		for _, source := range googlesheet.PerMessageSources() {
+			clauses = append(clauses, "columns @> ?::jsonb")
+			args = append(args, `[{"source":"`+string(source)+`","archived":false}]`)
+		}
+		query = query.Where("("+strings.Join(clauses, " OR ")+")", args...)
+	}
+	return query
+}
+
+func (r *sheetRepository) ListSpreadsheets(ctx context.Context, in googlesheet.ListInput) (*shared.PaginatedResult[googlesheet.Spreadsheet], error) {
+	pagination := shared.NormalizePagination(in.Pagination)
+	var total int64
+	if err := r.matching(ctx, in).Distinct("spreadsheet_id").Count(&total).Error; err != nil {
+		return nil, err
+	}
+	var ids []string
+	if err := r.matching(ctx, in).Group("spreadsheet_id").Order("MAX(created_at) DESC").Order("spreadsheet_id DESC").
+		Offset(pagination.Offset()).Limit(pagination.PageSize).Pluck("spreadsheet_id", &ids).Error; err != nil {
+		return nil, err
+	}
+	files := []googlesheet.Spreadsheet{}
+	if len(ids) > 0 {
+		sheets, err := r.findAll(r.db.WithContext(ctx).Where("workspace_id = ? AND spreadsheet_id IN ?", in.WorkspaceID, ids))
+		if err != nil {
+			return nil, err
+		}
+		grouped := map[string]googlesheet.Spreadsheet{}
+		for _, file := range googlesheet.GroupBySpreadsheet(sheets) {
+			grouped[file.ID] = file
+		}
+		for _, id := range ids {
+			if file, ok := grouped[id]; ok {
+				files = append(files, file)
+			}
+		}
+	}
+	return shared.NewPaginatedResult(files, pagination, total), nil
+}
+
+func (r *sheetRepository) List(ctx context.Context, in googlesheet.ListInput) (*shared.PaginatedResult[*googlesheet.Sheet], error) {
+	pagination := shared.NormalizePagination(in.Pagination)
+	query := r.matching(ctx, in)
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, err

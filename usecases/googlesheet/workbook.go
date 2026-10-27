@@ -117,25 +117,22 @@ func (m *Manager) Workbooks(ctx context.Context, workspaceID string) ([]Workbook
 	case !errors.Is(err, googleaccount.ErrNotConnected):
 		return nil, err
 	}
-	index := map[string]int{}
 	var out []WorkbookView
-	for _, sheet := range sheets {
-		tabs, err := m.sheets.Tabs(ctx, sheet.ID)
-		if err != nil {
-			return nil, err
+	for _, file := range googlesheet.GroupBySpreadsheet(sheets) {
+		view := WorkbookView{
+			SpreadsheetID: file.ID,
+			Title:         file.Title(),
+			URL:           file.URL(),
+			Usable:        account != "" && file.Oldest().AccountID == account,
 		}
-		at, ok := index[sheet.SpreadsheetID]
-		if !ok {
-			at = len(out)
-			index[sheet.SpreadsheetID] = at
-			out = append(out, WorkbookView{
-				SpreadsheetID: sheet.SpreadsheetID,
-				Title:         sheet.Title,
-				URL:           "https://docs.google.com/spreadsheets/d/" + sheet.SpreadsheetID + "/edit",
-				Usable:        account != "" && sheet.AccountID == account,
-			})
+		for _, sheet := range file.Sheets {
+			tabs, err := m.sheets.Tabs(ctx, sheet.ID)
+			if err != nil {
+				return nil, err
+			}
+			view.Sheets = append(view.Sheets, WorkbookTab{Sheet: sheet, Tabs: tabs})
 		}
-		out[at].Sheets = append(out[at].Sheets, WorkbookTab{Sheet: sheet, Tabs: tabs})
+		out = append(out, view)
 	}
 	return out, nil
 }

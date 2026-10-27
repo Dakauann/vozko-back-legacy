@@ -51,7 +51,7 @@ func (t *OperatorAutomationToggle) apply(ctx context.Context, in OperatorAutomat
 	entryType := string(in.EntryType)
 
 	if in.Enabled == nil || *in.Enabled {
-		if err := t.governingNeeds(ctx, in); err != nil {
+		if err := t.resumingNeeds(ctx, in); err != nil {
 			return OperatorAutomationResult{}, err
 		}
 	}
@@ -88,13 +88,16 @@ func (t *OperatorAutomationToggle) allows(in OperatorAutomationInput) bool {
 	return t.access != nil && t.access.CanAccessEntry(in.ActorUserID, in.WorkspaceID, in.EntryID, string(in.EntryType), in.IsAdmin)
 }
 
-func (t *OperatorAutomationToggle) governingNeeds(ctx context.Context, in OperatorAutomationInput) error {
-	automation, governed, err := t.ownership.governingAutomation(in.EntryID, string(in.EntryType))
-	if err != nil || !governed {
-		return nil
-	}
+func (t *OperatorAutomationToggle) resumingNeeds(ctx context.Context, in OperatorAutomationInput) error {
 	if t.variables == nil {
 		return automationneeds.ErrUnreadable
+	}
+	automation, configured, err := t.ownership.resumingAutomation(in.EntryID, string(in.EntryType))
+	if err != nil {
+		return fmt.Errorf("%w: automation of %s (%s): %w", automationneeds.ErrUnreadable, in.EntryID, in.EntryType, err)
+	}
+	if !configured {
+		return nil
 	}
 	return t.variables.ConversationMissing(ctx, in.WorkspaceID, in.EntryID, in.EntryType, automation)
 }

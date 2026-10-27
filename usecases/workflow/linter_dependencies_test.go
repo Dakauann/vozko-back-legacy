@@ -19,7 +19,7 @@ func (unreachableModels) IsValidModel(context.Context, string) (bool, error) {
 func TestTheSharedLinterRefusesEveryMissingDependency(t *testing.T) {
 	uc, err := NewActivateWorkflowUseCase(ActivateWorkflowDeps{})
 	var missing *deps.MissingError
-	if uc != nil || !errors.As(err, &missing) || len(missing.Missing) != 21 {
+	if uc != nil || !errors.As(err, &missing) || len(missing.Missing) != 22 {
 		t.Fatalf("uc = %v err = %v, want every dependency refused", uc, err)
 	}
 }

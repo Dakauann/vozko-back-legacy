@@ -47,6 +47,7 @@ var (
 	ErrNodeSensitiveCustomField         = errors.New("workflow: a sensitive lead custom field is never written by a flow")
 	ErrNodeInvalidStageID               = errors.New("workflow: stage ID is invalid or stage not found")
 	ErrNodeInvalidOpportunityPipeline   = errors.New("workflow: pipeline ID is not a deals pipeline of this workspace")
+	ErrNodeStageNotConversationFunnel   = errors.New("workflow: a conversation stage move points at a stage of an opportunity funnel")
 	ErrNodeInvalidDepartmentID          = errors.New("workflow: department ID is invalid or department not found")
 	ErrNodeInvalidMemberID              = errors.New("workflow: member ID is invalid or member not found")
 	ErrNodeInvalidBusinessPhoneID       = errors.New("workflow: business phone ID is invalid or business phone not found")

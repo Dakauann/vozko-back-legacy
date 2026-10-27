@@ -25,17 +25,18 @@ type sendRules struct {
 }
 
 type delivery struct {
-	entry        *wce.WhatsAppCampaignEntry
-	tmpl         *template.Template
-	bodyParams   []string
-	headerParams []string
-	workspaceID  string
-	userID       string
-	automation   string
-	to           string
-	leadID       string
-	phoneID      string
-	campaignID   string
+	entry          *wce.WhatsAppCampaignEntry
+	recordsOnEntry bool
+	tmpl           *template.Template
+	bodyParams     []string
+	headerParams   []string
+	workspaceID    string
+	userID         string
+	automation     string
+	to             string
+	leadID         string
+	phoneID        string
+	campaignID     string
 }
 
 func (d delivery) sentBy() conversation.SentBy {
@@ -130,7 +131,7 @@ func (r sendRules) charge(ctx context.Context, d delivery, in template.BilledSen
 	if err == nil {
 		return result, nil
 	}
-	r.markEntryFailed(d.entry.ID, result, err)
+	r.markEntryFailed(d, result, err)
 	if result != nil && result.Outcome == template.OutcomeUnknown {
 		return nil, fmt.Errorf("%w: %w", wo.ErrSendOutcomeUnknown, err)
 	}
@@ -138,10 +139,12 @@ func (r sendRules) charge(ctx context.Context, d delivery, in template.BilledSen
 }
 
 func (r sendRules) settle(ctx context.Context, d delivery, result *template.BilledSendResult) bool {
-	if err := r.deps.Entries.UpdateStatus(d.entry.ID, wce.SendStatusSent, result.MessageID, 0, ""); err != nil {
-		log.Printf("[whatsapp-outreach] could not mark entry %s as sent: %v", d.entry.ID, err)
+	if d.recordsOnEntry {
+		if err := r.deps.Entries.UpdateStatus(d.entry.ID, wce.SendStatusSent, result.MessageID, 0, ""); err != nil {
+			log.Printf("[whatsapp-outreach] could not mark entry %s as sent: %v", d.entry.ID, err)
+		}
+		r.storeTemplateInfo(d)
 	}
-	r.storeTemplateInfo(d)
 	recorded := r.recordMessage(ctx, d, result)
 
 	if err := r.deps.CampaignSends.Record(d.leadID, d.phoneID, d.campaignID); err != nil {
@@ -159,10 +162,14 @@ func (r sendRules) claimForSender(d delivery) {
 	}
 }
 
-func (r sendRules) markEntryFailed(entryID string, result *template.BilledSendResult, sendErr error) {
+func (r sendRules) markEntryFailed(d delivery, result *template.BilledSendResult, sendErr error) {
+	if !d.recordsOnEntry {
+		return
+	}
 	if result != nil && result.Outcome == template.OutcomeUnknown {
 		return
 	}
+	entryID := d.entry.ID
 	message := sendErr.Error()
 	if len(message) > 500 {
 		message = message[:500]

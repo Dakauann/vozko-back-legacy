@@ -443,18 +443,7 @@ func (s *Service) audienceSlots(w walk, prepared Prepared) ([]campaignaudience.S
 	if err != nil {
 		return nil, nil, err
 	}
-	keys := make(map[string]bool, len(defs))
-	for _, def := range defs {
-		if def != nil {
-			keys[def.Key] = true
-		}
-	}
-	suggest := func(name string) campaign.BindingSource {
-		if keys[name] {
-			return campaign.CustomBinding(name)
-		}
-		return ""
-	}
+	suggest := func(name string) campaign.BindingSource { return campaign.SameKeyBinding(defs, name) }
 	slots := append(append([]campaignaudience.Slot(nil), prepared.Slots...), campaignaudience.AutomationSlots(prepared.Needs, prepared.Slots, suggest)...)
 	return slots, nil, nil
 }

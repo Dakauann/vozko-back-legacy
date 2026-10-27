@@ -14,6 +14,7 @@ import (
 type memValueStore struct {
 	saved map[string]string
 	ref   conversationvars.Ref
+	calls int
 }
 
 func (m *memValueStore) Values(context.Context, string, shared.EntryType) (map[string]string, error) {
@@ -22,6 +23,7 @@ func (m *memValueStore) Values(context.Context, string, shared.EntryType) (map[s
 
 func (m *memValueStore) Save(_ context.Context, ref conversationvars.Ref, values map[string]string, _ string) error {
 	m.ref, m.saved = ref, values
+	m.calls++
 	return nil
 }
 
@@ -31,18 +33,28 @@ func (a access) CanAccessEntry(string, string, string, string, bool) bool { retu
 
 func newQueries(t *testing.T, records *memRecords, store *memValueStore, allowed bool) *Queries {
 	t.Helper()
+	return newQueriesWith(t, records, store, allowed, nil)
+}
+
+func newQueriesWith(t *testing.T, records *memRecords, store *memValueStore, allowed bool, adjust func(*QueriesDeps)) *Queries {
+	t.Helper()
 	service := newService(t, fakeValues{})
 	alerts, _ := NewAlerts(&recordedPublisher{})
 	guard, err := NewPublishGuard(PublishGuardDeps{Service: service, Slots: fakeSlots{{Kind: domain.SlotInstagram, ID: "ig", Running: []conversation.Automation{{Kind: conversation.AutomationAgent, ID: "livre"}}}}, Alerts: alerts, Held: &fakeHeld{}, HandOff: &recordedHandOffs{}, Containers: &forgotten{}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	q, err := NewQueries(QueriesDeps{
+	d := QueriesDeps{
 		Service: service, Guard: guard,
 		Agents:    fakeAgents{"livre": {ID: "livre", WorkspaceID: "ws", Name: "Livre", MessagingPrompt: "agora {{turma}}"}},
 		Workflows: fakeWorkflows{},
 		Records:   records, Store: store, Access: access(allowed),
-	})
+		Conversations: &fakeSnapshots{}, Definitions: fakeDefinitions{}, Subjects: &fakeSubjects{}, Profiles: &fakeProfiles{},
+	}
+	if adjust != nil {
+		adjust(&d)
+	}
+	q, err := NewQueries(d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,32 +102,5 @@ func TestTheOpenSwitchOffSaysWhetherItCanBeTurnedBackOn(t *testing.T) {
 	got, _ = newQueries(t, records, &memValueStore{}, true).OpenSwitchOff(context.Background(), "ws", domain.SlotInstagram, "ig")
 	if got.EligibleNow {
 		t.Fatal("escola still needs turma")
-	}
-}
-
-func TestConversationValuesAreStoredOnlyForWhatTheAutomationNeeds(t *testing.T) {
-	store := &memValueStore{}
-	target := conversation.Automation{Kind: conversation.AutomationAgent, ID: "escola"}
-	cases := []struct {
-		name    string
-		allowed bool
-		values  map[string]string
-		want    error
-	}{
-		{"no access", false, map[string]string{"turma": "A"}, ErrForbidden},
-		{"a variable the agent does not need", true, map[string]string{"outra": "A"}, conversationvars.ErrNotNeeded},
-		{"a reserved key", true, map[string]string{"lead_name": "A"}, conversationvars.ErrNameReserved},
-		{"the needed variable", true, map[string]string{"turma": " A "}, nil},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := newQueries(t, &memRecords{}, store, tc.allowed).SaveConversationValues(context.Background(), SaveValues{WorkspaceID: "ws", UserID: "u", EntryID: "e1", EntryType: shared.EntryTypeInstagram, Automation: target, Values: tc.values})
-			if !errors.Is(err, tc.want) {
-				t.Fatalf("err = %v, want %v", err, tc.want)
-			}
-		})
-	}
-	if store.saved["turma"] != "A" || store.ref.EntryID != "e1" {
-		t.Fatalf("saved = %v ref = %+v", store.saved, store.ref)
 	}
 }

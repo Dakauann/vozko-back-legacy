@@ -76,27 +76,28 @@ type DealFunnels interface {
 }
 
 type ActivateWorkflowDeps struct {
-	Workflows      workflow.WorkflowRepository
-	Catalog        func() []workflow.NodeDefinition
-	Templates      template_domain.Repository
-	Agents         agent.Repository
-	Media          media_domain.MediaRepository
-	Labels         label_domain.Repository
-	Stages         StageLookup
-	DealFunnels    DealFunnels
-	Departments    dept_domain.Repository
-	Members        MemberLookup
-	BusinessPhones BusinessPhoneLookup
-	MCPCollections domainmcp.CollectionRepository
-	KnowledgeBases KnowledgeBaseLookup
-	CustomFields   CustomFieldLister
-	Sheets         GoogleSheetLookup
-	Models         ModelLookup
-	ModelCatalog   ModelCatalog
-	InboundTrunks  InboundTrunkLookup
-	CallQueues     CallQueueLookup
-	Switching      WorkflowSwitchingPublisher
-	Planner        WorkflowPublishPlanner
+	Workflows         workflow.WorkflowRepository
+	Catalog           func() []workflow.NodeDefinition
+	Templates         template_domain.Repository
+	Agents            agent.Repository
+	Media             media_domain.MediaRepository
+	Labels            label_domain.Repository
+	Stages            StageLookup
+	StageDestinations stage_domain.DestinationReader
+	DealFunnels       DealFunnels
+	Departments       dept_domain.Repository
+	Members           MemberLookup
+	BusinessPhones    BusinessPhoneLookup
+	MCPCollections    domainmcp.CollectionRepository
+	KnowledgeBases    KnowledgeBaseLookup
+	CustomFields      CustomFieldLister
+	Sheets            GoogleSheetLookup
+	Models            ModelLookup
+	ModelCatalog      ModelCatalog
+	InboundTrunks     InboundTrunkLookup
+	CallQueues        CallQueueLookup
+	Switching         WorkflowSwitchingPublisher
+	Planner           WorkflowPublishPlanner
 }
 
 type activateWorkflowUseCase struct {
@@ -107,6 +108,7 @@ type activateWorkflowUseCase struct {
 	mediaRepo         media_domain.MediaRepository
 	labelRepo         label_domain.Repository
 	stageRepo         StageLookup
+	stageDestinations stage_domain.DestinationReader
 	dealFunnels       DealFunnels
 	departmentRepo    dept_domain.Repository
 	workspaceRepo     MemberLookup
@@ -128,27 +130,28 @@ type activateWorkflowUseCase struct {
 
 func NewActivateWorkflowUseCase(d ActivateWorkflowDeps) (workflow.ActivateWorkflowUseCase, error) {
 	if err := deps.Require("workflow activation", map[string]any{
-		"workflows":       d.Workflows,
-		"catalog":         d.Catalog,
-		"templates":       d.Templates,
-		"agents":          d.Agents,
-		"media":           d.Media,
-		"labels":          d.Labels,
-		"stages":          d.Stages,
-		"deal funnels":    d.DealFunnels,
-		"departments":     d.Departments,
-		"members":         d.Members,
-		"business phones": d.BusinessPhones,
-		"mcp collections": d.MCPCollections,
-		"knowledge bases": d.KnowledgeBases,
-		"custom fields":   d.CustomFields,
-		"google sheets":   d.Sheets,
-		"models":          d.Models,
-		"model catalog":   d.ModelCatalog,
-		"inbound trunks":  d.InboundTrunks,
-		"call queues":     d.CallQueues,
-		"switching":       d.Switching,
-		"publish planner": d.Planner,
+		"workflows":          d.Workflows,
+		"catalog":            d.Catalog,
+		"templates":          d.Templates,
+		"agents":             d.Agents,
+		"media":              d.Media,
+		"labels":             d.Labels,
+		"stages":             d.Stages,
+		"stage destinations": d.StageDestinations,
+		"deal funnels":       d.DealFunnels,
+		"departments":        d.Departments,
+		"members":            d.Members,
+		"business phones":    d.BusinessPhones,
+		"mcp collections":    d.MCPCollections,
+		"knowledge bases":    d.KnowledgeBases,
+		"custom fields":      d.CustomFields,
+		"google sheets":      d.Sheets,
+		"models":             d.Models,
+		"model catalog":      d.ModelCatalog,
+		"inbound trunks":     d.InboundTrunks,
+		"call queues":        d.CallQueues,
+		"switching":          d.Switching,
+		"publish planner":    d.Planner,
 	}); err != nil {
 		return nil, err
 	}
@@ -160,6 +163,7 @@ func NewActivateWorkflowUseCase(d ActivateWorkflowDeps) (workflow.ActivateWorkfl
 		mediaRepo:         d.Media,
 		labelRepo:         d.Labels,
 		stageRepo:         d.Stages,
+		stageDestinations: d.StageDestinations,
 		dealFunnels:       d.DealFunnels,
 		departmentRepo:    d.Departments,
 		workspaceRepo:     d.Members,
@@ -266,6 +270,7 @@ func (uc *activateWorkflowUseCase) graphProblems(ctx context.Context, w *workflo
 	catalog := uc.catalogFn()
 	report := LintWorkflowGraph(catalog, w)
 	report.Issues = append(report.Issues, workflow.HTTPSIssues(&w.Graph, uc.runningGraph(w))...)
+	report.Issues = append(report.Issues, uc.stageDestinationNotes(w)...)
 
 	var problems []error
 	if err := checkGraphReasoning(ctx, uc.modelCatalog, &w.Graph); err != nil {
@@ -324,7 +329,7 @@ func (uc *activateWorkflowUseCase) referenceValidators(w *workflow.Workflow) []w
 		&mediaValidator{repo: uc.mediaRepo, workspaceID: workflowWorkspaceID},
 		&labelValidator{repo: uc.labelRepo, workspaceID: workflowWorkspaceID},
 		&customFieldValidator{repo: uc.customFields, workspaceID: workflowWorkspaceID},
-		&stageValidator{repo: uc.stageRepo, workspaceID: workflowWorkspaceID},
+		&stageValidator{repo: uc.stageRepo, destinations: uc.stageDestinations, workspaceID: workflowWorkspaceID},
 		&dealValidator{funnels: uc.dealFunnels, workspaceID: workflowWorkspaceID},
 		&departmentValidator{repo: uc.departmentRepo, workspaceID: workflowWorkspaceID},
 		&memberValidator{repo: uc.workspaceRepo, workspaceID: workflowWorkspaceID},
@@ -679,24 +684,70 @@ func (v *customFieldValidator) Validate(n *workflow.Node) error {
 	return &workflow.CustomFieldRefError{NodeID: n.ID, Key: refused.Key, Err: cause}
 }
 
+var errStageDestinationsMissing = errors.New("workflow: the stage destinations cannot be checked")
+
 type stageValidator struct {
-	repo        StageLookup
-	workspaceID string
+	repo         StageLookup
+	destinations stage_domain.DestinationReader
+	workspaceID  string
 }
 
 func (v *stageValidator) Validate(n *workflow.Node) error {
-	switch n.Type {
-	case workflow.NodeTypeActionMoveStage, workflow.NodeTypeConditionCheckStage:
-		stageID, _ := n.Config["stage_id"].(string)
-		if strings.TrimSpace(stageID) == "" {
-			return nil
-		}
-		s, err := v.repo.FindByID(stageID)
-		if err != nil || s == nil || !sameWorkspaceID(v.workspaceID, s.WorkspaceID) {
-			return fmt.Errorf("%w: node %q stage_id %q", workflow.ErrNodeInvalidStageID, n.ID, stageID)
-		}
+	if n.Type != workflow.NodeTypeActionMoveStage && n.Type != workflow.NodeTypeConditionCheckStage {
+		return nil
+	}
+	stageID := moveStageTarget(n)
+	if stageID == "" {
+		return nil
+	}
+	if n.Type == workflow.NodeTypeActionMoveStage {
+		return v.validateDestination(n.ID, stageID)
+	}
+	s, err := v.repo.FindByID(stageID)
+	if err != nil || s == nil || !sameWorkspaceID(v.workspaceID, s.WorkspaceID) {
+		return fmt.Errorf("%w: node %q stage_id %q", workflow.ErrNodeInvalidStageID, n.ID, stageID)
 	}
 	return nil
+}
+
+func (v *stageValidator) validateDestination(nodeID, stageID string) error {
+	if v.destinations == nil {
+		return errStageDestinationsMissing
+	}
+	_, err := v.destinations.Destination(v.workspaceID, stageID)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, stage_domain.ErrStageNotConversationFunnel):
+		return fmt.Errorf("%w: node %q stage_id %q", workflow.ErrNodeStageNotConversationFunnel, nodeID, stageID)
+	case errors.Is(err, stage_domain.ErrTagNotFound), errors.Is(err, stage_domain.ErrUnauthorized):
+		return fmt.Errorf("%w: node %q stage_id %q", workflow.ErrNodeInvalidStageID, nodeID, stageID)
+	}
+	return err
+}
+
+func moveStageTarget(n *workflow.Node) string {
+	stageID, _ := n.Config["stage_id"].(string)
+	return strings.TrimSpace(stageID)
+}
+
+func (uc *activateWorkflowUseCase) stageDestinationNotes(w *workflow.Workflow) []workflow.LintIssue {
+	if uc.stageDestinations == nil {
+		return nil
+	}
+	var notes []workflow.LintIssue
+	for i := range w.Graph.Nodes {
+		n := &w.Graph.Nodes[i]
+		if n.Type != workflow.NodeTypeActionMoveStage || moveStageTarget(n) == "" {
+			continue
+		}
+		to, err := uc.stageDestinations.Destination(strings.TrimSpace(w.WorkspaceID), moveStageTarget(n))
+		if err != nil || to.PipelineName == "" {
+			continue
+		}
+		notes = append(notes, workflow.StageDestinationIssue(n.ID, to.StageID, to.PipelineName, to.StageName))
+	}
+	return notes
 }
 
 type dealValidator struct {

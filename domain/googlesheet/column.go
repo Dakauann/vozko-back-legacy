@@ -1,6 +1,7 @@
 package googlesheet
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -100,12 +101,12 @@ func (s Source) Valid() bool {
 
 func (s Source) IsSystem() bool { return s != SourceInput }
 
+func PerMessageSources() []Source {
+	return []Source{SourceMessageSentAt, SourceMessageSender, SourceMessageDirection, SourceMessageText, SourceMessageMediaURL}
+}
+
 func (s Source) PerMessage() bool {
-	switch s {
-	case SourceMessageSentAt, SourceMessageSender, SourceMessageDirection, SourceMessageText, SourceMessageMediaURL:
-		return true
-	}
-	return false
+	return slices.Contains(PerMessageSources(), s)
 }
 
 func (s Source) ColumnType() (ColumnType, bool) {

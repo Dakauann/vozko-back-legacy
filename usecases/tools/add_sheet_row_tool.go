@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	AddSheetRowToolName       = "add_sheet_row"
-	GoogleSheetsOptionsSource = "google_sheets"
-	addSheetRowConfigKey      = "sheet_id"
-	addSheetRowWhenKey        = "when_to_use"
+	AddSheetRowToolName           = "add_sheet_row"
+	GoogleSheetsOptionsSource     = "google_sheets"
+	GoogleSheetFilesOptionsSource = "google_sheet_files"
+	addSheetRowConfigKey          = "sheet_id"
+	addSheetRowWhenKey            = "when_to_use"
 )
 
 const (
@@ -67,22 +68,27 @@ func (t *addSheetRowTool) Definition() tools.Definition {
 	return tools.Definition{
 		Name:               AddSheetRowToolName,
 		DisplayName:        "Registrar em planilha",
-		DisplayDescription: "Adiciona uma linha a uma planilha do Google Planilhas criada no painel. Cada planilha escolhida vira uma ferramenta própria do agente, com as colunas da planilha como campos.",
+		DisplayDescription: "Adiciona uma linha a uma aba de uma planilha do Google Planilhas criada no painel. Cada aba escolhida vira uma ferramenta própria do agente, com as colunas da aba como campos.",
 		Description:        "Registra uma linha em uma planilha do Google Planilhas.",
 		ConfigSchema: map[string]tools.ConfigParameter{
 			addSheetRowConfigKey: {
 				Type:               "string",
-				Description:        "Planilha do Google Planilhas criada no painel.",
-				DisplayName:        "Planilha",
-				DisplayDescription: "Planilha em que o agente registra as linhas.",
+				Description:        "Aba de uma planilha do Google Planilhas criada no painel.",
+				DisplayName:        "Aba",
+				DisplayDescription: "A aba em que o agente registra as linhas.",
 				OptionsSource:      GoogleSheetsOptionsSource,
-				Required:           true,
+				ParentOptions: &tools.ConfigParentOptions{
+					Source:             GoogleSheetFilesOptionsSource,
+					DisplayName:        "Planilha",
+					DisplayDescription: "A planilha do Google em que está a aba.",
+				},
+				Required: true,
 			},
 			addSheetRowWhenKey: {
 				Type:               "string",
 				Description:        "Quando o agente deve registrar uma linha nesta planilha.",
 				DisplayName:        "Quando registrar",
-				DisplayDescription: "Ex.: quando o cliente confirmar o pedido. Sem isto, vale a descrição da planilha.",
+				DisplayDescription: "Ex.: quando o cliente confirmar o pedido. Sem isto, vale a descrição da aba.",
 			},
 		},
 		RequiredConfig: []string{addSheetRowConfigKey},

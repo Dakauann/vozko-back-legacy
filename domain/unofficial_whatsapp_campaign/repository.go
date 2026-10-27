@@ -37,8 +37,7 @@ type WorkspaceSummaryFilter struct {
 	WorkspaceID   string
 	DepartmentIDs []string
 	InstanceIDs   []string
-	CreatedFrom   *time.Time
-	CreatedTo     *time.Time
+	Window        campaign.SendWindow
 }
 
 type Repository interface {
@@ -110,5 +109,5 @@ type UpdateEntryDetails struct {
 }
 
 type SummaryAggregator interface {
-	CountByStatusForWorkspace(filter WorkspaceSummaryFilter) (*campaign.Counts, error)
+	TallySends(filter WorkspaceSummaryFilter) (*campaign.SendsTally, error)
 }

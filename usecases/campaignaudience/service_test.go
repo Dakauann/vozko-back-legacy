@@ -380,7 +380,7 @@ func TestFieldsAreTheBindableSourcesAndTheVisibleCustomFields(t *testing.T) {
 		t.Fatalf("fields = %v", sources)
 	}
 	last := fields[len(fields)-1]
-	if last.Kind != FieldCustom || last.Key != "serie" || last.Label != "Série" || last.Column != "serie" || fields[0].Kind != FieldLead || fields[0].Column != "primeiro_nome" {
+	if last.Kind != campaignaudience.FieldCustom || last.Key != "serie" || last.Label != "Série" || last.Column != "serie" || fields[0].Kind != campaignaudience.FieldLead || fields[0].Column != "primeiro_nome" {
 		t.Fatalf("fields = %+v", fields)
 	}
 }

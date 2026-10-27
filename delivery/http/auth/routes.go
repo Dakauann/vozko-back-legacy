@@ -23,6 +23,7 @@ func RegisterPublicRoutes(public *mux.Router, h *AuthHandler, rl RateLimiters) {
 	public.HandleFunc("/auth/refresh", h.RefreshToken).Methods(http.MethodPost)
 	public.Handle("/auth/forgot-password", rl.ForgotPassword.Validate(http.HandlerFunc(h.ForgotPassword))).Methods(http.MethodPost)
 	public.Handle("/auth/reset-password", rl.ResetPassword.Validate(http.HandlerFunc(h.ResetPassword))).Methods(http.MethodPost)
+	public.HandleFunc("/auth/password-policy", h.PasswordPolicy).Methods(http.MethodGet)
 }
 
 func RegisterProtectedRoutes(protected *mux.Router, h *AuthHandler) {

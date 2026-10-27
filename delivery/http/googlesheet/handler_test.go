@@ -24,6 +24,15 @@ type stubSheets struct {
 	workbook gsuc.WorkbookInput
 	layout   gsuc.LayoutInput
 	books    []gsuc.WorkbookView
+	files    []googlesheet.Spreadsheet
+}
+
+func (s *stubSheets) ListSpreadsheets(_ context.Context, in googlesheet.ListInput) (*shared.PaginatedResult[googlesheet.Spreadsheet], error) {
+	s.list = in
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &shared.PaginatedResult[googlesheet.Spreadsheet]{Items: s.files, Page: 2, PageSize: 10, TotalItems: 11, TotalPages: 2}, nil
 }
 
 func (s *stubSheets) CreateWorkbook(_ context.Context, in gsuc.WorkbookInput) ([]*googlesheet.Sheet, error) {
@@ -96,6 +105,7 @@ func serve(h *Handler, method, path, body string, headers map[string]string) *ht
 	router.HandleFunc("/google-sheets/catalog", h.Catalog).Methods(http.MethodGet)
 	router.HandleFunc("/google-sheets/presets", h.Presets).Methods(http.MethodGet)
 	router.HandleFunc("/google-sheets/spreadsheets", h.Spreadsheets).Methods(http.MethodGet)
+	router.HandleFunc("/google-sheets/files", h.Files).Methods(http.MethodGet)
 	router.HandleFunc("/google-sheets/workbook", h.CreateWorkbook).Methods(http.MethodPost)
 	router.HandleFunc("/google-sheets/tab-name-preview", h.PreviewTabName).Methods(http.MethodPost)
 	router.HandleFunc("/google-sheets/{id}", h.Get).Methods(http.MethodGet)

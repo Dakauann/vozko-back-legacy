@@ -73,14 +73,15 @@ const (
 )
 
 type LintIssue struct {
-	Code     LintIssueCode `json:"code"`
-	Severity LintSeverity  `json:"severity"`
-	NodeID   string        `json:"nodeId,omitempty"`
-	Field    string        `json:"field,omitempty"`
-	Path     string        `json:"path,omitempty"`
-	EdgeRef  string        `json:"edgeRef,omitempty"`
-	Message  string        `json:"message"`
-	Hint     string        `json:"hint,omitempty"`
+	Code     LintIssueCode     `json:"code"`
+	Severity LintSeverity      `json:"severity"`
+	NodeID   string            `json:"nodeId,omitempty"`
+	Field    string            `json:"field,omitempty"`
+	Path     string            `json:"path,omitempty"`
+	EdgeRef  string            `json:"edgeRef,omitempty"`
+	Message  string            `json:"message"`
+	Hint     string            `json:"hint,omitempty"`
+	Values   map[string]string `json:"values,omitempty"`
 }
 
 type LintReport struct {

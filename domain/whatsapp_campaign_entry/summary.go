@@ -1,16 +1,13 @@
 package whatsapp_campaign_entry
 
-import "time"
+import "vozko/domain/campaign"
 
 type WorkspaceSummaryFilter struct {
 	WorkspaceID   string
 	DepartmentIDs []string
-	Type          string
-	CreatedFrom   *time.Time
-	CreatedTo     *time.Time
+	Window        campaign.SendWindow
 }
 
 type SummaryAggregator interface {
-	CountByStatusForWorkspace(filter WorkspaceSummaryFilter) (*StatusCounts, error)
-	CountDispatchesByCategoryForWorkspace(filter WorkspaceSummaryFilter) (map[string]int64, error)
+	TallySends(filter WorkspaceSummaryFilter) (*campaign.SendsTally, error)
 }

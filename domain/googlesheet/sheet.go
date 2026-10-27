@@ -261,7 +261,7 @@ func (s *Sheet) Location() *time.Location {
 }
 
 func (s *Sheet) URL() string {
-	return fmt.Sprintf("https://docs.google.com/spreadsheets/d/%s/edit#gid=%d", s.SpreadsheetID, s.TabID)
+	return fmt.Sprintf("%s#gid=%d", SpreadsheetURL(s.SpreadsheetID), s.TabID)
 }
 
 func (s *Sheet) Writable() error {

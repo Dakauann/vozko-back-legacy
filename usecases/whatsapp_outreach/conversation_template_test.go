@@ -108,7 +108,7 @@ func newConversationUC(t *testing.T, mutate ...func(*Deps)) *conversationFixture
 		TemplateGrant: &fakeGrant{granted: true},
 		Leads:         &fakeLeads{rec: &lead.Lead{ID: "lead-1", Number: "5511999999999"}},
 		Entries:       entries,
-		Campaigns:     &fakeCampaigns{campaign: &wc.Campaign{ID: "camp-1", WorkspaceID: "ws-1", BusinessPhoneID: "bp-1"}},
+		Campaigns:     &fakeCampaigns{campaign: &wc.Campaign{ID: "camp-1", WorkspaceID: "ws-1", BusinessPhoneID: "bp-1", Type: wc.CampaignTypeOrganic}},
 		CampaignSends: sends,
 		SpamPolicy:    &fakeSpamPolicy{days: 3},
 		SendClaims:    newFakeClaims(),

@@ -1,9 +1,7 @@
 package conversationvars
 
 import (
-	"errors"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -35,32 +33,6 @@ func TestCampaignValuesNumberTheTemplateVariablesAndFormatMetadata(t *testing.T)
 	want := map[string]string{"escola": "Prisma", "vagas": "3", "vazio": "", "1": "Ana", "2": "1º ano"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("values = %v", got)
-	}
-}
-
-func TestNormalizeRefusesWhatAnAutomationCouldNeverRead(t *testing.T) {
-	cases := []struct {
-		name   string
-		values map[string]string
-		want   error
-	}{
-		{"an empty form", map[string]string{}, ErrNothingToSave},
-		{"a name with spaces", map[string]string{"nome cliente": "Ana"}, ErrNameInvalid},
-		{"a name too long", map[string]string{strings.Repeat("a", 65): "Ana"}, ErrNameInvalid},
-		{"a system key", map[string]string{"lead_name": "Ana"}, ErrNameReserved},
-		{"a blank value", map[string]string{"escola": "  "}, ErrValueInvalid},
-		{"a value too long", map[string]string{"escola": strings.Repeat("é", MaxValueRunes+1)}, ErrValueInvalid},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if _, err := Normalize(tc.values); !errors.Is(err, tc.want) {
-				t.Fatalf("err = %v, want %v", err, tc.want)
-			}
-		})
-	}
-	got, err := Normalize(map[string]string{" escola ": " Prisma "})
-	if err != nil || !reflect.DeepEqual(got, map[string]string{"escola": "Prisma"}) {
-		t.Fatalf("normalized = %v, %v", got, err)
 	}
 }
 

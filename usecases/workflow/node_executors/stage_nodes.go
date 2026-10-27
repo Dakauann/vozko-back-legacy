@@ -39,11 +39,11 @@ func currentStage(stages StageReader, run *workflow.WorkflowRun) *stage.EntrySta
 
 type moveStageExecutor struct {
 	stages    StageReader
-	mover     stage.AssignEntryStageUseCase
+	mover     stage.EntryMover
 	broadcast StageBroadcaster
 }
 
-func NewMoveStageExecutor(stages StageReader, mover stage.AssignEntryStageUseCase, broadcast StageBroadcaster) workflow.NodeExecutor {
+func NewMoveStageExecutor(stages StageReader, mover stage.EntryMover, broadcast StageBroadcaster) workflow.NodeExecutor {
 	return &moveStageExecutor{stages: stages, mover: mover, broadcast: broadcast}
 }
 
@@ -54,12 +54,19 @@ func (e *moveStageExecutor) Definition() workflow.NodeDefinition {
 		Category:     workflow.NodeCategoryAction,
 		Scopes:       []workflow.NodeScope{workflow.NodeScopeShared},
 		Label:        "Mover Etapa",
-		Description:  "Move a conversa para uma etapa do funil.",
+		Description:  "Move a conversa para a etapa escolhida. Uma conversa de outro funil vai para o funil dessa etapa.",
 		Icon:         "Kanban",
 		Guidance: workflow.NodeGuidance{
-			When: "Para avançar a conversa no funil conforme o fluxo (ex.: qualificado, proposta enviada, ganho).",
-			Behavior: "Segue a mesma regra de quem move pelo CRM: a conversa só muda de etapa dentro do próprio funil; " +
-				"uma conversa ainda sem etapa entra no funil da etapa escolhida. Já estando na etapa, não muda nada.",
+			When: "Para avançar a conversa no funil conforme o fluxo (ex.: qualificado, proposta enviada, ganho) ou para levá-la a uma etapa de outro funil de conversas.",
+			Behavior: "A conversa vai exatamente para a etapa escolhida. Se ela está em outro funil, muda para o funil dessa etapa, " +
+				"como quem usa \"mover para funil\" no CRM; uma conversa ainda sem etapa entra no funil da etapa escolhida. " +
+				"Já estando na etapa, não muda nada. Só etapas de funis de conversa servem; etapas de funis de oportunidades são recusadas. " +
+				"pipeline_changed diz se a conversa trocou de funil, from_pipeline_id e from_pipeline_name dizem de onde ela saiu.",
+			Examples: []string{
+				"Cobrança paga: mover para \"pagamento efetuado\" do funil Altiva, mesmo que a conversa esteja no funil Atendimento.",
+				"Depois da qualificação: mover para \"proposta enviada\" no mesmo funil.",
+				"Ramificar com uma Condição em pipeline_changed para avisar a equipe do novo funil.",
+			},
 		},
 		Outputs: []workflow.HandleDefinition{
 			{ID: "sucesso", Label: "Sucesso"},
@@ -70,13 +77,18 @@ func (e *moveStageExecutor) Definition() workflow.NodeDefinition {
 			{Key: "changed", Description: "true quando a conversa mudou de etapa (false se já estava nela)", Label: "Mudou agora", Type: workflow.VariableTypeBoolean},
 			{Key: "stage_id", Description: "ID da etapa escolhida", Label: "ID da etapa", Type: workflow.VariableTypeText},
 			{Key: "stage_name", Description: "Nome da etapa escolhida", Label: "Nome da etapa", Type: workflow.VariableTypeText},
-			{Key: "pipeline_id", Description: "ID do funil da etapa", Label: "ID do funil", Type: workflow.VariableTypeText},
+			{Key: "pipeline_id", Description: "ID do funil da etapa escolhida", Label: "ID do funil", Type: workflow.VariableTypeText},
+			{Key: "pipeline_name", Description: "Nome do funil da etapa escolhida", Label: "Funil", Type: workflow.VariableTypeText},
 			{Key: "from_stage_id", Description: "ID da etapa anterior (vazio se não havia)", Label: "ID da etapa anterior", Type: workflow.VariableTypeText},
 			{Key: "from_stage_name", Description: "Nome da etapa anterior", Label: "Etapa anterior", Type: workflow.VariableTypeText},
+			{Key: "from_pipeline_id", Description: "ID do funil onde a conversa estava (vazio se não havia etapa)", Label: "ID do funil anterior", Type: workflow.VariableTypeText},
+			{Key: "from_pipeline_name", Description: "Nome do funil onde a conversa estava", Label: "Funil anterior", Type: workflow.VariableTypeText},
+			{Key: "pipeline_changed", Description: "true quando a conversa saiu de outro funil para o funil da etapa escolhida", Label: "Trocou de funil", Type: workflow.VariableTypeBoolean},
 			{Key: "error", Description: "Descrição do erro quando a conversa não pôde ser movida", Label: "Erro", Type: workflow.VariableTypeText},
+			{Key: "error_code", Description: "Código da recusa quando a conversa não pôde ser movida", Label: "Código da recusa", Type: workflow.VariableTypeText},
 		},
 		DefaultConfig: map[string]interface{}{"stage_id": ""},
-		ConfigSchema:  []workflow.ConfigField{stagePicker("A etapa para onde a conversa vai.")},
+		ConfigSchema:  []workflow.ConfigField{stagePicker("A etapa para onde a conversa vai. Uma conversa de outro funil muda para o funil desta etapa.")},
 	}
 }
 
@@ -88,44 +100,48 @@ func (e *moveStageExecutor) Execute(ctx *workflow.NodeContext) (*workflow.NodeRe
 	}
 	edges := ctx.Graph.OutgoingEdges(ctx.Node.ID)
 	if e.stages == nil || e.mover == nil {
-		return failMove(edges, stageID, "mover etapa indisponível neste contexto (ex.: simulação)"), nil
+		return failMove(edges, stageID, errMoverUnavailable), nil
 	}
 
-	target, err := e.stages.FindByID(stageID)
-	if err != nil || target == nil || target.WorkspaceID != ctx.Run.WorkspaceID {
-		return failMove(edges, stageID, "a etapa escolhida não existe mais neste workspace: escolha outra no campo Etapa do nó"), nil
+	to, err := e.mover.Destination(ctx.Run.WorkspaceID, stageID)
+	if err != nil {
+		return failMove(edges, stageID, err), nil
+	}
+	if from := currentStage(e.stages, ctx.Run); from != nil && from.StageID == to.StageID {
+		return routeOutput(&workflow.NodeResult{Output: moveOutput(stage.Move{From: to, To: to}, false)}, edges, "sucesso"), nil
 	}
 
-	out := map[string]interface{}{
-		"success":     true,
-		"changed":     false,
-		"stage_id":    target.ID,
-		"stage_name":  target.Name,
-		"pipeline_id": target.PipelineID,
-	}
-	from := currentStage(e.stages, ctx.Run)
-	if from != nil {
-		out["from_stage_id"], out["from_stage_name"] = from.StageID, from.StageName
-		if from.StageID == target.ID {
-			return routeOutput(&workflow.NodeResult{Output: out}, edges, "sucesso"), nil
-		}
-	}
-
-	if _, err := e.mover.Execute(ctx.Run.WorkspaceID, stage.AssignEntryStageInput{
-		StageID:   target.ID,
-		EntryID:   ctx.Run.EntryID,
-		EntryType: ctx.Run.EntryType,
-		ActorID:   workflowActor(ctx.Run.WorkflowID),
-		Cause:     moveCauseOf(ctx),
-	}); err != nil {
-		return failMove(edges, stageID, moveFailure(err)), nil
+	move, err := e.mover.Move(ctx.Run.WorkspaceID, stage.AssignEntryStageInput{
+		StageID:            to.StageID,
+		EntryID:            ctx.Run.EntryID,
+		EntryType:          ctx.Run.EntryType,
+		ActorID:            workflowActor(ctx.Run.WorkflowID),
+		Cause:              moveCauseOf(ctx),
+		AllowCrossPipeline: true,
+	})
+	if err != nil {
+		return failMove(edges, stageID, err), nil
 	}
 	if e.broadcast != nil {
 		e.broadcast.BroadcastStageUpdate(ctx.Run.WorkspaceID, ctx.Run.EntryID, ctx.Run.EntryType)
 	}
+	return routeOutput(&workflow.NodeResult{Output: moveOutput(move, true)}, edges, "sucesso"), nil
+}
 
-	out["changed"] = true
-	return routeOutput(&workflow.NodeResult{Output: out}, edges, "sucesso"), nil
+func moveOutput(move stage.Move, changed bool) map[string]interface{} {
+	return map[string]interface{}{
+		"success":            true,
+		"changed":            changed,
+		"stage_id":           move.To.StageID,
+		"stage_name":         move.To.StageName,
+		"pipeline_id":        move.To.PipelineID,
+		"pipeline_name":      move.To.PipelineName,
+		"from_stage_id":      move.From.StageID,
+		"from_stage_name":    move.From.StageName,
+		"from_pipeline_id":   move.From.PipelineID,
+		"from_pipeline_name": move.From.PipelineName,
+		"pipeline_changed":   move.FunnelChanged(),
+	}
 }
 
 func moveCauseOf(ctx *workflow.NodeContext) stage.MoveCause {
@@ -136,20 +152,29 @@ func moveCauseOf(ctx *workflow.NodeContext) stage.MoveCause {
 	return stage.MoveCause{WorkflowID: ctx.Run.WorkflowID, RunID: ctx.Run.ID, Chain: workflow.StageChainOf(state)}
 }
 
-func failMove(edges []workflow.Edge, stageID, reason string) *workflow.NodeResult {
+var errMoverUnavailable = errors.New("stage mover unavailable")
+
+func failMove(edges []workflow.Edge, stageID string, cause error) *workflow.NodeResult {
 	return routeFailure(&workflow.NodeResult{
 		Output: map[string]interface{}{
-			"success":  false,
-			"changed":  false,
-			"stage_id": stageID,
-			"error":    reason,
+			"success":          false,
+			"changed":          false,
+			"pipeline_changed": false,
+			"stage_id":         stageID,
+			"error":            moveFailure(cause),
+			"error_code":       stage.MoveRefusalCode(cause),
 		},
 	}, edges, "erro")
 }
 
 func moveFailure(err error) string {
-	if errors.Is(err, stage.ErrStagePipelineMismatch) {
-		return "a etapa é de outro funil: a conversa só muda de etapa dentro do próprio funil"
+	switch {
+	case errors.Is(err, errMoverUnavailable):
+		return "mover etapa indisponível neste contexto"
+	case errors.Is(err, stage.ErrStageNotConversationFunnel):
+		return "a etapa escolhida é de um funil de oportunidades: uma conversa só vai para etapas de funis de conversa"
+	case errors.Is(err, stage.ErrTagNotFound), errors.Is(err, stage.ErrUnauthorized):
+		return "a etapa escolhida não existe mais neste workspace: escolha outra no campo Etapa do nó"
 	}
 	return fmt.Sprintf("falha ao mover a conversa de etapa: %v", err)
 }

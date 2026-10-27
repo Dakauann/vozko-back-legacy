@@ -115,7 +115,7 @@ func TestThePublishGateAndTheAlertsPanelAgreeOnTheGraphBlockers(t *testing.T) {
 		t.Fatalf("publish issues = %d, lint blockers = %d: with every reference resolved they must be the same list", len(blocked.Issues), len(lint))
 	}
 	for i := range lint {
-		if blocked.Issues[i] != lint[i] {
+		if !reflect.DeepEqual(blocked.Issues[i], lint[i]) {
 			t.Fatalf("issue %d = %+v, lint = %+v", i, blocked.Issues[i], lint[i])
 		}
 	}

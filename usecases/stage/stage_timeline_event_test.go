@@ -42,7 +42,7 @@ func TestAssignEntryStage_RecordsTheMoveOnTheTimeline(t *testing.T) {
 	repo.entryStage = &stage.EntryStage{EntryID: "e1", StageID: "s-old"}
 	log := &recordingLogger{}
 
-	uc := NewAssignEntryStageUseCase(repo, log)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, log)
 	if _, err := uc.Execute("ws", stage.AssignEntryStageInput{
 		StageID:   "s-new",
 		EntryID:   "e1",
@@ -76,7 +76,7 @@ func TestAssignEntryStage_RecordsTheMoveOnce(t *testing.T) {
 	repo := stageRepoWith(&stage.Stage{ID: "s1", WorkspaceID: "ws", Name: "novo"})
 	log := &recordingLogger{}
 
-	uc := NewAssignEntryStageUseCase(repo, log)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, log)
 	if _, err := uc.Execute("ws", stage.AssignEntryStageInput{
 		StageID: "s1", EntryID: "e1", EntryType: "whatsapp", ActorID: "user-1",
 	}); err != nil {
@@ -91,7 +91,7 @@ func TestAssignEntryStage_AttributesAnAIMoveToTheAgent(t *testing.T) {
 	repo := stageRepoWith(&stage.Stage{ID: "s1", WorkspaceID: "ws", Name: "interessado"})
 	log := &recordingLogger{}
 
-	uc := NewAssignEntryStageUseCase(repo, log)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, log)
 	if _, err := uc.Execute("ws", stage.AssignEntryStageInput{
 		StageID: "s1", EntryID: "e1", EntryType: "whatsapp",
 		ActorID: actor.FormatAI("agent-9"),
@@ -109,7 +109,7 @@ func TestAssignEntryStage_FallsBackToTheSystemActor(t *testing.T) {
 	repo := stageRepoWith(&stage.Stage{ID: "s1", WorkspaceID: "ws", Name: "novo"})
 	log := &recordingLogger{}
 
-	uc := NewAssignEntryStageUseCase(repo, log)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, log)
 	if _, err := uc.Execute("ws", stage.AssignEntryStageInput{
 		StageID: "s1", EntryID: "e1", EntryType: "whatsapp",
 	}); err != nil {
@@ -126,7 +126,7 @@ func TestAssignEntryStage_OmitsTheFromSideOnFirstPlacement(t *testing.T) {
 	repo := stageRepoWith(&stage.Stage{ID: "s1", WorkspaceID: "ws", Name: "novo"})
 	log := &recordingLogger{}
 
-	uc := NewAssignEntryStageUseCase(repo, log)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, log)
 	if _, err := uc.Execute("ws", stage.AssignEntryStageInput{
 		StageID: "s1", EntryID: "e1", EntryType: "whatsapp", ActorID: "user-1",
 	}); err != nil {
@@ -141,7 +141,7 @@ func TestAssignEntryStage_OmitsTheFromSideOnFirstPlacement(t *testing.T) {
 
 func TestAssignEntryStage_SurvivesWithoutALogger(t *testing.T) {
 	repo := stageRepoWith(&stage.Stage{ID: "s1", WorkspaceID: "ws", Name: "novo"})
-	uc := NewAssignEntryStageUseCase(repo, nil)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, nil)
 	if _, err := uc.Execute("ws", stage.AssignEntryStageInput{
 		StageID: "s1", EntryID: "e1", EntryType: "whatsapp",
 	}); err != nil {
@@ -173,7 +173,7 @@ func TestAssignEntryStage_RecordsNothingWhenTheMoveIsRejected(t *testing.T) {
 	repo := stageRepoWith(&stage.Stage{ID: "s1", WorkspaceID: "other-ws", Name: "novo"})
 	log := &recordingLogger{}
 
-	uc := NewAssignEntryStageUseCase(repo, log)
+	uc := NewAssignEntryStageUseCase(repo, conversationFunnels{}, log)
 	if _, err := uc.Execute("ws", stage.AssignEntryStageInput{
 		StageID: "s1", EntryID: "e1", EntryType: "whatsapp", ActorID: "user-1",
 	}); err == nil {
@@ -192,7 +192,7 @@ func TestAMoveByThePlatformAIRecordsItsConfidence(t *testing.T) {
 	repo.entryStage = &stage.EntryStage{EntryID: "e1", StageID: "s-old"}
 	log := &recordingLogger{}
 
-	if _, err := NewAssignEntryStageUseCase(repo, log).Execute("ws", stage.AssignEntryStageInput{
+	if _, err := NewAssignEntryStageUseCase(repo, conversationFunnels{}, log).Execute("ws", stage.AssignEntryStageInput{
 		StageID:    "s-new",
 		EntryID:    "e1",
 		EntryType:  "unofficial_whatsapp",
@@ -215,7 +215,7 @@ func TestAMoveWithoutAConfidenceRecordsNone(t *testing.T) {
 	repo := stageRepoWith(&stage.Stage{ID: "s1", WorkspaceID: "ws", Name: "novo"})
 	log := &recordingLogger{}
 
-	if _, err := NewAssignEntryStageUseCase(repo, log).Execute("ws", stage.AssignEntryStageInput{
+	if _, err := NewAssignEntryStageUseCase(repo, conversationFunnels{}, log).Execute("ws", stage.AssignEntryStageInput{
 		StageID: "s1", EntryID: "e1", EntryType: "unofficial_whatsapp", ActorID: "user-1",
 	}); err != nil {
 		t.Fatal(err)

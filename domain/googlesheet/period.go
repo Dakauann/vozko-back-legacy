@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -72,6 +73,29 @@ func renderTabPattern(pattern string, month time.Time) string {
 }
 
 func (s *Sheet) Periodic() bool { return s.TabPeriod == PeriodMonth }
+
+func (s *Sheet) TabBaseName() string {
+	if !s.Periodic() {
+		return s.TabName
+	}
+	stripped := s.TabPattern
+	for _, token := range TabTokens() {
+		stripped = strings.ReplaceAll(stripped, token, " ")
+	}
+	var words []string
+	for _, word := range strings.Fields(stripped) {
+		if strings.IndexFunc(word, isWordRune) >= 0 {
+			words = append(words, word)
+		}
+	}
+	base := strings.TrimFunc(strings.Join(words, " "), func(r rune) bool { return !isWordRune(r) })
+	if base == "" {
+		return s.Title
+	}
+	return base
+}
+
+func isWordRune(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
 
 func (s *Sheet) PeriodOf(at time.Time) string {
 	if !s.Periodic() {

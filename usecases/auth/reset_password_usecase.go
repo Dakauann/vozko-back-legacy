@@ -4,7 +4,6 @@ import (
 	"crypto/subtle"
 	"log"
 	"time"
-	"unicode"
 
 	"vozko/brand"
 	"vozko/domain/auth"
@@ -71,6 +70,10 @@ func (uc *resetPasswordUseCase) Execute(input auth.ResetPasswordInput) error {
 		return auth.ErrInvalidResetToken
 	}
 
+	if err := auth.CurrentPasswordPolicy().Check(input.NewPassword); err != nil {
+		return err
+	}
+
 	u, err := uc.userRepo.FindByEmail(user.CanonicalEmail(input.Email))
 	if err != nil {
 		return auth.ErrInvalidResetToken
@@ -87,7 +90,7 @@ func (uc *resetPasswordUseCase) Execute(input auth.ResetPasswordInput) error {
 
 	if resetToken.Attempts >= maxResetAttempts {
 		_ = uc.tokenRepo.MarkUsed(resetToken.ID)
-		return auth.ErrInvalidResetToken
+		return auth.ErrResetCodeAttemptsExceeded
 	}
 
 	presented := hashSecretCode(input.Token)
@@ -96,12 +99,9 @@ func (uc *resetPasswordUseCase) Execute(input auth.ResetPasswordInput) error {
 		if attempts >= maxResetAttempts {
 			_ = uc.tokenRepo.MarkUsed(resetToken.ID)
 			uc.notifyResetLocked(u.Email)
+			return auth.ErrResetCodeAttemptsExceeded
 		}
 		return auth.ErrInvalidResetToken
-	}
-
-	if !isStrongPassword(input.NewPassword) {
-		return auth.ErrWeakPassword
 	}
 
 	hashedPassword, err := uc.passwordService.Hash(input.NewPassword)
@@ -150,24 +150,4 @@ func (uc *resetPasswordUseCase) notifyResetLocked(email string) {
 		DedupKey: "password_reset_locked:" + email,
 		DedupTTL: 5 * time.Minute,
 	})
-}
-
-func isStrongPassword(password string) bool {
-	if len(password) < 8 {
-		return false
-	}
-
-	var hasUpper, hasLower, hasDigit bool
-	for _, c := range password {
-		switch {
-		case unicode.IsUpper(c):
-			hasUpper = true
-		case unicode.IsLower(c):
-			hasLower = true
-		case unicode.IsDigit(c):
-			hasDigit = true
-		}
-	}
-
-	return hasUpper && hasLower && hasDigit
 }

@@ -58,8 +58,8 @@ func (uc *registerUseCase) Execute(input auth.CredentialsInput) (*auth.TokenPair
 		return nil, err
 	}
 
-	if !isStrongPassword(input.Password) {
-		return nil, auth.ErrWeakPassword
+	if err := auth.CurrentPasswordPolicy().Check(input.Password); err != nil {
+		return nil, err
 	}
 
 	existing, _ := uc.userRepo.FindByEmail(input.Email)

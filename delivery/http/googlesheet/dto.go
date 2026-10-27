@@ -149,6 +149,7 @@ type SheetResponse struct {
 	TabPeriod     string           `json:"tabPeriod" enums:"none,month"`
 	TabPattern    string           `json:"tabPattern,omitempty"`
 	TabPeriodKey  string           `json:"tabPeriodKey,omitempty" example:"2026-11"`
+	TabBaseName   string           `json:"tabBaseName" example:"Pagamentos"`
 	Style         string           `json:"style" enums:"plain,graphite,blue,green,purple"`
 	TakesInput    bool             `json:"takesInput"`
 	Description   string           `json:"description,omitempty"`
@@ -182,7 +183,7 @@ func toSheetResponse(s *googlesheet.Sheet) SheetResponse {
 	}
 	return SheetResponse{
 		ID: s.ID, SpreadsheetID: s.SpreadsheetID, Title: s.Title, TabName: s.TabName, TabPeriod: string(s.TabPeriod), TabPattern: s.TabPattern,
-		TabPeriodKey: s.TabPeriodKey, Style: string(s.Style), TakesInput: s.TakesInput(),
+		TabPeriodKey: s.TabPeriodKey, TabBaseName: s.TabBaseName(), Style: string(s.Style), TakesInput: s.TakesInput(),
 		Description: s.Description, TimeZone: s.TimeZone, URL: s.URL(),
 		Status: string(s.Status), Reason: string(s.Reason), ReasonDetail: s.ReasonDetail, Version: s.Version,
 		Columns: columns, TakesMessages: s.HasMessageColumns(), CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, LastWrittenAt: s.LastWrittenAt,
@@ -207,6 +208,38 @@ func toListResponse(page *shared.PaginatedResult[*googlesheet.Sheet]) SheetListR
 		items[i] = toSheetResponse(s)
 	}
 	return SheetListResponse{Items: items, Page: page.Page, PageSize: page.PageSize, TotalItems: page.TotalItems, TotalPages: page.TotalPages}
+}
+
+type SheetFileResponse struct {
+	SpreadsheetID string          `json:"spreadsheetId" example:"1AbC"`
+	Title         string          `json:"title" example:"Altiva: negociações"`
+	URL           string          `json:"url" example:"https://docs.google.com/spreadsheets/d/1AbC/edit"`
+	Status        string          `json:"status" example:"active" enums:"active,needs_attention"`
+	LastWrittenAt *time.Time      `json:"lastWrittenAt,omitempty"`
+	Sheets        []SheetResponse `json:"sheets"`
+}
+
+type SheetFileListResponse struct {
+	Items      []SheetFileResponse `json:"items"`
+	Page       int                 `json:"page"`
+	PageSize   int                 `json:"pageSize"`
+	TotalItems int64               `json:"totalItems"`
+	TotalPages int                 `json:"totalPages"`
+}
+
+func toFileListResponse(page *shared.PaginatedResult[googlesheet.Spreadsheet]) SheetFileListResponse {
+	items := make([]SheetFileResponse, len(page.Items))
+	for i, file := range page.Items {
+		sheets := make([]SheetResponse, len(file.Sheets))
+		for j, s := range file.Sheets {
+			sheets[j] = toSheetResponse(s)
+		}
+		items[i] = SheetFileResponse{
+			SpreadsheetID: file.ID, Title: file.Title(), URL: file.URL(), Status: string(file.Status()),
+			LastWrittenAt: file.LastWrittenAt(), Sheets: sheets,
+		}
+	}
+	return SheetFileListResponse{Items: items, Page: page.Page, PageSize: page.PageSize, TotalItems: page.TotalItems, TotalPages: page.TotalPages}
 }
 
 type ProblemRowResponse struct {

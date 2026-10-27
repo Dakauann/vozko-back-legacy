@@ -68,8 +68,8 @@ func (uc *changePasswordUseCase) Execute(input auth.ChangePasswordInput) error {
 		return auth.ErrCurrentPasswordInvalid
 	}
 
-	if !isStrongPassword(input.NewPassword) {
-		return auth.ErrWeakPassword
+	if err := auth.CurrentPasswordPolicy().Check(input.NewPassword); err != nil {
+		return err
 	}
 
 	hashedPassword, err := uc.passwordService.Hash(input.NewPassword)

@@ -67,3 +67,33 @@ func TestSwitchingAutomationBackOnChecksTheGoverningAutomationFirst(t *testing.T
 	}
 	assert.Equal(t, "bob", f.owner("entry-1"), "the person keeps the conversation")
 }
+
+func TestSwitchingAPausedConversationBackOnChecksTheAutomationItWillHandTo(t *testing.T) {
+	paused := false
+	profile := agentGoverned
+	profile.AutomationEnabled = &paused
+	f := newAIFixture(profile)
+	f.seed("entry-1", "bob")
+	toggle, _ := newToggle(f)
+	check := &scriptedVariablesCheck{refuse: map[string]bool{"agent-1": true}}
+	toggle.variables = check
+	_, err := toggle.SetAutomation(context.Background(), toggleInput(pauseOn()))
+	if !errors.Is(err, automationneeds.ErrConversationMissing) {
+		t.Fatalf("err = %v", err)
+	}
+	assert.Equal(t, []string{"entry-1/agent-1"}, check.checked)
+	assert.Empty(t, f.pauser.paused, "automation stays paused")
+	assert.Equal(t, "bob", f.owner("entry-1"))
+}
+
+func TestSwitchingAutomationBackOnFailsClosedWhenTheConversationCannotBeRead(t *testing.T) {
+	f := newAIFixture(agentGoverned)
+	f.seed("entry-1", "bob")
+	f.profiles.err = errors.New("db down")
+	toggle, _ := newToggle(f)
+	_, err := toggle.SetAutomation(context.Background(), toggleInput(pauseOn()))
+	if !errors.Is(err, automationneeds.ErrUnreadable) {
+		t.Fatalf("err = %v", err)
+	}
+	assert.Equal(t, "bob", f.owner("entry-1"))
+}

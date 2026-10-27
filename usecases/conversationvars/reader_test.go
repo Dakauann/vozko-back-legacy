@@ -91,3 +91,18 @@ func TestNewReaderRefusesMissingDependencies(t *testing.T) {
 		t.Fatal("a reader without its sources must not be built")
 	}
 }
+
+func TestTheSnapshotNamesTheLeadBehindTheValues(t *testing.T) {
+	r, err := NewReader(ReaderDeps{
+		Facts:     fakeFacts{info: conversation.EntryInfo{LeadID: "lead-1", LeadName: "Ana"}},
+		Campaigns: fakeCampaigns{campaign: domain.Campaign{Values: map[string]string{"nome_cliente": "Dakauann"}}},
+		Store:     &memStore{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.Snapshot(context.Background(), "e1", shared.EntryTypeWhatsApp)
+	if err != nil || got.LeadID != "lead-1" || got.Values["nome_cliente"] != "Dakauann" || got.Values["lead_name"] != "Ana" {
+		t.Fatalf("snapshot = %+v, %v", got, err)
+	}
+}

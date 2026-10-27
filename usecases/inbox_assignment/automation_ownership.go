@@ -48,12 +48,20 @@ type ConversationReceivers interface {
 }
 
 func (s *AssignmentService) governingAutomation(entryID, entryType string) (conversation.Automation, bool, error) {
+	return s.automationOf(entryID, entryType, conversation.AutomationProfile.Governing)
+}
+
+func (s *AssignmentService) resumingAutomation(entryID, entryType string) (conversation.Automation, bool, error) {
+	return s.automationOf(entryID, entryType, conversation.AutomationProfile.Configured)
+}
+
+func (s *AssignmentService) automationOf(entryID, entryType string, pick func(conversation.AutomationProfile) (conversation.Automation, bool)) (conversation.Automation, bool, error) {
 	profile, err := s.automationProfiles.EntryAutomation(entryID, entryType)
 	if err != nil {
 		return conversation.Automation{}, false, err
 	}
-	automation, governed := profile.Governing()
-	return automation, governed, nil
+	automation, ok := pick(profile)
+	return automation, ok, nil
 }
 
 func (s *AssignmentService) assignToAutomation(workspaceID, entryID, entryType, businessPhoneID, departmentID string, automation conversation.Automation) string {

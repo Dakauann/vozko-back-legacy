@@ -31,11 +31,11 @@ type LeadProfilePreviewer interface {
 }
 
 var (
-	_ label_domain.AutomationLabeler       = simLabeler{}
-	_ stage_domain.AssignEntryStageUseCase = simStageMover{}
-	_ node_executors.ConversationHandOff   = simHandOff{}
-	_ node_executors.DealDesk              = simDeals{}
-	_ node_executors.LeadProfileWriter     = simLeadProfiles{}
+	_ label_domain.AutomationLabeler     = simLabeler{}
+	_ stage_domain.EntryMover            = simStageMover{}
+	_ node_executors.ConversationHandOff = simHandOff{}
+	_ node_executors.DealDesk            = simDeals{}
+	_ node_executors.LeadProfileWriter   = simLeadProfiles{}
 )
 
 type simLabeler struct {
@@ -63,26 +63,67 @@ func (l simLabeler) Change(workspaceID string, req label_domain.LabelChangeReque
 }
 
 type simStageMover struct {
-	stages  node_executors.StageReader
-	effects *simEffects
+	stages       node_executors.StageReader
+	destinations stage_domain.DestinationReader
+	effects      *simEffects
+}
+
+func (m simStageMover) Destination(workspaceID, stageID string) (stage_domain.FunnelStage, error) {
+	if m.destinations == nil {
+		return stage_domain.FunnelStage{}, errSandboxCannotResolve
+	}
+	return m.destinations.Destination(workspaceID, stageID)
 }
 
 func (m simStageMover) Execute(workspaceID string, input stage_domain.AssignEntryStageInput) (*stage_domain.EntryStage, error) {
-	if m.stages == nil {
-		return nil, errSandboxCannotResolve
+	move, err := m.Move(workspaceID, input)
+	if err != nil {
+		return nil, err
 	}
-	target, err := m.stages.FindByID(input.StageID)
-	if err != nil || target == nil || target.WorkspaceID != workspaceID {
-		return nil, fmt.Errorf("%w: %s", stage_domain.ErrTagNotFound, input.StageID)
+	return move.Entry, nil
+}
+
+func (m simStageMover) Move(workspaceID string, input stage_domain.AssignEntryStageInput) (stage_domain.Move, error) {
+	if m.stages == nil {
+		return stage_domain.Move{}, errSandboxCannotResolve
+	}
+	to, err := m.Destination(workspaceID, input.StageID)
+	if err != nil {
+		return stage_domain.Move{}, err
+	}
+	from := m.placement(workspaceID, input)
+	if stage_domain.CrossesFunnel(from.PipelineID, to.PipelineID) && !input.AllowCrossPipeline {
+		return stage_domain.Move{}, stage_domain.ErrStagePipelineMismatch
+	}
+	move := stage_domain.Move{
+		Entry: &stage_domain.EntryStage{
+			StageID: to.StageID, StageName: to.StageName, EntryID: input.EntryID, EntryType: input.EntryType,
+			WorkspaceID: workspaceID, CreatedAt: time.Now().UTC(),
+		},
+		From: from,
+		To:   to,
+	}
+	description := fmt.Sprintf("Moveria a conversa para a etapa %s", to.StageName)
+	if move.FunnelChanged() {
+		description = fmt.Sprintf("Moveria a conversa do funil %s para a etapa %s do funil %s", from.PipelineName, to.StageName, to.PipelineName)
 	}
 	m.effects.change(workflow.SimulatedChange{
-		Kind: workflow.SimulatedStage, Action: "move", TargetID: target.ID, TargetName: target.Name,
-		Description: fmt.Sprintf("Moveria a conversa para a etapa %s", target.Name),
+		Kind: workflow.SimulatedStage, Action: "move", TargetID: to.StageID, TargetName: to.StageName,
+		Description: description,
 	})
-	return &stage_domain.EntryStage{
-		StageID: target.ID, StageName: target.Name, EntryID: input.EntryID, EntryType: input.EntryType,
-		WorkspaceID: workspaceID, CreatedAt: time.Now().UTC(),
-	}, nil
+	return move, nil
+}
+
+func (m simStageMover) placement(workspaceID string, input stage_domain.AssignEntryStageInput) stage_domain.FunnelStage {
+	current, err := m.stages.GetEntryStage(input.EntryID, input.EntryType, workspaceID)
+	if err != nil || current == nil || current.StageID == "" {
+		return stage_domain.FunnelStage{}
+	}
+	held, err := m.Destination(workspaceID, current.StageID)
+	if err != nil {
+		return stage_domain.FunnelStage{StageID: current.StageID, StageName: current.StageName}
+	}
+	return held
 }
 
 type simHandOff struct {
