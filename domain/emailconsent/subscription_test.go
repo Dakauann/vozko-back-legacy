@@ -20,6 +20,10 @@ func TestNewSubscription(t *testing.T) {
 		{name: "import without ip", consent: Consent{WorkspaceID: "ws", Address: "ana@example.com", Source: SourceImport, At: now}},
 		{name: "operator without ip", consent: Consent{WorkspaceID: "ws", Address: "ana@example.com", Source: SourceOperator, At: now}},
 		{name: "form needs ip", consent: Consent{WorkspaceID: "ws", Address: "ana@example.com", Source: SourceForm, At: now}, wantErr: ErrConsentIPRequired},
+		{name: "page form keeps only the hashed ip", consent: Consent{WorkspaceID: "ws", Address: "ana@example.com", Source: SourceSiteForm, IP: "Zm9yLXRlc3RzLW9ubHktYS1oYXNoZWQtaXAtdmFsdWU", At: now}, wantIP: "Zm9yLXRlc3RzLW9ubHktYS1oYXNoZWQtaXAtdmFsdWU"},
+		{name: "page form refuses a raw ip", consent: Consent{WorkspaceID: "ws", Address: "ana@example.com", Source: SourceSiteForm, IP: "203.0.113.9", At: now}, wantErr: ErrConsentIPInvalid},
+		{name: "page form needs the hashed ip", consent: Consent{WorkspaceID: "ws", Address: "ana@example.com", Source: SourceSiteForm, At: now}, wantErr: ErrConsentIPRequired},
+		{name: "page form refuses a short hash", consent: Consent{WorkspaceID: "ws", Address: "ana@example.com", Source: SourceSiteForm, IP: "abc", At: now}, wantErr: ErrConsentIPInvalid},
 		{name: "bad ip", consent: Consent{WorkspaceID: "ws", Address: "ana@example.com", Source: SourceImport, IP: "999.1.1.1", At: now}, wantErr: ErrConsentIPInvalid},
 		{name: "unknown source", consent: Consent{WorkspaceID: "ws", Address: "ana@example.com", Source: "scraped", At: now}, wantErr: ErrSourceInvalid},
 		{name: "no workspace", consent: Consent{Address: "ana@example.com", Source: SourceImport, At: now}, wantErr: ErrWorkspaceRequired},
@@ -158,5 +162,17 @@ func TestSourcesAndUnsubscribeSourcesAreClosedSets(t *testing.T) {
 	}
 	if Source("").Valid() || UnsubscribeSource("").Valid() {
 		t.Fatal("empty values are not sources")
+	}
+}
+
+func TestOnlyPeopleSourcesAreOpenToOperators(t *testing.T) {
+	cases := map[Source]bool{
+		SourceForm: true, SourceOperator: true, SourceAPI: true,
+		SourceImport: false, SourceSiteForm: false, Source("other"): false, Source(""): false,
+	}
+	for source, want := range cases {
+		if got := source.RecordedByPeople(); got != want {
+			t.Errorf("%q.RecordedByPeople() = %v, want %v", source, got, want)
+		}
 	}
 }

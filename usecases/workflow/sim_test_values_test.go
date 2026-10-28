@@ -8,7 +8,7 @@ import (
 
 func mustTestValues(t *testing.T, store *memoryTestValues) *TestValuesUseCase {
 	t.Helper()
-	uc, err := NewTestValuesUseCase(store, needsSourceStub{})
+	uc, err := NewTestValuesUseCase(store, needsSourceStub{}, rulesStub{})
 	if err != nil {
 		t.Fatal(err)
 	}

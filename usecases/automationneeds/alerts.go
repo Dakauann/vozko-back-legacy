@@ -47,7 +47,7 @@ func nameOf(link domain.Link) string {
 }
 
 func variablesText(needs domain.Needs) string {
-	return strings.Join(needs.Names(), ", ")
+	return strings.Join(needs.Labels(), ", ")
 }
 
 func (a *Alerts) Unmet(ctx context.Context, workspaceID string, refusal *domain.Refusal) error {
@@ -56,7 +56,7 @@ func (a *Alerts) Unmet(ctx context.Context, workspaceID string, refusal *domain.
 	return a.publishUnmet(ctx, workspaceID, link,
 		capitalized(noun)+" "+nameOf(link)+" deixou de responder: falta "+variablesText(refusal.Needs),
 		"Uma conversa não tem valor para "+variablesText(refusal.Needs)+", então "+noun+" "+nameOf(link)+
-			" não respondeu, em vez de mandar um texto incompleto. Dê um valor padrão à variável ou preencha o valor na conversa.")
+			" não respondeu, em vez de mandar um texto incompleto. Dê um valor padrão a esse dado ou preencha o valor na conversa.")
 }
 
 func (a *Alerts) publishUnmet(ctx context.Context, workspaceID string, link domain.Link, title, body string) error {
@@ -88,7 +88,7 @@ func (a *Alerts) SwitchedOff(ctx context.Context, workspaceID string, off domain
 		Title:       notification.ClipTitle(capitalized(noun) + " " + nameOf(link) + " foi desligado no " + where),
 		Body: capitalized(noun) + " " + nameOf(link) + " agora exige " + variablesText(off.Needs) +
 			", e conversas que o cliente começa não trazem esses valores. Para não responder com textos incompletos, ele foi desligado no " + where +
-			". Dê um valor padrão à variável e ligue de novo no canal.",
+			". Dê um valor padrão a esse dado e ligue de novo no canal.",
 		ActionURL:   domain.SlotPath(off.Slot.Kind, off.Slot.ID),
 		ActionLabel: "Abrir o canal",
 		Audience:    audienceOf(link.Automation),

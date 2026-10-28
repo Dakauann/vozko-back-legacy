@@ -50,6 +50,7 @@ func newQueriesWith(t *testing.T, records *memRecords, store *memValueStore, all
 		Workflows: fakeWorkflows{},
 		Records:   records, Store: store, Access: access(allowed),
 		Conversations: &fakeSnapshots{}, Definitions: fakeDefinitions{}, Subjects: &fakeSubjects{}, Profiles: &fakeProfiles{},
+		StoredDetails: &fakeStoredDetails{}, Timeline: &fakeTimeline{},
 	}
 	if adjust != nil {
 		adjust(&d)

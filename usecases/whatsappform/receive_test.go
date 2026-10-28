@@ -8,6 +8,7 @@ import (
 
 	"vozko/domain/lead"
 	wf "vozko/domain/whatsappform"
+	"vozko/usecases/formlead"
 	lead_usecase "vozko/usecases/lead"
 )
 
@@ -53,7 +54,7 @@ func TestAMatchedAnswerIsStoredAppliedAndShownMasked(t *testing.T) {
 	if update.LeadID != "lead-1" || update.Source != lead.ProfileFromForm || update.Profile.Name != "Ana Souza" || update.Profile.Email != "ana@example.com" {
 		t.Fatalf("profile update = %+v", update)
 	}
-	if len(w.effects.consents) != 1 || w.effects.consents[0].Evidence.Ref != resp.ID || resp.Report.Consent != ConsentGranted {
+	if len(w.effects.consents) != 1 || w.effects.consents[0].Evidence.Ref != resp.ID || resp.Report.Consent != formlead.ConsentGranted {
 		t.Fatalf("consent = %+v report = %+v", w.effects.consents, resp.Report)
 	}
 	if strings.Join(resp.Report.Changed, ",") != "name,email" {
@@ -69,7 +70,7 @@ func TestAMatchedAnswerIsStoredAppliedAndShownMasked(t *testing.T) {
 	if sends := w.sends.all(); sends[0].Status != wf.SendResponded {
 		t.Fatalf("the send is answered, got %+v", sends[0])
 	}
-	if len(w.effects.triggered) != 1 || w.effects.triggered[0].FormID != detail.Form.ID || w.effects.triggered[0].Data["form.f_nome"] != "Ana Souza" {
+	if len(w.effects.triggered) != 1 || w.effects.triggered[0].Form != (formlead.Form{Kind: formlead.KindWhatsAppForm, ID: detail.Form.ID}) || w.effects.triggered[0].SubmissionID != resp.ID || w.effects.triggered[0].Data["form.f_nome"] != "Ana Souza" {
 		t.Fatalf("trigger = %+v", w.effects.triggered)
 	}
 }
@@ -301,5 +302,35 @@ func TestDeletingAResponseNeedsItsCapability(t *testing.T) {
 	}
 	if len(w.answers.all()) != 0 {
 		t.Fatal("the response is gone")
+	}
+}
+
+func TestAnAnswerWithoutALeadIsRefusedButStillStartsAutomations(t *testing.T) {
+	w := newWorld(t, wf.CapabilityView, wf.CapabilityBuild, wf.CapabilityPublish, wf.CapabilitySend, wf.CapabilityResponses)
+	target := w.targets.byEntry["entry-1"]
+	target.LeadID = ""
+	w.targets.byEntry["entry-1"] = target
+	detail := w.create("Cadastro", "lead_capture")
+	if _, err := w.svc.Publish(ctx, w.viewer, detail.Form.ID, everyAccount); err != nil {
+		t.Fatal(err)
+	}
+	send, err := w.svc.SendInConversation(ctx, w.viewer, SendInput{EntryID: "entry-1", FormID: detail.Form.ID, Copy: formCopy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := answer(send, leadCaptureAnswers)
+	in.LeadID = ""
+	if _, err := w.svc.Receive(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	resp := w.answers.all()[0]
+	if resp.ApplyStatus != wf.ApplyPartial || strings.Join(resp.Report.Refused, ",") != "lead_missing" || resp.Report.Consent != "" {
+		t.Fatalf("response = %+v", resp)
+	}
+	if len(w.effects.profiles)+len(w.effects.consents) != 0 {
+		t.Fatal("an answer without a lead never writes to a lead")
+	}
+	if len(w.effects.triggered) != 1 {
+		t.Fatalf("triggers = %d, want automations to still start", len(w.effects.triggered))
 	}
 }

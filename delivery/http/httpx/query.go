@@ -3,6 +3,7 @@ package httpx
 import (
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -111,4 +112,13 @@ func DecodeMaybeBase64(raw string) []byte {
 		return decoded
 	}
 	return []byte(raw)
+}
+
+func QueryInt(r *http.Request, name string, fallback int) (int, bool) {
+	raw := r.URL.Query().Get(name)
+	if raw == "" {
+		return fallback, true
+	}
+	n, err := strconv.Atoi(raw)
+	return n, err == nil
 }

@@ -15,6 +15,7 @@ type customerAddonDefinition struct {
 	UnitsPerQuantity   int        `json:"unitsPerQuantity"`
 	MonthlyPriceMicros int64      `json:"monthlyPriceMicros"`
 	AnnualPriceMicros  int64      `json:"annualPriceMicros"`
+	MaxUnits           int        `json:"maxUnits"`
 	IsActive           bool       `json:"isActive"`
 	IsGloballyVisible  bool       `json:"isGloballyVisible"`
 	ArchivedAt         *time.Time `json:"archivedAt,omitempty"`
@@ -34,6 +35,7 @@ func toCustomerAddonDefinitions(defs []*workspaceaddondomain.AddonDefinition) []
 			UnitsPerQuantity:   d.UnitsPerQuantity,
 			MonthlyPriceMicros: d.MonthlyPriceMicros,
 			AnnualPriceMicros:  d.AnnualPriceMicros,
+			MaxUnits:           d.MaxUnits,
 			IsActive:           d.IsActive,
 			IsGloballyVisible:  d.IsGloballyVisible,
 			ArchivedAt:         d.ArchivedAt,

@@ -200,18 +200,24 @@ func (t *transferToAutomationTool) ExecuteWithConfig(ctx context.Context, config
 func transferRefusal(err error) string {
 	var named *conversationvars.VariablesError
 	if errors.As(err, &named) {
-		names := strings.Join(named.Names, ", ")
+		labels := make([]string, 0, len(named.Names))
+		for _, name := range named.Names {
+			labels = append(labels, named.LabelOf(name)+" ("+name+")")
+		}
+		names := strings.Join(labels, ", ")
 		switch {
 		case errors.Is(err, automationtransfer.ErrModelValueMissing):
 			return fmt.Sprintf("Para transferir para este destino, informe em variables: %s. Se não souber, pergunte ao cliente e chame de novo.", names)
 		case errors.Is(err, conversationvars.ErrValueEmpty):
 			return fmt.Sprintf("Esta conversa não tem valor para %s, que este destino precisa. Pergunte ao cliente ou continue o atendimento.", names)
+		case errors.Is(err, conversationvars.ErrTypeInvalid):
+			return fmt.Sprintf("O valor de %s não está no formato esperado (número, data ou uma das opções informadas). Corrija e chame de novo.", names)
 		case errors.Is(err, conversationvars.ErrValueInvalid):
 			return fmt.Sprintf("O valor de %s precisa ter de 1 a 2000 caracteres. Corrija e chame de novo.", names)
 		}
 	}
 	if refusal, unmet := automationneeds.RefusalOf(err); unmet {
-		return fmt.Sprintf("Este destino precisa de %s e esta conversa não tem esses dados. A conversa continua com você e a equipe foi avisada: continue o atendimento.", strings.Join(refusal.Needs.Names(), ", "))
+		return fmt.Sprintf("Este destino precisa de %s e esta conversa não tem esses dados. A conversa continua com você e a equipe foi avisada: continue o atendimento.", strings.Join(refusal.Needs.Labels(), ", "))
 	}
 	switch {
 	case errors.Is(err, automationtransfer.ErrNoConversation):

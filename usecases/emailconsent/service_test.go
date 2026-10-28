@@ -257,3 +257,25 @@ func TestComplaintAndOperatorUnsubscribe(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestRecordRefusesTheSourcesOnlyTheSystemWrites(t *testing.T) {
+	svc, subs, _, _ := fixture(t)
+	cases := map[emailconsent.Source]error{
+		emailconsent.SourceSiteForm: emailconsent.ErrSourceReserved,
+		emailconsent.SourceImport:   emailconsent.ErrSourceReserved,
+		"other":                     emailconsent.ErrSourceInvalid,
+	}
+	for source, want := range cases {
+		_, err := svc.Record(context.Background(), "ws", SubscribeInput{Address: "ana@example.com", Source: source, IP: "Zm9yLXRlc3RzLW9ubHktYS1oYXNoZWQtaXAtdmFsdWU"})
+		if !errors.Is(err, want) {
+			t.Fatalf("%q: err = %v, want %v", source, err, want)
+		}
+	}
+	if subs.saves != 0 {
+		t.Fatalf("saves = %d, a refused consent writes nothing", subs.saves)
+	}
+	recorded, err := svc.Record(context.Background(), "ws", SubscribeInput{Address: "ana@example.com", Source: emailconsent.SourceOperator})
+	if err != nil || recorded.Source != emailconsent.SourceOperator || subs.saves != 1 {
+		t.Fatalf("operator consent = %+v %v, saves %d", recorded, err, subs.saves)
+	}
+}

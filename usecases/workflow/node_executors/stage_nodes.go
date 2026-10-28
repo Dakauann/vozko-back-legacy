@@ -201,7 +201,7 @@ func (e *checkStageExecutor) Definition() workflow.NodeDefinition {
 			{ID: "false", Label: "Não está"},
 		},
 		OutputKeys: []workflow.OutputKeyDefinition{
-			{Key: "matched", Description: "true se a conversa está na etapa escolhida", Label: "Está na etapa", Type: workflow.VariableTypeBoolean},
+			{Key: "matched", Description: "true se a conversa está na etapa escolhida", Label: "Está na etapa", LabelKey: "output_matched_stage", Type: workflow.VariableTypeBoolean},
 			{Key: "stage_id", Description: "ID da etapa verificada", RepeatsConfig: true},
 			{Key: "current_stage_id", Description: "ID da etapa atual da conversa (vazio se não há)", Label: "ID da etapa atual", Type: workflow.VariableTypeText},
 			{Key: "current_stage_name", Description: "Nome da etapa atual da conversa", Label: "Etapa atual", Type: workflow.VariableTypeText},

@@ -123,6 +123,7 @@ func (e *httpRequestExecutor) Definition() workflow.NodeDefinition {
 			{Key: "auth_key_name", Label: "Nome do Header (API Key)", Type: "text", Placeholder: "X-API-Key", Description: "Nome do header para API Key"},
 			{Key: "timeout_seconds", Label: "Timeout (segundos)", Type: "number", Placeholder: "15", Description: "Tempo máximo de espera pela resposta, até 30 segundos"},
 			{Key: "capture_variable", Label: "Salvar resposta em variável", Type: "text", Placeholder: "nome_variavel", Description: "Salva o corpo da resposta em uma variável para uso em nós posteriores"},
+			{Key: "capture_label", Label: "Nome amigável da resposta", Type: "text", Placeholder: "Cadastro do aluno", Description: "Como a resposta aparece nas listas e nos campos."},
 		},
 	}
 }

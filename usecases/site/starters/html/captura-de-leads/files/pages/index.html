@@ -1,0 +1,108 @@
+<vz-include src="partials/header.html"></vz-include>
+<main class="bg-surface font-sans text-ink">
+  <section class="relative overflow-hidden">
+    <div class="pointer-events-none absolute -top-40 -left-32 size-[34rem] rounded-full bg-brand/15 blur-3xl"></div>
+    <div class="pointer-events-none absolute -top-24 right-0 size-[26rem] rounded-full bg-accent/25 blur-3xl"></div>
+    <div class="relative mx-auto grid max-w-6xl gap-12 px-6 pt-16 pb-20 md:grid-cols-[1.1fr_0.9fr] md:items-center md:pt-24">
+      <div>
+        <span class="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5 text-sm font-medium text-brand">
+          <span class="size-2 rounded-full bg-brand"></span>
+          Vagas abertas para este mês
+        </span>
+        <h1 class="mt-6 font-display text-5xl leading-[1.05] font-semibold text-balance md:text-6xl">Agende sua avaliação gratuita e saia com um plano claro</h1>
+        <p class="mt-6 max-w-xl text-lg leading-relaxed text-pretty text-muted">Em 30 minutos, um especialista entende o seu momento, responde suas dúvidas e mostra o caminho mais rápido até o resultado que você quer.</p>
+        <ul class="mt-8 grid gap-3 text-base">
+          <li class="flex items-center gap-3"><span class="grid size-6 place-items-center rounded-full bg-brand text-xs font-bold text-brand-ink">✓</span>Sem compromisso e sem custo</li>
+          <li class="flex items-center gap-3"><span class="grid size-6 place-items-center rounded-full bg-brand text-xs font-bold text-brand-ink">✓</span>Atendimento presencial ou online</li>
+          <li class="flex items-center gap-3"><span class="grid size-6 place-items-center rounded-full bg-brand text-xs font-bold text-brand-ink">✓</span>Resposta em até 1 dia útil</li>
+        </ul>
+        <div class="mt-10 flex flex-wrap items-center gap-4">
+          <a href="#" data-vz-whatsapp data-vz-cta="whatsapp-topo" class="inline-flex items-center gap-2 rounded-full bg-[#25D366] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#25D366]/25 transition hover:-translate-y-0.5">Falar no WhatsApp</a>
+          <p class="text-sm text-muted">ou preencha o formulário</p>
+        </div>
+      </div>
+      <div id="contato" class="rounded-card border border-line bg-white p-8 shadow-2xl shadow-ink/10">
+        <h2 class="font-display text-2xl font-semibold">Quero minha avaliação</h2>
+        <p class="mt-2 text-sm text-muted">Leva menos de um minuto. Retornamos pelo WhatsApp.</p>
+        <form data-vz-form="contato" class="mt-6 grid gap-4">
+          <label class="grid gap-1.5 text-sm font-medium">
+            Nome
+            <input type="text" name="lead.name" required autocomplete="name" placeholder="Como podemos te chamar?" class="rounded-xl border border-line bg-surface px-4 py-3 text-base outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15">
+          </label>
+          <label class="grid gap-1.5 text-sm font-medium">
+            WhatsApp
+            <input type="tel" name="lead.phone" required autocomplete="tel" placeholder="(11) 90000-0000" class="rounded-xl border border-line bg-surface px-4 py-3 text-base outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15">
+          </label>
+          <label class="grid gap-1.5 text-sm font-medium">
+            E-mail
+            <input type="email" name="lead.email" autocomplete="email" placeholder="voce@email.com" class="rounded-xl border border-line bg-surface px-4 py-3 text-base outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15">
+          </label>
+          <label class="flex items-start gap-3 text-sm leading-relaxed text-muted">
+            <input type="checkbox" name="consent" required class="mt-1 size-4 accent-brand">
+            Autorizo o contato por WhatsApp, telefone ou e-mail e concordo com a <a href="/privacidade" class="font-medium text-brand underline">Política de Privacidade</a>.
+          </label>
+          <button type="submit" class="mt-2 rounded-xl bg-brand px-6 py-4 text-base font-semibold text-brand-ink transition hover:brightness-110">Agendar minha avaliação</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section id="beneficios" class="mx-auto max-w-6xl px-6 py-20">
+    <h2 class="max-w-2xl font-display text-4xl font-semibold text-balance">Por que tanta gente escolhe a Sua Empresa</h2>
+    <div class="mt-12 grid gap-6 md:grid-cols-3">
+      <article class="rounded-card border border-line bg-white p-8">
+        <span class="grid size-12 place-items-center rounded-2xl bg-brand/10 font-display text-xl text-brand">01</span>
+        <h3 class="mt-6 text-xl font-semibold">Atendimento de verdade</h3>
+        <p class="mt-3 leading-relaxed text-muted">Você fala com quem entende do assunto desde o primeiro contato, sem robô e sem fila.</p>
+      </article>
+      <article class="rounded-card border border-line bg-white p-8">
+        <span class="grid size-12 place-items-center rounded-2xl bg-brand/10 font-display text-xl text-brand">02</span>
+        <h3 class="mt-6 text-xl font-semibold">Plano sob medida</h3>
+        <p class="mt-3 leading-relaxed text-muted">Cada proposta parte do seu objetivo, do seu prazo e do seu orçamento.</p>
+      </article>
+      <article class="rounded-card border border-line bg-white p-8">
+        <span class="grid size-12 place-items-center rounded-2xl bg-brand/10 font-display text-xl text-brand">03</span>
+        <h3 class="mt-6 text-xl font-semibold">Acompanhamento próximo</h3>
+        <p class="mt-3 leading-relaxed text-muted">Você recebe notícias a cada etapa e sabe exatamente o que vem a seguir.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="depoimentos" class="bg-night py-20 text-surface">
+    <div class="mx-auto max-w-6xl px-6">
+      <h2 class="font-display text-4xl font-semibold">Quem já passou por aqui</h2>
+      <div class="mt-12 grid gap-6 md:grid-cols-2">
+        <figure class="rounded-card bg-white/5 p-8 ring-1 ring-white/10">
+          <blockquote class="text-lg leading-relaxed">"Saí da avaliação sabendo exatamente o que fazer. Em dois meses, o resultado apareceu."</blockquote>
+          <figcaption class="mt-6 text-sm text-surface/70">Mariana Costa, cliente desde 2024</figcaption>
+        </figure>
+        <figure class="rounded-card bg-white/5 p-8 ring-1 ring-white/10">
+          <blockquote class="text-lg leading-relaxed">"Atendimento rápido, atencioso e sem enrolação. Recomendo para todo mundo."</blockquote>
+          <figcaption class="mt-6 text-sm text-surface/70">Rafael Souza, cliente desde 2023</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="perguntas" class="mx-auto max-w-3xl px-6 py-20">
+    <h2 class="text-center font-display text-4xl font-semibold">Perguntas frequentes</h2>
+    <div class="mt-10 grid gap-4">
+      <details class="rounded-card border border-line bg-white p-6">
+        <summary class="cursor-pointer list-none text-lg font-semibold">A avaliação é mesmo gratuita?</summary>
+        <p class="mt-3 leading-relaxed text-muted">Sim. A primeira conversa não tem custo e você decide depois, sem pressão.</p>
+      </details>
+      <details class="rounded-card border border-line bg-white p-6">
+        <summary class="cursor-pointer list-none text-lg font-semibold">Quanto tempo leva?</summary>
+        <p class="mt-3 leading-relaxed text-muted">Cerca de 30 minutos, presencial ou por videochamada, no horário que for melhor para você.</p>
+      </details>
+      <details class="rounded-card border border-line bg-white p-6">
+        <summary class="cursor-pointer list-none text-lg font-semibold">Como vocês entram em contato?</summary>
+        <p class="mt-3 leading-relaxed text-muted">Pelo WhatsApp informado no formulário, em até 1 dia útil, para combinar o melhor horário.</p>
+      </details>
+    </div>
+    <div class="mt-12 text-center">
+      <a href="#contato" data-vz-cta="final" class="inline-flex rounded-full bg-brand px-8 py-4 text-base font-semibold text-brand-ink shadow-lg shadow-brand/20 transition hover:-translate-y-0.5">Quero minha avaliação gratuita</a>
+    </div>
+  </section>
+</main>
+<vz-include src="partials/footer.html"></vz-include>

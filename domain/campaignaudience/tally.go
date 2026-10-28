@@ -68,6 +68,7 @@ type VariableCount struct {
 	ColumnMissing  bool                   `json:"columnMissing"`
 	Optional       bool                   `json:"optional"`
 	Default        string                 `json:"default,omitempty" example:"cordial"`
+	Invalid        int                    `json:"invalid"`
 }
 
 type SelectionCount struct {
@@ -111,10 +112,26 @@ type Tally struct {
 	out       map[string]int
 	metadata  *MetadataGaps
 	awaits    Blocker
+	accept    func(key, value string) bool
+	invalid   []int
 }
 
 func NewTally(channel Channel, source Source, bound []Bound) *Tally {
-	return &Tally{channel: channel, source: source, bound: bound, missing: make([]int, len(bound)), out: map[string]int{}, metadata: NewMetadataGaps(nil)}
+	return &Tally{channel: channel, source: source, bound: bound, missing: make([]int, len(bound)), invalid: make([]int, len(bound)), out: map[string]int{}, metadata: NewMetadataGaps(nil)}
+}
+
+func (t *Tally) Checking(accept func(key, value string) bool) *Tally {
+	t.accept = accept
+	return t
+}
+
+func (t *Tally) fits(i int, value string) bool {
+	b := t.bound[i]
+	if value == "" || t.accept == nil || !b.Automation() || t.accept(b.Key, value) {
+		return true
+	}
+	t.invalid[i]++
+	return false
 }
 
 func (t *Tally) Requiring(rule MetadataRule) *Tally {
@@ -177,6 +194,9 @@ func (t *Tally) resolve(c Candidate, choosable func(Bound) bool) ([]string, reso
 	for i, b := range t.bound {
 		if i < len(c.Values) {
 			values[i] = strings.TrimSpace(c.Values[i])
+		}
+		if !t.fits(i, values[i]) {
+			values[i] = ""
 		}
 		if values[i] != "" || t.skipsSlot(i) {
 			continue
@@ -299,7 +319,7 @@ func (t *Tally) Count() Count {
 		count.OutTotal += n
 	}
 	for i, b := range t.bound {
-		v := VariableCount{Key: b.Key, Name: b.Name, Header: b.Header, Source: b.Source, Value: b.Value, Missing: t.missing[i], Policy: b.Missing, Text: b.Text, Fallback: b.Fallback, Suggested: b.Suggested, Kind: SlotTemplate, NeededBy: b.NeededBy, Column: b.Column, ColumnMissing: b.ColumnMissing, Optional: b.Optional, Default: b.Default}
+		v := VariableCount{Key: b.Key, Name: b.Name, Header: b.Header, Source: b.Source, Value: b.Value, Missing: t.missing[i], Policy: b.Missing, Text: b.Text, Fallback: b.Fallback, Suggested: b.Suggested, Kind: SlotTemplate, NeededBy: b.NeededBy, Column: b.Column, ColumnMissing: b.ColumnMissing, Optional: b.Optional, Default: b.Default, Invalid: t.invalid[i]}
 		if b.Automation() {
 			v.Kind = SlotAutomation
 		}

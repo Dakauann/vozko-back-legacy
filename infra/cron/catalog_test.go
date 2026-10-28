@@ -119,6 +119,10 @@ func TestTheCatalogKeepsEveryJobOnItsSchedule(t *testing.T) {
 		"google_token_refresh":                         30 * time.Minute,
 		"google_sheets_dispatch":                       time.Minute,
 		"google_sheets_retention":                      day,
+		"google_sheets_edit_expiry":                    time.Minute,
+		"site_hostname_sweep":                          5 * time.Minute,
+		"site_analytics_rollup":                        time.Hour,
+		"site_form_effects_sweep":                      time.Minute,
 	}
 	got := map[string]time.Duration{}
 	for _, job := range Catalog {

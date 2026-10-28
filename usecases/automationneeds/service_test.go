@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"vozko/domain/agent"
 	domain "vozko/domain/automationneeds"
 	"vozko/domain/conversation"
 	"vozko/domain/shared"
+	"vozko/domain/variabledecl"
 	"vozko/domain/workflow"
 )
 
@@ -60,12 +62,63 @@ func newService(t *testing.T, values fakeValues) *Service {
 				"cobranca": {ID: "cobranca", WorkspaceID: "ws", Name: "Cobrança", Graph: workflow.Graph{Nodes: []workflow.Node{{ID: "n", Type: workflow.NodeTypeActionSendText, Config: map[string]interface{}{"text": "{{campvars.valor}}"}}}}},
 			},
 		},
-		Values: values,
+		Values:       values,
+		Declarations: declared,
+		Sheets:       &fakeSheetFiles{},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return s
+}
+
+type fakeDeclarations struct {
+	rows []variabledecl.Declaration
+	err  error
+}
+
+func (f fakeDeclarations) Catalog(context.Context, string) (variabledecl.Catalog, error) {
+	return variabledecl.NewCatalog(f.rows), f.err
+}
+
+func (fakeDeclarations) Registry() *variabledecl.Registry {
+	r, _ := variabledecl.NewRegistry(variabledecl.Builtin()...)
+	return r
+}
+
+var declared = fakeDeclarations{rows: []variabledecl.Declaration{{Name: "valor", Label: "Valor da parcela", Type: variabledecl.Type{Kind: variabledecl.KindText}}}}
+
+func TestRefusalsNameVariablesByTheirFriendlyLabel(t *testing.T) {
+	s := newService(t, fakeValues{values: map[string]string{}})
+	_, err := s.ValuesFor(context.Background(), "ws", "e1", shared.EntryTypeWhatsApp, ref(conversation.AutomationWorkflow, "cobranca"))
+	refusal, ok := domain.RefusalOf(err)
+	if !ok || refusal.Needs[0].Label != "Valor da parcela" || !strings.Contains(refusal.Sentence(), "Valor da parcela") || strings.Contains(refusal.Sentence(), "valor,") {
+		t.Fatalf("refusal = %+v, sentence %q", refusal, refusal.Sentence())
+	}
+	if err := s.AdmitReceptive("ws", domain.SlotInstagram, conversation.ChannelAutomation{WorkflowID: id("cobranca"), EnableWorkflow: true}); err == nil || !strings.Contains(err.(*domain.Refusal).Sentence(), "Valor da parcela") {
+		t.Fatalf("receptive = %v", err)
+	}
+}
+
+func TestUnreadableLabelsFallBackToHumanNamesNotToRawKeys(t *testing.T) {
+	s := newService(t, fakeValues{values: map[string]string{}})
+	s.declarations = fakeDeclarations{err: errors.New("down")}
+	_, err := s.ValuesFor(context.Background(), "ws", "e1", shared.EntryTypeWhatsApp, ref(conversation.AutomationWorkflow, "cobranca"))
+	refusal, _ := domain.RefusalOf(err)
+	if refusal == nil || refusal.Needs[0].Display() != "Valor" {
+		t.Fatalf("refusal = %+v", refusal)
+	}
+}
+
+func TestAFlowDefaultFillsTheValueWhenTheConversationHasNone(t *testing.T) {
+	s := newService(t, fakeValues{values: map[string]string{"valor": "10"}})
+	src := s.source.(PublishedSource)
+	g := workflow.Graph{Nodes: []workflow.Node{{ID: "n", Type: workflow.NodeTypeActionSendText, Config: map[string]interface{}{"text": "{{campvars.valor}} {{campvars.tom}}"}}}, Variables: []workflow.VariableUse{{Name: "tom", Default: "cordial"}}}
+	src.Workflows.(fakeWorkflows)["tom"] = &workflow.Workflow{ID: "tom", WorkspaceID: "ws", Name: "Tom", Graph: g}
+	values, err := s.ValuesFor(context.Background(), "ws", "e1", shared.EntryTypeWhatsApp, ref(conversation.AutomationWorkflow, "tom"))
+	if err != nil || values["tom"] != "cordial" || values["valor"] != "10" {
+		t.Fatalf("values = %v, err = %v", values, err)
+	}
 }
 
 func TestAdmitReceptiveRefusesAnEnabledAutomationThatNeedsVariables(t *testing.T) {
@@ -84,7 +137,7 @@ func TestAdmitReceptiveRefusesAnEnabledAutomationThatNeedsVariables(t *testing.T
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := s.AdmitReceptive("ws", tc.config)
+			err := s.AdmitReceptive("ws", domain.SlotInstagram, tc.config)
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("err = %v, want %v", err, tc.want)
 			}

@@ -1,0 +1,15 @@
+FROM oven/bun:1.4.0-slim AS sitebuilder
+
+WORKDIR /app
+COPY services/sitebuilder/package.json services/sitebuilder/bun.lock services/sitebuilder/bunfig.toml ./
+RUN bun install --frozen-lockfile --production --ignore-scripts
+COPY services/sitebuilder/src/ src/
+COPY services/sitebuilder/scripts/ scripts/
+RUN bun run scripts/build-vendor.ts \
+    && chmod -R a-w /app/src /app/scripts /app/vendor /app/node_modules
+
+USER bun
+ENV NODE_ENV=production
+ENV BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
+EXPOSE 8080
+CMD ["bun", "run", "src/main.ts"]

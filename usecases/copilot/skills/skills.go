@@ -73,6 +73,10 @@ func parse(raw string) (copilot.Skill, error) {
 			skill.Description = strings.TrimSpace(value)
 		case "surface":
 			skill.Surface = copilot.SkillSurface(strings.TrimSpace(value))
+		case "also":
+			for _, extra := range strings.Split(value, ",") {
+				skill.Also = append(skill.Also, copilot.SkillSurface(strings.TrimSpace(extra)))
+			}
 		}
 	}
 	skill.Body = strings.TrimSpace(body)

@@ -20,3 +20,7 @@ docker/asterisk/
 # temp directory, so `go test` needs `-c -o .testbin/` to run here at all.
 .testbin/
 elodesigneval.exe
+
+infra/siteruntime/node_modules/
+
+secrets/

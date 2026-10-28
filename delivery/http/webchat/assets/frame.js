@@ -5,6 +5,8 @@
   var key = body.getAttribute("data-key");
   var prefix = body.getAttribute("data-prefix");
   var app = document.getElementById("app");
+  var frameScript = document.currentScript.src;
+  var powUrl = new URL("pow.js" + new URL(frameScript).search, frameScript).href;
   var keys = {
     token: "vozko-webchat:" + key,
     read: "vozko-webchat:read:" + key,
@@ -250,32 +252,8 @@
     return Array.prototype.map.call(bytes, function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
   }
 
-  function leadingZeroBits(buffer) {
-    var bytes = new Uint8Array(buffer);
-    var total = 0;
-    for (var i = 0; i < bytes.length; i++) {
-      if (bytes[i] === 0) { total += 8; continue; }
-      return total + Math.clz32(bytes[i]) - 24;
-    }
-    return total;
-  }
-
   function solve(challenge) {
-    var encoder = new TextEncoder();
-    var batch = 512;
-    function attempt(start) {
-      var work = [];
-      for (var n = start; n < start + batch; n++) {
-        work.push(window.crypto.subtle.digest("SHA-256", encoder.encode(challenge.token + ":" + n)));
-      }
-      return Promise.all(work).then(function (digests) {
-        for (var i = 0; i < digests.length; i++) {
-          if (leadingZeroBits(digests[i]) >= challenge.bits) { return String(start + i); }
-        }
-        return attempt(start + batch);
-      });
-    }
-    return attempt(0);
+    return import(powUrl).then(function (pow) { return pow.solveChallenge(challenge); });
   }
 
   function startSession() {

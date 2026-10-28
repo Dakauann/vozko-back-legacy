@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"vozko/domain/balance"
 	"vozko/domain/invoice"
@@ -65,6 +66,29 @@ func (l *fakeLocks) Acquire(_ context.Context, key string) (func() (bool, error)
 	return func() (bool, error) { return true, nil }, nil
 }
 
+type fakeReleases struct {
+	marks map[string]time.Duration
+	err   error
+}
+
+func newFakeReleases() *fakeReleases { return &fakeReleases{marks: map[string]time.Duration{}} }
+
+func (f *fakeReleases) SetString(key, _ string, ttl time.Duration) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.marks[key] = ttl
+	return nil
+}
+
+func (f *fakeReleases) Exists(key string) (bool, error) {
+	if f.err != nil {
+		return false, f.err
+	}
+	_, ok := f.marks[key]
+	return ok, nil
+}
+
 type fakeAlerts struct{ subjects []string }
 
 func (a *fakeAlerts) Alert(_ context.Context, subject, _ string) error {
@@ -77,21 +101,23 @@ type reversalRig struct {
 	book      *ledgerBook
 	locks     *fakeLocks
 	alerts    *fakeAlerts
+	releases  *fakeReleases
 	publisher *notificationtest.Publisher
 	uc        *handlePaymentWebhookUseCase
 }
 
 func newReversalRig(inv *invoice.Invoice) *reversalRig {
 	rig := &reversalRig{
-		repo:      &webhookInvoiceRepo{byExternal: map[string]*invoice.Invoice{inv.ExternalID: inv}},
+		repo:      &webhookInvoiceRepo{byExternal: map[string]*invoice.Invoice{inv.ExternalID: inv}, byID: map[string]*invoice.Invoice{inv.ID: inv}},
 		book:      newLedgerBook(),
 		locks:     &fakeLocks{},
 		alerts:    &fakeAlerts{},
+		releases:  newFakeReleases(),
 		publisher: &notificationtest.Publisher{},
 	}
 	rig.uc = NewHandlePaymentWebhookUseCase(rig.repo, nil, bookCredit{rig.book}, bookDebit{rig.book}, nil).
 		WithNotifications(rig.publisher, "https://app.vozko.test").
-		WithReversals(rig.book, rig.locks, rig.alerts)
+		WithReversals(rig.book, rig.locks, rig.alerts, rig.releases)
 	return rig
 }
 

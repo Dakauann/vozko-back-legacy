@@ -83,6 +83,7 @@ var RolePresets = []RolePreset{
 			"email.view", "email.campaigns", "email.start",
 			"carrier.view", "carrier.campaigns", "carrier.start",
 			"google_sheets.view", "google_sheets.create", "google_sheets.edit", "google_sheets.delete",
+			"sites.view", "sites.create", "sites.edit", "sites.publish", "sites.submissions",
 		),
 	},
 	{
@@ -106,7 +107,7 @@ var RolePresets = []RolePreset{
 			"attendance.view", "attendance.targets_view", "attendance.campaign_report",
 			"reports.view", "reports.create", "audience.view",
 			"whatsapp_campaigns.view", "unofficial_campaigns.view", "unofficial_groups.view", "ads.view",
-			"ai_chat.view", "ai_chat.chat",
+			"ai_chat.view", "ai_chat.chat", "sites.view",
 		},
 	},
 	{
@@ -131,6 +132,7 @@ var RolePresets = []RolePreset{
 			"email.view", "email.campaigns", "email.start",
 			"carrier.view", "carrier.campaigns", "carrier.start",
 			"google_sheets.view",
+			"sites.view", "sites.create", "sites.edit", "sites.publish", "sites.submissions",
 		},
 	},
 	{

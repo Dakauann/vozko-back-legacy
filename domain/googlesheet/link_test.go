@@ -127,13 +127,18 @@ func TestLinkRefParsingIsStrict(t *testing.T) {
 }
 
 func TestLinkFormulaQuotesEverything(t *testing.T) {
-	got, err := LinkFormula(TabRef{ID: 123, Title: "Negociações d'Ana"}, anchorRow, `Ver "negociação"`)
-	if err != nil {
-		t.Fatal(err)
+	wants := map[Separator]Formula{
+		SeparatorComma:     Formula(`=HYPERLINK("#gid=123&range=B"&MATCH("` + anchorRow + `",'Negociações d''Ana'!$A:$A,0),"Ver ""negociação""")`),
+		SeparatorSemicolon: Formula(`=HYPERLINK("#gid=123&range=B"&MATCH("` + anchorRow + `";'Negociações d''Ana'!$A:$A;0);"Ver ""negociação""")`),
 	}
-	want := Formula(`=HYPERLINK("#gid=123&range=B"&MATCH("` + anchorRow + `",'Negociações d''Ana'!$A:$A,0),"Ver ""negociação""")`)
-	if got != want {
-		t.Fatalf("formula\n got %s\nwant %s", got, want)
+	for sep, want := range wants {
+		got, err := LinkFormula(TabRef{ID: 123, Title: "Negociações d'Ana"}, anchorRow, `Ver "negociação"`, sep)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Fatalf("formula with %q\n got %s\nwant %s", sep, got, want)
+		}
 	}
 	refusals := []struct {
 		tab   TabRef
@@ -147,7 +152,7 @@ func TestLinkFormulaQuotesEverything(t *testing.T) {
 		{TabRef{ID: 1, Title: "T"}, anchorRow, "a\nb"},
 	}
 	for _, r := range refusals {
-		if _, err := LinkFormula(r.tab, r.row, r.label); err == nil {
+		if _, err := LinkFormula(r.tab, r.row, r.label, SeparatorSemicolon); err == nil {
 			t.Fatalf("LinkFormula(%+v, %q, %q) accepted", r.tab, r.row, r.label)
 		}
 	}
@@ -162,22 +167,32 @@ func TestEncodeRowTypesCellsAndBuildsTheOnlyFormula(t *testing.T) {
 	}
 	cells, _ = s.Accept(map[string]any{"valor": "10", "baixa": "NÃO"}, system, acceptNow)
 	tabs := LinkTabs{LinkTabKey(timelineID, "2026-11"): {ID: 55, Title: "Negociações · novembro 2026"}}
-	row, err := s.EncodeRow("row-1", cells, tabs)
-	if err != nil {
-		t.Fatalf("EncodeRow: %v", err)
+	for locale, sep := range map[string]Separator{"pt_BR": SeparatorSemicolon, "en_US": SeparatorComma} {
+		row, err := s.EncodeRow("row-1", cells, Links{Tabs: tabs, Locale: locale})
+		if err != nil {
+			t.Fatalf("EncodeRow: %v", err)
+		}
+		if row[0] != "row-1" || row[1] != 10.0 || row[2] != "NÃO" {
+			t.Fatalf("row = %#v", row)
+		}
+		formula, ok := row[3].(Formula)
+		if !ok {
+			t.Fatalf("link cell = %#v, want a Formula", row[3])
+		}
+		if want, _ := LinkFormula(TabRef{ID: 55, Title: "Negociações · novembro 2026"}, anchorRow, DefaultLinkLabel, sep); formula != want {
+			t.Fatalf("formula in %s = %s", locale, formula)
+		}
 	}
-	if row[0] != "row-1" || row[1] != 10.0 || row[2] != "NÃO" {
-		t.Fatalf("row = %#v", row)
-	}
-	formula, ok := row[3].(Formula)
-	if !ok {
-		t.Fatalf("link cell = %#v, want a Formula", row[3])
-	}
-	if want, _ := LinkFormula(TabRef{ID: 55, Title: "Negociações · novembro 2026"}, anchorRow, DefaultLinkLabel); formula != want {
-		t.Fatalf("formula = %s", formula)
-	}
-	if _, err := s.EncodeRow("row-1", cells, LinkTabs{}); !errors.Is(err, ErrLinkTargetPending) {
+	if _, err := s.EncodeRow("row-1", cells, Links{Locale: "pt_BR"}); !errors.Is(err, ErrLinkTargetPending) {
 		t.Fatalf("missing tab = %v, want ErrLinkTargetPending", err)
+	}
+	for _, locale := range []string{"", "xx_YY"} {
+		if _, err := s.EncodeRow("row-1", cells, Links{Tabs: tabs, Locale: locale}); !errors.Is(err, ErrLocaleUnsupported) {
+			t.Fatalf("locale %q = %v, want ErrLocaleUnsupported", locale, err)
+		}
+	}
+	if row, err := s.EncodeRow("row-1", Cells{"valor": 10.0}, Links{}); err != nil || row[3] != "" {
+		t.Fatalf("a row without a link needs no locale: %#v %v", row, err)
 	}
 	refs := s.LinkRefs(cells)
 	if len(refs) != 1 || refs[0].SheetID != timelineID || refs[0].Period != "2026-11" {
@@ -191,7 +206,7 @@ func TestTextThatLooksLikeAFormulaNeverBecomesOne(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	row, err := s.EncodeRow("row-1", cells, nil)
+	row, err := s.EncodeRow("row-1", cells, Links{})
 	if err != nil {
 		t.Fatal(err)
 	}

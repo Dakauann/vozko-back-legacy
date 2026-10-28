@@ -54,6 +54,11 @@ type TabRef struct {
 
 type LinkTabs map[string]TabRef
 
+type Links struct {
+	Tabs   LinkTabs
+	Locale string
+}
+
 func LinkTabKey(sheetID, period string) string { return sheetID + "/" + period }
 
 func linkSource(sheetID string) Source { return Source(linkKeyPrefix + sheetID) }
@@ -91,8 +96,10 @@ func validLinkLabel(label string) bool {
 	return true
 }
 
-func LinkFormula(tab TabRef, rowID, label string) (Formula, error) {
+func LinkFormula(tab TabRef, rowID, label string, sep Separator) (Formula, error) {
 	switch {
+	case !sep.valid():
+		return "", fmt.Errorf("googlesheet: link separator %q is not a formula argument separator", sep)
 	case !uuidPattern.MatchString(rowID):
 		return "", fmt.Errorf("googlesheet: link row %q is not a row id", rowID)
 	case tab.ID < 0 || strings.TrimSpace(tab.Title) == "":
@@ -102,7 +109,7 @@ func LinkFormula(tab TabRef, rowID, label string) (Formula, error) {
 	}
 	title := strings.ReplaceAll(tab.Title, "'", "''")
 	text := strings.ReplaceAll(label, `"`, `""`)
-	return Formula(`=HYPERLINK("#gid=` + strconv.FormatInt(tab.ID, 10) + `&range=B"&MATCH("` + rowID + `",'` + title + `'!$A:$A,0),"` + text + `")`), nil
+	return Formula(`=HYPERLINK("#gid=` + strconv.FormatInt(tab.ID, 10) + `&range=B"&MATCH("` + rowID + `"` + string(sep) + `'` + title + `'!$A:$A` + string(sep) + `0)` + string(sep) + `"` + text + `")`), nil
 }
 
 func CheckLinkTarget(sheet *Sheet, col Column, target *Sheet) error {
@@ -143,7 +150,7 @@ func (s *Sheet) LinkRefs(cells Cells) []LinkRef {
 	return out
 }
 
-func (s *Sheet) linkCell(col Column, value any, tabs LinkTabs) (any, error) {
+func (s *Sheet) linkCell(col Column, value any, links Links) (any, error) {
 	text, ok := value.(string)
 	if !ok {
 		return nil, fmt.Errorf("stored %T is not a link", value)
@@ -152,11 +159,15 @@ func (s *Sheet) linkCell(col Column, value any, tabs LinkTabs) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	tab, ok := tabs[LinkTabKey(ref.SheetID, ref.Period)]
+	tab, ok := links.Tabs[LinkTabKey(ref.SheetID, ref.Period)]
 	if !ok {
 		return nil, ErrLinkTargetPending
 	}
-	return LinkFormula(tab, ref.RowID, col.LinkLabel)
+	sep, err := FormulaSeparator(links.Locale)
+	if err != nil {
+		return nil, err
+	}
+	return LinkFormula(tab, ref.RowID, col.LinkLabel, sep)
 }
 
 func (s *Sheet) DisplayCells(cells Cells) Cells {

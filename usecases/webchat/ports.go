@@ -54,3 +54,7 @@ type Limits struct {
 	HandOffsPerVisitor    cache.RateLimiter
 	TypingPerVisitor      cache.RateLimiter
 }
+
+type SiteOrigins interface {
+	WidgetOrigins(ctx context.Context, workspaceID, widgetID string) ([]string, error)
+}

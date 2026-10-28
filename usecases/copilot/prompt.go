@@ -23,6 +23,9 @@ func screenPrompt(view copilot.View) string {
 	if view.OnEmailDocument() {
 		return emailDesignPrompt(view)
 	}
+	if view.OnSite() {
+		return sitePrompt(view)
+	}
 	if view.OnLeads() {
 		return leadsScreenPrompt(view)
 	}

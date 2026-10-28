@@ -6,30 +6,37 @@ import (
 )
 
 type cancelAddonSubscriptionUseCase struct {
-	subs workspace_addon.AddonSubscriptionRepository
-	now  clockFn
+	subs  workspace_addon.AddonSubscriptionRepository
+	usage unitUsages
+	now   clockFn
 }
 
-func NewCancelAddonSubscriptionUseCase(subs workspace_addon.AddonSubscriptionRepository) workspace_addon.CancelAddonSubscriptionUseCase {
-	return &cancelAddonSubscriptionUseCase{subs: subs, now: utcNow}
+func NewCancelAddonSubscriptionUseCase(
+	subs workspace_addon.AddonSubscriptionRepository,
+	usage map[workspace_addon.EntitlementKind]workspace_addon.UnitUsage,
+) workspace_addon.CancelAddonSubscriptionUseCase {
+	return &cancelAddonSubscriptionUseCase{subs: subs, usage: usage, now: utcNow}
 }
 
 func (uc *cancelAddonSubscriptionUseCase) Execute(workspaceID, subscriptionID string) (*workspace_addon.AddonSubscription, error) {
-	sub, err := uc.subs.GetByID(subscriptionID)
+	var out *workspace_addon.AddonSubscription
+	err := lockedSubscription(uc.subs, workspaceID, subscriptionID, func(locked workspace_addon.AddonSubscriptionRepository, sub *workspace_addon.AddonSubscription) error {
+		out = sub
+		if sub.Status != workspace_plan.SubscriptionStatusActive {
+			return nil
+		}
+		inUse, err := uc.usage.inUse(workspaceID, sub.EntitlementKind, sub.EntitlementKind.RequiresUnitCap())
+		if err != nil {
+			return err
+		}
+		now := uc.now()
+		if err := sub.ScheduleCancellation(sub.ChangeDate(now), now, inUse); err != nil {
+			return err
+		}
+		return locked.Update(sub)
+	})
 	if err != nil {
 		return nil, err
 	}
-	if sub.WorkspaceID != workspaceID {
-		return nil, workspace_addon.ErrAddonSubscriptionNotFound
-	}
-	if sub.Status != workspace_plan.SubscriptionStatusActive {
-		return sub, nil
-	}
-	now := uc.now()
-	sub.CancelledAt = &now
-	sub.UpdatedAt = now
-	if err := uc.subs.Update(sub); err != nil {
-		return nil, err
-	}
-	return sub, nil
+	return out, nil
 }

@@ -78,7 +78,7 @@ func toolContext(sheetID string) tools.ToolContext {
 }
 
 func TestAddSheetRowIsOneToolPerSheet(t *testing.T) {
-	def := NewAddSheetRowTool(&sheetRowsStub{sheet: sheetForTool(t)}).Definition()
+	def := NewAddSheetRowTool(&sheetRowsStub{sheet: sheetForTool(t)}, nil).Definition()
 	if def.Instances != tools.PerTarget(addSheetRowConfigKey) || def.ConfigSchema[addSheetRowConfigKey].OptionsSource != GoogleSheetsOptionsSource || !def.RequiresConfig {
 		t.Fatalf("definition = %+v", def)
 	}
@@ -88,7 +88,7 @@ func TestAddSheetRowIsOneToolPerSheet(t *testing.T) {
 }
 
 func TestAddSheetRowIsChosenAsASpreadsheetThenOneOfItsTabs(t *testing.T) {
-	field := NewAddSheetRowTool(&sheetRowsStub{sheet: sheetForTool(t)}).Definition().ConfigSchema[addSheetRowConfigKey]
+	field := NewAddSheetRowTool(&sheetRowsStub{sheet: sheetForTool(t)}, nil).Definition().ConfigSchema[addSheetRowConfigKey]
 	if field.DisplayName != "Aba" || field.OptionsSource != GoogleSheetsOptionsSource {
 		t.Fatalf("tab field = %+v", field)
 	}
@@ -98,7 +98,7 @@ func TestAddSheetRowIsChosenAsASpreadsheetThenOneOfItsTabs(t *testing.T) {
 }
 
 func TestAddSheetRowExposesOnlyInputColumns(t *testing.T) {
-	handler := NewAddSheetRowTool(&sheetRowsStub{sheet: sheetForTool(t)}).(tools.ContextualHandler)
+	handler := NewAddSheetRowTool(&sheetRowsStub{sheet: sheetForTool(t)}, nil).(tools.ContextualHandler)
 	def := handler.DefinitionWithContext(toolContext("sheet-1"))
 	for _, hidden := range []string{"telefone", "antiga"} {
 		if _, ok := def.Parameters[hidden]; ok {
@@ -123,7 +123,7 @@ func TestAddSheetRowExposesOnlyInputColumns(t *testing.T) {
 }
 
 func TestAddSheetRowIsUnavailableForAnotherWorkspacesSheet(t *testing.T) {
-	handler := NewAddSheetRowTool(&sheetRowsStub{sheet: sheetForTool(t)}).(tools.ContextualHandler)
+	handler := NewAddSheetRowTool(&sheetRowsStub{sheet: sheetForTool(t)}, nil).(tools.ContextualHandler)
 	ctx := toolContext("sheet-1")
 	ctx.WorkspaceID = "ws-2"
 	def := handler.DefinitionWithContext(ctx)
@@ -142,7 +142,7 @@ func agentConfig() map[string]interface{} {
 func TestAddSheetRowEnqueuesWithTheCallAsIdempotencyKey(t *testing.T) {
 	stub := &sheetRowsStub{sheet: sheetForTool(t)}
 	ctx := tools.WithCallID(context.Background(), "call-9")
-	result, err := NewAddSheetRowTool(stub).ExecuteWithConfig(ctx, agentConfig(), map[string]interface{}{"produto": "Pizza"})
+	result, err := NewAddSheetRowTool(stub, nil).ExecuteWithConfig(ctx, agentConfig(), map[string]interface{}{"produto": "Pizza"})
 	if err != nil || result.IsError {
 		t.Fatalf("result = %+v, %v", result, err)
 	}
@@ -157,7 +157,7 @@ func TestAddSheetRowEnqueuesWithTheCallAsIdempotencyKey(t *testing.T) {
 
 func TestAddSheetRowExplainsRefusalsToTheModel(t *testing.T) {
 	stub := &sheetRowsStub{sheet: sheetForTool(t), enqErr: &googlesheet.ValueError{Column: "entrega", Header: "Entrega", Reason: googlesheet.ErrValueNotInOptions, Detail: "opções: Retirada, Delivery"}}
-	result, err := NewAddSheetRowTool(stub).ExecuteWithConfig(context.Background(), agentConfig(), map[string]interface{}{"produto": "Pizza", "entrega": "Moto"})
+	result, err := NewAddSheetRowTool(stub, nil).ExecuteWithConfig(context.Background(), agentConfig(), map[string]interface{}{"produto": "Pizza", "entrega": "Moto"})
 	if err != nil || !result.IsError || result.ErrorCode != googlesheet.CodeValueNotInOptions {
 		t.Fatalf("result = %+v, %v", result, err)
 	}
@@ -169,7 +169,7 @@ func TestAddSheetRowExplainsRefusalsToTheModel(t *testing.T) {
 
 func TestAddSheetRowRefusesOutsideAConversation(t *testing.T) {
 	stub := &sheetRowsStub{sheet: sheetForTool(t)}
-	result, _ := NewAddSheetRowTool(stub).ExecuteWithConfig(context.Background(), map[string]interface{}{addSheetRowConfigKey: "sheet-1"}, map[string]interface{}{"produto": "x"})
+	result, _ := NewAddSheetRowTool(stub, nil).ExecuteWithConfig(context.Background(), map[string]interface{}{addSheetRowConfigKey: "sheet-1"}, map[string]interface{}{"produto": "x"})
 	if !result.IsError || len(stub.enqueued) != 0 {
 		t.Fatalf("result = %+v", result)
 	}
@@ -177,7 +177,7 @@ func TestAddSheetRowRefusesOutsideAConversation(t *testing.T) {
 
 func TestAddSheetRowPreviewValidatesWithoutWriting(t *testing.T) {
 	stub := &sheetRowsStub{sheet: sheetForTool(t)}
-	previewer := NewAddSheetRowTool(stub).(tools.Previewer)
+	previewer := NewAddSheetRowTool(stub, nil).(tools.Previewer)
 	ok, _ := previewer.Preview(context.Background(), agentConfig(), map[string]interface{}{"produto": "Pizza", "quantidade": "2"})
 	bad, _ := previewer.Preview(context.Background(), agentConfig(), map[string]interface{}{"quantidade": "2"})
 	if ok.IsError || !bad.IsError || len(stub.enqueued) != 0 || stub.previews != 2 {
@@ -191,7 +191,7 @@ func TestAddSheetRowPreviewValidatesWithoutWriting(t *testing.T) {
 
 func TestSimulationPreviewsToolsThatCanPreview(t *testing.T) {
 	stub := &sheetRowsStub{sheet: sheetForTool(t)}
-	sim := NewSimulatedToolService(NewService(NewAddSheetRowTool(stub)))
+	sim := NewSimulatedToolService(NewService(NewAddSheetRowTool(stub, nil)))
 	if _, err := sim.ExecuteWithConfig(context.Background(), AddSheetRowToolName, agentConfig(), map[string]interface{}{"produto": "Pizza"}); err != nil {
 		t.Fatal(err)
 	}
@@ -201,11 +201,11 @@ func TestSimulationPreviewsToolsThatCanPreview(t *testing.T) {
 }
 
 func TestAMissingSheetIsABindingProblemAndAnOutageIsNot(t *testing.T) {
-	missing := NewAddSheetRowTool(&sheetRowsStub{findErr: googlesheet.ErrSheetNotFound}).(tools.BindingValidator)
+	missing := NewAddSheetRowTool(&sheetRowsStub{findErr: googlesheet.ErrSheetNotFound}, nil).(tools.BindingValidator)
 	if problem, ok := tools.ProblemOf(missing.ValidateBinding(context.Background(), "ws-1", map[string]interface{}{addSheetRowConfigKey: "x"})); !ok || problem.Code != "tool_sheet_invalid" {
 		t.Fatalf("problem %+v", problem)
 	}
-	down := NewAddSheetRowTool(&sheetRowsStub{findErr: errors.New("google down")}).(tools.BindingValidator)
+	down := NewAddSheetRowTool(&sheetRowsStub{findErr: errors.New("google down")}, nil).(tools.BindingValidator)
 	if _, ok := tools.ProblemOf(down.ValidateBinding(context.Background(), "ws-1", map[string]interface{}{addSheetRowConfigKey: "x"})); ok {
 		t.Fatal("an outage must not read as a bad sheet")
 	}
@@ -229,7 +229,7 @@ func timelineForTool(t *testing.T) *googlesheet.Sheet {
 
 func TestASheetWithoutInputColumnsIsNotOfferedToAgents(t *testing.T) {
 	stub := &sheetRowsStub{sheet: timelineForTool(t)}
-	tool := NewAddSheetRowTool(stub)
+	tool := NewAddSheetRowTool(stub, nil)
 	def := tool.(tools.ContextualHandler).DefinitionWithContext(toolContext("sheet-1"))
 	if def.Description != addSheetRowNoInputs || len(def.Parameters) != 0 {
 		t.Fatalf("definition = %+v", def)

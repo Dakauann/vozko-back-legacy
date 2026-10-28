@@ -3,6 +3,7 @@ package copilot
 import (
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 
 	"vozko/domain/shared"
@@ -13,7 +14,7 @@ var (
 	ErrSkillDescription = errors.New("copilot skill: description is required")
 	ErrSkillBody        = errors.New("copilot skill: body is required")
 	ErrSkillDash        = errors.New("copilot skill: em and en dashes are not allowed")
-	ErrSkillSurface     = errors.New("copilot skill: surface must be empty, studio, panel or email")
+	ErrSkillSurface     = errors.New("copilot skill: surface must be empty, studio, panel, email or site, and extra surfaces must be known and named once")
 )
 
 var skillName = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
@@ -25,6 +26,7 @@ const (
 	SkillStudioOnly SkillSurface = "studio"
 	SkillPanelOnly  SkillSurface = "panel"
 	SkillEmailWork  SkillSurface = "email"
+	SkillSiteWork   SkillSurface = "site"
 )
 
 type Skill struct {
@@ -32,16 +34,51 @@ type Skill struct {
 	Description string
 	Body        string
 	Surface     SkillSurface
+	Also        []SkillSurface
 }
 
 func (s Skill) OfferedOn(view View) bool {
-	switch s.Surface {
+	if view.OnSite() {
+		return s.Surface == SkillSiteWork || slices.Contains(s.Also, SkillSiteWork)
+	}
+	if slices.ContainsFunc(s.Also, func(extra SkillSurface) bool { return extra.offeredOn(view) }) {
+		return true
+	}
+	return s.Surface.offeredOn(view)
+}
+
+func (surface SkillSurface) offeredOn(view View) bool {
+	switch surface {
 	case SkillStudioOnly:
 		return view.OnStudio()
 	case SkillPanelOnly:
 		return !view.Focused()
 	case SkillEmailWork:
 		return view.OnEmailDocument() || !view.Focused()
+	case SkillSiteWork:
+		return view.OnSite()
+	}
+	return !view.OnSite()
+}
+
+func (surface SkillSurface) known() bool {
+	switch surface {
+	case SkillEverywhere, SkillStudioOnly, SkillPanelOnly, SkillEmailWork, SkillSiteWork:
+		return true
+	}
+	return false
+}
+
+func (s Skill) surfacesValid() bool {
+	if !s.Surface.known() {
+		return false
+	}
+	seen := map[SkillSurface]bool{s.Surface: true}
+	for _, extra := range s.Also {
+		if extra == SkillEverywhere || !extra.known() || seen[extra] {
+			return false
+		}
+		seen[extra] = true
 	}
 	return true
 }
@@ -65,7 +102,7 @@ func (s Skill) Validate() error {
 		return ErrSkillBody
 	case shared.HasLongDash(s.Description + s.Body):
 		return ErrSkillDash
-	case s.Surface != SkillEverywhere && s.Surface != SkillStudioOnly && s.Surface != SkillPanelOnly && s.Surface != SkillEmailWork:
+	case !s.surfacesValid():
 		return ErrSkillSurface
 	}
 	return nil

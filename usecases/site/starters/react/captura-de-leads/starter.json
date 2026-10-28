@@ -1,0 +1,12 @@
+{
+  "title": "Captura de leads",
+  "description": "Projeto React de conversão com formulário, benefícios, depoimentos, perguntas frequentes e botão de WhatsApp.",
+  "settings": {
+    "pages": {
+      "/": {"title": "Agende sua avaliação gratuita", "description": "Fale com um especialista e receba um plano feito para você."},
+      "/obrigado": {"title": "Recebemos seu contato", "noindex": true},
+      "/privacidade": {"title": "Política de Privacidade"}
+    },
+    "forms": {"contato": {"success": {"kind": "redirect", "route": "/obrigado"}, "notify": true}}
+  }
+}

@@ -4236,7 +4236,6 @@ definitions:
     type: object
   attendance.Section:
     enum:
-    - service_messages
     - summary
     - trend
     - stages
@@ -4244,9 +4243,9 @@ definitions:
     - team
     - rework
     - live
+    - service_messages
     type: string
     x-enum-varnames:
-    - SectionServiceMessages
     - SectionSummary
     - SectionTrend
     - SectionStages
@@ -4254,6 +4253,7 @@ definitions:
     - SectionTeam
     - SectionRework
     - SectionLive
+    - SectionServiceMessages
   attendance.ServiceMessageBucket:
     properties:
       bucket:
@@ -5731,6 +5731,53 @@ definitions:
           $ref: '#/definitions/automationneedshttp.VariableRowResponse'
         type: array
     type: object
+  automationneedshttp.DataResponse:
+    properties:
+      values:
+        items:
+          $ref: '#/definitions/automationneedshttp.DataRowResponse'
+        type: array
+    type: object
+  automationneedshttp.DataRowResponse:
+    properties:
+      declared:
+        type: boolean
+      fits:
+        type: boolean
+      label:
+        example: Matrícula
+        type: string
+      labelKey:
+        example: conversation_lead_name
+        type: string
+      name:
+        example: matricula
+        type: string
+      origin:
+        enum:
+        - system
+        - campaign
+        - stored
+        - none
+        example: stored
+        type: string
+      setAt:
+        type: string
+      setBy:
+        example: 5b1f0c9e-2a4d-4c55-9d3e-1f2a3b4c5d6e
+        type: string
+      type:
+        $ref: '#/definitions/automationneedsx.NeedTypeResponse'
+      value:
+        example: 2026-17
+        type: string
+    type: object
+  automationneedshttp.DataValueRequest:
+    properties:
+      value:
+        example: Tarde
+        type: string
+    type: object
   automationneedshttp.EligibilityListResponse:
     properties:
       items:
@@ -5751,12 +5798,115 @@ definitions:
           $ref: '#/definitions/automationneedsx.NeedResponse'
         type: array
     type: object
+  automationneedshttp.FlowFillerResponse:
+    properties:
+      kind:
+        enum:
+        - default
+        - campaign
+        - handoff
+        - transfer
+        example: campaign
+        type: string
+      value:
+        example: Manhã
+        type: string
+    type: object
+  automationneedshttp.FlowNodeResponse:
+    properties:
+      id:
+        example: n4
+        type: string
+      name:
+        example: Boas-vindas
+        type: string
+    type: object
+  automationneedshttp.FlowVariableResponse:
+    properties:
+      declared:
+        type: boolean
+      default:
+        example: Manhã
+        type: string
+      description:
+        example: Nome do cliente na planilha
+        type: string
+      example:
+        example: Ana Souza
+        type: string
+      filledBy:
+        items:
+          $ref: '#/definitions/automationneedshttp.FlowFillerResponse'
+        type: array
+      inFlow:
+        type: boolean
+      label:
+        example: Nome do cliente
+        type: string
+      name:
+        example: nome_cliente
+        type: string
+      nodes:
+        items:
+          $ref: '#/definitions/automationneedshttp.FlowNodeResponse'
+        type: array
+      required:
+        type: boolean
+      type:
+        $ref: '#/definitions/automationneedsx.NeedTypeResponse'
+      used:
+        type: boolean
+      via:
+        items:
+          $ref: '#/definitions/automationneedsx.LinkResponse'
+        type: array
+    type: object
+  automationneedshttp.FlowVariablesResponse:
+    properties:
+      variables:
+        items:
+          $ref: '#/definitions/automationneedshttp.FlowVariableResponse'
+        type: array
+    type: object
   automationneedshttp.ImpactResponse:
     properties:
       impact:
         items:
           $ref: '#/definitions/automationneedsx.SwitchOffResponse'
         type: array
+    type: object
+  automationneedshttp.SheetFilesResponse:
+    properties:
+      exact:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/googlesheet.FileFitResponse'
+        type: array
+      variable:
+        $ref: '#/definitions/automationneedshttp.SheetVariableResponse'
+    type: object
+  automationneedshttp.SheetModelResponse:
+    properties:
+      spreadsheetId:
+        example: 1AbC
+        type: string
+      title:
+        example: Modelo Altiva
+        type: string
+    type: object
+  automationneedshttp.SheetVariableResponse:
+    properties:
+      defaultSpreadsheetId:
+        type: string
+      label:
+        example: Planilha da franquia
+        type: string
+      model:
+        $ref: '#/definitions/automationneedshttp.SheetModelResponse'
+      name:
+        example: planilha_franquia
+        type: string
     type: object
   automationneedshttp.SwitchOffNoticeResponse:
     properties:
@@ -5766,6 +5916,10 @@ definitions:
         $ref: '#/definitions/automationneedsx.SlotResponse'
       eligibleNow:
         type: boolean
+      recorded:
+        items:
+          $ref: '#/definitions/automationneedsx.NeedResponse'
+        type: array
       stillNeeded:
         items:
           $ref: '#/definitions/automationneedsx.NeedResponse'
@@ -5794,20 +5948,39 @@ definitions:
         example: 2026-17
         type: string
     type: object
+  automationneedshttp.VariableRefResponse:
+    properties:
+      label:
+        example: Matrícula
+        type: string
+      name:
+        example: matricula
+        type: string
+    type: object
   automationneedshttp.VariableRowResponse:
     properties:
       current:
         example: 2026-17
         type: string
+      declared:
+        type: boolean
       description:
-        example: Matrícula do aluno
+        example: Nome do cliente na planilha
+        type: string
+      example:
+        example: Ana Souza
+        type: string
+      label:
+        example: Nome do cliente
         type: string
       name:
-        example: matricula
+        example: nome_cliente
         type: string
       suggested:
         example: lead.custom:matricula
         type: string
+      type:
+        $ref: '#/definitions/automationneedsx.NeedTypeResponse'
       via:
         items:
           $ref: '#/definitions/automationneedsx.LinkResponse'
@@ -5816,11 +5989,58 @@ definitions:
   automationneedshttp.VariablesErrorDetails:
     properties:
       variables:
-        example:
-        - matricula
         items:
-          type: string
+          $ref: '#/definitions/automationneedshttp.VariableRefResponse'
         type: array
+    type: object
+  automationneedsx.ChannelResponse:
+    properties:
+      kind:
+        enum:
+        - whatsapp
+        - unofficial_whatsapp
+        - instagram
+        - facebook
+        - telegram
+        - webchat
+        - tiktok
+        - mercadolivre
+        - email
+        - rcs
+        - sms
+        example: instagram
+        type: string
+      label:
+        example: Instagram
+        type: string
+    type: object
+  automationneedsx.ChannelStepResponse:
+    properties:
+      automation:
+        $ref: '#/definitions/automationneedsx.LinkResponse'
+      channels:
+        items:
+          $ref: '#/definitions/automationneedsx.ChannelResponse'
+        type: array
+      need:
+        enum:
+        - contact_phone
+        - contact_email
+        - phone_handle
+        - whatsapp_templates
+        - whatsapp_forms
+        - interactive_choices
+        example: whatsapp_templates
+        type: string
+      needLabel:
+        example: templates do WhatsApp oficial
+        type: string
+      nodeId:
+        example: n3
+        type: string
+      step:
+        example: Enviar boleto
+        type: string
     type: object
   automationneedsx.LinkResponse:
     properties:
@@ -5839,21 +6059,57 @@ definitions:
     type: object
   automationneedsx.NeedResponse:
     properties:
+      declared:
+        type: boolean
       description:
         example: Nome do cliente na planilha
+        type: string
+      example:
+        example: Ana Souza
+        type: string
+      label:
+        example: Nome do cliente
         type: string
       name:
         example: nome_cliente
         type: string
+      type:
+        $ref: '#/definitions/automationneedsx.NeedTypeResponse'
       via:
         items:
           $ref: '#/definitions/automationneedsx.LinkResponse'
         type: array
     type: object
+  automationneedsx.NeedTypeResponse:
+    properties:
+      kind:
+        example: choice
+        type: string
+      options:
+        example:
+        - Manhã
+        - Tarde
+        items:
+          type: string
+        type: array
+      shape:
+        enum:
+        - text
+        - number
+        - date
+        - choice
+        - sheet
+        example: choice
+        type: string
+    type: object
   automationneedsx.RefusalDetails:
     properties:
       automation:
         $ref: '#/definitions/automationneedsx.LinkResponse'
+      channelSteps:
+        items:
+          $ref: '#/definitions/automationneedsx.ChannelStepResponse'
+        type: array
       impact:
         items:
           $ref: '#/definitions/automationneedsx.SwitchOffResponse'
@@ -8103,6 +8359,8 @@ definitions:
         type: string
       header:
         type: boolean
+      invalid:
+        type: integer
       key:
         type: string
       kind:
@@ -10333,6 +10591,7 @@ definitions:
     - agent_reply_withheld
     - email_forward_skipped
     - automation_transferred
+    - conversation_variable_changed
     type: string
     x-enum-varnames:
     - EventAssigned
@@ -10372,6 +10631,7 @@ definitions:
     - EventAgentReplyWithheld
     - EventEmailForwardSkipped
     - EventAutomationTransferred
+    - EventConversationVariableChanged
   conversation_usecase.ResponsibleWorkflow:
     properties:
       id:
@@ -10493,6 +10753,7 @@ definitions:
     - leads
     - email_design
     - email_campaign
+    - site
     type: string
     x-enum-varnames:
     - SurfaceAttendance
@@ -10500,6 +10761,7 @@ definitions:
     - SurfaceLeads
     - SurfaceEmailDesign
     - SurfaceEmailCampaign
+    - SurfaceSite
   copilot.View:
     properties:
       campaignId:
@@ -10683,6 +10945,32 @@ definitions:
     - Or
   crmfilter.Field:
     enum:
+    - id
+    - phone_any
+    - email
+    - nickname
+    - birthday
+    - birth_date
+    - zip
+    - state
+    - city
+    - district
+    - geo_precision
+    - geo_status
+    - has_address
+    - has_identity
+    - opted_out
+    - whatsapp_opt_in
+    - relation_kind
+    - relatives_count
+    - referred_count
+    - referred_by
+    - geo_placement
+    - opt_out_source
+    - opted_out_at
+    - company
+    - sentiment
+    - area_approximate
     - owner
     - carteira
     - pipeline
@@ -10715,34 +11003,34 @@ definitions:
     - memory_updated_at
     - custom
     - area
-    - id
-    - phone_any
-    - email
-    - nickname
-    - birthday
-    - birth_date
-    - zip
-    - state
-    - city
-    - district
-    - geo_precision
-    - geo_status
-    - has_address
-    - has_identity
-    - opted_out
-    - whatsapp_opt_in
-    - relation_kind
-    - relatives_count
-    - referred_count
-    - referred_by
-    - geo_placement
-    - opt_out_source
-    - opted_out_at
-    - company
-    - sentiment
-    - area_approximate
     type: string
     x-enum-varnames:
+    - FieldID
+    - FieldPhoneAny
+    - FieldEmail
+    - FieldNickname
+    - FieldBirthday
+    - FieldBirthDate
+    - FieldZip
+    - FieldState
+    - FieldCity
+    - FieldDistrict
+    - FieldGeoPrecision
+    - FieldGeoStatus
+    - FieldHasAddress
+    - FieldHasIdentity
+    - FieldOptedOut
+    - FieldWhatsAppOptIn
+    - FieldRelationKind
+    - FieldRelativesCount
+    - FieldReferredCount
+    - FieldReferredBy
+    - FieldGeoPlacement
+    - FieldOptOutSource
+    - FieldOptedOutAt
+    - FieldCompany
+    - FieldSentiment
+    - FieldAreaApproximate
     - FieldOwner
     - FieldCarteira
     - FieldPipeline
@@ -10775,32 +11063,6 @@ definitions:
     - FieldMemoryUpdatedAt
     - FieldCustom
     - FieldArea
-    - FieldID
-    - FieldPhoneAny
-    - FieldEmail
-    - FieldNickname
-    - FieldBirthday
-    - FieldBirthDate
-    - FieldZip
-    - FieldState
-    - FieldCity
-    - FieldDistrict
-    - FieldGeoPrecision
-    - FieldGeoStatus
-    - FieldHasAddress
-    - FieldHasIdentity
-    - FieldOptedOut
-    - FieldWhatsAppOptIn
-    - FieldRelationKind
-    - FieldRelativesCount
-    - FieldReferredCount
-    - FieldReferredBy
-    - FieldGeoPlacement
-    - FieldOptOutSource
-    - FieldOptedOutAt
-    - FieldCompany
-    - FieldSentiment
-    - FieldAreaApproximate
   crmfilter.Filter:
     properties:
       groups:
@@ -13697,6 +13959,12 @@ definitions:
       required:
         type: boolean
     type: object
+  googlesheet.CopyModelRequest:
+    properties:
+      fileTitle:
+        example: Franquia Centro
+        type: string
+    type: object
   googlesheet.CreateSheetRequest:
     properties:
       columns:
@@ -13748,6 +14016,21 @@ definitions:
         example: true
         type: boolean
     type: object
+  googlesheet.EditCheckResponse:
+    properties:
+      detail:
+        type: string
+      status:
+        enum:
+        - ok
+        - broken
+        - unchecked
+        type: string
+      tabs:
+        items:
+          $ref: '#/definitions/googlesheet.EditTabCheckResponse'
+        type: array
+    type: object
   googlesheet.EditColumnsRequest:
     properties:
       add:
@@ -13762,8 +14045,216 @@ definitions:
         example: 3
         type: integer
     type: object
+  googlesheet.EditSessionEnvelope:
+    properties:
+      session:
+        $ref: '#/definitions/googlesheet.EditSessionResponse'
+    type: object
+  googlesheet.EditSessionListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/googlesheet.EditSessionResponse'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total_items:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  googlesheet.EditSessionResponse:
+    properties:
+      check:
+        $ref: '#/definitions/googlesheet.EditCheckResponse'
+      deadline:
+        type: string
+      endReason:
+        enum:
+        - finished
+        - left
+        - expired
+        - ended_by_admin
+        type: string
+      endedAt:
+        type: string
+      endedBy:
+        $ref: '#/definitions/googlesheet.OriginNameResponse'
+      expiresAt:
+        type: string
+      id:
+        example: 6f1c2d3e-4a5b-4c6d-8e7f-90a1b2c3d4e5
+        type: string
+      mine:
+        type: boolean
+      settled:
+        type: boolean
+      spreadsheetId:
+        example: 1AbC
+        type: string
+      startedAt:
+        type: string
+      startedBy:
+        $ref: '#/definitions/googlesheet.OriginNameResponse'
+      waitedRows:
+        type: integer
+    type: object
+  googlesheet.EditTabCheckResponse:
+    properties:
+      detail:
+        example: 'coluna C: esperado "Valor", encontrado "Preço"'
+        type: string
+      reason:
+        enum:
+        - header_mismatch
+        - header_not_first_row
+        - spreadsheet_missing
+        type: string
+      refWarnings:
+        items:
+          type: integer
+        type: array
+      renamedFrom:
+        example: Pagamentos de outubro
+        type: string
+      repairable:
+        type: boolean
+      sheetId:
+        example: 3b9f4c2e-1d7a-4e5b-9c8d-2a1f0e3d4c5b
+        type: string
+      tabId:
+        example: 0
+        type: integer
+      tabName:
+        example: Pagamentos
+        type: string
+      unchecked:
+        type: string
+    type: object
+  googlesheet.EditorResponse:
+    properties:
+      accountEmail:
+        example: financeiro@empresa.com.br
+        type: string
+      editing:
+        $ref: '#/definitions/googlesheet.EditSessionResponse'
+      heartbeatSeconds:
+        example: 30
+        type: integer
+      leaseSeconds:
+        example: 120
+        type: integer
+    type: object
+  googlesheet.EndEditRequest:
+    properties:
+      reason:
+        enum:
+        - finished
+        - left
+        example: finished
+        type: string
+    type: object
+  googlesheet.FileFitListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/googlesheet.FileFitResponse'
+        type: array
+    type: object
+  googlesheet.FileFitResponse:
+    properties:
+      fits:
+        type: boolean
+      misfit:
+        $ref: '#/definitions/googlesheet.MisfitResponse'
+      spreadsheetId:
+        example: 1AbC
+        type: string
+      status:
+        enum:
+        - active
+        - needs_attention
+        type: string
+      tabs:
+        items:
+          $ref: '#/definitions/googlesheet.FitTabResponse'
+        type: array
+      title:
+        example: Franquia Centro
+        type: string
+      url:
+        example: https://docs.google.com/spreadsheets/d/1AbC/edit
+        type: string
+    type: object
+  googlesheet.FitCandidateResponse:
+    properties:
+      sheetId:
+        type: string
+      title:
+        example: Pagamentos novos
+        type: string
+    type: object
+  googlesheet.FitProblemResponse:
+    properties:
+      code:
+        example: sheet_fit_column_options
+        type: string
+      column:
+        example: Baixa
+        type: string
+      modelTab:
+        example: Negociações
+        type: string
+      option:
+        example: nao
+        type: string
+      sheetId:
+        type: string
+      tab:
+        example: Pagamentos
+        type: string
+    type: object
+  googlesheet.FitRequest:
+    properties:
+      uses:
+        items:
+          $ref: '#/definitions/googlesheet.FitUseRequest'
+        type: array
+    type: object
+  googlesheet.FitTabResponse:
+    properties:
+      modelSheetId:
+        example: 3b9f4c2e-1d7a-4e5b-9c8d-2a1f0e3d4c5b
+        type: string
+      sheetId:
+        example: 9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d
+        type: string
+      title:
+        example: Pagamentos
+        type: string
+    type: object
+  googlesheet.FitUseRequest:
+    properties:
+      kind:
+        enum:
+        - add_row
+        - export
+        example: add_row
+        type: string
+      mapping:
+        additionalProperties:
+          type: string
+        type: object
+      modelSheetId:
+        example: 3b9f4c2e-1d7a-4e5b-9c8d-2a1f0e3d4c5b
+        type: string
+    type: object
   googlesheet.HealthResponse:
     properties:
+      editing:
+        $ref: '#/definitions/googlesheet.EditSessionResponse'
       failed:
         type: integer
       held:
@@ -13802,6 +14293,34 @@ definitions:
       version:
         example: 3
         type: integer
+    type: object
+  googlesheet.MisfitResponse:
+    properties:
+      candidates:
+        items:
+          $ref: '#/definitions/googlesheet.FitCandidateResponse'
+        type: array
+      code:
+        example: sheet_fit_tab_missing
+        type: string
+      modelSheetId:
+        type: string
+      modelTab:
+        example: Pagamentos
+        type: string
+      problems:
+        items:
+          $ref: '#/definitions/googlesheet.FitProblemResponse'
+        type: array
+    type: object
+  googlesheet.ModelCopyResponse:
+    properties:
+      file:
+        $ref: '#/definitions/googlesheet.SheetFileResponse'
+      tabs:
+        items:
+          $ref: '#/definitions/googlesheet.FitTabResponse'
+        type: array
     type: object
   googlesheet.OptionColorResponse:
     properties:
@@ -14169,6 +14688,9 @@ definitions:
       createdAt:
         type: string
       description:
+        type: string
+      embedUrl:
+        example: https://docs.google.com/spreadsheets/d/abc/edit?rm=minimal#gid=0
         type: string
       id:
         type: string
@@ -14839,6 +15361,15 @@ definitions:
       type:
         type: string
     type: object
+  handlers.variableLabelsResponse:
+    properties:
+      nodes:
+        additionalProperties:
+          additionalProperties:
+            $ref: '#/definitions/workflow.RefLabel'
+          type: object
+        type: object
+    type: object
   handlers.workflowNotPublishableDetails:
     properties:
       issues:
@@ -15473,6 +16004,8 @@ definitions:
     - number_restricted
     - number_cannot_send
     - groups_unsendable
+    - sheet_variable_unfit
+    - sheet_variable_attention
     type: string
     x-enum-varnames:
     - CodeNothingPending
@@ -15501,6 +16034,8 @@ definitions:
     - CodeNumberRestricted
     - CodeNumberCannotSend
     - CodeGroupsUnsendable
+    - CodeSheetVariableUnfit
+    - CodeSheetVariableAttention
   launchcheck.Finding:
     properties:
       code:
@@ -17764,6 +18299,7 @@ definitions:
         - deal_event
         - memory
         - record
+        - site_submission
         example: call
         type: string
       ref:
@@ -17786,6 +18322,7 @@ definitions:
         - deal
         - memory
         - lead_event
+        - site_submission
         example: entry
         type: string
     type: object
@@ -17837,6 +18374,8 @@ definitions:
         example: +55 11 4000-1000
         type: string
       pipelineId:
+        type: string
+      projectId:
         type: string
       source:
         example: sip
@@ -19320,6 +19859,17 @@ definitions:
       opportunities:
         type: integer
     type: object
+  publicform.Challenge:
+    properties:
+      bits:
+        type: integer
+      expiresAt:
+        type: string
+      id:
+        type: string
+      token:
+        type: string
+    type: object
   queue_event.Stats:
     properties:
       abandon_rate:
@@ -19462,6 +20012,7 @@ definitions:
     type: object
   report.FailureCode:
     enum:
+    - forbidden
     - unknown_kind
     - unsupported_format
     - too_many_rows
@@ -19472,9 +20023,9 @@ definitions:
     - cancelled
     - workspace_required
     - empty_result
-    - forbidden
     type: string
     x-enum-varnames:
+    - FailureForbidden
     - FailureUnknownKind
     - FailureUnsupported
     - FailureTooManyRows
@@ -19485,7 +20036,6 @@ definitions:
     - FailureCancelled
     - FailureWorkspaceEmpty
     - FailureEmptyResult
-    - FailureForbidden
   report.Format:
     enum:
     - csv
@@ -19537,22 +20087,22 @@ definitions:
     type: object
   report.Kind:
     enum:
+    - leads
+    - whatsapp_dispatch
+    - whatsapp_form_responses
     - attendance_overview
     - conversation_entries
     - balance_transactions
     - opportunities
-    - leads
-    - whatsapp_dispatch
-    - whatsapp_form_responses
     type: string
     x-enum-varnames:
+    - KindLeads
+    - KindWhatsAppDispatch
+    - KindWhatsAppFormResponses
     - KindAttendanceOverview
     - KindConversationEntries
     - KindBalanceTransactions
     - KindOpportunities
-    - KindLeads
-    - KindWhatsAppDispatch
-    - KindWhatsAppFormResponses
   report.KindDescriptor:
     properties:
       formats:
@@ -20463,6 +21013,1599 @@ definitions:
         type: string
       username:
         example: "1001"
+        type: string
+    type: object
+  site.Check:
+    properties:
+      code:
+        type: string
+      detail:
+        type: string
+      node:
+        type: string
+      route:
+        type: string
+      viewport:
+        type: integer
+    type: object
+  site.Consent:
+    properties:
+      banner:
+        type: boolean
+      categories:
+        items:
+          $ref: '#/definitions/site.ConsentCategory'
+        type: array
+      text:
+        type: string
+    type: object
+  site.ConsentCategory:
+    enum:
+    - analytics
+    - marketing
+    type: string
+    x-enum-varnames:
+    - ConsentAnalytics
+    - ConsentMarketing
+  site.DesignFont:
+    properties:
+      family:
+        type: string
+      role:
+        $ref: '#/definitions/site.FontRole'
+      weights:
+        items:
+          type: integer
+        type: array
+    type: object
+  site.DesignSnippet:
+    properties:
+      content:
+        type: string
+      key:
+        type: string
+      name:
+        type: string
+      stack:
+        $ref: '#/definitions/site.Stack'
+    type: object
+  site.DesignSystem:
+    properties:
+      fonts:
+        items:
+          $ref: '#/definitions/site.DesignFont'
+        type: array
+      logo_media_id:
+        type: string
+      name:
+        type: string
+      snippets:
+        items:
+          $ref: '#/definitions/site.DesignSnippet'
+        type: array
+      tokens:
+        additionalProperties:
+          type: string
+        type: object
+      voice:
+        type: string
+    type: object
+  site.Failure:
+    properties:
+      code:
+        type: string
+      detail:
+        type: string
+      field:
+        type: string
+      index:
+        type: integer
+    type: object
+  site.File:
+    properties:
+      content:
+        type: string
+      rev:
+        type: integer
+    type: object
+  site.FileChanges:
+    properties:
+      deleted:
+        items:
+          type: string
+        type: array
+      files:
+        additionalProperties:
+          $ref: '#/definitions/site.File'
+        type: object
+      renamed:
+        items:
+          $ref: '#/definitions/site.Rename'
+        type: array
+    type: object
+  site.FollowUp:
+    properties:
+      id:
+        type: string
+      kind:
+        $ref: '#/definitions/site.FollowUpKind'
+    type: object
+  site.FollowUpKind:
+    enum:
+    - whatsapp
+    - unofficial_whatsapp
+    - email
+    type: string
+    x-enum-varnames:
+    - FollowUpWhatsApp
+    - FollowUpUnofficialWhatsApp
+    - FollowUpEmail
+  site.FontRole:
+    enum:
+    - heading
+    - body
+    - accent
+    - mono
+    type: string
+    x-enum-varnames:
+    - FontHeading
+    - FontBody
+    - FontAccent
+    - FontMono
+  site.FormSettings:
+    properties:
+      follow_up:
+        $ref: '#/definitions/site.FollowUp'
+      funnel_id:
+        type: string
+      notify:
+        type: boolean
+      owner:
+        $ref: '#/definitions/site.Owner'
+      stage_id:
+        type: string
+      success:
+        $ref: '#/definitions/site.Success'
+      workflow_id:
+        type: string
+    type: object
+  site.Identity:
+    properties:
+      favicon_media_id:
+        type: string
+      structured_data:
+        type: boolean
+    type: object
+  site.Ignored:
+    properties:
+      field:
+        type: string
+      index:
+        type: integer
+    type: object
+  site.IntegrationKind:
+    enum:
+    - meta_pixel
+    - ga4
+    - gtm
+    - google_ads
+    - tiktok_pixel
+    - clarity
+    type: string
+    x-enum-varnames:
+    - IntegrationMetaPixel
+    - IntegrationGA4
+    - IntegrationGTM
+    - IntegrationGoogleAds
+    - IntegrationTikTokPixel
+    - IntegrationClarity
+  site.Integrations:
+    properties:
+      clarity:
+        type: string
+      ga4:
+        type: string
+      google_ads:
+        type: string
+      gtm:
+        type: string
+      meta_pixel:
+        type: string
+      tiktok_pixel:
+        type: string
+    type: object
+  site.Issue:
+    properties:
+      code:
+        type: string
+      detail:
+        type: string
+      node:
+        type: string
+      path:
+        type: string
+      route:
+        type: string
+    type: object
+  site.KnobKind:
+    enum:
+    - range
+    - color
+    type: string
+    x-enum-varnames:
+    - KnobRange
+    - KnobColor
+  site.KnobState:
+    properties:
+      color:
+        example: '#ff0066'
+        type: string
+      kind:
+        $ref: '#/definitions/site.KnobKind'
+      max:
+        type: number
+      min:
+        type: number
+      name:
+        type: string
+      number:
+        example: 1.25
+        type: number
+      step:
+        type: number
+      unit:
+        type: string
+      variable:
+        type: string
+    type: object
+  site.OperationKind:
+    enum:
+    - write_file
+    - edit_file
+    - delete_file
+    - rename_file
+    - set_text
+    - set_attr
+    - set_classes
+    - replace_image
+    - move
+    - duplicate
+    - remove
+    - insert_section
+    - set_token
+    - set_knob
+    - define_knob
+    - rename_knob
+    - remove_knob
+    - set_whatsapp_link
+    - clear_whatsapp_link
+    type: string
+    x-enum-varnames:
+    - OpWriteFile
+    - OpEditFile
+    - OpDeleteFile
+    - OpRenameFile
+    - OpSetText
+    - OpSetAttr
+    - OpSetClasses
+    - OpReplaceImage
+    - OpMove
+    - OpDuplicate
+    - OpRemove
+    - OpInsertSection
+    - OpSetToken
+    - OpSetKnob
+    - OpDefineKnob
+    - OpRenameKnob
+    - OpRemoveKnob
+    - OpSetWhatsAppLink
+    - OpClearWhatsAppLink
+  site.OutlineNode:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/site.OutlineNode'
+        type: array
+      label:
+        type: string
+      node:
+        type: string
+      path:
+        type: string
+      tag:
+        type: string
+    type: object
+  site.Owner:
+    properties:
+      id:
+        type: string
+      kind:
+        $ref: '#/definitions/site.OwnerKind'
+    type: object
+  site.OwnerKind:
+    enum:
+    - unassigned
+    - user
+    - roulette
+    type: string
+    x-enum-varnames:
+    - OwnerUnassigned
+    - OwnerUser
+    - OwnerRoulette
+  site.PageMeta:
+    properties:
+      canonical:
+        type: string
+      description:
+        type: string
+      noindex:
+        type: boolean
+      og_media_id:
+        type: string
+      title:
+        type: string
+    type: object
+  site.Redirect:
+    properties:
+      from:
+        type: string
+      status:
+        type: integer
+      to:
+        type: string
+    type: object
+  site.Rename:
+    properties:
+      from:
+        type: string
+      to:
+        type: string
+    type: object
+  site.Route:
+    properties:
+      page:
+        type: string
+      path:
+        type: string
+    type: object
+  site.RouteOutline:
+    properties:
+      nodes:
+        items:
+          $ref: '#/definitions/site.OutlineNode'
+        type: array
+      rendered:
+        type: boolean
+      route:
+        type: string
+    type: object
+  site.Settings:
+    properties:
+      consent:
+        $ref: '#/definitions/site.Consent'
+      forms:
+        additionalProperties:
+          $ref: '#/definitions/site.FormSettings'
+        type: object
+      integrations:
+        $ref: '#/definitions/site.Integrations'
+      pages:
+        additionalProperties:
+          $ref: '#/definitions/site.PageMeta'
+        type: object
+      redirects:
+        items:
+          $ref: '#/definitions/site.Redirect'
+        type: array
+      site:
+        $ref: '#/definitions/site.Identity'
+    type: object
+  site.Skip:
+    properties:
+      after:
+        type: integer
+      index:
+        type: integer
+    type: object
+  site.Stack:
+    enum:
+    - react
+    - html
+    - react
+    type: string
+    x-enum-varnames:
+    - StackReact
+    - StackHTML
+    - DefaultStack
+  site.StepPatch:
+    properties:
+      deleted:
+        items:
+          type: string
+        type: array
+      files:
+        additionalProperties:
+          type: string
+        type: object
+      focus:
+        type: string
+      index:
+        type: integer
+      op:
+        $ref: '#/definitions/site.OperationKind'
+      renamed:
+        items:
+          $ref: '#/definitions/site.Rename'
+        type: array
+    type: object
+  site.Success:
+    properties:
+      channel:
+        type: string
+      kind:
+        $ref: '#/definitions/site.SuccessKind'
+      message:
+        type: string
+      route:
+        type: string
+    type: object
+  site.SuccessKind:
+    enum:
+    - message
+    - redirect
+    - whatsapp
+    type: string
+    x-enum-varnames:
+    - SuccessMessage
+    - SuccessRedirect
+    - SuccessWhatsApp
+  site.Token:
+    properties:
+      name:
+        example: --color-brand
+        type: string
+      path:
+        example: theme.css
+        type: string
+      value:
+        example: oklch(0.56 0.15 162)
+        type: string
+    type: object
+  siteanalytics_usecase.Breakdown:
+    properties:
+      conversions:
+        type: integer
+      cta:
+        type: integer
+      formSubmits:
+        type: integer
+      key:
+        example: /
+        type: string
+      views:
+        type: integer
+      visitors:
+        type: integer
+      whatsapp:
+        type: integer
+    type: object
+  siteanalytics_usecase.DailyPoint:
+    properties:
+      conversions:
+        type: integer
+      day:
+        example: "2026-10-28"
+        type: string
+      views:
+        type: integer
+      visitors:
+        type: integer
+    type: object
+  siteanalytics_usecase.ReferrerSource:
+    properties:
+      origin:
+        example: https://www.google.com
+        type: string
+      submissions:
+        type: integer
+      views:
+        type: integer
+    type: object
+  siteanalytics_usecase.Report:
+    properties:
+      byRoute:
+        items:
+          $ref: '#/definitions/siteanalytics_usecase.Breakdown'
+        type: array
+      byVariant:
+        items:
+          $ref: '#/definitions/siteanalytics_usecase.Breakdown'
+        type: array
+      conversionRate:
+        type: integer
+      daily:
+        items:
+          $ref: '#/definitions/siteanalytics_usecase.DailyPoint'
+        type: array
+      days:
+        items:
+          $ref: '#/definitions/sitepublish.DailyStat'
+        type: array
+      dealsVisible:
+        type: boolean
+      from:
+        type: string
+      leads:
+        type: integer
+      sources:
+        $ref: '#/definitions/siteanalytics_usecase.Sources'
+      to:
+        type: string
+      totals:
+        $ref: '#/definitions/siteanalytics_usecase.Totals'
+      wonDeals:
+        type: integer
+      wonRevenue:
+        example: 1500.5
+        type: number
+      wonRevenueByCurrency:
+        items:
+          $ref: '#/definitions/siteanalytics_usecase.WonRevenue'
+        type: array
+      wonRevenueCurrency:
+        example: BRL
+        type: string
+    type: object
+  siteanalytics_usecase.Sources:
+    properties:
+      referrers:
+        items:
+          $ref: '#/definitions/siteanalytics_usecase.ReferrerSource'
+        type: array
+      utm:
+        items:
+          $ref: '#/definitions/siteanalytics_usecase.UTMSource'
+        type: array
+    type: object
+  siteanalytics_usecase.Totals:
+    properties:
+      conversions:
+        type: integer
+      cta:
+        type: integer
+      formStarts:
+        type: integer
+      formSubmits:
+        type: integer
+      formViews:
+        type: integer
+      views:
+        type: integer
+      visitors:
+        type: integer
+      whatsapp:
+        type: integer
+    type: object
+  siteanalytics_usecase.UTMSource:
+    properties:
+      source:
+        example: instagram
+        type: string
+      submissions:
+        type: integer
+      views:
+        type: integer
+    type: object
+  siteanalytics_usecase.WonRevenue:
+    properties:
+      currency:
+        example: BRL
+        type: string
+      valueCents:
+        example: 150000
+        type: integer
+    type: object
+  siteformhttp.PageFormListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/siteformhttp.PageFormResponse'
+        type: array
+    type: object
+  siteformhttp.PageFormResponse:
+    properties:
+      formId:
+        example: contato
+        type: string
+      formKey:
+        example: f_8Jd2kq0Lr7
+        type: string
+      live:
+        type: boolean
+      projectId:
+        format: uuid
+        type: string
+      projectName:
+        example: Clínica Sorriso
+        type: string
+    type: object
+  siteformhttp.SubmissionListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/siteformhttp.SubmissionResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  siteformhttp.SubmissionResponse:
+    properties:
+      consent:
+        $ref: '#/definitions/sitesubmission.Consent'
+      contact:
+        example: +55 11 99999-0000
+        type: string
+      conversationId:
+        type: string
+      conversationType:
+        example: whatsapp
+        type: string
+      createdAt:
+        type: string
+      deploymentId:
+        type: string
+      fbclid:
+        type: string
+      fields:
+        additionalProperties:
+          type: string
+        type: object
+      formId:
+        example: contato
+        type: string
+      gclid:
+        type: string
+      id:
+        type: string
+      leadId:
+        type: string
+      name:
+        example: Ana Souza
+        type: string
+      referrerOrigin:
+        example: https://www.google.com
+        type: string
+      route:
+        example: /oferta
+        type: string
+      source:
+        example: instagram
+        type: string
+      userAgent:
+        type: string
+      utm:
+        $ref: '#/definitions/sitesubmission.UTM'
+      variant:
+        example: b
+        type: string
+    type: object
+  siteformhttp.SubmitResponse:
+    properties:
+      id:
+        example: 7d1f0a52-1b0f-4f7e-9a34-0d5f8f1e2c3b
+        type: string
+      success:
+        $ref: '#/definitions/sitesubmission.SuccessAction'
+    type: object
+  sitehttp.BuildErrorResponse:
+    properties:
+      code:
+        type: string
+      column:
+        type: integer
+      line:
+        type: integer
+      message:
+        type: string
+      path:
+        type: string
+    type: object
+  sitehttp.BuildFailedDetails:
+    properties:
+      errors:
+        items:
+          $ref: '#/definitions/sitehttp.BuildErrorResponse'
+        type: array
+    type: object
+  sitehttp.CreateOrigin:
+    properties:
+      commandId:
+        format: uuid
+        type: string
+      threadId:
+        example: thread_9
+        type: string
+    type: object
+  sitehttp.CreateRequest:
+    properties:
+      brief:
+        example: Uma landing page para a Clínica Sorriso com agendamento pelo WhatsApp
+        type: string
+      designSystemId:
+        format: uuid
+        type: string
+      name:
+        example: Clínica Sorriso
+        type: string
+      origin:
+        $ref: '#/definitions/sitehttp.CreateOrigin'
+      stack:
+        enum:
+        - react
+        - html
+        type: string
+      starter:
+        example: captura-de-leads
+        type: string
+    type: object
+  sitehttp.DesignSystemRequest:
+    properties:
+      isDefault:
+        type: boolean
+      system:
+        $ref: '#/definitions/site.DesignSystem'
+    type: object
+  sitehttp.DesignSystemResponse:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      isDefault:
+        type: boolean
+      system:
+        $ref: '#/definitions/site.DesignSystem'
+      updatedAt:
+        type: string
+      version:
+        type: integer
+    type: object
+  sitehttp.DetailResponse:
+    properties:
+      facts:
+        $ref: '#/definitions/sitehttp.FactsResponse'
+      files:
+        additionalProperties:
+          $ref: '#/definitions/site.File'
+        type: object
+      hasUnpublishedChanges:
+        type: boolean
+      primaryUrl:
+        example: https://www.clinicasorriso.com.br
+        type: string
+      project:
+        $ref: '#/definitions/sitehttp.ProjectResponse'
+      publishState:
+        enum:
+        - draft
+        - published
+        - published_with_changes
+        - suspended
+        - archived
+        type: string
+      revision:
+        $ref: '#/definitions/sitehttp.RevisionResponse'
+      settings:
+        $ref: '#/definitions/sitehttp.SettingsResponse'
+    type: object
+  sitehttp.DuplicateRequest:
+    properties:
+      name:
+        example: Clínica Sorriso (cópia)
+        type: string
+    type: object
+  sitehttp.EditRefusalDetails:
+    properties:
+      failures:
+        items:
+          $ref: '#/definitions/site.Failure'
+        type: array
+      ignored:
+        items:
+          $ref: '#/definitions/site.Ignored'
+        type: array
+      issues:
+        items:
+          $ref: '#/definitions/site.Issue'
+        type: array
+      skipped:
+        items:
+          $ref: '#/definitions/site.Skip'
+        type: array
+    type: object
+  sitehttp.EditRequest:
+    properties:
+      operations:
+        items:
+          type: object
+        type: array
+    type: object
+  sitehttp.EditResponse:
+    properties:
+      changes:
+        $ref: '#/definitions/site.FileChanges'
+      facts:
+        $ref: '#/definitions/sitehttp.FactsResponse'
+      ignored:
+        items:
+          $ref: '#/definitions/site.Ignored'
+        type: array
+      project:
+        $ref: '#/definitions/sitehttp.ProjectResponse'
+      revision:
+        $ref: '#/definitions/sitehttp.RevisionResponse'
+      revs:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      steps:
+        items:
+          $ref: '#/definitions/site.StepPatch'
+        type: array
+    type: object
+  sitehttp.FactsResponse:
+    properties:
+      breakpoints:
+        items:
+          enum:
+          - sm
+          - md
+          - lg
+          - xl
+          type: string
+        type: array
+      knobs:
+        items:
+          $ref: '#/definitions/site.KnobState'
+        type: array
+      knobsIssue:
+        enum:
+        - knobs_invalid
+        type: string
+      routes:
+        items:
+          $ref: '#/definitions/site.Route'
+        type: array
+      routesIssue:
+        enum:
+        - site_json_invalid
+        type: string
+      tokens:
+        items:
+          $ref: '#/definitions/site.Token'
+        type: array
+    type: object
+  sitehttp.FilesResponse:
+    properties:
+      changes:
+        $ref: '#/definitions/site.FileChanges'
+      facts:
+        $ref: '#/definitions/sitehttp.FactsResponse'
+      files:
+        additionalProperties:
+          $ref: '#/definitions/site.File'
+        type: object
+      project:
+        $ref: '#/definitions/sitehttp.ProjectResponse'
+      revision:
+        $ref: '#/definitions/sitehttp.RevisionResponse'
+    type: object
+  sitehttp.FormDetails:
+    properties:
+      form:
+        type: string
+    type: object
+  sitehttp.IssuesDetails:
+    properties:
+      issues:
+        items:
+          $ref: '#/definitions/site.Issue'
+        type: array
+    type: object
+  sitehttp.ListItemResponse:
+    properties:
+      createdAt:
+        type: string
+      designSystemId:
+        type: string
+      hasUnpublishedChanges:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      primaryUrl:
+        example: https://www.clinicasorriso.com.br
+        type: string
+      publishState:
+        enum:
+        - draft
+        - published
+        - published_with_changes
+        - suspended
+        - archived
+        type: string
+      publishedDeploymentId:
+        type: string
+      slug:
+        type: string
+      stack:
+        enum:
+        - react
+        - html
+        type: string
+      status:
+        enum:
+        - draft
+        - published
+        - suspended
+        - archived
+        type: string
+      thumbnailUrl:
+        type: string
+      updatedAt:
+        type: string
+      version:
+        type: integer
+      workingRevisionId:
+        type: string
+    type: object
+  sitehttp.ListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/sitehttp.ListItemResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  sitehttp.OutlineResponse:
+    properties:
+      buildErrors:
+        items:
+          $ref: '#/definitions/sitehttp.BuildErrorResponse'
+        type: array
+      checks:
+        items:
+          $ref: '#/definitions/site.Check'
+        type: array
+      forms:
+        items:
+          type: string
+        type: array
+      gapsChecked:
+        type: boolean
+      openGaps:
+        items:
+          $ref: '#/definitions/site.Issue'
+        type: array
+      previewUrl:
+        type: string
+      reasonCode:
+        enum:
+        - site_json_invalid
+        - build_failed
+        - rules_broken
+        - preview_unavailable
+        - capture_unavailable
+        - snapshot_stale
+        - snapshot_invalid
+        - route_unreadable
+        - not_inspected
+        - inspection_throttled
+        type: string
+      reasonRoute:
+        example: /obrigado
+        type: string
+      routes:
+        items:
+          $ref: '#/definitions/site.RouteOutline'
+        type: array
+      ruleIssues:
+        items:
+          $ref: '#/definitions/site.Issue'
+        type: array
+    type: object
+  sitehttp.OutlineSnapshotRequest:
+    properties:
+      documents:
+        additionalProperties:
+          type: string
+        example:
+          /: <!doctype html><html>...</html>
+        type: object
+    type: object
+  sitehttp.PreviewResponse:
+    properties:
+      revisionId:
+        type: string
+      url:
+        type: string
+    type: object
+  sitehttp.ProjectResponse:
+    properties:
+      createdAt:
+        type: string
+      designSystemId:
+        type: string
+      hasUnpublishedChanges:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      publishState:
+        enum:
+        - draft
+        - published
+        - published_with_changes
+        - suspended
+        - archived
+        type: string
+      publishedDeploymentId:
+        type: string
+      slug:
+        type: string
+      stack:
+        enum:
+        - react
+        - html
+        type: string
+      status:
+        enum:
+        - draft
+        - published
+        - suspended
+        - archived
+        type: string
+      thumbnailUrl:
+        type: string
+      updatedAt:
+        type: string
+      version:
+        type: integer
+      workingRevisionId:
+        type: string
+    type: object
+  sitehttp.RevisionListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/sitehttp.RevisionResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  sitehttp.RevisionResponse:
+    properties:
+      author:
+        example: person:7b1c2f9e-0a51-4b9e-9c1d-2f3e4a5b6c7d
+        type: string
+      authorId:
+        example: 7b1c2f9e-0a51-4b9e-9c1d-2f3e4a5b6c7d
+        type: string
+      authorKind:
+        enum:
+        - person
+        - elo
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      kind:
+        enum:
+        - autosave
+        - checkpoint
+        - elo
+        - publish
+        - restore
+        type: string
+      label:
+        type: string
+      parentId:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  sitehttp.SaveFilesRequest:
+    properties:
+      deleted:
+        items:
+          type: string
+        type: array
+      files:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  sitehttp.SaveSnippetRequest:
+    properties:
+      name:
+        example: Faixa de oferta
+        type: string
+      node:
+        example: src/routes/index.jsx#120
+        type: string
+      rev:
+        example: 4
+        type: integer
+    type: object
+  sitehttp.SaveVersionRequest:
+    properties:
+      label:
+        example: Antes da Elo
+        type: string
+    type: object
+  sitehttp.SavedResponse:
+    properties:
+      changes:
+        $ref: '#/definitions/site.FileChanges'
+      facts:
+        $ref: '#/definitions/sitehttp.FactsResponse'
+      project:
+        $ref: '#/definitions/sitehttp.ProjectResponse'
+      revision:
+        $ref: '#/definitions/sitehttp.RevisionResponse'
+      revs:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+    type: object
+  sitehttp.SectionResponse:
+    properties:
+      key:
+        example: faq
+        type: string
+      kind:
+        enum:
+        - library
+        - snippet
+        type: string
+      stacks:
+        items:
+          enum:
+          - react
+          - html
+          type: string
+        type: array
+      title:
+        $ref: '#/definitions/sitehttp.SectionTitleResponse'
+    type: object
+  sitehttp.SectionTitleResponse:
+    properties:
+      de:
+        example: Häufige Fragen
+        type: string
+      en:
+        example: FAQ
+        type: string
+      es:
+        example: Preguntas frecuentes
+        type: string
+      pt:
+        example: Perguntas frequentes
+        type: string
+    type: object
+  sitehttp.SectionsResponse:
+    properties:
+      sections:
+        items:
+          $ref: '#/definitions/sitehttp.SectionResponse'
+        type: array
+    type: object
+  sitehttp.SettingsResponse:
+    properties:
+      settings:
+        $ref: '#/definitions/site.Settings'
+      updatedAt:
+        type: string
+      version:
+        type: integer
+    type: object
+  sitehttp.SnippetResponse:
+    properties:
+      designSystemId:
+        format: uuid
+        type: string
+      designSystemVersion:
+        type: integer
+      key:
+        example: faq
+        type: string
+      kind:
+        enum:
+        - library
+        - snippet
+        type: string
+      stacks:
+        items:
+          enum:
+          - react
+          - html
+          type: string
+        type: array
+      title:
+        $ref: '#/definitions/sitehttp.SectionTitleResponse'
+    type: object
+  sitehttp.StarterResponse:
+    properties:
+      description:
+        type: string
+      key:
+        type: string
+      previewUrl:
+        example: https://api.example.com/public/sites/starters/react/captura-de-leads/preview.jpg
+        type: string
+      stack:
+        enum:
+        - react
+        - html
+        type: string
+      title:
+        type: string
+    type: object
+  sitehttp.ThumbnailRequest:
+    properties:
+      image:
+        example: data:image/jpeg;base64,/9j/4AAQSkZJRg...
+        type: string
+    type: object
+  sitehttp.ThumbnailResponse:
+    properties:
+      accepted:
+        type: boolean
+      retryAfterSeconds:
+        example: 600
+        type: integer
+    type: object
+  sitehttp.UpdateRequest:
+    properties:
+      archived:
+        type: boolean
+      designSystemId:
+        format: uuid
+        type: string
+      name:
+        type: string
+      slug:
+        example: clinica-sorriso
+        type: string
+    type: object
+  sitepublish.ChangeAction:
+    enum:
+    - added
+    - removed
+    - changed
+    type: string
+    x-enum-varnames:
+    - ChangeAdded
+    - ChangeRemoved
+    - ChangeChanged
+  sitepublish.ConsentChange:
+    properties:
+      after:
+        $ref: '#/definitions/site.Consent'
+      before:
+        $ref: '#/definitions/site.Consent'
+      fields:
+        items:
+          type: string
+        type: array
+    type: object
+  sitepublish.DailyStat:
+    properties:
+      cta:
+        type: integer
+      day:
+        type: string
+      formStarts:
+        type: integer
+      formSubmits:
+        type: integer
+      formViews:
+        type: integer
+      route:
+        type: string
+      variant:
+        type: string
+      views:
+        type: integer
+      visitors:
+        type: integer
+      whatsapp:
+        type: integer
+    type: object
+  sitepublish.FormChange:
+    properties:
+      action:
+        $ref: '#/definitions/sitepublish.ChangeAction'
+      after:
+        $ref: '#/definitions/site.FormSettings'
+      before:
+        $ref: '#/definitions/site.FormSettings'
+      fields:
+        items:
+          type: string
+        type: array
+      form_id:
+        type: string
+    type: object
+  sitepublish.IdentityChange:
+    properties:
+      after:
+        $ref: '#/definitions/site.Identity'
+      before:
+        $ref: '#/definitions/site.Identity'
+      fields:
+        items:
+          type: string
+        type: array
+    type: object
+  sitepublish.IntegrationChange:
+    properties:
+      action:
+        $ref: '#/definitions/sitepublish.ChangeAction'
+      id:
+        type: string
+      kind:
+        $ref: '#/definitions/site.IntegrationKind'
+      previous_id:
+        type: string
+    type: object
+  sitepublish.PageChange:
+    properties:
+      action:
+        $ref: '#/definitions/sitepublish.ChangeAction'
+      after:
+        $ref: '#/definitions/site.PageMeta'
+      before:
+        $ref: '#/definitions/site.PageMeta'
+      fields:
+        items:
+          type: string
+        type: array
+      route:
+        type: string
+    type: object
+  sitepublish.RedirectChange:
+    properties:
+      action:
+        $ref: '#/definitions/sitepublish.ChangeAction'
+      from:
+        type: string
+      previous_status:
+        type: integer
+      previous_to:
+        type: string
+      status:
+        type: integer
+      to:
+        type: string
+    type: object
+  sitepublish.SettingsChanges:
+    properties:
+      consent:
+        $ref: '#/definitions/sitepublish.ConsentChange'
+      first:
+        type: boolean
+      forms:
+        items:
+          $ref: '#/definitions/sitepublish.FormChange'
+        type: array
+      integrations:
+        items:
+          $ref: '#/definitions/sitepublish.IntegrationChange'
+        type: array
+      pages:
+        items:
+          $ref: '#/definitions/sitepublish.PageChange'
+        type: array
+      redirects:
+        items:
+          $ref: '#/definitions/sitepublish.RedirectChange'
+        type: array
+      site:
+        $ref: '#/definitions/sitepublish.IdentityChange'
+    type: object
+  sitepublishhttp.AddHostnameRequest:
+    properties:
+      hostname:
+        type: string
+      kind:
+        enum:
+        - platform
+        - custom
+        type: string
+      slug:
+        type: string
+    type: object
+  sitepublishhttp.DNSRecordDTO:
+    properties:
+      host:
+        example: www
+        type: string
+      name:
+        type: string
+      status:
+        enum:
+        - verified
+        - pending
+        - unknown
+        type: string
+      type:
+        type: string
+      value:
+        type: string
+    type: object
+  sitepublishhttp.DeploymentDTO:
+    properties:
+      address:
+        type: string
+      checks:
+        items:
+          $ref: '#/definitions/site.Check'
+        type: array
+      createdAt:
+        type: string
+      fileCount:
+        type: integer
+      gaps:
+        items:
+          $ref: '#/definitions/site.Issue'
+        type: array
+      id:
+        type: string
+      publishedAt:
+        type: string
+      publishedBy:
+        type: string
+      revisionId:
+        type: string
+      status:
+        enum:
+        - building
+        - ready
+        - failed
+        - active
+        - superseded
+        type: string
+    type: object
+  sitepublishhttp.DomainSlotsDTO:
+    properties:
+      allowed:
+        example: 3
+        type: integer
+      offline:
+        enum:
+        - billing
+        type: string
+      used:
+        example: 2
+        type: integer
+    type: object
+  sitepublishhttp.HostnameDTO:
+    properties:
+      createdAt:
+        type: string
+      hostname:
+        type: string
+      id:
+        type: string
+      kind:
+        enum:
+        - platform
+        - custom
+        type: string
+      status:
+        enum:
+        - pending_dns
+        - pending_ssl
+        - active
+        - removing
+        - failed
+        - suspended
+        type: string
+      updatedAt:
+        type: string
+      verification:
+        $ref: '#/definitions/sitepublishhttp.VerificationDTO'
+    type: object
+  sitepublishhttp.PublishResponse:
+    properties:
+      deployment:
+        $ref: '#/definitions/sitepublishhttp.DeploymentDTO'
+      hasUnpublishedChanges:
+        type: boolean
+      held:
+        type: boolean
+      hostnames:
+        items:
+          type: string
+        type: array
+      projectVersion:
+        example: 14
+        type: integer
+      revisionId:
+        example: 0b9c1f2e-4d5a-4c6b-8e7f-1a2b3c4d5e6f
+        type: string
+    type: object
+  sitepublishhttp.VerificationDTO:
+    properties:
+      cname:
+        $ref: '#/definitions/sitepublishhttp.DNSRecordDTO'
+      cnameTarget:
+        type: string
+      errors:
+        items:
+          type: string
+        type: array
+      failingSince:
+        type: string
+      offline:
+        enum:
+        - billing
+        - slots
+        type: string
+      ownership:
+        $ref: '#/definitions/sitepublishhttp.DNSRecordDTO'
+      pendingUntil:
+        type: string
+      records:
+        items:
+          $ref: '#/definitions/sitepublishhttp.DNSRecordDTO'
+        type: array
+      sslStatus:
+        type: string
+      zone:
+        example: clinicasorriso.com.br
+        type: string
+    type: object
+  sitesubmission.Consent:
+    properties:
+      email_opt_in:
+        type: boolean
+      email_opt_in_text:
+        type: string
+      granted:
+        type: boolean
+      text:
+        type: string
+    type: object
+  sitesubmission.SuccessAction:
+    properties:
+      kind:
+        $ref: '#/definitions/site.SuccessKind'
+      message:
+        type: string
+      route:
+        type: string
+      url:
+        type: string
+    type: object
+  sitesubmission.UTM:
+    properties:
+      campaign:
+        type: string
+      content:
+        type: string
+      medium:
+        type: string
+      source:
+        type: string
+      term:
         type: string
     type: object
   smartcampaign.Action:
@@ -23537,6 +25680,130 @@ definitions:
         example: maria.silva
         type: string
     type: object
+  variabledeclhttp.DeclarationRequest:
+    properties:
+      description:
+        example: Período da aula
+        type: string
+      example:
+        example: Manhã
+        type: string
+      label:
+        example: Turno
+        type: string
+      type:
+        $ref: '#/definitions/variabledeclhttp.TypeRequest'
+    type: object
+  variabledeclhttp.DeclarationResponse:
+    properties:
+      description:
+        example: Período da aula
+        type: string
+      example:
+        example: Manhã
+        type: string
+      label:
+        example: Turno
+        type: string
+      name:
+        example: turno
+        type: string
+      ref:
+        example: campvars.turno
+        type: string
+      sample:
+        example: Manhã
+        type: string
+      type:
+        $ref: '#/definitions/variabledeclhttp.TypeResponse'
+      updatedAt:
+        type: string
+    type: object
+  variabledeclhttp.KindResponse:
+    properties:
+      kind:
+        example: number
+        type: string
+      shape:
+        enum:
+        - text
+        - number
+        - date
+        - choice
+        - sheet
+        example: number
+        type: string
+    type: object
+  variabledeclhttp.ListResponse:
+    properties:
+      declarations:
+        items:
+          $ref: '#/definitions/variabledeclhttp.DeclarationResponse'
+        type: array
+      system:
+        items:
+          $ref: '#/definitions/variabledeclhttp.SystemVariableResponse'
+        type: array
+      types:
+        items:
+          $ref: '#/definitions/variabledeclhttp.KindResponse'
+        type: array
+    type: object
+  variabledeclhttp.SystemVariableResponse:
+    properties:
+      label:
+        example: Nome do contato
+        type: string
+      labelKey:
+        example: conversation_lead_name
+        type: string
+      name:
+        example: lead_name
+        type: string
+    type: object
+  variabledeclhttp.TypeRequest:
+    properties:
+      kind:
+        example: choice
+        type: string
+      options:
+        example:
+        - Manhã
+        - Tarde
+        items:
+          type: string
+        type: array
+      settings:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  variabledeclhttp.TypeResponse:
+    properties:
+      kind:
+        example: choice
+        type: string
+      options:
+        example:
+        - Manhã
+        - Tarde
+        items:
+          type: string
+        type: array
+      settings:
+        additionalProperties:
+          type: string
+        type: object
+      shape:
+        enum:
+        - text
+        - number
+        - date
+        - choice
+        - sheet
+        example: choice
+        type: string
+    type: object
   waba.WABAListResponse:
     properties:
       data:
@@ -25466,12 +27733,15 @@ definitions:
         enum:
         - always
         - some_paths
+      channels:
+        $ref: '#/definitions/workflow.VariableChannelNote'
       example:
         type: string
       group:
         allOf:
         - $ref: '#/definitions/workflow.VariableGroup'
         enum:
+        - conversation
         - trigger
         - nodes
         - contact
@@ -25481,6 +27751,7 @@ definitions:
         allOf:
         - $ref: '#/definitions/workflow.VariableKind'
         enum:
+        - conversation
         - default
         - trigger
         - node
@@ -25489,6 +27760,17 @@ definitions:
       label:
         example: Enviado pelo agente › cpf
         type: string
+      labelDetail:
+        example: cpf
+        type: string
+      labelKey:
+        example: contact_number
+        type: string
+      labelPrefix:
+        example: Busca cadastro
+        type: string
+      open:
+        type: boolean
       ref:
         example: input.cpf
         type: string
@@ -25505,6 +27787,8 @@ definitions:
         - list
         - date
         - unknown
+      undeclared:
+        type: boolean
     type: object
   workflow.ConversationRun:
     properties:
@@ -25755,6 +28039,10 @@ definitions:
         items:
           $ref: '#/definitions/workflow.Node'
         type: array
+      variables:
+        items:
+          $ref: '#/definitions/workflow.VariableUse'
+        type: array
     type: object
   workflow.HTTPExchange:
     properties:
@@ -25846,14 +28134,10 @@ definitions:
     type: object
   workflow.LintIssueCode:
     enum:
-    - NODE_HTTP_URL_NOT_HTTPS
-    - SEND_OUTSIDE_WINDOW_RISK
-    - NODE_STAGE_DESTINATION
-    - NODE_CONSENT_GRANT_NEEDS_REPLY
     - SHEET_LINK_EXPORT_MISSING
     - SHEET_LINK_EXPORT_SOME_PATHS
-    - DATA_REF_NEVER_SET
-    - DATA_REF_SOME_PATHS
+    - NODE_CONSENT_GRANT_NEEDS_REPLY
+    - SEND_OUTSIDE_WINDOW_RISK
     - GRAPH_EMPTY
     - GRAPH_TOO_MANY_NODES
     - GRAPH_TOO_MANY_EDGES
@@ -25890,6 +28174,7 @@ definitions:
     - NODE_REASONING_UNSUPPORTED
     - NODE_PIN_INVALID
     - NODE_SHEET_MAPPING_INVALID
+    - NODE_SHEET_VARIABLE_INVALID
     - WORKFLOW_VOICE_TRUNK_INVALID
     - WORKFLOW_INVALID
     - WORKFLOW_VALIDATION_UNAVAILABLE
@@ -25902,19 +28187,26 @@ definitions:
     - NODE_CODE_READS_TEMPLATE
     - NODE_SECRET_IN_PLAIN_TEXT
     - NODE_PINNED_OUTPUT
+    - CHANNEL_STEP_UNSUPPORTED
+    - CHANNEL_STEP_FALLS_BACK
+    - CHANNEL_DATA_MAY_FAIL
+    - CHANNEL_DATA_MAY_BE_EMPTY
+    - NODE_SCHEDULE_INVALID
+    - GRAPH_VARIABLE_INVALID
+    - GRAPH_VARIABLE_DEFAULT_INVALID
+    - NODE_HTTP_URL_NOT_HTTPS
+    - NODE_INVALID_PLATFORM_EMAIL
     - NODE_AGENT_CALL_INPUTS_INVALID
     - NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER
-    - NODE_INVALID_PLATFORM_EMAIL
+    - DATA_REF_NEVER_SET
+    - DATA_REF_SOME_PATHS
+    - NODE_STAGE_DESTINATION
     type: string
     x-enum-varnames:
-    - LintHTTPURLNotHTTPS
-    - LintSendOutsideWindowRisk
-    - LintStageDestination
-    - LintConsentGrantNeedsReply
     - LintSheetLinkExportMissing
     - LintSheetLinkExportSomePaths
-    - LintDataRefNeverSet
-    - LintDataRefSomePaths
+    - LintConsentGrantNeedsReply
+    - LintSendOutsideWindowRisk
     - LintGraphEmpty
     - LintGraphTooManyNodes
     - LintGraphTooManyEdges
@@ -25951,6 +28243,7 @@ definitions:
     - LintReasoningUnsupported
     - LintPinInvalid
     - LintSheetMappingInvalid
+    - LintSheetVariableInvalid
     - LintVoiceTrunkInvalid
     - LintWorkflowInvalid
     - LintValidationUnavailable
@@ -25963,9 +28256,20 @@ definitions:
     - LintCodeReadsTemplate
     - LintSecretInPlainText
     - LintPinnedOutput
+    - LintChannelStepUnsupported
+    - LintChannelStepFallsBack
+    - LintChannelDataMayFail
+    - LintChannelDataMayBeEmpty
+    - LintScheduleInvalid
+    - LintGraphVariableInvalid
+    - LintGraphVariableDefaultInvalid
+    - LintHTTPURLNotHTTPS
+    - LintInvalidPlatformEmail
     - LintAgentCallInputsInvalid
     - LintReplyToAgentWithoutTrigger
-    - LintInvalidPlatformEmail
+    - LintDataRefNeverSet
+    - LintDataRefSomePaths
+    - LintStageDestination
   workflow.LintSeverity:
     enum:
     - blocking
@@ -26166,6 +28470,23 @@ definitions:
         type: number
       "y":
         type: number
+    type: object
+  workflow.RefLabel:
+    properties:
+      label:
+        example: Busca cadastro › Código HTTP
+        type: string
+      labelDetail:
+        example: status
+        type: string
+      labelKey:
+        example: output_status_code
+        type: string
+      labelPrefix:
+        example: Busca cadastro
+        type: string
+      unknown:
+        type: boolean
     type: object
   workflow.RunCondition:
     properties:
@@ -26544,8 +28865,36 @@ definitions:
           $ref: '#/definitions/workflow.CatalogVariable'
         type: array
     type: object
+  workflow.VariableChannelNote:
+    properties:
+      channelLabels:
+        example: Instagram, Telegram
+        type: string
+      channels:
+        example:
+        - instagram
+        - telegram
+        items:
+          type: string
+        type: array
+      guaranteed:
+        example: WhatsApp oficial, SMS
+        type: string
+      key:
+        enum:
+        - contact_phone
+        - contact_email
+        - phone_handle
+        example: phone_handle
+        type: string
+      text:
+        example: É um telefone só em WhatsApp oficial, WhatsApp não oficial, RCS,
+          SMS. Em Instagram, Telegram traz o identificador do contato no canal.
+        type: string
+    type: object
   workflow.VariableGroup:
     enum:
+    - conversation
     - trigger
     - nodes
     - contact
@@ -26553,6 +28902,7 @@ definitions:
     - secrets
     type: string
     x-enum-varnames:
+    - VariableGroupConversation
     - VariableGroupTrigger
     - VariableGroupNodes
     - VariableGroupContact
@@ -26560,6 +28910,7 @@ definitions:
     - VariableGroupSecrets
   workflow.VariableKind:
     enum:
+    - conversation
     - default
     - trigger
     - node
@@ -26567,6 +28918,7 @@ definitions:
     - secret
     type: string
     x-enum-varnames:
+    - VariableKindConversation
     - VariableKindDefault
     - VariableKindTrigger
     - VariableKindNode
@@ -26597,6 +28949,13 @@ definitions:
     - VariableTypeList
     - VariableTypeDate
     - VariableTypeUnknown
+  workflow.VariableUse:
+    properties:
+      default:
+        type: string
+      name:
+        type: string
+    type: object
   workflow.WaitPreview:
     properties:
       description:
@@ -27627,6 +29986,10 @@ definitions:
         type: string
       quantity:
         type: integer
+      scheduledFrom:
+        type: string
+      scheduledQuantity:
+        type: integer
       status:
         $ref: '#/definitions/workspace_plan.SubscriptionStatus'
       unitPriceMicros:
@@ -27644,12 +30007,14 @@ definitions:
     - whatsapp_business_phones
     - branches
     - unofficial_whatsapp_instances
+    - site_domains
     type: string
     x-enum-varnames:
     - EntitlementCallChannels
     - EntitlementWhatsAppBusinessPhones
     - EntitlementBranches
     - EntitlementUnofficialWhatsAppInstances
+    - EntitlementSiteDomains
   workspace_addon.PurchaseAddonInput:
     properties:
       addonDefinitionId:
@@ -27721,6 +30086,12 @@ definitions:
     - SubscriptionStatusActive
     - SubscriptionStatusCancelled
     - SubscriptionStatusExpired
+  workspaceaddon.ChangeQuantityRequest:
+    properties:
+      quantity:
+        example: 2
+        type: integer
+    type: object
   workspaceaddon.customerAddonDefinition:
     properties:
       annualPriceMicros:
@@ -27741,6 +30112,8 @@ definitions:
         type: boolean
       key:
         type: string
+      maxUnits:
+        type: integer
       monthlyPriceMicros:
         type: integer
       name:
@@ -33558,6 +35931,60 @@ paths:
       summary: Canais que publicar a automação desligaria
       tags:
       - Automações
+  /automation-needs/sheet-files:
+    get:
+      description: Lista as planilhas do workspace com a conferência de cada uma para
+        o dado da conversa variable, que precisa ser do tipo Planilha. Com kind e
+        id, a conferência usa exatamente os passos e ferramentas daquela automação
+        que gravam nesse dado, seguindo agentes, subfluxos e fluxos chamados (exact=true);
+        sem eles, ou quando a automação não grava nesse dado, a planilha precisa ter
+        todas as abas e colunas do modelo (exact=false). Cada item traz fits, as abas
+        que recebem cada aba do modelo e, quando não serve, misfit com o código e
+        os problemas. A planilha modelo nunca serve como valor. Campanha, passagem
+        da conversa, transferência, dados do teste e painel da conversa usam esta
+        lista; mostra só nomes e conferência.
+      parameters:
+      - description: Nome técnico do dado do tipo Planilha
+        in: query
+        name: variable
+        required: true
+        type: string
+      - description: agent ou workflow (junto com id)
+        enum:
+        - agent
+        - workflow
+        in: query
+        name: kind
+        type: string
+      - description: ID do agente ou do fluxo (junto com kind)
+        in: query
+        name: id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/automationneedshttp.SheetFilesResponse'
+        "400":
+          description: 'conversation_variable_invalid: kind sem id; conversation_variable_not_sheet:
+            o dado não é do tipo Planilha'
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: automation_needs_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: automation_needs_unreadable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Planilhas que podem ser escolhidas para um dado do tipo Planilha
+      tags:
+      - Automações
   /automation-switch-offs:
     get:
       description: 'Quando uma automação foi desligada num canal receptivo porque
@@ -36857,7 +39284,7 @@ paths:
       consumes:
       - application/json
       description: |-
-        Quando a Elo trabalha no Estúdio, ela envia pelo stream da conversa um evento `screen_command` (`{id, name, projectId, args}`), com `name` em `read`, `edit`, `look`, `resolve_source`, `follow_job`, `export`, `listen` ou `save_preset`. O editor aberto executa o comando e devolve o resultado aqui, uma única vez, dentro do tempo do comando; depois disso a resposta é ignorada e a Elo é avisada de que o editor não respondeu.
+        Quando a Elo trabalha no Estúdio, ela envia pelo stream da conversa um evento `screen_command` (`{id, name, projectId, args}`), com `name` em `read`, `edit`, `look`, `resolve_source`, `follow_job`, `export`, `listen` ou `save_preset`; no editor de páginas, `read`, `edit`, `look` (imagem da prévia em cada largura pedida) e `inspect` (o DOM de cada rota da prévia, em `data.documents`). O editor aberto executa o comando e devolve o resultado aqui, uma única vez, dentro do tempo do comando; depois disso a resposta é ignorada e a Elo é avisada de que o editor não respondeu.
 
         `create_project` chega também fora do Estúdio, com `projectId` vazio e o pedido do projeto em `args` (`kind`, `name`, `media`, `sizes`, `aspect`, `durationMs`). Quem responde é a aba da conversa: ela cria o projeto e, se o usuário escolheu abrir telas sozinho, abre o editor dele. `data` traz `{projectId, kind, opened}`, com `opened` true só quando o editor foi aberto. Uma aba que não pode criar responde `ok` false com `code: no_editor`, e outra aba pode responder no lugar dela.
 
@@ -37671,6 +40098,107 @@ paths:
       summary: Apagar uma nota interna
       tags:
       - Notas Internas
+  /conversation-variables:
+    get:
+      description: Lista os dados da conversa que o workspace declarou (nome técnico,
+        nome amigável, descrição e tipo), os dados que a plataforma sempre preenche
+        (system, com labelKey para traduzir o nome) e os tipos disponíveis (types,
+        com o formato de entrada shape). Agentes e fluxos leem esses dados como {{campvars.<nome>}};
+        o nome amigável é o que as telas mostram.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/variabledeclhttp.ListResponse'
+        "503":
+          description: variable_declarations_unreadable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Dados da conversa declarados
+      tags:
+      - Dados da conversa
+  /conversation-variables/{name}:
+    delete:
+      description: Remove só a declaração (nome amigável e tipo). Textos que já usam
+        {{campvars.<nome>}} continuam funcionando e o dado aparece como não declarado;
+        valores já guardados nas conversas ficam.
+      parameters:
+      - description: Nome técnico
+        in: path
+        name: name
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: variable_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: variable_declarations_unreadable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Remover a declaração de um dado da conversa
+      tags:
+      - Dados da conversa
+    put:
+      consumes:
+      - application/json
+      description: 'Cria ou edita a declaração de um dado da conversa: nome amigável
+        (1 a 60 caracteres), descrição (até 500), exemplo opcional (validado pelo
+        tipo; sem ele, sample traz a amostra do tipo) e tipo. Tipos: text (1 a 2000
+        caracteres), number (1234, 1234,5, 1.234,56 ou 1,234.56), date (DD/MM/AAAA
+        ou AAAA-MM-DD), choice (exatamente uma das options, 1 a 50 opções de até 100
+        caracteres), sheet (Planilha: o valor é o id de um arquivo da lista de Planilhas
+        do workspace, criado pela conta Google conectada e com todas as abas e colunas
+        do modelo; settings.model é o arquivo modelo, obrigatório, e settings.default,
+        opcional, é a planilha usada por conversas receptivas; settings.model_title
+        vem do backend; sem exemplo, a amostra é o nome do modelo). O nome técnico
+        vem do caminho: letras sem acento, números e _, até 64; lead_name, lead_number
+        e campaign_name são da plataforma. Todo valor que entra (campanha, passagem
+        da conversa, transferência, dados do teste, painel da conversa, nó Definir
+        variável) é validado pelo tipo. Mudar o tipo não reescreve valores já guardados.'
+      parameters:
+      - description: Nome técnico
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Declaração
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/variabledeclhttp.DeclarationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/variabledeclhttp.DeclarationResponse'
+        "400":
+          description: variable_name_invalid, variable_name_reserved, variable_label_invalid,
+            variable_description_too_long, variable_type_unknown, variable_type_invalid
+            ou variable_example_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: variable_declarations_unreadable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Declarar ou editar um dado da conversa
+      tags:
+      - Dados da conversa
   /conversations/{entryType}/{entryId}/ai-tool-calls:
     get:
       description: 'Lista, da mais recente para a mais antiga, as ferramentas que
@@ -38482,6 +41010,109 @@ paths:
       summary: Agendar uma mensagem
       tags:
       - Mensagens Agendadas
+  /conversations/{entryType}/{entryId}/variable-values:
+    get:
+      description: 'Valores atuais dos dados da conversa, com o nome amigável e o
+        tipo da declaração: os que a plataforma preenche (origin system, com labelKey
+        para traduzir), cada dado declarado no workspace e cada valor guardado nesta
+        conversa. origin diz de onde veio o valor: campaign (da campanha), stored
+        (passagem da conversa, transferência ou edição) ou none (sem valor). fits
+        falso marca um valor que não cabe mais no tipo declarado. Valores guardados
+        valem mais que os da campanha. Exige acesso à conversa.'
+      parameters:
+      - description: Tipo da entrada
+        in: path
+        name: entryType
+        required: true
+        type: string
+      - description: ID da entrada
+        in: path
+        name: entryId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/automationneedshttp.DataResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: automation_needs_unreadable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Dados da conversa
+      tags:
+      - Conversas
+  /conversations/{entryType}/{entryId}/variable-values/{name}:
+    put:
+      consumes:
+      - application/json
+      description: Grava o valor de um dado declarado (ou já guardado) nesta conversa,
+        validado pelo tipo declarado, e registra na linha do tempo quem mudou qual
+        dado (sem o valor). Os dados da plataforma não são editáveis. Exige acesso
+        à conversa e a permissão de alterar conversas.
+      parameters:
+      - description: Tipo da entrada
+        in: path
+        name: entryType
+        required: true
+        type: string
+      - description: ID da entrada
+        in: path
+        name: entryId
+        required: true
+        type: string
+      - description: Nome técnico do dado
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Novo valor
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/automationneedshttp.DataValueRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/automationneedshttp.DataRowResponse'
+        "400":
+          description: conversation_variable_invalid ou conversation_variable_not_editable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: conversation_variable_empty ou conversation_variable_type_invalid
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/automationneedshttp.VariablesErrorDetails'
+              type: object
+        "503":
+          description: automation_needs_unreadable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Editar um dado da conversa
+      tags:
+      - Conversas
   /conversations/{entryType}/{entryId}/variables:
     get:
       description: 'Antes de passar a conversa para um agente ou fluxo (ou religar
@@ -38600,7 +41231,9 @@ paths:
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "422":
-          description: conversation_variable_empty ou automation_needs_not_found
+          description: 'conversation_variable_empty, conversation_variable_type_invalid
+            (o valor não cabe no tipo declarado: número, data, uma das opções) ou
+            automation_needs_not_found'
           schema:
             allOf:
             - $ref: '#/definitions/response.ErrorResponse'
@@ -41457,8 +44090,8 @@ paths:
           schema:
             $ref: '#/definitions/emailcampaignhttp.SubscriptionResponse'
         "400":
-          description: email_address_invalid, email_source_invalid, email_consent_ip_required,
-            email_consent_ip_invalid, email_consent_date_in_future
+          description: email_address_invalid, email_source_invalid, email_source_reserved,
+            email_consent_ip_required, email_consent_ip_invalid, email_consent_date_in_future
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
@@ -42317,7 +44950,10 @@ paths:
   /google-sheets/{id}:
     delete:
       description: Remove a planilha do workspace e descarta as linhas que ainda não
-        foram gravadas. O arquivo continua no Google Drive.
+        foram gravadas. O arquivo continua no Google Drive. Enquanto uma campanha
+        em andamento ou pausada tiver contatos com este arquivo como dado do tipo
+        Planilha, a remoção é recusada com 409 google_sheet_in_use e details.campaigns
+        com os nomes das campanhas.
       parameters:
       - description: Planilha
         in: path
@@ -42333,6 +44969,10 @@ paths:
             $ref: '#/definitions/googlesheet.DeletedResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: google_sheet_in_use
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
@@ -42449,8 +45089,10 @@ paths:
       - Google Planilhas
   /google-sheets/{id}/health:
     get:
-      description: Linhas aguardando, em envio, retidas, recusadas e gravadas nos
-        últimos dias, com as linhas com problema mais recentes.
+      description: 'Linhas aguardando, em envio, retidas, recusadas e gravadas nos
+        últimos dias, com as linhas com problema mais recentes. editing traz a edição
+        à mão em andamento no arquivo (ou null): enquanto ela durar, as linhas aguardando
+        esperam a edição terminar.'
       parameters:
       - description: Planilha
         in: path
@@ -42850,6 +45492,117 @@ paths:
       summary: Catálogo das colunas de planilha
       tags:
       - Google Planilhas
+  /google-sheets/edit-sessions/{sessionId}/end:
+    post:
+      consumes:
+      - application/json
+      description: 'Termina a sua sessão (reason finished ao clicar em terminar, left
+        ao sair da página) e confere na hora cada aba do arquivo em que o Vozko grava:
+        cabeçalho na linha 1, a coluna de referência A e os cabeçalhos das colunas.
+        check.status é ok (as linhas que esperavam, contadas em waitedRows, entram
+        logo abaixo da última linha do Vozko), broken (cada aba quebrada vem com reason,
+        detail e repairable, e fica precisando de atenção) ou unchecked (o Google
+        não pôde ser lido agora; cada gravação confere a aba antes de gravar). Abas
+        renomeadas são seguidas (renamedFrom). refWarnings lista as linhas cuja coluna
+        A tem algo que não é uma referência do Vozko ou repete uma. Terminar de novo
+        devolve o resultado guardado.'
+      parameters:
+      - description: Sessão de edição
+        in: path
+        name: sessionId
+        required: true
+        type: string
+      - description: Motivo
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/googlesheet.EndEditRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.EditSessionEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Terminar a edição à mão
+      tags:
+      - Google Planilhas
+  /google-sheets/edit-sessions/{sessionId}/force-end:
+    post:
+      description: Encerra uma sessão travada de qualquer pessoa, com a mesma verificação
+        de terminar a edição. Exige a permissão de remover planilhas. A sessão guarda
+        quem encerrou (endedBy) e endReason ended_by_admin, e aparece no histórico
+        do arquivo.
+      parameters:
+      - description: Sessão de edição
+        in: path
+        name: sessionId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.EditSessionEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Encerrar a edição à mão de outra pessoa
+      tags:
+      - Google Planilhas
+  /google-sheets/edit-sessions/{sessionId}/heartbeat:
+    post:
+      description: 'Mantém a sessão viva por mais leaseSeconds, sem passar do deadline,
+        e confere se a gravação em andamento já terminou (settled). Só quem começou
+        a sessão envia o sinal (403 google_sheet_edit_session_not_yours). Uma sessão
+        que já terminou, inclusive por falta de sinal, nunca volta: a resposta traz
+        endedAt, endReason e a verificação (check).'
+      parameters:
+      - description: Sessão de edição
+        in: path
+        name: sessionId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.EditSessionEnvelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Sinal de presença da edição à mão
+      tags:
+      - Google Planilhas
   /google-sheets/files:
     get:
       description: Uma entrada por arquivo do Google, com as planilhas do workspace
@@ -42946,6 +45699,231 @@ paths:
       security:
       - BearerAuth: []
       summary: Renomear o arquivo
+      tags:
+      - Google Planilhas
+  /google-sheets/files/{spreadsheetId}/copies:
+    post:
+      consumes:
+      - application/json
+      description: 'Cria um arquivo novo no Google Drive da conta conectada com as
+        abas do arquivo modelo (o do caminho): as mesmas colunas com as mesmas chaves,
+        tipos, opções e cores, obrigatoriedade, instruções, abas por período com o
+        mesmo padrão de nome, estilo, fuso, linha única e colunas de link apontando
+        para as abas do arquivo novo. Colunas arquivadas não são copiadas, e nenhuma
+        linha é copiada. tabs diz qual aba nova veio de cada aba modelo, então o arquivo
+        serve para o modelo sem outra conferência. Recusas de definição e do Google
+        seguem os códigos de Criar planilha, com details.sheet na aba que falhou;
+        se uma aba falha, nada fica criado.'
+      parameters:
+      - description: Arquivo modelo
+        in: path
+        name: spreadsheetId
+        required: true
+        type: string
+      - description: Nome do arquivo novo
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/googlesheet.CopyModelRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/googlesheet.ModelCopyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "412":
+          description: Precondition Failed
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Criar planilha a partir do modelo
+      tags:
+      - Google Planilhas
+  /google-sheets/files/{spreadsheetId}/edit-session:
+    get:
+      description: 'Estado da edição à mão do arquivo do Google: editing é a sessão
+        em andamento (quem, desde quando, até quando, se é sua) ou null. accountEmail
+        é a conta Google conectada, dona do arquivo, a quem pedir acesso. heartbeatSeconds
+        é o intervalo do sinal de presença e leaseSeconds o tempo em que uma sessão
+        sem sinal termina sozinha.'
+      parameters:
+      - description: Arquivo do Google
+        in: path
+        name: spreadsheetId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.EditorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Edição à mão do arquivo
+      tags:
+      - Google Planilhas
+    post:
+      description: 'Trava o arquivo inteiro para edição à mão no editor do Google.
+        Enquanto a sessão durar, o Vozko não grava nada no arquivo: as linhas novas
+        ficam na fila, e mudanças de colunas, abas novas, reparos e remoções de linha
+        são recusados com google_sheet_file_being_edited. A trava espera a gravação
+        em andamento terminar; settled diz se já terminou (senão o sinal de presença
+        confere de novo). A sessão dura enquanto o sinal de presença chegar a cada
+        heartbeatSeconds, termina sozinha leaseSeconds depois do último sinal e nunca
+        passa de 4 horas (deadline). Só uma pessoa edita o arquivo por vez: outra
+        recebe 409 google_sheet_file_being_edited com details.editedBy, details.editedByName
+        e details.since.'
+      parameters:
+      - description: Arquivo do Google
+        in: path
+        name: spreadsheetId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.EditSessionEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Começar a edição à mão do arquivo
+      tags:
+      - Google Planilhas
+  /google-sheets/files/{spreadsheetId}/edit-sessions:
+    get:
+      description: 'Sessões de edição à mão do arquivo, da mais recente para a mais
+        antiga: quem começou e quando, quem terminou, como (finished, left, expired,
+        ended_by_admin), quantas linhas esperaram (waitedRows) e o resultado da verificação
+        (check).'
+      parameters:
+      - description: Arquivo do Google
+        in: path
+        name: spreadsheetId
+        required: true
+        type: string
+      - description: Página
+        in: query
+        name: page
+        type: integer
+      - description: Tamanho da página
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.EditSessionListResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Histórico de edições à mão do arquivo
+      tags:
+      - Google Planilhas
+  /google-sheets/files/{spreadsheetId}/fit:
+    post:
+      consumes:
+      - application/json
+      description: 'Confere cada arquivo de planilhas do workspace contra as abas
+        do arquivo modelo (o do caminho) e os usos informados: em qual aba modelo
+        cada passo grava (add_row grava linhas, export exporta mensagens) e quais
+        colunas preenche (mapping, chave da coluna para o texto). Um arquivo serve
+        quando tem uma aba para cada aba modelo usada e para cada aba de destino de
+        link, com as colunas preenchidas presentes, ativas, preenchidas pelo fluxo
+        e do mesmo tipo, as opções de escolha do modelo, nenhuma coluna obrigatória
+        que o fluxo não preenche, colunas de mensagem nas abas de exportação e links
+        apontando para as abas do próprio arquivo. tabs diz qual aba do arquivo recebe
+        cada aba modelo. Quando não serve, misfit traz o código e, para a aba modelo
+        sem par, o primeiro problema de cada aba do arquivo, começando pela aba de
+        mesmo nome. Uma aba que precisa de atenção não impede a escolha; status mostra
+        isso. O próprio modelo vem com sheet_fit_model_file, e arquivos de outra conta
+        Google com sheet_fit_file_other_account. Os que servem vêm primeiro.'
+      parameters:
+      - description: Arquivo modelo
+        in: path
+        name: spreadsheetId
+        required: true
+        type: string
+      - description: Usos do modelo
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/googlesheet.FitRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.FileFitListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "412":
+          description: Precondition Failed
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Conferir quais arquivos servem para um modelo
       tags:
       - Google Planilhas
   /google-sheets/presets:
@@ -46363,23 +49341,27 @@ paths:
         aparece sem esses campos), negócios (`deal`, os que têm este lead e os ligados
         a uma conversa dele, sem repetir), movimentos desses negócios (`deal_event`,
         com `event` `stage_moved`, `won`, `lost` ou `reopened`, `stageName` e `fromStageName`,
-        no mesmo escopo de negócios), memórias (`memory`) e alterações do cadastro
+        no mesmo escopo de negócios), memórias (`memory`), alterações do cadastro
         (`record`, só com o nome de cada campo alterado, nunca os valores; um campo
         sensível só é nomeado para quem tem `leads:read_sensitive`, e uma alteração
-        só de campos que você não vê não aparece). Cada item passa pela mesma regra
-        de acesso da sua origem: conversas e envios só aparecem quando você pode abrir
-        a conversa (outro departamento, ou de outra pessoa quando você não pode ver
-        as conversas dos colegas, não aparecem); ligações só com `call_history:read`,
-        e só as suas a menos que você tenha `call_history:view_others`; negócios só
-        dentro do seu escopo de negócios. `ref` aponta para o que abrir: `entry` (com
-        `entryType`), `call` (o `callId` de GET /calls/{callId}), `deal` (o negócio,
-        também num `deal_event`), `memory` ou `lead_event`. Para a próxima página,
-        envie o `next` recebido em `before`; sem `next`, a linha do tempo acabou.
-        Uma página pode vir com menos itens que `limit` (até vazia) e ainda trazer
-        `next`, quando muitos itens seguidos não são seus: continue pedindo. Substitui
-        GET /leads/{id}/conversations, que foi removida. Exige `leads:read`. Códigos:
-        400 `lead_page_invalid` (`limit` negativo ou que não é número, `before` que
-        não veio desta rota); 403 `forbidden`; 404 `lead_not_found`; 503 `lead_history_unavailable`.'
+        só de campos que você não vê não aparece) e envios de formulários das páginas
+        (`site_submission`, com `title` = id do formulário, `text` = rota, `source`
+        = utm_source e `projectId`; só com `site_submissions:read`, nunca os valores
+        preenchidos). Cada item passa pela mesma regra de acesso da sua origem: conversas
+        e envios só aparecem quando você pode abrir a conversa (outro departamento,
+        ou de outra pessoa quando você não pode ver as conversas dos colegas, não
+        aparecem); ligações só com `call_history:read`, e só as suas a menos que você
+        tenha `call_history:view_others`; negócios só dentro do seu escopo de negócios.
+        `ref` aponta para o que abrir: `entry` (com `entryType`), `call` (o `callId`
+        de GET /calls/{callId}), `deal` (o negócio, também num `deal_event`), `memory`,
+        `lead_event` ou `site_submission` (o envio, listado em GET /sites/projects/{id}/submissions).
+        Para a próxima página, envie o `next` recebido em `before`; sem `next`, a
+        linha do tempo acabou. Uma página pode vir com menos itens que `limit` (até
+        vazia) e ainda trazer `next`, quando muitos itens seguidos não são seus: continue
+        pedindo. Substitui GET /leads/{id}/conversations, que foi removida. Exige
+        `leads:read`. Códigos: 400 `lead_page_invalid` (`limit` negativo ou que não
+        é número, `before` que não veio desta rota); 403 `forbidden`; 404 `lead_not_found`;
+        503 `lead_history_unavailable`.'
       parameters:
       - description: ID do lead (UUID)
         in: path
@@ -50793,6 +53775,161 @@ paths:
       summary: Descadastrar (um clique)
       tags:
       - E-mail marketing
+  /public/sites/forms/{formKey}/challenge:
+    post:
+      consumes:
+      - application/json
+      description: 'Emite a prova de trabalho de uso único que o envio precisa (mesmo
+        algoritmo do chat do site; o solucionador é pow.js). O corpo é {} e a origem
+        precisa ser um endereço publicado da página. Códigos: 403 `submission_origin_refused`;
+        404 `form_unknown`; 429 `rate_limited` (por IP; a prévia tem uma cota própria
+        por IP); 503 `form_unavailable`.'
+      parameters:
+      - description: chave pública do formulário
+        in: path
+        name: formKey
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/publicform.Challenge'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Desafio de um formulário de página
+      tags:
+      - Páginas (público)
+  /public/sites/forms/{formKey}/submissions:
+    options:
+      description: Responde 204 com Access-Control-Allow-Origin igual à origem quando
+        ela é exatamente um endereço publicado da página deste formulário (https://<endereço
+        ativo>); qualquer outra origem recebe 403 sem cabeçalhos CORS. Sem credenciais.
+        Vale também para /challenge.
+      parameters:
+      - description: chave pública do formulário
+        in: path
+        name: formKey
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "403":
+          description: Forbidden
+      summary: Pré-verificação CORS de um formulário de página
+      tags:
+      - Páginas (público)
+    post:
+      consumes:
+      - application/json
+      description: 'Recebe o envio do runtime da página: {utm:{source,medium,campaign,term,content},
+        referrer, fbclid, gclid, fbp, fbc, variant, idempotencyKey, website, route,
+        fields:{nome: texto}, challengeToken, nonce}. Campos desconhecidos são recusados;
+        os campos são validados contra o formulário publicado. Repetir o mesmo idempotencyKey
+        devolve o sucesso original sem criar nada. O sucesso traz a ação configurada:
+        message, redirect (route) ou whatsapp (url). Códigos: 400 `submission_invalid`,
+        `submission_refused`, `challenge_invalid`, `challenge_expired`, `challenge_unsolved`,
+        `challenge_reused` (o runtime busca um novo desafio uma vez); 403 `submission_origin_refused`;
+        404 `form_unknown`; 422 `submission_fields_invalid` com `details` {campo:
+        código}; 429 `rate_limited` (por IP antes da prova de trabalho; por formulário
+        só depois de uma prova válida); 503 `form_unavailable` (a verificação do desafio
+        está fora do ar; tente de novo). O lead é gravado no envio; responsável, negócio,
+        conversa, automação, inscrição de email, aviso e evento de conversão rodam
+        depois da resposta, com novas tentativas, e nunca atrasam nem bloqueiam o
+        envio.'
+      parameters:
+      - description: chave pública do formulário
+        in: path
+        name: formKey
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/siteformhttp.SubmitResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Enviar um formulário de página
+      tags:
+      - Páginas (público)
+  /public/sites/starters/{stack}/{key}/preview.jpg:
+    get:
+      description: A captura (JPEG 1440x900) de um modelo de página, pública para
+        servir em img; a mesma de previewUrl em GET /sites/starters.
+      parameters:
+      - description: tecnologia
+        enum:
+        - react
+        - html
+        in: path
+        name: stack
+        required: true
+        type: string
+      - description: modelo
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - image/jpeg
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      summary: Imagem de um modelo de página
+      tags:
+      - Páginas
   /public/webchat/{publicKey}/challenge:
     post:
       consumes:
@@ -50903,7 +54040,7 @@ paths:
     get:
       description: JavaScript e CSS da janela do chat.
       parameters:
-      - description: frame.js ou frame.css
+      - description: frame.js, frame.css ou pow.js
         in: path
         name: file
         required: true
@@ -52544,6 +55681,1635 @@ paths:
       summary: Encerrar chamada do tronco
       tags:
       - Troncos SIP
+  /sites/design-systems:
+    get:
+      description: Os sistemas de design do workspace (cores, fontes, logo, tom de
+        voz e seções salvas); no máximo um é o padrão das páginas novas.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/sitehttp.DesignSystemResponse'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Listar sistemas de design
+      tags:
+      - Páginas
+    post:
+      consumes:
+      - application/json
+      description: Cria um sistema de design; com isDefault, ele passa a ser o único
+        padrão do workspace.
+      parameters:
+      - description: sistema de design
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/sitehttp.DesignSystemRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/sitehttp.DesignSystemResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Criar sistema de design
+      tags:
+      - Páginas
+  /sites/design-systems/{id}:
+    delete:
+      description: Exclui o sistema de design; as páginas que o usavam ficam sem sistema
+        de design.
+      parameters:
+      - description: id do sistema de design
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Excluir sistema de design
+      tags:
+      - Páginas
+    get:
+      parameters:
+      - description: id do sistema de design
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.DesignSystemResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Abrir sistema de design
+      tags:
+      - Páginas
+    put:
+      consumes:
+      - application/json
+      description: Substitui o sistema de design a partir da versão do If-Match.
+      parameters:
+      - description: id do sistema de design
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: versão carregada
+        in: header
+        name: If-Match
+        required: true
+        type: string
+      - description: sistema de design
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/sitehttp.DesignSystemRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.DesignSystemResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.VersionConflict'
+            - properties:
+                current:
+                  $ref: '#/definitions/sitehttp.DesignSystemResponse'
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "428":
+          description: Precondition Required
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Salvar sistema de design
+      tags:
+      - Páginas
+  /sites/domain-slots:
+    get:
+      description: 'Quantos domínios próprios o workspace usa (used: todos os que
+        não estão sendo removidos, em qualquer página) e quantos pode manter no ar
+        agora (allowed: só os domínios contratados como adicional; nenhum plano inclui
+        domínios). offline billing indica assinatura pendente ou pagamento contestado:
+        os domínios ficam fora do ar até o pagamento ser confirmado. Exige `site_domains:read`.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitepublishhttp.DomainSlotsDTO'
+        "403":
+          description: site_access_denied
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: publish_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Domínios próprios do workspace
+      tags:
+      - sites
+  /sites/forms:
+    get:
+      description: Os formulários das páginas do workspace que já receberam uma chave
+        pública (a chave nasce na primeira publicação da página com o formulário),
+        com o nome da página, o id do formulário no código e se ele está no ar agora.
+        A chave é o valor que o gatilho "formulário enviado" dos fluxos usa para os
+        formulários de páginas. Exige `sites:read`.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/siteformhttp.PageFormListResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar os formulários das páginas
+      tags:
+      - Páginas
+  /sites/projects:
+    get:
+      description: Páginas do workspace, da editada mais recentemente para a mais
+        antiga, sem os arquivos. Sem status, as arquivadas ficam de fora; q busca
+        pelo nome.
+      parameters:
+      - description: situação
+        enum:
+        - draft
+        - published
+        - suspended
+        - archived
+        in: query
+        name: status
+        type: string
+      - description: busca pelo nome
+        in: query
+        name: q
+        type: string
+      - description: até 100, padrão 30
+        in: query
+        name: limit
+        type: integer
+      - description: deslocamento
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.ListResponse'
+        "400":
+          description: page_invalid, status_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar páginas
+      tags:
+      - Páginas
+    post:
+      consumes:
+      - application/json
+      description: Cria uma página a partir de um modelo (stack react ou html). Sem
+        name, o nome sai das primeiras palavras de brief (o pedido feito à Elo). O
+        endereço (slug) sai do nome e fica único no workspace. Sem designSystemId,
+        a página herda o sistema de design padrão do workspace. Com origin (a conversa
+        da Elo e o id do comando de tela), repetir o pedido devolve a mesma página.
+      parameters:
+      - description: página
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/sitehttp.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/sitehttp.DetailResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Criar página
+      tags:
+      - Páginas
+  /sites/projects/{id}:
+    delete:
+      description: Exclui a página, as versões e as configurações. Uma página no ar
+        ou suspensa não é excluída (409 project_published).
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Excluir página
+      tags:
+      - Páginas
+    get:
+      description: A página com todos os arquivos da versão de trabalho, as configurações
+        e a versão atual, que vai no If-Match ao salvar.
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.DetailResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Abrir página
+      tags:
+      - Páginas
+    patch:
+      consumes:
+      - application/json
+      description: Renomeia, troca o endereço (slug), troca o sistema de design ou
+        arquiva e desarquiva, a partir da versão do If-Match. Uma página no ar não
+        troca de endereço nem é arquivada aqui (409 project_published).
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: versão carregada
+        in: header
+        name: If-Match
+        required: true
+        type: string
+      - description: mudanças
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/sitehttp.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.ProjectResponse'
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.VersionConflict'
+            - properties:
+                current:
+                  $ref: '#/definitions/sitehttp.DetailResponse'
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "428":
+          description: Precondition Required
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Alterar página
+      tags:
+      - Páginas
+  /sites/projects/{id}/analytics:
+    get:
+      description: Visualizações, visitantes únicos (por dia, sem cookies), cliques
+        em CTA, formulários vistos, iniciados e enviados e cliques no WhatsApp, por
+        dia, rota e variante, com totais e taxa de conversão (envios mais WhatsApp
+        sobre visitantes, em pontos-base). Os números são contados pelo servidor das
+        páginas e consolidados de hora em hora; robôs não contam. sources traz as
+        visitas e os envios por utm_source e pela origem de quem indicou (sem a própria
+        página), até 25 de cada. leads conta as pessoas que enviaram um formulário
+        da página ou chegaram por ela a uma conversa no período; wonDeals e wonRevenue
+        somam as oportunidades dessas pessoas ganhas no período, dentro do escopo
+        de oportunidades de quem consulta (dealsVisible falso quando a pessoa não
+        vê oportunidades). wonRevenue está em unidades da moeda wonRevenueCurrency
+        (a de maior valor); wonRevenueByCurrency traz cada moeda em centavos. Sem
+        from e to, os últimos 30 dias. Exige `sites:read`.
+      parameters:
+      - description: ID da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Primeiro dia (AAAA-MM-DD, UTC)
+        in: query
+        name: from
+        type: string
+      - description: Último dia (AAAA-MM-DD, UTC), no máximo 400 dias após from
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/siteanalytics_usecase.Report'
+        "400":
+          description: analytics_period_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: site_access_denied
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: site_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: analytics_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Números da página
+      tags:
+      - sites
+  /sites/projects/{id}/deployments:
+    get:
+      description: Lista as publicações (deployments) da página, da mais nova para
+        a mais antiga, com status, verificações informativas e pendências que bloquearam
+        a publicação. address é o endereço imutável da publicação (no ar ou anterior),
+        servido só para leitura. Exige `sites:read`.
+      parameters:
+      - description: ID da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Quantidade (padrão 50, máximo 200)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/sitepublishhttp.DeploymentDTO'
+            type: array
+        "403":
+          description: site_access_denied
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: publish_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Publicações da página
+      tags:
+      - sites
+    post:
+      description: Compila a versão atual em modo publicação, pré-renderiza as rotas
+        React, valida o HTML final (regras e pendências), verifica links e o subdomínio
+        no Safe Browsing, copia as imagens da biblioteca para a publicação, envia
+        os arquivos e troca o endereço para a nova publicação. Fica no ar em até 1
+        minuto em todos os domínios ativos; o endereço imutável vale na hora. Páginas
+        que imitam bancos, Pix, gov.br, Receita ou Correios com campos de formulário
+        ficam em análise (held true) em vez de entrar no ar. Exige `sites:publish`
+        e assinatura ativa.
+      parameters:
+      - description: ID da página
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/sitepublishhttp.PublishResponse'
+        "402":
+          description: subscription_inactive
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: site_access_denied
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: site_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: publish_under_review ou site_suspended
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: build_failed, publish_blocked, gaps_open (details lista as
+            pendências), form_key_missing, form_channel_required, form_success_channel_required,
+            whatsapp_number_unavailable ou webchat_widget_unknown
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "502":
+          description: prerender_failed
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: media_unavailable, forms_unavailable, hosting_unavailable ou
+            publish_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Publicar a página
+      tags:
+      - sites
+  /sites/projects/{id}/deployments/{deploymentId}/activate:
+    post:
+      description: 'Coloca no ar uma publicação anterior (rollback): reativa os formulários
+        dela e troca o endereço de todos os domínios ativos. Exige `sites:publish`
+        e assinatura ativa.'
+      parameters:
+      - description: ID da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID da publicação
+        in: path
+        name: deploymentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitepublishhttp.DeploymentDTO'
+        "402":
+          description: subscription_inactive
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: site_access_denied
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: deployment_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: deployment_not_activatable, publish_under_review ou site_suspended
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: forms_unavailable ou hosting_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Voltar uma publicação ao ar
+      tags:
+      - sites
+  /sites/projects/{id}/duplicate:
+    post:
+      consumes:
+      - application/json
+      description: Cria uma página nova com os arquivos da versão de trabalho, as
+        configurações e o sistema de design da página de origem. Nunca copia domínios
+        nem publicações; a cópia nasce como rascunho e ganha um endereço (slug) novo.
+        Sem nome, usa o nome da origem com " (cópia)".
+      parameters:
+      - description: id da página de origem
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: nome da cópia
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/sitehttp.DuplicateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/sitehttp.DetailResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: name_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Duplicar página
+      tags:
+      - Páginas
+  /sites/projects/{id}/edits:
+    post:
+      consumes:
+      - application/json
+      description: 'Executa um lote de operações visuais, de código e de tema (o mesmo
+        contrato da Elo) a partir da versão do If-Match. O lote é atômico: qualquer
+        operação recusada recusa tudo com 422 edit_refused e a lista de falhas, das
+        dependentes puladas e dos problemas novos. write_file de arquivo existente,
+        delete_file e rename_file levam o rev lido do arquivo (file_stale quando ele
+        mudou depois); nodes velhos são mapeados pelo histórico de cada arquivo. set_text
+        aceita text (marcação inline) ou html (o subconjunto do editor: b, strong,
+        i, em, u, a, br, parágrafos). Atalhos expandidos no servidor: define_knob(name,
+        variable, kind, min, max, step, unit), rename_knob(name, to) e remove_knob(name)
+        reescrevem knobs.json; set_whatsapp_link(node, rev, number_ref, text) e clear_whatsapp_link(node,
+        rev) mexem nos atributos data-vz-whatsapp, data-vz-text e href, com o número
+        validado contra o workspace (whatsapp_number_unknown) e o texto até 500 caracteres.
+        Os índices de falhas e passos apontam para a operação enviada. Devolve os
+        passos (para a reaplicação da Elo), o novo rev de cada arquivo, changes (arquivos
+        alterados com conteúdo e rev, excluídos e renomeados, para o editor substituir
+        sem reaplicar passos) e facts.'
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: versão carregada
+        in: header
+        name: If-Match
+        required: true
+        type: string
+      - description: operações
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/sitehttp.EditRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.EditResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.VersionConflict'
+            - properties:
+                current:
+                  $ref: '#/definitions/sitehttp.DetailResponse'
+              type: object
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/sitehttp.EditRefusalDetails'
+              type: object
+        "428":
+          description: Precondition Required
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Aplicar operações na página
+      tags:
+      - Páginas
+  /sites/projects/{id}/export:
+    get:
+      description: Um arquivo ZIP com o código-fonte da versão de trabalho, exatamente
+        como aparece na aba Código.
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/zip
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Exportar código da página
+      tags:
+      - Páginas
+  /sites/projects/{id}/files:
+    get:
+      description: Os arquivos da versão de trabalho com o rev de cada um, a versão
+        de trabalho e a versão da página.
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.FilesResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Ler os arquivos da página
+      tags:
+      - Páginas
+    put:
+      consumes:
+      - application/json
+      description: Grava o conteúdo inteiro dos arquivos alterados e exclui os listados
+        em deleted, a partir da versão do If-Match. Cada arquivo alterado ganha um
+        novo rev. Recusa com 422 e o código da primeira regra quebrada (caminho, tamanho,
+        diretivas de CSS, site.json) quando o envio cria um problema novo; problemas
+        antigos em arquivos não tocados não bloqueiam. Edições seguidas da mesma pessoa
+        em até 3 minutos atualizam a mesma versão automática. A resposta traz em changes
+        cada arquivo alterado com o conteúdo e o rev depois de salvar (files), os
+        excluídos (deleted) e os renomeados (renamed), e em facts as rotas, os tokens
+        do tema, os knobs com o valor atual e os breakpoints lidos do resultado.
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: versão carregada
+        in: header
+        name: If-Match
+        required: true
+        type: string
+      - description: arquivos
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/sitehttp.SaveFilesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.SavedResponse'
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.VersionConflict'
+            - properties:
+                current:
+                  $ref: '#/definitions/sitehttp.DetailResponse'
+              type: object
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/sitehttp.IssuesDetails'
+              type: object
+        "428":
+          description: Precondition Required
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Salvar arquivos editados no código
+      tags:
+      - Páginas
+  /sites/projects/{id}/hostnames:
+    get:
+      description: Lista o subdomínio da plataforma e os domínios próprios da página
+        com o estado (pending_dns, pending_ssl, active, removing, failed) e os registros
+        DNS a criar. Exige `site_domains:read`.
+      parameters:
+      - description: ID da página
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/sitepublishhttp.HostnameDTO'
+            type: array
+        "403":
+          description: site_access_denied
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Domínios da página
+      tags:
+      - sites
+    post:
+      consumes:
+      - application/json
+      description: 'kind platform cria o subdomínio da plataforma (slug opcional;
+        sem slug, usa o nome da página e do workspace). kind custom registra um domínio
+        próprio: responde pending_dns com o CNAME e os registros TXT de validação;
+        o domínio só entra no ar depois que o certificado é emitido. Domínios próprios
+        contam contra a inclusão do plano mais os adicionais contratados. Exige `site_domains:update`
+        e assinatura ativa.'
+      parameters:
+      - description: ID da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Domínio
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/sitepublishhttp.AddHostnameRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/sitepublishhttp.HostnameDTO'
+        "400":
+          description: invalid_body ou hostname_kind_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "402":
+          description: subscription_inactive
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: site_access_denied
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: hostname_taken, platform_hostname_exists ou site_domains_exhausted
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: hostname_invalid, hostname_forbidden, slug_invalid ou slug_reserved
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: domain_provider_unavailable ou hosting_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Adicionar domínio
+      tags:
+      - sites
+  /sites/projects/{id}/hostnames/{hostnameId}:
+    delete:
+      description: Tira o domínio do ar e o remove do provedor. Se o provedor falhar,
+        o domínio fica em removing e a varredura conclui a remoção. Exige `site_domains:update`.
+      parameters:
+      - description: ID da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID do domínio
+        in: path
+        name: hostnameId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitepublishhttp.HostnameDTO'
+        "403":
+          description: site_access_denied
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: hostname_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Remover domínio
+      tags:
+      - sites
+  /sites/projects/{id}/hostnames/{hostnameId}/verify:
+    post:
+      description: Confere agora o registro TXT de propriedade do domínio (verification.ownership).
+        Com o TXT encontrado e um domínio contratado livre, o domínio é registrado
+        no provedor e segue para o certificado (pending_ssl); sem domínio livre, fica
+        em suspended até haver vaga. Um domínio em failed é registrado de novo. Domínios
+        sem verificação expiram em 72 horas (verification.pendingUntil). Exige `site_domains:update`.
+      parameters:
+      - description: ID da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID do domínio
+        in: path
+        name: hostnameId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitepublishhttp.HostnameDTO'
+        "403":
+          description: site_access_denied
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: hostname_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: domain_check_in_progress
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: domain_provider_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Verificar domínio próprio
+      tags:
+      - sites
+  /sites/projects/{id}/outline:
+    get:
+      description: 'Devolve o mapa guardado da versão de trabalho com as configurações
+        atuais: formulários, por rota a árvore de elementos, pendências (openGaps)
+        e verificações. O mapa é lido no navegador de quem edita e enviado em POST
+        .../outline; esta rota nunca compila nem renderiza. Sem mapa desta versão,
+        gapsChecked fica false com reasonCode not_inspected. É informativo: a publicação
+        roda as próprias verificações no servidor.'
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.OutlineResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Mapa da página
+      tags:
+      - Páginas
+    post:
+      consumes:
+      - application/json
+      description: 'O editor aberto por quem edita (sites:update) envia o DOM renderizado
+        de cada rota da pré-visualização atual, lido no próprio navegador, e recebe
+        o mesmo mapa de GET .../outline: árvore de elementos por rota, pendências
+        e verificações, calculadas aqui com as regras do servidor. O envio precisa
+        ter exatamente as rotas de site.json, cada documento até 1,5 MB e o conjunto
+        até 6 MB; cada documento precisa trazer o carimbo vz-revs da versão de trabalho
+        atual, senão o mapa volta com gapsChecked false e reasonCode snapshot_stale
+        ou snapshot_invalid. É uma leitura informativa: a publicação nunca usa este
+        mapa e roda a própria renderização e as próprias verificações. No máximo uma
+        leitura por página a cada 5 s; dentro desse intervalo volta o mapa guardado
+        desta versão ou reasonCode inspection_throttled.'
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: DOM renderizado de cada rota
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/sitehttp.OutlineSnapshotRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.OutlineResponse'
+        "400":
+          description: invalid_body
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: project_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "413":
+          description: project_too_large
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Enviar o mapa renderizado da página
+      tags:
+      - Páginas
+  /sites/projects/{id}/preview:
+    post:
+      description: Quem pode editar (sites:update) compila a versão de trabalho e
+        recebe o endereço assinado e temporário da pré-visualização, que só abre para
+        quem recebeu o link. Quem só lê recebe a pré-visualização já preparada para
+        a versão de trabalho e as configurações atuais, sem compilar nada, ou 409
+        preview_not_built. As pendências e o mapa da página ficam em GET .../outline.
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.PreviewResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: preview_not_built
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/sitehttp.BuildFailedDetails'
+              type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Pré-visualizar página
+      tags:
+      - Páginas
+  /sites/projects/{id}/revisions:
+    get:
+      description: As versões da página, da mais recente para a mais antiga, com o
+        tipo (automática, salva, da Elo, publicação, restauração), o autor e o nome.
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: até 100, padrão 30
+        in: query
+        name: limit
+        type: integer
+      - description: deslocamento
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.RevisionListResponse'
+        "400":
+          description: page_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar versões da página
+      tags:
+      - Páginas
+    post:
+      consumes:
+      - application/json
+      description: Guarda o estado atual como uma versão com nome (Salvar versão),
+        a partir da versão do If-Match.
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: versão carregada
+        in: header
+        name: If-Match
+        required: true
+        type: string
+      - description: nome da versão
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/sitehttp.SaveVersionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/sitehttp.SavedResponse'
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.VersionConflict'
+            - properties:
+                current:
+                  $ref: '#/definitions/sitehttp.DetailResponse'
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "428":
+          description: Precondition Required
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Salvar versão
+      tags:
+      - Páginas
+  /sites/projects/{id}/revisions/{rev}/restore:
+    post:
+      description: Cria uma nova versão com o conteúdo da versão escolhida, a partir
+        da versão do If-Match; nada do histórico é apagado. Devolve todos os arquivos
+        restaurados.
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: id da versão
+        in: path
+        name: rev
+        required: true
+        type: string
+      - description: versão carregada
+        in: header
+        name: If-Match
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.FilesResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.VersionConflict'
+            - properties:
+                current:
+                  $ref: '#/definitions/sitehttp.DetailResponse'
+              type: object
+        "428":
+          description: Precondition Required
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Restaurar versão
+      tags:
+      - Páginas
+  /sites/projects/{id}/settings:
+    get:
+      description: SEO por rota, integrações, formulários (funil, etapa, responsável,
+        fluxo, canal de acompanhamento, ação de sucesso), redirecionamentos e consentimento,
+        com a versão que vai no If-Match.
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.SettingsResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Ler configurações da página
+      tags:
+      - Páginas
+    put:
+      consumes:
+      - application/json
+      description: Substitui o documento de configurações inteiro a partir da versão
+        do If-Match. Campos desconhecidos e valores fora das regras respondem 422;
+        funil, etapa, responsável, fluxo e canal de acompanhamento precisam ser deste
+        workspace, e um formulário com fluxo precisa de canal (form_channel_required).
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: versão das configurações
+        in: header
+        name: If-Match
+        required: true
+        type: string
+      - description: configurações
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/site.Settings'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.SettingsResponse'
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.VersionConflict'
+            - properties:
+                current:
+                  $ref: '#/definitions/sitehttp.SettingsResponse'
+              type: object
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/sitehttp.FormDetails'
+              type: object
+        "428":
+          description: Precondition Required
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Salvar configurações da página
+      tags:
+      - Páginas
+  /sites/projects/{id}/settings-changes:
+    get:
+      description: 'Compara as configurações atuais da página com as que foram ao
+        ar na publicação ativa e lista o que muda ao publicar: redirecionamentos (para
+        onde o visitante vai), integrações de rastreamento (para onde vão os dados),
+        destino e ação de sucesso de cada formulário, aviso de cookies e SEO por rota
+        e do site. Cada item traz action (added, removed ou changed) e os campos alterados;
+        first true quando a página nunca foi publicada e tudo conta como novo. Exige
+        `sites:read`.'
+      parameters:
+      - description: ID da página
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitepublish.SettingsChanges'
+        "403":
+          description: site_access_denied
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: site_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: publish_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Configurações que mudam na próxima publicação
+      tags:
+      - sites
+  /sites/projects/{id}/snippets:
+    post:
+      consumes:
+      - application/json
+      description: Guarda o código exato de um elemento da página (node e rev da pré-visualização)
+        como uma seção salva do workspace, no sistema de design da página (ou no padrão
+        do workspace, criado quando não existe nenhum). A seção volta com a chave
+        para insert_section (library_key) e entra em GET /sites/sections como kind
+        snippet. Uma seção de página html cabe nas duas tecnologias; uma de página
+        react, só em react.
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: elemento e nome
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/sitehttp.SaveSnippetRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/sitehttp.SnippetResponse'
+        "404":
+          description: project_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: name_invalid, edit_refused (node_stale, node_invalid, field_required),
+            snippets_full
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: build_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Salvar como seção
+      tags:
+      - Páginas
+  /sites/projects/{id}/submissions:
+    get:
+      description: 'Envios da página, do mais recente para o mais antigo: formulário,
+        rota, variante, nome, contato (o telefone ou, sem ele, o email) e origem (a
+        utm_source ou, sem ela, a origem do referenciador) lidos dos campos do formulário,
+        campos preenchidos, UTM, origem do referenciador, fbclid, gclid, o texto do
+        consentimento aceito, o lead e a conversa de acompanhamento. O IP nunca é
+        guardado. Envios de um lead excluído não aparecem. Exige `site_submissions:read`.
+        Códigos: 400 `submissions_page_invalid`.'
+      parameters:
+      - description: página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: id do formulário
+        in: query
+        name: form
+        type: string
+      - description: desde (RFC 3339)
+        in: query
+        name: from
+        type: string
+      - description: antes de (RFC 3339)
+        in: query
+        name: to
+        type: string
+      - description: página, a partir de 1
+        in: query
+        name: page
+        type: integer
+      - description: até 100, padrão 30
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/siteformhttp.SubmissionListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar os envios dos formulários de uma página
+      tags:
+      - Páginas
+  /sites/projects/{id}/thumbnail:
+    post:
+      consumes:
+      - application/json
+      description: 'O editor aberto por quem edita (sites:update) envia uma imagem
+        JPEG da pré-visualização (de 320x200 a 2560x2560 px, até 1,5 MB, em data URL).
+        A imagem é decodificada e recodificada aqui antes de entrar na biblioteca
+        de mídia como a miniatura da página, e a miniatura anterior sai da biblioteca.
+        No máximo uma miniatura por página a cada 10 minutos: fora desse intervalo
+        accepted é false e retryAfterSeconds diz quando enviar de novo. A miniatura
+        da publicação continua sendo feita no servidor.'
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: imagem JPEG em data URL
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/sitehttp.ThumbnailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.ThumbnailResponse'
+        "400":
+          description: invalid_body
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: project_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "413":
+          description: project_too_large
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: thumbnail_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Enviar a miniatura da página
+      tags:
+      - Páginas
+  /sites/projects/{id}/unpublish:
+    post:
+      description: Apaga o endereço de todos os domínios ativos da página, desativa
+        os formulários dela e volta a página para rascunho. Os domínios continuam
+        reservados para a próxima publicação e as publicações anteriores ficam no
+        histórico. Repetir com a página fora do ar não faz nada. Exige `sites:publish`.
+      parameters:
+      - description: ID da página
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: sem conteúdo
+        "403":
+          description: site_access_denied
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: site_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: forms_unavailable, hosting_unavailable ou publish_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Tirar a página do ar
+      tags:
+      - sites
+  /sites/sections:
+    get:
+      description: 'Seções prontas da biblioteca (kind library: topo, benefícios,
+        depoimentos, perguntas, planos, formulário, WhatsApp, galeria, equipe e rodapé)
+        seguidas das seções salvas pelo workspace (kind snippet, título igual ao nome
+        nos quatro idiomas), para inserir numa página com a operação insert_section
+        e o campo library_key. Cada seção traz o título em pt, en, es e de e as tecnologias
+        em que pode entrar; stack filtra pelas que cabem numa tecnologia.'
+      parameters:
+      - description: tecnologia da página
+        enum:
+        - react
+        - html
+        in: query
+        name: stack
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.SectionsResponse'
+        "400":
+          description: section_stack_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: sections_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Biblioteca de seções
+      tags:
+      - Páginas
+  /sites/starters:
+    get:
+      description: Modelos prontos por tecnologia (react ou html) para criar uma página
+        sem custo de IA. previewUrl é uma imagem pública (JPEG 1440x900) do modelo.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/sitehttp.StarterResponse'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Listar modelos de página
+      tags:
+      - Páginas
   /sms/routes:
     get:
       description: 'Lista os remetentes de SMS do workspace: o número compartilhado
@@ -62130,6 +66896,44 @@ paths:
       summary: Cliques nas opções de um fluxo
       tags:
       - workflows
+  /workflows/{id}/conversation-variables:
+    get:
+      description: 'Lista os dados da conversa que o rascunho salvo do fluxo precisa
+        ou usa, já seguindo o agente que um nó de IA usa, os subfluxos e os fluxos
+        que o agente chama. Cada linha traz o nome amigável (label) e o tipo da declaração
+        do workspace (declared falso quando o nome ainda não foi declarado), se é
+        obrigatória (required; opcional quando o fluxo dá um valor padrão em default),
+        se o fluxo a declara (inFlow), se algum passo a usa (used), os passos deste
+        fluxo que a usam (nodes), a cadeia de automações (via) e quem pode preenchê-la
+        (filledBy: default, campaign, handoff, transfer; fluxos de voz não recebem
+        dados). lead_name, lead_number e campaign_name nunca aparecem: a plataforma
+        sempre preenche.'
+      parameters:
+      - description: ID do fluxo
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/automationneedshttp.FlowVariablesResponse'
+        "422":
+          description: automation_needs_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: automation_needs_unreadable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Dados do fluxo
+      tags:
+      - Dados da conversa
   /workflows/{id}/nodes/{nodeId}/analyze:
     get:
       description: 'Diz como o teste do nó vai rodar: modo (direct, mock ou execute_until),
@@ -62354,15 +67158,19 @@ paths:
         variável, captura do HTTP, chaves de state.set legíveis no código, resposta
         da IA, respostas de formulário e de espera), os dados do contato e da conversa,
         os valores do sistema e os nomes dos segredos do workspace (nunca os valores).
-        Cada item traz ref (o que vai entre {{ e }}), label em português, group (trigger,
-        nodes, contact, system ou secrets, nesta ordem; os passos do mais próximo
-        ao mais distante), kind (default para os valores padrão do sistema, trigger,
-        node, system para contato e conversa, secret), source com o nó que fornece
-        o dado (null para sistema e segredos), type (text, number, boolean, object,
-        list, date ou unknown), example (ou null) e availability: always quando todo
-        caminho até o nó fornece o dado, some_paths quando só alguns fornecem. Cada
-        ref aparece uma vez; last.<campo> aparece uma vez, com o passo mais próximo
-        que o fornece. O mesmo resultado vem em variables na análise do nó (GET /workflows/{id}/nodes/{nodeId}/analyze).'
+        Cada item traz ref (o que vai entre {{ e }}), label em português (labelKey,
+        labelPrefix e labelDetail para traduzir), group (conversation para os dados
+        da conversa, trigger, nodes, contact para os dados da plataforma sobre contato
+        e conversa, system ou secrets, nesta ordem; só passos que levam ao nó, do
+        mais próximo ao mais distante, com os que estão em todo caminho antes dos
+        que estão só em alguns, e as saídas de cada passo na ordem declarada), kind
+        (default para os valores padrão do sistema, trigger, node, system para contato
+        e conversa, secret), source com o nó que fornece o dado (null para sistema
+        e segredos), type (text, number, boolean, object, list, date ou unknown),
+        example (ou null) e availability: always quando todo caminho até o nó fornece
+        o dado, some_paths quando só alguns fornecem. Cada ref aparece uma vez; last.<campo>
+        aparece uma vez, com o passo mais próximo que o fornece. O mesmo resultado
+        vem em variables na análise do nó (GET /workflows/{id}/nodes/{nodeId}/analyze).'
       parameters:
       - description: ID do workflow
         in: path
@@ -62373,6 +67181,11 @@ paths:
         in: path
         name: nodeId
         required: true
+        type: string
+      - description: 'Busca: nome igual primeiro, depois começo do nome, depois trecho
+          do nome ou do ref; sem diferenciar maiúsculas e acentos'
+        in: query
+        name: q
         type: string
       produces:
       - application/json
@@ -62814,7 +67627,8 @@ paths:
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "422":
-          description: 'test_value_not_needed: o fluxo não usa essa variável'
+          description: 'test_value_not_needed: o fluxo não usa essa variável; test_value_type_invalid:
+            o valor não cabe no tipo declarado, com details.variables [{name,label}]'
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "503":
@@ -62868,6 +67682,41 @@ paths:
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       summary: Última entrada real de um gatilho
+      tags:
+      - workflows
+  /workflows/{id}/variable-labels:
+    get:
+      description: 'Para cada nó do rascunho que usa {{...}} na configuração, devolve
+        o nome amigável de cada referência como o seletor de variáveis daquele nó
+        a mostra: label em português, com labelKey, labelPrefix e labelDetail para
+        traduzir, ou unknown quando nada fornece aquele dado naquele ponto. As prévias
+        dos nós no canvas usam este mapa para nunca mostrar a referência crua.'
+      parameters:
+      - description: ID do workflow
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.variableLabelsResponse'
+        "403":
+          description: Workflow de outro departamento
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Workflow não encontrado
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: variables_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Nomes das variáveis usadas no fluxo
       tags:
       - workflows
   /workflows/{id}/versions:
@@ -63506,8 +68355,13 @@ paths:
     post:
       consumes:
       - application/json
-      description: Contrata um addon para o workspace, cobra o valor proporcional
-        de ativação do saldo e cria a assinatura recorrente.
+      description: 'Contrata um addon para o workspace. Cobra agora, do saldo pré-pago,
+        só os dias que faltam do ciclo atual (também ao somar unidades a um addon
+        já contratado) e as unidades só passam a existir depois dessa cobrança; a
+        partir do ciclo seguinte o addon entra na fatura mensal, no seu próprio vencimento
+        mensal. Respeita o máximo por workspace do addon (maxUnits). Domínios próprios
+        são só mensais: outro ciclo responde 400 addon_monthly_only. Saldo insuficiente
+        responde 402 insufficient_balance; acima do máximo, 409 addon_unit_cap_reached.'
       parameters:
       - description: ID do workspace
         in: path
@@ -63528,19 +68382,23 @@ paths:
           schema:
             $ref: '#/definitions/workspace_addon.AddonSubscription'
         "400":
-          description: Bad Request
+          description: addon_quantity_invalid ou addon_monthly_only
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "402":
-          description: Payment Required
+          description: insufficient_balance
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "404":
-          description: Not Found
+          description: addon_not_found
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "409":
-          description: Conflict
+          description: addon_unit_cap_reached ou addon_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: addon_changes_unavailable
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
@@ -63550,7 +68408,12 @@ paths:
       - Addons
   /workspaces/{workspaceId}/addons/{addonSubscriptionId}/cancel:
     post:
-      description: Cancela uma assinatura de addon do workspace a partir do seu identificador.
+      description: 'Cancela uma assinatura de addon do workspace. As unidades continuam
+        até o fim do período já pago e não são renovadas; nada é devolvido. Para domínios
+        próprios, cancelar é reduzir a zero: com algum domínio conectado responde
+        409 addon_units_in_use, e depois do cancelamento nenhum domínio novo pode
+        ser conectado. Responde com cancelledAt, scheduledQuantity 0 e scheduledFrom
+        (quando as unidades acabam).'
       parameters:
       - description: ID do workspace
         in: path
@@ -63570,16 +68433,75 @@ paths:
           schema:
             $ref: '#/definitions/workspace_addon.AddonSubscription'
         "404":
-          description: Not Found
+          description: addon_subscription_not_found
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-        "500":
-          description: Internal Server Error
+        "409":
+          description: addon_units_in_use ou addon_reduction_unsupported
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: addon_changes_unavailable
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Cancelar assinatura de addon
+      tags:
+      - Addons
+  /workspaces/{workspaceId}/addons/{addonSubscriptionId}/quantity:
+    put:
+      consumes:
+      - application/json
+      description: 'Agenda a nova quantidade de um addon para o próximo ciclo: o ciclo
+        já pago continua com a quantidade atual e a fatura seguinte cobra a nova.
+        Só reduz (para aumentar, contrate mais unidades) e nunca abaixo do que está
+        em uso: para domínios próprios, desconecte domínios antes. Repetir a quantidade
+        atual desfaz uma redução agendada. Nada é devolvido. Responde com scheduledQuantity
+        e scheduledFrom.'
+      parameters:
+      - description: ID do workspace
+        in: path
+        name: workspaceId
+        required: true
+        type: string
+      - description: ID da assinatura do addon
+        in: path
+        name: addonSubscriptionId
+        required: true
+        type: string
+      - description: Nova quantidade
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workspaceaddon.ChangeQuantityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workspace_addon.AddonSubscription'
+        "400":
+          description: addon_quantity_invalid ou addon_increase_needs_purchase
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: addon_subscription_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: addon_units_in_use ou addon_reduction_unsupported
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: addon_changes_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reduzir quantidade de addon
       tags:
       - Addons
   /workspaces/{workspaceId}/addons/available:

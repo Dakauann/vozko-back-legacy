@@ -41,6 +41,9 @@ type world struct {
 	agents    *workspaceNames
 	workflows *workspaceNames
 	people    *workspaceNames
+	edits     *memoryEdits
+	usage     *campaignUsage
+	sessions  *EditSessions
 	writer    *Writer
 	intake    *Intake
 	manager   *Manager
@@ -63,6 +66,7 @@ func newWorld(t *testing.T) *world {
 		agents:    newWorkspaceNames(map[string]string{}),
 		workflows: newWorkspaceNames(map[string]string{}),
 		people:    newWorkspaceNames(map[string]string{}),
+		usage:     &campaignUsage{},
 		now:       time.Date(2026, 10, 21, 15, 0, 0, 0, time.UTC),
 	}
 	sheet, err := googlesheet.NewSheet(googlesheet.NewSheetInput{
@@ -81,12 +85,13 @@ func newWorld(t *testing.T) *world {
 		t.Fatal(err)
 	}
 	w.sheet = sheet
+	w.edits = newMemoryEdits(w.sheets, w.rows)
 	w.api.header = toAny(sheet.HeaderRow())
 	cfg := DefaultWriterConfig(2)
 	cfg.BatchRows = 3
 	w.writer = NewWriter(WriterDeps{
 		Sheets: w.sheets, Rows: w.rows, API: w.api, Errors: fakeClassifier{}, Access: w.access, Limiter: w.limiter,
-		Leases: w.leases, Marks: w.marks, Alerts: w.alerts, Metrics: fakeMetrics{}, Config: cfg,
+		Leases: w.leases, Marks: w.marks, Alerts: w.alerts, Metrics: fakeMetrics{}, Edits: w.edits, Config: cfg,
 	})
 	w.writer.now = func() time.Time { return w.now }
 	w.writer.jitter = func() time.Duration { return 0 }
@@ -94,10 +99,12 @@ func newWorld(t *testing.T) *world {
 	w.intake.now = func() time.Time { return w.now }
 	w.manager = NewManager(ManagerDeps{
 		Sheets: w.sheets, Rows: w.rows, API: w.api, Errors: fakeClassifier{}, Access: w.access, Limiter: w.limiter,
-		Marks: w.marks, Alerts: w.alerts, Nudger: w.nudger,
+		Marks: w.marks, Alerts: w.alerts, Nudger: w.nudger, Edits: w.edits, Usage: w.usage,
 		Names: OriginNames{Agents: w.agents.lookup, Workflows: w.workflows.lookup, People: w.people.lookup},
 	})
 	w.manager.now = func() time.Time { return w.now }
+	w.sessions = NewEditSessions(EditSessionsDeps{Manager: w.manager, Sessions: w.edits, Leases: w.leases})
+	w.sessions.settleWait = 20 * time.Millisecond
 	return w
 }
 

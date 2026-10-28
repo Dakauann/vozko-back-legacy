@@ -136,9 +136,10 @@ const (
 )
 
 var (
-	timelineStart = time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
-	callRead      = workspace.PermissionEntry{Resource: workspace.ResourceCallHistory, Action: workspace.ActionRead}
-	callOthers    = workspace.PermissionEntry{Resource: workspace.ResourceCallHistory, Action: workspace.ActionViewOthers}
+	timelineStart   = time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	callRead        = workspace.PermissionEntry{Resource: workspace.ResourceCallHistory, Action: workspace.ActionRead}
+	callOthers      = workspace.PermissionEntry{Resource: workspace.ResourceCallHistory, Action: workspace.ActionViewOthers}
+	submissionsRead = workspace.PermissionEntry{Resource: workspace.ResourceSiteSubmissions, Action: workspace.ActionRead}
 )
 
 type timelineFixture struct {
@@ -214,7 +215,7 @@ func newTimelineFixtureWith(t *testing.T, items []lead.TimelineItem, permissions
 		Definitions: &fakeDefinitions{defs: leadDefinitions()},
 		CallAccess: callGrants{
 			salesMember: {callRead: true},
-			callManager: {callRead: true, callOthers: true},
+			callManager: {callRead: true, callOthers: true, submissionsRead: true},
 		},
 		Transfers:  f.transfers,
 		DealScopes: dealScopes{byUser: map[string]opportunity.DealScope{salesMember: {Restrict: true, DepartmentIDs: []string{"dep-sales"}, AssigneeOverride: salesMember}, callManager: {}}},

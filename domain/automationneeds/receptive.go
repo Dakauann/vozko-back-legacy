@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"vozko/domain/conversation"
+	"vozko/domain/shared"
 )
 
 type SlotKind string
@@ -113,7 +114,7 @@ func rootLink(running conversation.Automation, needs Needs) Link {
 }
 
 type ReceptiveGuard interface {
-	Admit(workspaceID string, config conversation.ChannelAutomation) error
+	Admit(workspaceID string, kind SlotKind, config conversation.ChannelAutomation) error
 	Saved(ctx context.Context, workspaceID string, kind SlotKind, slotID string, config conversation.ChannelAutomation)
 }
 
@@ -131,4 +132,22 @@ func (r SwitchOffRecord) SettledBy(config conversation.ChannelAutomation) bool {
 		chosen = config.WorkflowRef()
 	}
 	return chosen != r.Automation.ID
+}
+
+var slotChannels = map[SlotKind]shared.EntryType{
+	SlotWhatsAppNumber: shared.EntryTypeWhatsApp,
+	SlotUnofficial:     shared.EntryTypeUnofficialWhatsApp,
+	SlotInstagram:      shared.EntryTypeInstagram,
+	SlotFacebook:       shared.EntryTypeFacebook,
+	SlotTelegram:       shared.EntryTypeTelegram,
+	SlotWebchat:        shared.EntryTypeWebchat,
+	SlotTikTok:         shared.EntryTypeTikTok,
+	SlotMercadoLivre:   shared.EntryTypeMercadoLivre,
+	SlotEmail:          shared.EntryTypeEmail,
+	SlotRCS:            shared.EntryTypeRCS,
+	SlotSMS:            shared.EntryTypeSMS,
+}
+
+func (k SlotKind) EntryType() shared.EntryType {
+	return slotChannels[k]
 }

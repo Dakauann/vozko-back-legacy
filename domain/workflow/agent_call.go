@@ -76,12 +76,49 @@ func (t AgentCallInputType) Accepts(value interface{}) bool {
 	return false
 }
 
+const AgentCallFormatTime = "time"
+
 type AgentCallInput struct {
 	Name        string
 	Type        AgentCallInputType
 	Description string
 	Required    bool
 	Example     string
+	Enum        []string
+	Format      string
+}
+
+func (in AgentCallInput) shapeProblem() string {
+	if (len(in.Enum) > 0 || in.Format != "") && in.Type != AgentCallInputString {
+		return "só campos string aceitam opções ou formato"
+	}
+	if in.Format != "" && in.Format != AgentCallFormatTime {
+		return "o formato " + in.Format + " não existe, use time"
+	}
+	seen := map[string]bool{}
+	for _, option := range in.Enum {
+		if seen[option] {
+			return "a opção " + option + " está repetida"
+		}
+		seen[option] = true
+	}
+	return ""
+}
+
+func (in AgentCallInput) acceptsShape(value interface{}) bool {
+	text, _ := value.(string)
+	if len(in.Enum) > 0 {
+		for _, option := range in.Enum {
+			if option == text {
+				return true
+			}
+		}
+		return false
+	}
+	if in.Format == AgentCallFormatTime {
+		return shared.IsClockTime(text)
+	}
+	return true
 }
 
 func AgentCallInputsOf(config map[string]interface{}) ([]AgentCallInput, error) {
@@ -110,6 +147,8 @@ func AgentCallInputsOf(config map[string]interface{}) ([]AgentCallInput, error) 
 			return nil, fmt.Errorf("%w: o campo %s tem o tipo %s, use string, number, boolean, object ou array", ErrAgentCallInputsInvalid, in.Name, in.Type)
 		case seen[in.Name]:
 			return nil, fmt.Errorf("%w: %v: %s", ErrAgentCallInputsInvalid, errAgentCallInputNameDuplicate, in.Name)
+		case in.shapeProblem() != "":
+			return nil, fmt.Errorf("%w: o campo %s: %s", ErrAgentCallInputsInvalid, in.Name, in.shapeProblem())
 		}
 		seen[in.Name] = true
 		inputs = append(inputs, in)
@@ -133,7 +172,20 @@ func agentCallInputFrom(fields map[string]interface{}) AgentCallInput {
 		Description: text("description"),
 		Required:    required,
 		Example:     text("example"),
+		Enum:        textList(fields["enum"]),
+		Format:      text("format"),
 	}
+}
+
+func textList(raw interface{}) []string {
+	items, _ := raw.([]interface{})
+	var out []string
+	for _, item := range items {
+		if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+			out = append(out, strings.TrimSpace(s))
+		}
+	}
+	return out
 }
 
 func (g *Graph) AgentCallInputs() ([]AgentCallInput, error) {
@@ -158,6 +210,9 @@ func ValidateAgentCallInputs(fields []AgentCallInput, values map[string]interfac
 		if !field.Type.Accepts(value) {
 			return nil, nil, &AgentCallInputTypeError{Field: field.Name, Expected: field.Type}
 		}
+		if !field.acceptsShape(value) {
+			return nil, nil, &AgentCallInputTypeError{Field: field.Name, Expected: field.Type, Enum: field.Enum, Format: field.Format}
+		}
 		cleaned[field.Name] = value
 	}
 	return cleaned, missing, nil
@@ -166,9 +221,17 @@ func ValidateAgentCallInputs(fields []AgentCallInput, values map[string]interfac
 type AgentCallInputTypeError struct {
 	Field    string
 	Expected AgentCallInputType
+	Enum     []string
+	Format   string
 }
 
 func (e *AgentCallInputTypeError) Error() string {
+	switch {
+	case len(e.Enum) > 0:
+		return fmt.Sprintf("%s deve ser uma destas opções: %s", e.Field, strings.Join(e.Enum, ", "))
+	case e.Format == AgentCallFormatTime:
+		return fmt.Sprintf("%s deve estar no formato HH:MM, de 00:00 a 23:59", e.Field)
+	}
 	return fmt.Sprintf("%s deve ser %s", e.Field, e.Expected)
 }
 

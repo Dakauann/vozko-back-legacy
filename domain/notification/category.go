@@ -14,6 +14,7 @@ const (
 	CategorySupport       Category = "support"
 	CategorySystem        Category = "system"
 	CategoryAutomations   Category = "automations"
+	CategoryLeads         Category = "leads"
 )
 
 var categoryCatalog = []Category{
@@ -28,6 +29,7 @@ var categoryCatalog = []Category{
 	CategorySupport,
 	CategorySystem,
 	CategoryAutomations,
+	CategoryLeads,
 }
 
 func Categories() []Category {

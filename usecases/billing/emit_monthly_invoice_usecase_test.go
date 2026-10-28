@@ -24,13 +24,13 @@ type fakeSubs struct {
 	updateErr error
 }
 
-func (f *fakeSubs) ListActiveBillingDue(_ time.Time, afterID string, limit int) ([]*workspace_plan.WorkspaceSubscription, error) {
+func (f *fakeSubs) ListActiveBillingDue(through time.Time, afterID string, limit int) ([]*workspace_plan.WorkspaceSubscription, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
 	var active []*workspace_plan.WorkspaceSubscription
 	for _, s := range f.subs {
-		if s.Status == workspace_plan.SubscriptionStatusActive && s.ID > afterID {
+		if s.Status == workspace_plan.SubscriptionStatusActive && !s.CurrentPeriodEnd.After(through) && s.ID > afterID {
 			active = append(active, s)
 		}
 	}
@@ -65,6 +65,7 @@ type fakeAddons struct {
 	workspace_addon.AddonSubscriptionRepository
 	byWS             map[string][]*workspace_addon.AddonSubscription
 	err              error
+	dueErr           error
 	updated          []*workspace_addon.AddonSubscription
 	updateErr        error
 	reactivatedSince time.Time
@@ -72,6 +73,29 @@ type fakeAddons struct {
 
 func (f *fakeAddons) ListActiveByWorkspace(ws string) ([]*workspace_addon.AddonSubscription, error) {
 	return f.byWS[ws], f.err
+}
+
+func (f *fakeAddons) ListWorkspaceIDsWithAddonsDue(through time.Time, afterWorkspaceID string, limit int) ([]string, error) {
+	if f.dueErr != nil {
+		return nil, f.dueErr
+	}
+	var ids []string
+	for ws, list := range f.byWS {
+		if ws <= afterWorkspaceID {
+			continue
+		}
+		for _, a := range list {
+			if a.Status == workspace_plan.SubscriptionStatusActive && a.DueBy(through) {
+				ids = append(ids, ws)
+				break
+			}
+		}
+	}
+	sort.Strings(ids)
+	if len(ids) > limit {
+		ids = ids[:limit]
+	}
+	return ids, nil
 }
 
 func (f *fakeAddons) ListReactivatableByWorkspace(ws string, expiredSince time.Time) ([]*workspace_addon.AddonSubscription, error) {

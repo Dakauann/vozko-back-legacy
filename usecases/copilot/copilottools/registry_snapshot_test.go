@@ -20,6 +20,7 @@ import (
 	"vozko/usecases/copilot/copilottools/leadtools"
 	"vozko/usecases/copilot/copilottools/mediatools"
 	"vozko/usecases/copilot/copilottools/platformtools"
+	"vozko/usecases/copilot/copilottools/sitetools"
 	"vozko/usecases/copilot/copilottools/skilltools"
 	"vozko/usecases/copilot/copilottools/studiotools"
 	"vozko/usecases/copilot/copilottools/telephonytools"
@@ -193,6 +194,7 @@ func registeredTools(t *testing.T) []copilot.Tool {
 	toolset = append(toolset, formtools.FormTools(formtools.FormDeps{})...)
 	toolset = append(toolset, emailtools.EmailTools(emailtools.EmailDeps{})...)
 	toolset = append(toolset, emaildesigntools.EmailDesignTools(emaildesigntools.Deps{})...)
+	toolset = append(toolset, sitetools.SiteTools(sitetools.Deps{})...)
 	return copilot_usecase.NewRegistry(toolset...).Tools()
 }
 

@@ -40,11 +40,36 @@ func (s widgetStore) ListByWorkspace(context.Context, wcdomain.ListWidgetsInput)
 }
 func (s widgetStore) Delete(context.Context, string, string) error { return nil }
 
-func publicRouter(w *wcdomain.Widget) *mux.Router {
+var testSolver = []byte("self.vzPow = function () {};")
+
+func publicHandler(w *wcdomain.Widget, solver []byte) *PublicHandler {
 	svc := wcuc.NewVisitorService(wcuc.VisitorDeps{Widgets: widgetStore{w: w}})
+	h, err := NewPublicHandler(svc, nil, apiOrigin, solver)
+	if err != nil {
+		panic(err)
+	}
+	return h
+}
+
+var assetVersion = publicHandler(nil, testSolver).version
+
+func publicRouter(w *wcdomain.Widget) *mux.Router {
 	r := mux.NewRouter()
-	RegisterPublicRoutes(r, NewPublicHandler(svc, nil, apiOrigin))
+	RegisterPublicRoutes(r, publicHandler(w, testSolver))
 	return r
+}
+
+func TestThePublicHandlerNeedsTheProofOfWorkSolver(t *testing.T) {
+	svc := wcuc.NewVisitorService(wcuc.VisitorDeps{Widgets: widgetStore{}})
+	if _, err := NewPublicHandler(svc, nil, apiOrigin, nil); err == nil {
+		t.Fatal("a handler without the solver was built")
+	}
+}
+
+func TestTheAssetVersionFollowsTheSolver(t *testing.T) {
+	if publicHandler(nil, []byte("self.vzPow = 2;")).version == assetVersion {
+		t.Fatal("a new solver kept the cached asset version")
+	}
 }
 
 func activeWidget() *wcdomain.Widget {
@@ -151,6 +176,21 @@ func TestFrameAssetsAreVersionedByContent(t *testing.T) {
 		if !strings.Contains(page, asset) {
 			t.Fatalf("frame does not reference %s", asset)
 		}
+	}
+}
+
+func TestFrameServesTheSharedProofOfWorkSolver(t *testing.T) {
+	want := testSolver
+	rec := httptest.NewRecorder()
+	publicRouter(activeWidget()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, PublicPrefix+"/assets/pow.js?v="+assetVersion, nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != string(want) {
+		t.Fatalf("pow.js = %d", rec.Code)
+	}
+	if got := rec.Header().Get("Cache-Control"); got != assetsImmutable {
+		t.Fatalf("pow.js Cache-Control = %q", got)
+	}
+	if !strings.Contains(rec.Header().Get("Content-Type"), "javascript") {
+		t.Fatalf("pow.js Content-Type = %q", rec.Header().Get("Content-Type"))
 	}
 }
 

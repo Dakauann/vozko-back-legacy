@@ -1,0 +1,164 @@
+{
+  "modules": {
+    "react": [
+      "react",
+      "react/jsx-runtime"
+    ],
+    "react-dom": [
+      "react-dom",
+      "react-dom/client",
+      "react-dom/static"
+    ],
+    "framer-motion": [
+      "framer-motion"
+    ],
+    "clsx": [
+      "clsx"
+    ],
+    "tailwind-merge": [
+      "tailwind-merge"
+    ],
+    "class-variance-authority": [
+      "class-variance-authority"
+    ],
+    "gsap": [
+      "gsap",
+      "gsap/ScrollTrigger",
+      "gsap/ScrollToPlugin",
+      "gsap/ScrollSmoother",
+      "gsap/Flip",
+      "gsap/Observer",
+      "gsap/TextPlugin",
+      "gsap/SplitText",
+      "gsap/Draggable",
+      "gsap/InertiaPlugin",
+      "gsap/MotionPathPlugin",
+      "gsap/CustomEase",
+      "gsap/DrawSVGPlugin",
+      "gsap/MorphSVGPlugin",
+      "gsap/ScrambleTextPlugin"
+    ],
+    "motion": [
+      "motion",
+      "motion/react",
+      "motion/mini"
+    ],
+    "swiper": [
+      "swiper",
+      "swiper/modules",
+      "swiper/react",
+      "swiper/element"
+    ],
+    "lottie-web": [
+      "lottie-web"
+    ],
+    "three": [
+      "three",
+      "three/addons/controls/OrbitControls.js",
+      "three/addons/loaders/GLTFLoader.js",
+      "three/addons/loaders/DRACOLoader.js",
+      "three/addons/loaders/RGBELoader.js",
+      "three/addons/environments/RoomEnvironment.js",
+      "three/addons/postprocessing/EffectComposer.js",
+      "three/addons/postprocessing/RenderPass.js",
+      "three/addons/postprocessing/UnrealBloomPass.js",
+      "three/addons/geometries/RoundedBoxGeometry.js",
+      "three/addons/utils/BufferGeometryUtils.js"
+    ],
+    "@radix-ui/react-slot": [
+      "@radix-ui/react-slot"
+    ],
+    "@radix-ui/react-accordion": [
+      "@radix-ui/react-accordion"
+    ],
+    "@radix-ui/react-dialog": [
+      "@radix-ui/react-dialog"
+    ],
+    "@radix-ui/react-tabs": [
+      "@radix-ui/react-tabs"
+    ],
+    "@radix-ui/react-dropdown-menu": [
+      "@radix-ui/react-dropdown-menu"
+    ],
+    "@radix-ui/react-popover": [
+      "@radix-ui/react-popover"
+    ],
+    "@radix-ui/react-tooltip": [
+      "@radix-ui/react-tooltip"
+    ],
+    "@radix-ui/react-select": [
+      "@radix-ui/react-select"
+    ],
+    "@radix-ui/react-checkbox": [
+      "@radix-ui/react-checkbox"
+    ],
+    "@radix-ui/react-radio-group": [
+      "@radix-ui/react-radio-group"
+    ],
+    "@radix-ui/react-switch": [
+      "@radix-ui/react-switch"
+    ],
+    "@radix-ui/react-label": [
+      "@radix-ui/react-label"
+    ],
+    "@radix-ui/react-separator": [
+      "@radix-ui/react-separator"
+    ],
+    "@radix-ui/react-avatar": [
+      "@radix-ui/react-avatar"
+    ],
+    "@radix-ui/react-navigation-menu": [
+      "@radix-ui/react-navigation-menu"
+    ],
+    "@radix-ui/react-collapsible": [
+      "@radix-ui/react-collapsible"
+    ],
+    "embla-carousel-react": [
+      "embla-carousel-react"
+    ]
+  },
+  "aliases": {
+    "three/examples/jsm/controls/OrbitControls.js": "three/addons/controls/OrbitControls.js",
+    "three/examples/jsm/loaders/GLTFLoader.js": "three/addons/loaders/GLTFLoader.js",
+    "three/examples/jsm/loaders/DRACOLoader.js": "three/addons/loaders/DRACOLoader.js",
+    "three/examples/jsm/loaders/RGBELoader.js": "three/addons/loaders/RGBELoader.js",
+    "three/examples/jsm/environments/RoomEnvironment.js": "three/addons/environments/RoomEnvironment.js",
+    "three/examples/jsm/postprocessing/EffectComposer.js": "three/addons/postprocessing/EffectComposer.js",
+    "three/examples/jsm/postprocessing/RenderPass.js": "three/addons/postprocessing/RenderPass.js",
+    "three/examples/jsm/postprocessing/UnrealBloomPass.js": "three/addons/postprocessing/UnrealBloomPass.js",
+    "three/examples/jsm/geometries/RoundedBoxGeometry.js": "three/addons/geometries/RoundedBoxGeometry.js",
+    "three/examples/jsm/utils/BufferGeometryUtils.js": "three/addons/utils/BufferGeometryUtils.js"
+  },
+  "styles": {
+    "swiper": [
+      "swiper/css",
+      "swiper/css/a11y",
+      "swiper/css/autoplay",
+      "swiper/css/effect-cards",
+      "swiper/css/effect-coverflow",
+      "swiper/css/effect-creative",
+      "swiper/css/effect-cube",
+      "swiper/css/effect-fade",
+      "swiper/css/effect-flip",
+      "swiper/css/free-mode",
+      "swiper/css/grid",
+      "swiper/css/navigation",
+      "swiper/css/pagination",
+      "swiper/css/scrollbar",
+      "swiper/css/thumbs",
+      "swiper/css/zoom"
+    ]
+  },
+  "inline": [
+    "lucide-react",
+    "lucide"
+  ],
+  "html": [
+    "gsap",
+    "motion",
+    "swiper",
+    "lottie-web",
+    "three",
+    "lucide"
+  ]
+}

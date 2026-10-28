@@ -31,6 +31,7 @@ import (
 	payment_domain "vozko/domain/payment"
 	shortlink_domain "vozko/domain/shortlink"
 	wc_entry_domain "vozko/domain/whatsapp_campaign_entry"
+	workspace_addon_domain "vozko/domain/workspace/workspace_addon"
 	openrouter_service "vozko/infra/ai/openrouter"
 	rag_infra "vozko/infra/ai/rag"
 	"vozko/infra/alerting"
@@ -179,7 +180,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		tools_usecase.NewScheduleMeetingToolUseCase(c.repositories.calendar, c.services.googleCalendar, calendarAccess),
 		tools_usecase.NewRescheduleMeetingToolUseCase(rescheduleEventUC),
 		tools_usecase.NewSearchKnowledgeBaseToolUseCase(ragService, c.repositories.ragKnowledgeBase),
-		tools_usecase.NewAddSheetRowTool(c.sheetRows()),
+		tools_usecase.NewAddSheetRowTool(c.sheetRows(), conversationSheets{c: c}),
 	}
 	toolHandlers = append(toolHandlers, c.consentToolHandlers()...)
 	if c.mcpRegistry != nil {
@@ -292,7 +293,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 	currentSubscriptionUC := workspace_plan_usecase.NewEnsureCurrentWorkspaceSubscriptionUseCase(c.repositories.workspaceSubscription)
 	activeSubscriptionUC := workspace_plan_usecase.NewEnsureActiveWorkspaceSubscriptionUseCase(currentSubscriptionUC)
 	getWorkspaceSubscriptionUC := workspace_plan_usecase.NewGetWorkspaceSubscriptionUseCase(c.repositories.workspacePlan, c.repositories.workspaceSubscription)
-	subscribeWorkspacePlanUC := workspace_plan_usecase.NewSubscribeWorkspaceUseCase(c.repositories.workspacePlan, c.repositories.workspaceSubscription)
+	subscribeWorkspacePlanUC := workspace_plan_usecase.NewSubscribeWorkspaceUseCase(c.repositories.workspacePlan, c.repositories.workspaceSubscription, c.siteAccessHooks())
 	trackReferralUC := affiliate_usecase.NewTrackReferralUseCase(c.repositories.affiliate)
 	ensureDefaultWorkspaceUC := workspace_usecase.NewEnsureDefaultWorkspaceUseCase(c.repositories.workspace, c.repositories.workspaceConfig, trackReferralUC)
 	createInvoiceUC := invoice_usecase.NewCreateInvoiceUseCase(c.repositories.invoice, c.repositories.user, c.repositories.address, c.services.paymentGateway, c.repositories.workspacePricing, currentSubscriptionUC, c.repositories.affiliate, trackReferralUC)
@@ -512,8 +513,8 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		log.Fatalf("[billing] notices: %v", err)
 	}
 	emitMonthlyInvoicesUC := billing_usecase.NewEmitMonthlyInvoicesUseCase(c.repositories.workspaceSubscription, c.repositories.workspacePlan, c.repositories.addonSubscription, c.repositories.workspace, c.repositories.workspacePricing, createInvoiceUC, billingNotices)
-	confirmMonthlyBillingUC := billing_usecase.NewConfirmMonthlyBillingUseCase(c.repositories.workspaceSubscription, c.repositories.addonSubscription).WithReactivation(addonPhoneDeactivatorUC)
-	cancelSweepUC := billing_usecase.NewCancelSweepUseCase(c.repositories.invoice, c.repositories.workspaceSubscription, c.repositories.addonSubscription, addonPhoneDeactivatorUC, opsAlerter, billingNotices)
+	confirmMonthlyBillingUC := billing_usecase.NewConfirmMonthlyBillingUseCase(c.repositories.workspaceSubscription, c.repositories.addonSubscription).WithReactivation(addonPhoneDeactivatorUC).WithAccessHooks(c.siteAccessHooks())
+	cancelSweepUC := billing_usecase.NewCancelSweepUseCase(c.repositories.invoice, c.repositories.workspaceSubscription, c.repositories.addonSubscription, addonPhoneDeactivatorUC, opsAlerter, billingNotices).WithAccessHooks(c.siteAccessHooks())
 	vendorChannelReconcilerUC := businessphone_usecase.NewReconcileVendorChannelsUseCase(dialog360PartnerForAddons, c.repositories.ownerPhoneReader, opsAlerter)
 	channelStatusReconcilerUC := businessphone_usecase.NewReconcileChannelStatusUseCase(dialog360PartnerForAddons, c.repositories.ownerPhoneReader, c.repositories.businessPhone, c.repositories.waba)
 
@@ -524,7 +525,8 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 	handlePaymentWebhookUC := payment_usecase.NewHandlePaymentWebhookUseCase(c.repositories.invoice, subscribeWorkspacePlanUC, creditBalanceUC, debitBalanceUC, affiliateRecordEarningUC).
 		WithNotifications(c.notifications().Publisher, dashboardURL).
 		WithMonthlyBilling(confirmMonthlyBillingUC).
-		WithReversals(balance_repository.NewReferenceNet(c.db), invoiceReversalLock, opsAlerter)
+		WithReversals(balance_repository.NewReferenceNet(c.db), invoiceReversalLock, opsAlerter, c.redisProvider.SharedState()).
+		WithReversalHooks(c.siteAccessHooks())
 	c.ensurePaymentProvidersWithObligationsAreReachable()
 
 	var asaasConsumer, mercadoPagoConsumer payment_domain.ConsumePaymentWebhookUseCase
@@ -934,11 +936,11 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		getWorkspacePlan:                   workspace_plan_usecase.NewGetPlanDefinitionUseCase(c.repositories.workspacePlan),
 		createSubscriptionInvoice:          createSubscriptionInvoiceUC,
 		subscribeWorkspacePlan:             subscribeWorkspacePlanUC,
-		renewWorkspaceSubscription:         workspace_plan_usecase.NewRenewWorkspaceSubscriptionUseCase(c.repositories.workspacePlan, c.repositories.workspaceSubscription),
+		renewWorkspaceSubscription:         workspace_plan_usecase.NewRenewWorkspaceSubscriptionUseCase(c.repositories.workspacePlan, c.repositories.workspaceSubscription, c.siteAccessHooks()),
 		cancelWorkspaceSubscription:        workspace_plan_usecase.NewCancelWorkspaceSubscriptionUseCase(c.repositories.workspacePlan, c.repositories.workspaceSubscription),
 		ensureCurrentWorkspaceSubscription: currentSubscriptionUC,
 		ensureActiveWorkspaceSubscription:  activeSubscriptionUC,
-		expireSubscriptions:                workspace_plan_usecase.NewExpireSubscriptionsUseCase(c.repositories.workspaceSubscription, addonPhoneDeactivatorUC),
+		expireSubscriptions:                workspace_plan_usecase.NewExpireSubscriptionsUseCase(c.repositories.workspaceSubscription, addonPhoneDeactivatorUC, c.siteAccessHooks()),
 		remindExpiringSubscriptions:        workspace_plan_usecase.NewRemindExpiringSubscriptionsUseCase(c.repositories.workspaceSubscription, c.repositories.workspacePlan, c.notifications().Publisher, dashboardURL),
 		setPlanVisibility:                  workspace_plan_usecase.NewSetPlanVisibilityUseCase(c.repositories.workspacePlan),
 		listVisiblePlans:                   workspace_plan_usecase.NewListVisiblePlansUseCase(c.repositories.workspacePlan, workspaceReferralReader),
@@ -954,7 +956,8 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		listAvailableAddons:                workspace_addon_usecase.NewListAvailableAddonsUseCase(c.repositories.addonDefinition),
 		purchaseAddon:                      workspace_addon_usecase.NewPurchaseAddonUseCase(c.repositories.addonDefinition, c.repositories.addonSubscription, c.repositories.balance, addonPhoneDeactivatorUC),
 		previewAddonPurchase:               workspace_addon_usecase.NewPreviewAddonPurchaseUseCase(c.repositories.addonDefinition, c.repositories.addonSubscription),
-		cancelAddonSubscription:            workspace_addon_usecase.NewCancelAddonSubscriptionUseCase(c.repositories.addonSubscription),
+		cancelAddonSubscription:            workspace_addon_usecase.NewCancelAddonSubscriptionUseCase(c.repositories.addonSubscription, map[workspace_addon_domain.EntitlementKind]workspace_addon_domain.UnitUsage{workspace_addon_domain.EntitlementSiteDomains: c.siteAccessHooks()}),
+		scheduleAddonQuantity:              workspace_addon_usecase.NewScheduleAddonQuantityUseCase(c.repositories.addonSubscription, map[workspace_addon_domain.EntitlementKind]workspace_addon_domain.UnitUsage{workspace_addon_domain.EntitlementSiteDomains: c.siteAccessHooks()}),
 		listWorkspaceAddons:                workspace_addon_usecase.NewListWorkspaceAddonsUseCase(c.repositories.addonSubscription),
 		getWorkspaceEntitlements:           getWorkspaceEntitlementsUC,
 		entitlementResolver:                entitlementResolverUC,
@@ -1168,6 +1171,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		ChoiceStats:           c.choiceStatsRecorder(),
 		FollowUps:             scheduledMessages.followUps,
 		WorkspaceZones:        c.attendanceScheduleResolver(),
+		VariableRules:         c.variableDeclarations(),
 	}
 	if err := workflow_usecase.RegisterProductionExecutors(wfRegistry, executorDeps); err != nil {
 		log.Fatalf("[workflow] executors: %v", err)
@@ -1314,6 +1318,8 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		CallQueues:        c.callRouting.Queues,
 		Switching:         c.workflowSwitchingPublisher(),
 		Planner:           c.automationPublishGuard(),
+		Variables:         c.automationNeeds().service,
+		Channels:          c.automationPublishGuard(),
 	})
 	if err != nil {
 		log.Fatalf("[workflows] %v", err)

@@ -17,6 +17,7 @@ const (
 	SurfaceLeads         Surface = "leads"
 	SurfaceEmailDesign   Surface = "email_design"
 	SurfaceEmailCampaign Surface = "email_campaign"
+	SurfaceSite          Surface = "site"
 )
 
 type StudioKind string
@@ -71,8 +72,12 @@ func (v View) OnEmailDocument() bool {
 	return v.OnEmailDesign() || v.OnEmailCampaign()
 }
 
+func (v View) OnSite() bool {
+	return v.Surface == SurfaceSite
+}
+
 func (v View) OnEditor() bool {
-	return v.OnStudio() || v.OnEmailDocument()
+	return v.OnStudio() || v.OnEmailDocument() || v.OnSite()
 }
 
 func (v View) Validate() error {
@@ -88,8 +93,8 @@ func (v View) Validate() error {
 		return v.validateStudio()
 	case SurfaceLeads:
 		return v.validateLeads()
-	case SurfaceEmailDesign, SurfaceEmailCampaign:
-		return v.validateEmailDocument()
+	case SurfaceEmailDesign, SurfaceEmailCampaign, SurfaceSite:
+		return v.validateOpenProject()
 	}
 	return fmt.Errorf("%w: unknown surface %q", ErrInvalidView, v.Surface)
 }
@@ -117,7 +122,7 @@ func (v View) validateAttendance() error {
 	return nil
 }
 
-func (v View) validateEmailDocument() error {
+func (v View) validateOpenProject() error {
 	if (View{Surface: v.Surface, ProjectID: v.ProjectID}) != v {
 		return fmt.Errorf("%w: other filters on the %s surface", ErrInvalidView, v.Surface)
 	}

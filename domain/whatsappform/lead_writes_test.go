@@ -3,7 +3,6 @@ package whatsappform
 import (
 	"reflect"
 	"testing"
-	"time"
 
 	"vozko/domain/address"
 	"vozko/domain/lead"
@@ -76,29 +75,27 @@ func TestUnboundAnswersLeaveTheProfileEmpty(t *testing.T) {
 	}
 }
 
-func TestACheckedConsentOptInGrantsWhatsAppConsentWithTheFormAsEvidence(t *testing.T) {
+func TestACheckedConsentOptInGivesItsLabelAsTheConsentText(t *testing.T) {
 	doc := boundDocument()
-	answers, _ := ParseResponse(doc, []byte(boundResponse))
-	at := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
-	got := ToConsent(doc, answers, "resp-1", at)
-	want := &lead.ConsentChange{
-		Kind: lead.ConsentGrant, Source: lead.ConsentForm, Actor: lead.ConsentActor{Type: lead.ConsentActorLead},
-		Purpose:  "Aceito receber mensagens",
-		Evidence: lead.ConsentEvidence{Type: lead.EvidenceFormSubmission, Ref: "resp-1", Excerpt: "Aceito receber mensagens"},
-		At:       at,
+	cases := map[string]struct {
+		response string
+		want     string
+		granted  bool
+	}{
+		"checked":      {boundResponse, "Aceito receber mensagens", true},
+		"unchecked":    {`{"f_ok": false}`, "", false},
+		"not answered": {`{"f_name": "Ana"}`, "", false},
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("consent = %+v\nwant      %+v", got, want)
-	}
-	if err := lead.ConsentRules(*got); err != nil {
-		t.Fatalf("the grant must satisfy the lead consent rules: %v", err)
-	}
-}
-
-func TestAnUncheckedConsentNeverWithdraws(t *testing.T) {
-	doc := boundDocument()
-	answers, _ := ParseResponse(doc, []byte(`{"f_ok": false}`))
-	if got := ToConsent(doc, answers, "resp-1", time.Now()); got != nil {
-		t.Fatalf("an unchecked box is not a withdrawal, got %+v", got)
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			answers, err := ParseResponse(doc, []byte(tc.response))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, granted := ConsentGrantText(doc, answers)
+			if got != tc.want || granted != tc.granted {
+				t.Fatalf("ConsentGrantText = %q, %v, want %q, %v", got, granted, tc.want, tc.granted)
+			}
+		})
 	}
 }

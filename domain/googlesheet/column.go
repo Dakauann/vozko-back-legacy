@@ -131,15 +131,16 @@ type Column struct {
 func (c Column) TakesInput() bool { return !c.Archived && c.Source == SourceInput }
 
 type ColumnInput struct {
-	Header      string
-	Type        ColumnType
-	Options     []string
-	Colors      map[string]OptionColor
-	Required    bool
-	Instruction string
-	Source      Source
-	LinkSheetID string
-	LinkLabel   string
+	Header       string
+	Type         ColumnType
+	Options      []string
+	Colors       map[string]OptionColor
+	Required     bool
+	Instruction  string
+	Source       Source
+	LinkSheetID  string
+	LinkLabel    string
+	PreferredKey string
 }
 
 func newColumn(in ColumnInput, taken []string) (Column, error) {
@@ -163,7 +164,11 @@ func newColumn(in ColumnInput, taken []string) (Column, error) {
 	if err := col.validate(); err != nil {
 		return Column{}, err
 	}
-	col.Key = KeyFromHeader(col.Header, taken)
+	seed := strings.TrimSpace(in.PreferredKey)
+	if seed == "" {
+		seed = col.Header
+	}
+	col.Key = KeyFromHeader(seed, taken)
 	return col, nil
 }
 

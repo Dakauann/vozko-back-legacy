@@ -29,6 +29,7 @@ type Adapters struct {
 	Gate        cache.Gate
 	Shared      cache.SharedState
 	EmailsSeen  emailhygiene.AddressSeen
+	Values      campaignaudience_usecase.VariableValues
 }
 
 type Module struct {
@@ -52,7 +53,7 @@ func New(db *gorm.DB, a Adapters) (*Module, error) {
 	deps := campaignaudience_usecase.Deps{
 		Selections: a.Selections, Places: a.Places, Lists: campaignaudience_repository.New(db), Sheets: sheetfile.Reader{},
 		Phones: phones, Emails: a.Leads, EmailLeads: a.Leads, EmailsSeen: a.EmailsSeen, Definitions: a.Definitions,
-		Suggestions: suggestions, Gate: a.Gate, Flight: flight,
+		Suggestions: suggestions, Gate: a.Gate, Flight: flight, Values: a.Values,
 	}
 	if a.Templates != nil {
 		deps.Templates = a.Templates

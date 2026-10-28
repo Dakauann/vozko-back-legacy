@@ -32,6 +32,7 @@ var errorMappings = []errorMapping{
 	{wcdomain.ErrChallengeExpired, http.StatusBadRequest, "challenge_expired"},
 	{wcdomain.ErrChallengeUnsolved, http.StatusBadRequest, "challenge_unsolved"},
 	{wcdomain.ErrChallengeReused, http.StatusBadRequest, "challenge_reused"},
+	{wcdomain.ErrChallengeUnavailable, http.StatusServiceUnavailable, "challenge_unavailable"},
 	{wcdomain.ErrRateLimited, http.StatusTooManyRequests, "rate_limited"},
 	{wcdomain.ErrIntakePending, http.StatusConflict, "intake_pending"},
 	{wcdomain.ErrIntakeFieldRequired, http.StatusUnprocessableEntity, "field_required"},

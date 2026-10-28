@@ -293,12 +293,45 @@ func (h *WorkflowHandler) LastTriggerInput(w http.ResponseWriter, r *http.Reques
 	response.WriteSuccess(w, http.StatusOK, result)
 }
 
+// @Summary Nomes das variáveis usadas no fluxo
+// @Description Para cada nó do rascunho que usa {{...}} na configuração, devolve o nome amigável de cada referência como o seletor de variáveis daquele nó a mostra: label em português, com labelKey, labelPrefix e labelDetail para traduzir, ou unknown quando nada fornece aquele dado naquele ponto. As prévias dos nós no canvas usam este mapa para nunca mostrar a referência crua.
+// @Tags workflows
+// @Produce json
+// @Param id path string true "ID do workflow"
+// @Success 200 {object} variableLabelsResponse
+// @Failure 403 {object} response.ErrorResponse "Workflow de outro departamento"
+// @Failure 404 {object} response.ErrorResponse "Workflow não encontrado"
+// @Failure 503 {object} response.ErrorResponse "variables_unavailable"
+// @Router /workflows/{id}/variable-labels [get]
+func (h *WorkflowHandler) VariableLabels(w http.ResponseWriter, r *http.Request) {
+	if h.variables == nil {
+		h.handleDomainError(w, workflow.ErrVariablesUnavailable)
+		return
+	}
+	wf, err := h.workflows.Get(workflowScope(r), mux.Vars(r)["id"])
+	if err != nil {
+		h.handleDomainError(w, err)
+		return
+	}
+	labels, err := h.variables.Labels(r.Context(), wf)
+	if err != nil {
+		h.handleDomainError(w, err)
+		return
+	}
+	response.WriteSuccess(w, http.StatusOK, variableLabelsResponse{Nodes: labels})
+}
+
+type variableLabelsResponse struct {
+	Nodes map[string]map[string]workflow.RefLabel `json:"nodes"`
+}
+
 // @Summary Variáveis disponíveis num nó
-// @Description Lista as variáveis que o nó nodeId do rascunho pode usar em {{...}}, calculadas pelo servidor a partir do grafo: os dados de cada gatilho que leva ao nó (campos do agente, corpo do webhook, respostas de formulário, etapa, aniversário), as saídas e variáveis dos passos anteriores (envios, definir variável, captura do HTTP, chaves de state.set legíveis no código, resposta da IA, respostas de formulário e de espera), os dados do contato e da conversa, os valores do sistema e os nomes dos segredos do workspace (nunca os valores). Cada item traz ref (o que vai entre {{ e }}), label em português, group (trigger, nodes, contact, system ou secrets, nesta ordem; os passos do mais próximo ao mais distante), kind (default para os valores padrão do sistema, trigger, node, system para contato e conversa, secret), source com o nó que fornece o dado (null para sistema e segredos), type (text, number, boolean, object, list, date ou unknown), example (ou null) e availability: always quando todo caminho até o nó fornece o dado, some_paths quando só alguns fornecem. Cada ref aparece uma vez; last.<campo> aparece uma vez, com o passo mais próximo que o fornece. O mesmo resultado vem em variables na análise do nó (GET /workflows/{id}/nodes/{nodeId}/analyze).
+// @Description Lista as variáveis que o nó nodeId do rascunho pode usar em {{...}}, calculadas pelo servidor a partir do grafo: os dados de cada gatilho que leva ao nó (campos do agente, corpo do webhook, respostas de formulário, etapa, aniversário), as saídas e variáveis dos passos anteriores (envios, definir variável, captura do HTTP, chaves de state.set legíveis no código, resposta da IA, respostas de formulário e de espera), os dados do contato e da conversa, os valores do sistema e os nomes dos segredos do workspace (nunca os valores). Cada item traz ref (o que vai entre {{ e }}), label em português (labelKey, labelPrefix e labelDetail para traduzir), group (conversation para os dados da conversa, trigger, nodes, contact para os dados da plataforma sobre contato e conversa, system ou secrets, nesta ordem; só passos que levam ao nó, do mais próximo ao mais distante, com os que estão em todo caminho antes dos que estão só em alguns, e as saídas de cada passo na ordem declarada), kind (default para os valores padrão do sistema, trigger, node, system para contato e conversa, secret), source com o nó que fornece o dado (null para sistema e segredos), type (text, number, boolean, object, list, date ou unknown), example (ou null) e availability: always quando todo caminho até o nó fornece o dado, some_paths quando só alguns fornecem. Cada ref aparece uma vez; last.<campo> aparece uma vez, com o passo mais próximo que o fornece. O mesmo resultado vem em variables na análise do nó (GET /workflows/{id}/nodes/{nodeId}/analyze).
 // @Tags workflows
 // @Produce json
 // @Param id path string true "ID do workflow"
 // @Param nodeId path string true "ID do nó no rascunho"
+// @Param q query string false "Busca: nome igual primeiro, depois começo do nome, depois trecho do nome ou do ref; sem diferenciar maiúsculas e acentos"
 // @Success 200 {object} workflow.VariableCatalog
 // @Failure 403 {object} response.ErrorResponse "Workflow de outro departamento"
 // @Failure 404 {object} response.ErrorResponse "Workflow não encontrado ou node_not_found (o nó não existe no rascunho)"
@@ -320,5 +353,5 @@ func (h *WorkflowHandler) NodeVariables(w http.ResponseWriter, r *http.Request) 
 		h.handleDomainError(w, err)
 		return
 	}
-	response.WriteSuccess(w, http.StatusOK, catalog)
+	response.WriteSuccess(w, http.StatusOK, catalog.Search(r.URL.Query().Get("q")))
 }

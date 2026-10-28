@@ -45,6 +45,12 @@ type ManagerDeps struct {
 	Alerts  Alerts
 	Nudger  Nudger
 	Names   OriginNames
+	Edits   googlesheet.EditSessionRepository
+	Usage   CampaignUsage
+}
+
+type CampaignUsage interface {
+	CampaignsUsing(ctx context.Context, workspaceID, spreadsheetID string) ([]string, error)
 }
 
 type Manager struct {
@@ -60,15 +66,17 @@ type Manager struct {
 	alerts  Alerts
 	nudger  Nudger
 	names   OriginNames
+	edits   editGate
+	usage   CampaignUsage
 }
 
 func NewManager(d ManagerDeps) *Manager {
-	if d.Sheets == nil || d.Rows == nil || d.API == nil || d.Errors == nil || d.Access == nil || d.Limiter == nil || d.Marks == nil || d.Alerts == nil || d.Nudger == nil || !d.Names.complete() {
-		panic("googlesheet: the manager requires sheets, rows, the sheets api, an error classifier, google access, a limiter, marks, alerts, a nudger and the agent, workflow and people names")
+	if d.Sheets == nil || d.Rows == nil || d.API == nil || d.Errors == nil || d.Access == nil || d.Limiter == nil || d.Marks == nil || d.Alerts == nil || d.Nudger == nil || !d.Names.complete() || d.Edits == nil || d.Usage == nil {
+		panic("googlesheet: the manager requires sheets, rows, the sheets api, an error classifier, google access, a limiter, marks, alerts, a nudger, the agent, workflow and people names, the edit sessions and the campaign usage")
 	}
 	return &Manager{
 		sheets: d.Sheets, rows: d.Rows, api: d.API, errs: d.Errors, access: d.Access,
-		limiter: d.Limiter, marks: d.Marks, alerts: d.Alerts, nudger: d.Nudger, names: d.Names, now: utcNow, seed: rand.Int64,
+		limiter: d.Limiter, marks: d.Marks, alerts: d.Alerts, nudger: d.Nudger, names: d.Names, edits: editGate{sessions: d.Edits}, usage: d.Usage, now: utcNow, seed: rand.Int64,
 	}
 }
 
@@ -185,6 +193,9 @@ func (m *Manager) newTab(ctx context.Context, access googleaccount.Access, sheet
 	}
 	if hosts[0].AccountID != access.AccountID {
 		return nil, googlesheet.ErrAccountChanged
+	}
+	if err := m.editFree(ctx, sheet.WorkspaceID, spreadsheetID); err != nil {
+		return nil, err
 	}
 	sheet.SpreadsheetID = spreadsheetID
 	if err := m.checkLinks(ctx, sheet); err != nil {
@@ -344,6 +355,9 @@ func (m *Manager) UpdateLayout(ctx context.Context, in LayoutInput) (*googleshee
 }
 
 func (m *Manager) saveLayout(ctx context.Context, sheet *googlesheet.Sheet, version, sizeFrom int) (*googlesheet.Sheet, error) {
+	if err := m.editFree(ctx, sheet.WorkspaceID, sheet.SpreadsheetID); err != nil {
+		return nil, err
+	}
 	access, err := m.sheetAccess(ctx, sheet)
 	if err != nil {
 		return nil, err
@@ -362,6 +376,17 @@ func (m *Manager) saveLayout(ctx context.Context, sheet *googlesheet.Sheet, vers
 }
 
 func (m *Manager) Delete(ctx context.Context, workspaceID, id string) error {
+	sheet, err := m.sheets.FindInWorkspace(ctx, workspaceID, id)
+	if err != nil {
+		return err
+	}
+	campaigns, err := m.usage.CampaignsUsing(ctx, workspaceID, sheet.SpreadsheetID)
+	if err != nil {
+		return err
+	}
+	if len(campaigns) > 0 {
+		return &googlesheet.InUseError{Campaigns: campaigns}
+	}
 	if err := m.sheets.Delete(ctx, workspaceID, id); err != nil {
 		return err
 	}
@@ -369,8 +394,9 @@ func (m *Manager) Delete(ctx context.Context, workspaceID, id string) error {
 }
 
 type HealthView struct {
-	Sheet  *googlesheet.Sheet
-	Health googlesheet.Health
+	Sheet   *googlesheet.Sheet
+	Health  googlesheet.Health
+	Editing *EditView
 }
 
 func (m *Manager) Health(ctx context.Context, workspaceID, id string) (*HealthView, error) {
@@ -382,7 +408,11 @@ func (m *Manager) Health(ctx context.Context, workspaceID, id string) (*HealthVi
 	if err != nil {
 		return nil, err
 	}
-	return &HealthView{Sheet: sheet, Health: health}, nil
+	editing, err := m.editing(ctx, sheet.WorkspaceID, sheet.SpreadsheetID)
+	if err != nil {
+		return nil, err
+	}
+	return &HealthView{Sheet: sheet, Health: health, Editing: editing}, nil
 }
 
 func (m *Manager) RetryProblems(ctx context.Context, workspaceID, id string) (int, error) {
@@ -413,6 +443,11 @@ func (m *Manager) Reactivate(ctx context.Context, in ReactivateInput) (*googlesh
 	sheet, err := m.sheets.FindInWorkspace(ctx, in.WorkspaceID, in.ID)
 	if err != nil {
 		return nil, err
+	}
+	if in.RepairHeader {
+		if err := m.editFree(ctx, sheet.WorkspaceID, sheet.SpreadsheetID); err != nil {
+			return nil, err
+		}
 	}
 	access, err := m.sheetAccess(ctx, sheet)
 	if err != nil {

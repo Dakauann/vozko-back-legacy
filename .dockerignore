@@ -47,3 +47,7 @@ __pycache__/
 *.pyc
 venv/
 .venv/
+# Site builder: installed and prebundled inside its image
+services/sitebuilder/node_modules/
+services/sitebuilder/vendor/
+secrets

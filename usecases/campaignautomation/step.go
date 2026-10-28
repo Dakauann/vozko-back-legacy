@@ -9,6 +9,7 @@ import (
 	"vozko/domain/automationneeds"
 	"vozko/domain/campaign"
 	"vozko/domain/conversation"
+	"vozko/domain/shared"
 	"vozko/domain/workflow"
 )
 
@@ -21,8 +22,10 @@ type Agents interface {
 }
 
 type Step struct {
-	workflows Workflows
-	agents    Agents
+	workflows    Workflows
+	agents       Agents
+	refuseSheets bool
+	channel      shared.EntryType
 }
 
 func NewStep(workflows Workflows, agents Agents) (*Step, error) {
@@ -30,6 +33,35 @@ func NewStep(workflows Workflows, agents Agents) (*Step, error) {
 		return nil, campaign.ErrAutomationUnavailable
 	}
 	return &Step{workflows: workflows, agents: agents}, nil
+}
+
+func (s *Step) WithoutSheets() *Step {
+	if s == nil {
+		return nil
+	}
+	copied := *s
+	copied.refuseSheets = true
+	return &copied
+}
+
+func (s *Step) OnChannel(channel shared.EntryType) *Step {
+	if s == nil {
+		return nil
+	}
+	copied := *s
+	copied.channel = channel
+	return &copied
+}
+
+func (s *Step) refuseOffChannel(src automationneeds.Source, workspaceID string, root conversation.Automation) error {
+	if s.channel == "" {
+		return nil
+	}
+	walk, err := automationneeds.ChannelWalkOf(src, workspaceID, root, []shared.EntryType{s.channel})
+	if err != nil {
+		return fmt.Errorf("%w: %w", campaign.ErrAutomationUnavailable, err)
+	}
+	return automationneeds.ChannelRefusal(root, walk)
 }
 
 type Rule struct {
@@ -86,7 +118,11 @@ func (s *Step) Rule(workspaceID string, a campaign.Automation) (Rule, error) {
 		if err != nil {
 			return Rule{}, err
 		}
-		found, err := s.needsOf(automationneeds.OverlayWorkflow(stepSource{step: s}, wf), workspaceID, conversation.Automation{Kind: conversation.AutomationWorkflow, ID: id})
+		src, root := automationneeds.OverlayWorkflow(stepSource{step: s}, wf), conversation.Automation{Kind: conversation.AutomationWorkflow, ID: id}
+		if err := s.refuseOffChannel(src, workspaceID, root); err != nil {
+			return Rule{}, err
+		}
+		found, err := s.needsOf(src, workspaceID, root)
 		if err != nil {
 			return Rule{}, err
 		}
@@ -97,11 +133,18 @@ func (s *Step) Rule(workspaceID string, a campaign.Automation) (Rule, error) {
 		if err != nil {
 			return Rule{}, err
 		}
-		found, err := s.needsOf(automationneeds.OverlayAgent(stepSource{step: s}, owned), workspaceID, conversation.Automation{Kind: conversation.AutomationAgent, ID: id})
+		src, root := automationneeds.OverlayAgent(stepSource{step: s}, owned), conversation.Automation{Kind: conversation.AutomationAgent, ID: id}
+		if err := s.refuseOffChannel(src, workspaceID, root); err != nil {
+			return Rule{}, err
+		}
+		found, err := s.needsOf(src, workspaceID, root)
 		if err != nil {
 			return Rule{}, err
 		}
 		vars = vars.Union(found)
+	}
+	if s.refuseSheets && len(vars.Required.SheetNeeds())+len(vars.Optional.SheetNeeds()) > 0 {
+		return Rule{}, campaign.ErrSheetsOfficialOnly
 	}
 	return Rule{needs: vars.Required, optional: vars.Optional}, nil
 }

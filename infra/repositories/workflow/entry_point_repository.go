@@ -11,6 +11,7 @@ import (
 
 	"vozko/domain/buttonaction"
 	mldomain "vozko/domain/mercadolivre"
+	"vozko/domain/sitesubmission"
 	"vozko/domain/workflow"
 	"vozko/infra/database/sqlexpr"
 )
@@ -80,6 +81,11 @@ ORDER BY w.name, w.id, n.position`
 
 const formsSQL = `SELECT id, name, archived_at IS NULL AND published_version_id IS NOT NULL AS active
 FROM whatsapp_forms WHERE workspace_id = ? AND id IN ?`
+
+const pageFormsSQL = `SELECT k.form_key AS id, p.name || ': ' || k.form_id AS name,
+EXISTS (SELECT 1 FROM site_form_manifests m WHERE m.form_key = k.form_key AND m.active) AS active
+FROM site_form_keys k JOIN site_projects p ON p.id = k.project_id
+WHERE k.workspace_id = ? AND k.form_key IN ?`
 
 const agentBoundWorkflowSQL = `t.config ->> 'workflow_id'`
 
@@ -204,6 +210,17 @@ func linkedChannelArgs(workspaceID string, workflowIDs []string) []interface{} {
 	return args
 }
 
+func pageFormKeysOf(ids []string) []string {
+	var out []string
+	for _, id := range ids {
+		trimmed := strings.TrimSpace(id)
+		if _, err := uuid.Parse(trimmed); err != nil && sitesubmission.ValidFormKey(trimmed) {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
 func uuidsOf(ids []string) []string {
 	var out []string
 	for _, id := range ids {
@@ -319,20 +336,24 @@ func (r *entryPointRepository) lastStarts(_ workflow.EntryPointSourceQuery, ids 
 }
 
 func (r *entryPointRepository) forms(q workflow.EntryPointSourceQuery, _ []string, s *workflow.EntryPointSources) error {
-	formIDs := uuidsOf(q.FormIDs)
-	if len(formIDs) == 0 {
-		return nil
-	}
-	var rows []struct {
-		ID     string
-		Name   string
-		Active bool
-	}
-	if err := r.db.Raw(formsSQL, q.WorkspaceID, formIDs).Scan(&rows).Error; err != nil {
-		return err
-	}
-	for _, row := range rows {
-		s.Forms[row.ID] = workflow.EntryForm{ID: row.ID, Name: row.Name, Active: row.Active}
+	for _, read := range []struct {
+		sql string
+		ids []string
+	}{{formsSQL, uuidsOf(q.FormIDs)}, {pageFormsSQL, pageFormKeysOf(q.FormIDs)}} {
+		if len(read.ids) == 0 {
+			continue
+		}
+		var rows []struct {
+			ID     string
+			Name   string
+			Active bool
+		}
+		if err := r.db.Raw(read.sql, q.WorkspaceID, read.ids).Scan(&rows).Error; err != nil {
+			return err
+		}
+		for _, row := range rows {
+			s.Forms[row.ID] = workflow.EntryForm{ID: row.ID, Name: row.Name, Active: row.Active}
+		}
 	}
 	return nil
 }

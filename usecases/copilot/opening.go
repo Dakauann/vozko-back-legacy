@@ -137,6 +137,9 @@ func projectOpenedNote(view copilot.View) string {
 	if view.OnEmailDocument() {
 		return emailDesignOpenedNote(view)
 	}
+	if view.OnSite() {
+		return siteOpenedNote(view)
+	}
 	kind := "vídeo"
 	if view.ProjectKind == copilot.StudioImage {
 		kind = "imagem"
@@ -148,6 +151,9 @@ func projectOpenedNote(view copilot.View) string {
 func editorBackNote(view copilot.View) string {
 	if view.OnEmailDocument() {
 		return emailEditorBackNote(view)
+	}
+	if view.OnSite() {
+		return siteEditorBackNote(view)
 	}
 	return fmt.Sprintf("a aba do projeto (project_id %s) voltou a ficar visível e o editor responde de novo nesta resposta. "+
 		"Pedidos que expiraram enquanto ele estava calado não foram aplicados; um pedido que ficou sem confirmação pode ter entrado. "+

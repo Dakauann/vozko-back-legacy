@@ -132,7 +132,7 @@ func TestEveryRefusalReachesTheModelAsASentence(t *testing.T) {
 		"unknown":    {automationtransfer.ErrUnknownDestination, "Escolha um dos destinos"},
 		"note":       {automationtransfer.ErrNoteMissing, "note"},
 		"governing":  {automationtransfer.ErrNotGoverning, "não está mais com você"},
-		"variables":  {refusal, "turma"},
+		"variables":  {refusal, "Turma"},
 		"unusable":   {errors.Join(conversation.ErrAutomationUnusable, workflow.ErrWorkflowNotActive), "indisponível"},
 		"target":     {automationtransfer.ErrTargetUnusable, "indisponível"},
 		"stage":      {automationtransfer.ErrStageInvalid, "etapa"},
@@ -226,7 +226,7 @@ func TestAMissingVariableIsNamedSoTheAgentCanAskTheCustomer(t *testing.T) {
 		err  error
 		want []string
 	}{
-		"not informed": {&conversationvars.VariablesError{Cause: automationtransfer.ErrModelValueMissing, Names: []string{"turma", "turno"}}, []string{"variables", "turma, turno", "pergunte ao cliente"}},
+		"not informed": {&conversationvars.VariablesError{Cause: automationtransfer.ErrModelValueMissing, Names: []string{"turma", "turno"}}, []string{"variables", "Turma (turma), Turno (turno)", "pergunte ao cliente"}},
 		"came empty":   {&conversationvars.VariablesError{Cause: conversationvars.ErrValueEmpty, Names: []string{"curso"}}, []string{"curso", "não tem valor"}},
 		"too long":     {&conversationvars.VariablesError{Cause: conversationvars.ErrValueInvalid, Names: []string{"obs"}}, []string{"obs", "2000"}},
 	}

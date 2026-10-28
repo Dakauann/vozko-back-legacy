@@ -11,6 +11,7 @@ func (c *Container) messageHistoryManager() conversation_domain.MessageHistoryMa
 		c.services.messageHistory = conversationad.WithAdOrigins(
 			conversation_usecase.NewMessageHistoryManagerWithHub(c.repositories.conversation, c.services.messageArrivals),
 			c.adOriginRecorder(),
+			c.sitePageOriginRecorder(),
 		)
 	}
 	return c.services.messageHistory

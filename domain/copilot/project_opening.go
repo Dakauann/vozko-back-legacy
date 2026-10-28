@@ -36,18 +36,7 @@ func OpeningOf(order StudioProjectOrder, data []byte) (ProjectOpening, error) {
 const emailDesignKind = "email"
 
 func EmailDesignOpeningOf(designID string, data []byte) (ProjectOpening, error) {
-	var got createdProject
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&got); err != nil || dec.More() || got.Kind != emailDesignKind || got.ProjectID != designID {
-		return ProjectOpening{}, ErrInvalidCreatedProject
-	}
-	opening := WaitingEmailDesign(designID)
-	if opening.View.Validate() != nil {
-		return ProjectOpening{}, ErrInvalidCreatedProject
-	}
-	opening.Opened = got.Opened
-	return opening, nil
+	return appOpeningOf(WaitingEmailDesign(designID), emailDesignKind, data)
 }
 
 func WaitingEmailDesign(designID string) ProjectOpening {
@@ -60,4 +49,28 @@ func (o ProjectOpening) Awaiting() *View {
 	}
 	view := o.View
 	return &view
+}
+
+const siteKind = "site"
+
+func SiteOpeningOf(projectID string, data []byte) (ProjectOpening, error) {
+	return appOpeningOf(WaitingSite(projectID), siteKind, data)
+}
+
+func WaitingSite(projectID string) ProjectOpening {
+	return ProjectOpening{View: View{Surface: SurfaceSite, ProjectID: projectID}}
+}
+
+func appOpeningOf(opening ProjectOpening, kind string, data []byte) (ProjectOpening, error) {
+	var got createdProject
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&got); err != nil || dec.More() || got.Kind != kind || got.ProjectID != opening.View.ProjectID {
+		return ProjectOpening{}, ErrInvalidCreatedProject
+	}
+	if opening.View.Validate() != nil {
+		return ProjectOpening{}, ErrInvalidCreatedProject
+	}
+	opening.Opened = got.Opened
+	return opening, nil
 }

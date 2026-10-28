@@ -149,33 +149,11 @@ func ValidateAIAgentToolParams(g *Graph) error {
 		if n.Type != NodeTypeActionAIAgent {
 			continue
 		}
-		toolList, ok := n.Config["custom_tools"].([]interface{})
-		if !ok {
-			continue
-		}
-		for _, rawTool := range toolList {
-			tm, ok := rawTool.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			toolName, _ := tm["name"].(string)
-			params, ok := tm["parameters"].([]interface{})
-			if !ok {
-				continue
-			}
-			for _, rawParam := range params {
-				pm, ok := rawParam.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				pType, _ := pm["type"].(string)
-				if strings.TrimSpace(pType) == "" {
-					continue
-				}
-				if !tools.IsValidParamType(pType) {
-					pName, _ := pm["name"].(string)
+		for _, tool := range CustomToolsOf(n.Config) {
+			for _, param := range tool.Parameters {
+				if !tools.IsValidParamType(param.Type) {
 					return fmt.Errorf("%w: node %q tool %q param %q type %q (use um de %v)",
-						ErrNodeInvalidToolParamType, n.ID, toolName, pName, strings.TrimSpace(pType), tools.AllowedParamTypes())
+						ErrNodeInvalidToolParamType, n.ID, tool.Name, param.Name, param.Type, tools.AllowedParamTypes())
 				}
 			}
 		}

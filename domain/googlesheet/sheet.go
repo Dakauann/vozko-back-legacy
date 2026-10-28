@@ -3,6 +3,7 @@ package googlesheet
 import (
 	"fmt"
 	"maps"
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -466,7 +467,13 @@ func columnLetter(index int) string {
 
 const DashboardPath = "/dashboard/integrations/google-sheets"
 
-func (s *Sheet) DashboardLink() string { return DashboardPath + "/" + s.ID }
+func FileDashboardLink(spreadsheetID string) string {
+	return DashboardPath + "/arquivo/" + url.PathEscape(spreadsheetID)
+}
+
+func (s *Sheet) DashboardLink() string {
+	return FileDashboardLink(s.SpreadsheetID) + "?" + url.Values{"aba": {s.ID}}.Encode()
+}
 
 func (s *Sheet) CheckMapping(mapping map[string]string) error {
 	for key := range mapping {

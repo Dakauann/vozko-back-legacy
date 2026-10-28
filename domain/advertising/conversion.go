@@ -100,18 +100,22 @@ const (
 )
 
 type ConversionEvent struct {
-	OpportunityID string
-	EventID       string
-	Name          string
-	Time          time.Time
-	Target        ConversionTarget
-	TargetID      string
-	ActionSource  string
-	Identity      MessagingIdentity
-	PhoneHash     string
-	EmailHash     string
-	ValueMicros   int64
-	Currency      string
+	OpportunityID   string
+	EventID         string
+	Name            string
+	Time            time.Time
+	Target          ConversionTarget
+	TargetID        string
+	ActionSource    string
+	Identity        MessagingIdentity
+	PhoneHash       string
+	EmailHash       string
+	Fbp             string
+	Fbc             string
+	ClientUserAgent string
+	SourceURL       string
+	ValueMicros     int64
+	Currency        string
 }
 
 type SkipReason string

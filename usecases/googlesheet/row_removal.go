@@ -77,6 +77,9 @@ func (r *RowRemover) Remove(ctx context.Context, in RemoveRowInput) (*googleshee
 	if err := sheet.Writable(); err != nil {
 		return nil, err
 	}
+	if err := r.m.editFree(ctx, sheet.WorkspaceID, sheet.SpreadsheetID); err != nil {
+		return nil, err
+	}
 	access, err := r.m.sheetAccess(ctx, sheet)
 	if err != nil {
 		return nil, err

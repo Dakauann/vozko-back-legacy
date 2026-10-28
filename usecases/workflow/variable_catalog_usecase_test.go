@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"vozko/domain/variabledecl"
 	"vozko/domain/workflow"
 )
 
@@ -64,7 +65,7 @@ func TestTheVariableCatalogReadsSecretNamesAndFormQuestionsThroughItsPorts(t *te
 	reader := VariableCatalogReader{
 		Readers: TriggerInputReaders{Forms: formCatalogStub{forms: map[string]workflow.TriggerForm{"form-1": {ID: "form-1", Questions: []workflow.TriggerFormQuestion{{Key: "nome", Prompt: "Seu nome"}}}}}},
 		Secrets: secrets,
-		Catalog: func() []workflow.NodeDefinition { return nil },
+		Catalog: func() []workflow.NodeDefinition { return nil }, Declarations: declarationsStub{},
 	}
 
 	catalog, err := reader.At(context.Background(), variableCatalogWorkflow(), "s")
@@ -84,7 +85,7 @@ func TestAnUnreadableFormKeepsTheCatalogWithoutItsQuestions(t *testing.T) {
 	reader := VariableCatalogReader{
 		Readers: TriggerInputReaders{Forms: formCatalogStub{err: errors.New("db down")}},
 		Secrets: &secretNamesStub{},
-		Catalog: func() []workflow.NodeDefinition { return nil },
+		Catalog: func() []workflow.NodeDefinition { return nil }, Declarations: declarationsStub{},
 	}
 	catalog, err := reader.At(context.Background(), variableCatalogWorkflow(), "s")
 	if err != nil || catalogRef(catalog.Variables, "form.nome") != nil || catalogRef(catalog.Variables, "form_id") == nil {
@@ -98,7 +99,7 @@ func TestTheVariableCatalogFailsClosedWhenSecretsCannotBeRead(t *testing.T) {
 		"not wired":  nil,
 	} {
 		t.Run(name, func(t *testing.T) {
-			reader := VariableCatalogReader{Secrets: secrets, Catalog: func() []workflow.NodeDefinition { return nil }}
+			reader := VariableCatalogReader{Secrets: secrets, Catalog: func() []workflow.NodeDefinition { return nil }, Declarations: declarationsStub{}}
 			if _, err := reader.At(context.Background(), variableCatalogWorkflow(), "s"); !errors.Is(err, workflow.ErrVariablesUnavailable) {
 				t.Fatalf("err = %v", err)
 			}
@@ -107,7 +108,7 @@ func TestTheVariableCatalogFailsClosedWhenSecretsCannotBeRead(t *testing.T) {
 }
 
 func TestTheVariableCatalogOfAMissingNodeIsNotFound(t *testing.T) {
-	reader := VariableCatalogReader{Secrets: &secretNamesStub{}, Catalog: func() []workflow.NodeDefinition { return nil }}
+	reader := VariableCatalogReader{Secrets: &secretNamesStub{}, Catalog: func() []workflow.NodeDefinition { return nil }, Declarations: declarationsStub{}}
 	if _, err := reader.At(context.Background(), variableCatalogWorkflow(), "nada"); !errors.Is(err, workflow.ErrNodeNotFound) {
 		t.Fatalf("err = %v", err)
 	}
@@ -116,7 +117,7 @@ func TestTheVariableCatalogOfAMissingNodeIsNotFound(t *testing.T) {
 func TestTheNodeAnalysisCarriesTheSameVariables(t *testing.T) {
 	repo := NewMockWorkflowRepository()
 	_ = repo.Create(variableCatalogWorkflow())
-	reader := &VariableCatalogReader{Secrets: &secretNamesStub{names: []string{"crm_token"}}, Catalog: func() []workflow.NodeDefinition { return nil }}
+	reader := &VariableCatalogReader{Secrets: &secretNamesStub{names: []string{"crm_token"}}, Catalog: func() []workflow.NodeDefinition { return nil }, Declarations: declarationsStub{}}
 	uc := NewTestNodeUseCase(TestNodeDeps{WorkflowRepo: repo, Variables: reader})
 
 	analysis, err := uc.Analyze(context.Background(), AnalyzeNodeInput{WorkflowID: "wf-1", WorkspaceID: "ws1", NodeID: "s"})
@@ -133,11 +134,41 @@ func TestTheNodeAnalysisCarriesTheSameVariables(t *testing.T) {
 func TestTheNodeAnalysisLeavesTheVariablesOutWhenTheyCannotBeRead(t *testing.T) {
 	repo := NewMockWorkflowRepository()
 	_ = repo.Create(variableCatalogWorkflow())
-	uc := NewTestNodeUseCase(TestNodeDeps{WorkflowRepo: repo, Variables: &VariableCatalogReader{Secrets: &secretNamesStub{err: errors.New("down")}}})
+	uc := NewTestNodeUseCase(TestNodeDeps{WorkflowRepo: repo, Variables: &VariableCatalogReader{Secrets: &secretNamesStub{err: errors.New("down")}, Declarations: declarationsStub{}}})
 
 	analysis, err := uc.Analyze(context.Background(), AnalyzeNodeInput{WorkflowID: "wf-1", WorkspaceID: "ws1", NodeID: "s"})
 
 	if err != nil || analysis.ToUIAnalysis().Variables != nil {
 		t.Fatalf("analysis = %+v err = %v", analysis, err)
+	}
+}
+
+type declarationsStub struct {
+	rows []variabledecl.Declaration
+	err  error
+}
+
+func (d declarationsStub) Described(context.Context, string) ([]variabledecl.Declaration, error) {
+	return d.rows, d.err
+}
+
+func TestTheVariableCatalogNamesConversationDataByTheWorkspaceDeclarations(t *testing.T) {
+	wf := variableCatalogWorkflow()
+	wf.Graph.Nodes[0] = workflow.Node{ID: wf.Graph.Nodes[0].ID, Type: workflow.NodeTypeTriggerMessageReceived}
+	reader := VariableCatalogReader{Secrets: &secretNamesStub{}, Catalog: func() []workflow.NodeDefinition { return nil }, Declarations: declarationsStub{rows: []variabledecl.Declaration{{Name: "matricula", Label: "Matrícula", Type: variabledecl.Type{Kind: variabledecl.KindText}}}}}
+	catalog, err := reader.At(context.Background(), wf, "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := catalogRef(catalog.Variables, "campvars.matricula"); v == nil || v.Label != "Matrícula" {
+		t.Fatalf("matricula = %+v", v)
+	}
+	reader.Declarations = declarationsStub{err: errors.New("down")}
+	if _, err := reader.At(context.Background(), wf, "s"); !errors.Is(err, workflow.ErrVariablesUnavailable) {
+		t.Fatalf("err = %v", err)
+	}
+	reader.Declarations = nil
+	if _, err := reader.At(context.Background(), wf, "s"); !errors.Is(err, workflow.ErrVariablesUnavailable) {
+		t.Fatalf("err = %v", err)
 	}
 }

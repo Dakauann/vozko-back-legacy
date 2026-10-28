@@ -8,6 +8,8 @@ import (
 
 	"vozko/domain/agent"
 	"vozko/domain/conversation"
+	"vozko/domain/sheetfit"
+	"vozko/domain/variabledecl"
 	"vozko/domain/workflow"
 )
 
@@ -17,24 +19,17 @@ var (
 )
 
 const (
-	KeyLeadName     = "lead_name"
-	KeyLeadNumber   = "lead_number"
-	KeyCampaignName = "campaign_name"
+	KeyLeadName     = variabledecl.KeyLeadName
+	KeyLeadNumber   = variabledecl.KeyLeadNumber
+	KeyCampaignName = variabledecl.KeyCampaignName
 )
 
-var systemKeys = []string{KeyLeadName, KeyLeadNumber, KeyCampaignName}
-
 func SystemKeys() []string {
-	return append([]string(nil), systemKeys...)
+	return variabledecl.SystemKeys()
 }
 
 func IsSystemKey(name string) bool {
-	for _, key := range systemKeys {
-		if key == name {
-			return true
-		}
-	}
-	return false
+	return variabledecl.IsSystemKey(name)
 }
 
 type Source interface {
@@ -52,6 +47,67 @@ type Need struct {
 	Description string
 	Default     string
 	Via         []Link
+	Label       string
+	Declared    bool
+	Type        variabledecl.Type
+	Shape       variabledecl.Shape
+	Example     string
+	SheetUses   []sheetfit.Use
+}
+
+func (n Need) Display() string {
+	if n.Label != "" {
+		return n.Label
+	}
+	return variabledecl.HumanLabel(n.Name)
+}
+
+func (n Needs) Labeled(catalog variabledecl.Catalog) Needs {
+	if n == nil {
+		return nil
+	}
+	out := make(Needs, len(n))
+	for i, need := range n {
+		need.Label = catalog.LabelOf(need.Name)
+		need.Type = variabledecl.Type{Kind: variabledecl.KindText}
+		if d, ok := catalog.Find(need.Name); ok {
+			need.Declared = true
+			need.Type = d.Type
+			if need.Description == "" {
+				need.Description = d.Description
+			}
+		}
+		out[i] = need
+	}
+	return out
+}
+
+func (n Needs) Labels() []string {
+	if len(n) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(n))
+	for _, need := range n {
+		out = append(out, need.Display())
+	}
+	return out
+}
+
+func (v Variables) Labeled(catalog variabledecl.Catalog) Variables {
+	return Variables{Required: v.Required.Labeled(catalog), Optional: v.Optional.Labeled(catalog)}
+}
+
+func (v Variables) Fill(values map[string]string) map[string]string {
+	out := make(map[string]string, len(values)+len(v.Optional))
+	for name, value := range values {
+		out[name] = value
+	}
+	for _, need := range v.Optional {
+		if strings.TrimSpace(out[need.Name]) == "" && strings.TrimSpace(need.Default) != "" {
+			out[need.Name] = need.Default
+		}
+	}
+	return out
 }
 
 func (n Need) Owner() Link {
@@ -163,6 +219,7 @@ type walker struct {
 	seen        map[conversation.Automation]bool
 	found       map[string]Need
 	optional    map[string]Need
+	uses        map[string][]sheetfit.Use
 }
 
 func (w *walker) visit(a conversation.Automation, via []Link) error {
@@ -196,6 +253,10 @@ func (w *walker) agent(a conversation.Automation, via []Link) error {
 		w.addOptional(need, path)
 	}
 	for _, tool := range found.InternalTools {
+		if tool.Name == workflow.AgentSheetRowTool {
+			w.agentSheetTool(tool.Config, path)
+			continue
+		}
 		if tool.Name != workflow.AgentRunWorkflowTool {
 			continue
 		}
@@ -218,16 +279,23 @@ func (w *walker) workflow(a conversation.Automation, via []Link) error {
 	}
 	path := extend(via, Link{Automation: a, Name: found.Name})
 	for _, node := range found.Graph.Nodes {
-		if err := w.node(node, path); err != nil {
+		if err := w.flowNode(node, found.Graph, path); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (w *walker) node(node workflow.Node, path []Link) error {
+func (w *walker) flowNode(node workflow.Node, flow workflow.Graph, path []Link) error {
 	for _, name := range workflow.ExtractCampaignVars(workflow.Graph{Nodes: []workflow.Node{node}}) {
+		if use, ok := flow.VariableUse(name); ok && use.Optional() {
+			w.addOptional(Need{Name: name, Default: use.Default}, path)
+			continue
+		}
 		w.add(name, "", path)
+	}
+	if name, use, ok := sheetStepUse(node); ok {
+		w.addUse(name, use)
 	}
 	next, ok := runsAutomation(node)
 	if !ok {
@@ -246,7 +314,7 @@ func OfNode(src Source, workspaceID string, holder *workflow.Workflow, nodeID st
 	}
 	root := conversation.Automation{Kind: conversation.AutomationWorkflow, ID: holder.ID}
 	w := walker{src: src, workspaceID: workspaceID, seen: map[conversation.Automation]bool{root: true}, found: map[string]Need{}}
-	if err := w.node(*node, []Link{{Automation: root, Name: holder.Name}}); err != nil {
+	if err := w.flowNode(*node, holder.Graph, []Link{{Automation: root, Name: holder.Name}}); err != nil {
 		return nil, err
 	}
 	return w.needs(), nil
@@ -301,7 +369,8 @@ func (w *walker) needs() Needs {
 		return nil
 	}
 	out := make(Needs, 0, len(w.found))
-	for _, need := range w.found {
+	for name, need := range w.found {
+		need.SheetUses = w.uses[name]
 		out = append(out, need)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
@@ -340,8 +409,14 @@ func (n Needs) Union(other Needs) Needs {
 	merged := map[string]Need{}
 	for _, list := range []Needs{n, other} {
 		for _, need := range list {
-			if _, seen := merged[need.Name]; !seen {
+			existing, seen := merged[need.Name]
+			if !seen {
 				merged[need.Name] = need
+				continue
+			}
+			if len(need.SheetUses) > 0 {
+				existing.SheetUses = append(append([]sheetfit.Use(nil), existing.SheetUses...), need.SheetUses...)
+				merged[need.Name] = existing
 			}
 		}
 	}
@@ -403,6 +478,7 @@ func (w *walker) optionals() Needs {
 	var out Needs
 	for name, need := range w.optional {
 		if _, required := w.found[name]; !required {
+			need.SheetUses = w.uses[name]
 			out = append(out, need)
 		}
 	}

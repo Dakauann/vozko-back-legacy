@@ -160,6 +160,7 @@ type Config struct {
 	MCPStateSignerKey  string
 	MCPCallbackURL     string
 	Google             GoogleConfig
+	Sites              SitesConfig
 
 	ShortLinkBaseURL            string
 	ShortLinkCodeLength         int
@@ -287,6 +288,8 @@ func LoadConfig() Config {
 		UnofficialWhatsAppHistoryDays: envInt("UW_HISTORY_WINDOW_DAYS", 30),
 
 		Google: loadGoogleConfig(),
+
+		Sites: loadSitesConfig(),
 
 		Dialog360PartnerID:          mustGetEnvTrimmed("D360_PARTNER_ID"),
 		Dialog360PartnerAPIKey:      mustGetEnvTrimmed("D360_PARTNER_API_KEY"),

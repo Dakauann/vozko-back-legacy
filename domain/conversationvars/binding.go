@@ -7,9 +7,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"vozko/domain/automationneeds"
 	"vozko/domain/campaign"
 	"vozko/domain/customfield"
+	"vozko/domain/variabledecl"
 )
 
 const SourceCurrent campaign.BindingSource = "conversation"
@@ -26,8 +26,16 @@ type Binding struct {
 }
 
 type VariablesError struct {
-	Cause error
-	Names []string
+	Cause  error
+	Names  []string
+	Labels map[string]string
+}
+
+func (e *VariablesError) LabelOf(name string) string {
+	if label := e.Labels[name]; label != "" {
+		return label
+	}
+	return variabledecl.HumanLabel(name)
 }
 
 func (e *VariablesError) Error() string {
@@ -50,10 +58,11 @@ func LiteralBindings(values map[string]string) []Binding {
 }
 
 type Assignment struct {
-	names []string
-	bound []string
-	kept  []string
-	plan  campaign.BindingPlan
+	names  []string
+	bound  []string
+	kept   []string
+	copied map[string]string
+	plan   campaign.BindingPlan
 }
 
 func Assign(bindings []Binding, defs []*customfield.Definition) (Assignment, error) {
@@ -80,7 +89,7 @@ func Assign(bindings []Binding, defs []*customfield.Definition) (Assignment, err
 			continue
 		}
 		if binding.Source == SourceCurrent {
-			a.kept = append(a.kept, name)
+			a.keep(name, strings.TrimSpace(binding.Value))
 			continue
 		}
 		a.bound = append(a.bound, name)
@@ -100,18 +109,12 @@ func Assign(bindings []Binding, defs []*customfield.Definition) (Assignment, err
 }
 
 func checkName(name string) error {
-	if !namePattern.MatchString(name) || utf8.RuneCountInString(name) > MaxNameRunes {
-		return fmt.Errorf("%w: %q", ErrNameInvalid, name)
-	}
-	if automationneeds.IsSystemKey(name) {
-		return fmt.Errorf("%w: %q", ErrNameReserved, name)
-	}
-	return nil
+	return variabledecl.CheckName(name)
 }
 
 func checkBinding(b campaign.VariableBinding, defs []*customfield.Definition) error {
 	if b.Source == SourceCurrent {
-		if strings.TrimSpace(b.Value) != "" {
+		if from := strings.TrimSpace(b.Value); from != "" && checkName(from) != nil {
 			return ErrSourceInvalid
 		}
 		return nil
@@ -155,6 +158,13 @@ func (a Assignment) Resolve(subject campaign.BindingSubject, current map[string]
 			refused[ErrValueEmpty] = append(refused[ErrValueEmpty], name)
 		}
 	}
+	for name, from := range a.copied {
+		if value := strings.TrimSpace(current[from]); value != "" {
+			out[name] = value
+			continue
+		}
+		refused[ErrValueEmpty] = append(refused[ErrValueEmpty], name)
+	}
 	for _, cause := range []error{ErrValueEmpty, ErrValueInvalid} {
 		if names := refused[cause]; len(names) > 0 {
 			return nil, &VariablesError{Cause: cause, Names: a.ordered(names)}
@@ -171,4 +181,15 @@ func (a Assignment) ordered(names []string) []string {
 		}
 	}
 	return out
+}
+
+func (a *Assignment) keep(name, from string) {
+	if from == "" || from == name {
+		a.kept = append(a.kept, name)
+		return
+	}
+	if a.copied == nil {
+		a.copied = map[string]string{}
+	}
+	a.copied[name] = from
 }

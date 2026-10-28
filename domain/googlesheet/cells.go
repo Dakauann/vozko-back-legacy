@@ -8,7 +8,7 @@ import (
 
 var serialEpoch = time.Date(1899, time.December, 30, 0, 0, 0, 0, time.UTC)
 
-func (s *Sheet) EncodeRow(rowID string, cells Cells, tabs LinkTabs) ([]any, error) {
+func (s *Sheet) EncodeRow(rowID string, cells Cells, links Links) ([]any, error) {
 	row := make([]any, 0, len(s.Columns)+1)
 	row = append(row, rowID)
 	for _, col := range s.Columns {
@@ -17,9 +17,12 @@ func (s *Sheet) EncodeRow(rowID string, cells Cells, tabs LinkTabs) ([]any, erro
 			row = append(row, "")
 			continue
 		}
-		encoded, err := s.encodeCell(col, value, tabs)
+		encoded, err := s.encodeCell(col, value, links)
 		if errors.Is(err, ErrLinkTargetPending) {
 			return nil, &ValueError{Column: col.Key, Header: col.Header, Reason: ErrLinkTargetPending}
+		}
+		if errors.Is(err, ErrLocaleUnsupported) {
+			return nil, &ValueError{Column: col.Key, Header: col.Header, Reason: ErrLocaleUnsupported, Detail: err.Error()}
 		}
 		if err != nil {
 			return nil, &ValueError{Column: col.Key, Header: col.Header, Reason: ErrInvalidValue, Detail: err.Error()}
@@ -29,10 +32,10 @@ func (s *Sheet) EncodeRow(rowID string, cells Cells, tabs LinkTabs) ([]any, erro
 	return row, nil
 }
 
-func (s *Sheet) encodeCell(col Column, value any, tabs LinkTabs) (any, error) {
+func (s *Sheet) encodeCell(col Column, value any, links Links) (any, error) {
 	switch col.Type {
 	case TypeLink:
-		return s.linkCell(col, value, tabs)
+		return s.linkCell(col, value, links)
 	case TypeNumber, TypeMoney:
 		number, ok := value.(float64)
 		if !ok {

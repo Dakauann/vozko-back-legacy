@@ -11,5 +11,6 @@ type TestValuesRepository interface {
 var (
 	ErrTestValueNotNeeded    = errors.New("workflow: this workflow's test does not use this variable")
 	ErrTestValueInvalid      = errors.New("workflow: a test value has up to 2000 characters")
+	ErrTestValueTypeInvalid  = errors.New("workflow: a test value does not fit the declared type")
 	ErrTestValuesUnavailable = errors.New("workflow: the saved test values could not be read or written")
 )

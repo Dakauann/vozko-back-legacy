@@ -2,14 +2,14 @@ package workspace_addon_usecase
 
 import (
 	"errors"
-	"strconv"
+	"log"
 
 	"github.com/google/uuid"
 
 	"vozko/domain/balance"
-	billing "vozko/domain/billing"
 	workspace_addon "vozko/domain/workspace/workspace_addon"
-	workspace_plan "vozko/domain/workspace/workspace_plan"
+	workspace_pricing "vozko/domain/workspace/workspace_pricing"
+	balance_usecase "vozko/usecases/balance"
 )
 
 type purchaseAddonUseCase struct {
@@ -18,6 +18,7 @@ type purchaseAddonUseCase struct {
 	balanceRepo balance.Repository
 	onChange    workspace_addon.EntitlementChangeHandler
 	now         clockFn
+	newID       func() string
 }
 
 func NewPurchaseAddonUseCase(
@@ -26,142 +27,90 @@ func NewPurchaseAddonUseCase(
 	balanceRepo balance.Repository,
 	onChange workspace_addon.EntitlementChangeHandler,
 ) workspace_addon.PurchaseAddonUseCase {
-	return &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: balanceRepo, onChange: onChange, now: utcNow}
+	return &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: balanceRepo, onChange: onChange, now: utcNow, newID: newPurchaseID}
+}
+
+func newPurchaseID() string { return uuid.NewString() }
+
+func purchaseReference(subscriptionID, attemptID string) string {
+	return "addon_purchase:" + subscriptionID + ":" + attemptID
 }
 
 func (uc *purchaseAddonUseCase) Execute(workspaceID string, input workspace_addon.PurchaseAddonInput) (*workspace_addon.AddonSubscription, error) {
-	if workspaceID == "" || input.AddonDefinitionID == "" {
-		return nil, workspace_addon.ErrInvalidAddonSubscription
-	}
-	qty := input.Quantity
-	if qty <= 0 {
-		qty = 1
-	}
-	cycle := input.BillingCycle
-	if !cycle.IsValid() {
-		cycle = workspace_plan.BillingCycleMonthly
-	}
-
-	def, err := uc.defs.GetByID(input.AddonDefinitionID)
+	def, err := loadPurchasable(uc.defs, workspaceID, input)
 	if err != nil {
 		return nil, err
 	}
-	if def.IsArchived() || !def.IsActive {
-		return nil, workspace_addon.ErrAddonInactive
-	}
-
-	now := uc.now()
-	unitPrice := def.PriceMicros(cycle)
-	unitCost := def.CostMicros(cycle)
-
-	existing, err := uc.subs.GetActiveByWorkspaceAndDefinition(workspaceID, def.ID)
-	if err != nil && !errors.Is(err, workspace_addon.ErrAddonSubscriptionNotFound) {
-		return nil, err
-	}
-
-	isNew := existing == nil
-
-	amount, periodEnd := billing.ActivationPeriod(now, billing.DefaultEmitDay, billing.DefaultDueDay, cycle.PeriodMonths(), isNew, unitPrice*int64(qty))
-	cost, _ := billing.ActivationPeriod(now, billing.DefaultEmitDay, billing.DefaultDueDay, cycle.PeriodMonths(), isNew, unitCost*int64(qty))
-
-	var sub *workspace_addon.AddonSubscription
-	if existing != nil {
-		sub = existing
-		sub.Quantity += qty
-		sub.UnitsPerQuantity = def.UnitsPerQuantity
-		sub.UnitPriceMicros = unitPrice
-		sub.BillingCycle = cycle
-		sub.CurrentPeriodStart = now
-		sub.CurrentPeriodEnd = periodEnd
-		sub.Status = workspace_plan.SubscriptionStatusActive
-		sub.CancelledAt = nil
-		sub.UpdatedAt = now
-	} else {
-		sub = &workspace_addon.AddonSubscription{
-			ID:                 uuid.NewString(),
-			WorkspaceID:        workspaceID,
-			AddonDefinitionID:  def.ID,
-			AddonKey:           def.Key,
-			EntitlementKind:    def.EntitlementKind,
-			Quantity:           qty,
-			UnitsPerQuantity:   def.UnitsPerQuantity,
-			BillingCycle:       cycle,
-			Status:             workspace_plan.SubscriptionStatusActive,
-			UnitPriceMicros:    unitPrice,
-			CurrentPeriodStart: now,
-			CurrentPeriodEnd:   periodEnd,
+	var bought *workspace_addon.AddonSubscription
+	var charged *balance_usecase.ReferenceCharge
+	err = uc.subs.WithUnitsLock(workspaceID, def.EntitlementKind, func(locked workspace_addon.AddonSubscriptionRepository) error {
+		now := uc.now()
+		plan, err := planPurchase(def, locked, workspaceID, input, now)
+		if err != nil {
+			return err
 		}
-	}
-	if err := sub.Validate(); err != nil {
-		return nil, err
-	}
-
-	refID := "addon_purchase:" + sub.ID + ":" + strconv.FormatInt(now.Unix(), 10)
-	didDebit, err := uc.debit(workspaceID, refID, "Addon: "+def.Name, amount, cost)
+		sub := plan.subscription(workspaceID, uc.newID(), now)
+		if err := sub.Validate(); err != nil {
+			return err
+		}
+		if plan.quote.ChargeMicros > 0 {
+			charge := uc.charge(workspaceID, sub.ID, def, plan.quote)
+			if err := uc.debit(charge); err != nil {
+				return err
+			}
+			charged = &charge
+		}
+		if err := plan.save(locked, sub); err != nil {
+			return err
+		}
+		bought = sub
+		return nil
+	})
 	if err != nil {
+		if charged != nil {
+			return nil, uc.creditBack(*charged, err)
+		}
 		return nil, err
 	}
-
-	var persistErr error
-	if isNew {
-		persistErr = uc.subs.Create(sub)
-	} else {
-		persistErr = uc.subs.Update(sub)
-	}
-	if persistErr != nil {
-		if didDebit {
-			uc.refund(workspaceID, refID, "Estorno addon: "+def.Name, amount, cost)
-		}
-		return nil, persistErr
-	}
-
 	if uc.onChange != nil {
 		_ = uc.onChange.OnEntitlementIncreased(workspaceID, def.EntitlementKind)
 	}
-	return sub, nil
+	return bought, nil
 }
 
-func (uc *purchaseAddonUseCase) debit(workspaceID, refID, description string, amount, cost int64) (bool, error) {
-	if amount <= 0 {
-		return false, nil
+func (uc *purchaseAddonUseCase) charge(workspaceID, subscriptionID string, def *workspace_addon.AddonDefinition, quote workspace_addon.PurchaseQuote) balance_usecase.ReferenceCharge {
+	return balance_usecase.ReferenceCharge{
+		WorkspaceID: workspaceID,
+		ReferenceID: purchaseReference(subscriptionID, uc.newID()),
+		ServiceType: balance.ServiceAddon,
+		Price: workspace_pricing.PriceResult{
+			PriceMicros:  quote.ChargeMicros,
+			CostMicros:   quote.CostMicros,
+			ProfitMicros: quote.ChargeMicros - quote.CostMicros,
+		},
+		Description:       "Addon: " + def.Name,
+		RefundDescription: "Estorno addon: " + def.Name,
 	}
-	exists, err := uc.balanceRepo.ExistsTransactionByReferenceID(refID)
+}
+
+func (uc *purchaseAddonUseCase) debit(charge balance_usecase.ReferenceCharge) error {
+	if _, err := uc.balanceRepo.EnsureBalanceExists(charge.WorkspaceID, balanceCurrencyUSD); err != nil {
+		return err
+	}
+	transaction, err := balance_usecase.DebitOnce(uc.balanceRepo, charge)
 	if err != nil {
-		return false, err
+		return err
 	}
-	if exists {
-		return false, nil
+	if transaction == nil {
+		return workspace_addon.ErrPurchaseAlreadyRecorded
 	}
-	if _, err := uc.balanceRepo.EnsureBalanceExists(workspaceID, balanceCurrencyUSD); err != nil {
-		return false, err
-	}
-	if _, err := uc.balanceRepo.DebitBalance(balance.DebitBalanceInput{
-		WorkspaceID:  workspaceID,
-		Amount:       amount,
-		ServiceType:  balance.ServiceAddon,
-		ReferenceID:  &refID,
-		Description:  description,
-		CostMicros:   cost,
-		ProfitMicros: amount - cost,
-	}); err != nil {
-		return false, err
-	}
-	return true, nil
+	return nil
 }
 
-func (uc *purchaseAddonUseCase) refund(workspaceID, refID, description string, amount, cost int64) {
-	if amount <= 0 {
-		return
+func (uc *purchaseAddonUseCase) creditBack(charge balance_usecase.ReferenceCharge, cause error) error {
+	if err := balance_usecase.RefundOnce(uc.balanceRepo, charge); err != nil {
+		log.Printf("[addon-purchase] workspace %s was charged under %s, the units were not saved (%v) and the credit back failed: %v", charge.WorkspaceID, charge.ReferenceID, cause, err)
+		return errors.Join(cause, err)
 	}
-	refundRef := "refund:" + refID
-	_, _ = uc.balanceRepo.CreditBalance(balance.CreditBalanceInput{
-		WorkspaceID:  workspaceID,
-		Amount:       amount,
-		ServiceType:  balance.ServiceAddon,
-		ReferenceID:  &refundRef,
-		Description:  description,
-		CostMicros:   cost,
-		ProfitMicros: -(amount - cost),
-		IsRefund:     true,
-	})
+	return cause
 }

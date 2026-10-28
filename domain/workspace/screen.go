@@ -147,6 +147,8 @@ var (
 	ScreenCarrierRCSSender              = registerScreen("carrier_rcs_sender", "senderId")
 	ScreenCarrierSMSSenders             = registerScreen("carrier_sms_senders")
 	ScreenCarrierSettings               = registerScreen("carrier_settings")
+	ScreenSites                         = registerScreen("sites")
+	ScreenSiteEditor                    = registerScreen("site_editor", "projectId")
 )
 
 func (s Screen) Valid() bool {

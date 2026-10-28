@@ -69,3 +69,10 @@ func TestMatchRefusalFindsTheFirstEntryForAWrappedError(t *testing.T) {
 		t.Fatal("an unmapped error must not match")
 	}
 }
+
+func TestNewRefusalCarriesStatusCodeAndMessage(t *testing.T) {
+	got := NewRefusal(http.StatusConflict, "thing_taken", "Já existe")
+	if got.Status != http.StatusConflict || got.Code != "thing_taken" || got.Message != "Já existe" || got.Expected != nil {
+		t.Fatalf("refusal = %+v", got)
+	}
+}

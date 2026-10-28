@@ -6,6 +6,7 @@ import (
 
 	uwhttp "vozko/delivery/http/unofficial_whatsapp"
 	wsdelivery "vozko/delivery/ws"
+	"vozko/domain/shared"
 	uw "vozko/domain/unofficial_whatsapp"
 	uwc "vozko/domain/unofficial_whatsapp_campaign"
 	workspace_department "vozko/domain/workspace/workspace_department"
@@ -112,7 +113,7 @@ func (c *Container) initUnofficialWhatsAppCampaigns(
 		Eligibility:  eligibility,
 		Departments:  departments,
 		LeadsByID:    c.repositories.lead,
-		Automation:   c.campaignAutomation(),
+		Automation:   c.campaignAutomation().WithoutSheets().OnChannel(shared.EntryTypeUnofficialWhatsApp),
 		Keyed:        keyed,
 		GroupSenders: gateway,
 	})
@@ -120,15 +121,15 @@ func (c *Container) initUnofficialWhatsAppCampaigns(
 		log.Fatalf("[unofficial-whatsapp-campaigns] %v", err)
 	}
 	bundle.Create = create
-	update, err := uwcuc.NewUpdateCampaignUseCase(bundle.Campaigns, bundle.Entries, gateway, c.campaignAutomation())
+	update, err := uwcuc.NewUpdateCampaignUseCase(bundle.Campaigns, bundle.Entries, gateway, c.campaignAutomation().WithoutSheets().OnChannel(shared.EntryTypeUnofficialWhatsApp))
 	if err != nil {
 		log.Fatalf("[unofficial-whatsapp-campaigns] %v", err)
 	}
-	addEntries, err := uwcuc.NewAddEntriesUseCase(bundle.Campaigns, bundle.Entries, c.repositories.lead, c.campaignAutomation())
+	addEntries, err := uwcuc.NewAddEntriesUseCase(bundle.Campaigns, bundle.Entries, c.repositories.lead, c.campaignAutomation().WithoutSheets().OnChannel(shared.EntryTypeUnofficialWhatsApp))
 	if err != nil {
 		log.Fatalf("[unofficial-whatsapp-campaigns] %v", err)
 	}
-	quickSend, err := uwcuc.NewQuickSendUseCase(bundle.Campaigns, bundle.Entries, c.repositories.lead, bundle.Dispatch, c.redisProvider.SharedState(), c.campaignAutomation())
+	quickSend, err := uwcuc.NewQuickSendUseCase(bundle.Campaigns, bundle.Entries, c.repositories.lead, bundle.Dispatch, c.redisProvider.SharedState(), c.campaignAutomation().WithoutSheets().OnChannel(shared.EntryTypeUnofficialWhatsApp))
 	if err != nil {
 		log.Fatalf("[unofficial-whatsapp-campaigns] %v", err)
 	}

@@ -103,6 +103,7 @@ type graphServerEvent struct {
 	EventID          string            `json:"event_id"`
 	ActionSource     string            `json:"action_source"`
 	MessagingChannel string            `json:"messaging_channel,omitempty"`
+	EventSourceURL   string            `json:"event_source_url,omitempty"`
 	UserData         map[string]any    `json:"user_data"`
 	CustomData       *graphEventValues `json:"custom_data,omitempty"`
 }
@@ -148,6 +149,29 @@ func systemUserData(event advertising.ConversionEvent) (map[string]any, error) {
 	return data, nil
 }
 
+func websiteUserData(event advertising.ConversionEvent) (map[string]any, error) {
+	if strings.TrimSpace(event.ClientUserAgent) == "" {
+		return nil, fmt.Errorf("marketing: website event %s has no browser user agent", event.EventID)
+	}
+	data := map[string]any{"client_user_agent": event.ClientUserAgent}
+	if event.EmailHash != "" {
+		data["em"] = []string{event.EmailHash}
+	}
+	if event.PhoneHash != "" {
+		data["ph"] = []string{event.PhoneHash}
+	}
+	if event.Fbp != "" {
+		data["fbp"] = event.Fbp
+	}
+	if event.Fbc != "" {
+		data["fbc"] = event.Fbc
+	}
+	if len(data) == 1 {
+		return nil, fmt.Errorf("marketing: website event %s has nothing to match a person", event.EventID)
+	}
+	return data, nil
+}
+
 func majorUnits(micros int64) json.Number {
 	whole := strconv.FormatInt(micros/microsPerMajorUnit, 10)
 	fraction := strings.TrimRight(fmt.Sprintf("%06d", micros%microsPerMajorUnit), "0")
@@ -171,6 +195,9 @@ func serverEvent(event advertising.ConversionEvent) (graphServerEvent, error) {
 		out.UserData, err = messagingUserData(event.Identity)
 	case actionSystemGenerated:
 		out.UserData, err = systemUserData(event)
+	case advertising.ActionSourceWebsite:
+		out.EventSourceURL = event.SourceURL
+		out.UserData, err = websiteUserData(event)
 	default:
 		err = fmt.Errorf("marketing: action source %q is not supported", event.ActionSource)
 	}

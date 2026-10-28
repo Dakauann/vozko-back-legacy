@@ -17,6 +17,7 @@ var errorCodes = []struct {
 	{ErrWorkspaceRequired, "workspace_required"},
 	{ErrAddressInvalid, "address_invalid"},
 	{ErrSourceInvalid, "source_invalid"},
+	{ErrSourceReserved, "source_reserved"},
 	{ErrConsentIPRequired, "consent_ip_required"},
 	{ErrConsentIPInvalid, "consent_ip_invalid"},
 	{ErrConsentDateRequired, "consent_date_required"},

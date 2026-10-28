@@ -53,6 +53,8 @@ type SheetsAPI interface {
 	ReadRange(ctx context.Context, token string, target Target, a1 string) ([][]any, error)
 	ReadRanges(ctx context.Context, token string, target Target, ranges []string) ([][][]any, error)
 	Workbook(ctx context.Context, token, spreadsheetID string) (Workbook, error)
+	LinkCells(ctx context.Context, token string, target Target, columns []int) ([]LinkCell, error)
+	WriteFormulas(ctx context.Context, token string, target Target, cells []FormulaCell) error
 }
 
 type ErrorClassifier interface {

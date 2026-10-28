@@ -45,3 +45,25 @@ func TestTheModeOnlyGradesToolsThatAskForIt(t *testing.T) {
 		t.Fatal("a graded tool follows its own rule")
 	}
 }
+
+type routingTool struct{ editTool }
+
+func (routingTool) NeedsApprovalFor(_ Mode, args map[string]interface{}) bool {
+	return args["section"] == "redirects"
+}
+
+func TestArgumentRulesOnlyAddApprovals(t *testing.T) {
+	redirects := map[string]interface{}{"section": "redirects"}
+	pages := map[string]interface{}{"section": "pages"}
+	for _, mode := range []Mode{ModeAsk, ModeEdit, ModeFull} {
+		if !NeedsApprovalFor(routingTool{}, mode, redirects) {
+			t.Fatalf("the argument rule asks in %s", mode)
+		}
+	}
+	if !NeedsApprovalFor(routingTool{}, ModeAsk, pages) || NeedsApprovalFor(routingTool{}, ModeFull, pages) {
+		t.Fatal("other calls follow the mode rule")
+	}
+	if !NeedsApprovalFor(changeTool{}, ModeFull, nil) || NeedsApprovalFor(plainTool{}, ModeFull, redirects) {
+		t.Fatal("tools without an argument rule keep their rule")
+	}
+}

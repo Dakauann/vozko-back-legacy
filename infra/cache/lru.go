@@ -54,3 +54,12 @@ func (c *LRU[K, V]) Len() int {
 	defer c.mu.Unlock()
 	return c.order.Len()
 }
+
+func (c *LRU[K, V]) Delete(key K) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if el, ok := c.entries[key]; ok {
+		c.order.Remove(el)
+		delete(c.entries, key)
+	}
+}

@@ -37,9 +37,10 @@ func (r *entitlementResolver) Resolve(workspaceID string, kind workspace_addon.E
 	if err != nil {
 		return 0, err
 	}
+	now := r.now()
 	total := base
 	for _, s := range subs {
-		total += s.GrantedUnits()
+		total += s.GrantedUnitsAt(now)
 	}
 	return total, nil
 }
@@ -77,6 +78,8 @@ func planBaseForKind(plan *workspace_plan.PlanDefinition, kind workspace_addon.E
 		return plan.IncludedWhatsAppBusinessPhones, nil
 	case workspace_addon.EntitlementBranches:
 		return plan.MaxBranches, nil
+	case workspace_addon.EntitlementSiteDomains:
+		return 0, nil
 	case workspace_addon.EntitlementUnofficialWhatsAppInstances:
 		return 0, workspace_addon.ErrInvalidEntitlementKind
 	default:

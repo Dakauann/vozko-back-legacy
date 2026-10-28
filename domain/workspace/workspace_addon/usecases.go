@@ -16,6 +16,7 @@ type AddonDefinitionMutationInput struct {
 	AnnualPriceMicros  int64           `json:"annualPriceMicros"`
 	MonthlyCostMicros  int64           `json:"monthlyCostMicros"`
 	AnnualCostMicros   int64           `json:"annualCostMicros"`
+	MaxUnits           int             `json:"maxUnits"`
 	IsActive           *bool           `json:"isActive,omitempty"`
 	IsGloballyVisible  *bool           `json:"isGloballyVisible,omitempty"`
 }
@@ -70,6 +71,14 @@ type PreviewAddonPurchaseUseCase interface {
 
 type CancelAddonSubscriptionUseCase interface {
 	Execute(workspaceID, subscriptionID string) (*AddonSubscription, error)
+}
+
+type ScheduleAddonQuantityUseCase interface {
+	Execute(workspaceID, subscriptionID string, quantity int) (*AddonSubscription, error)
+}
+
+type UnitUsage interface {
+	UnitsInUse(workspaceID string) (int, error)
 }
 
 type ListWorkspaceAddonsUseCase interface {

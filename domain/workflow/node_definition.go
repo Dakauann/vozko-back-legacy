@@ -35,7 +35,19 @@ type OutputKeyDefinition struct {
 	Description   string       `json:"description"`
 	Label         string       `json:"label,omitempty"`
 	Type          VariableType `json:"type,omitempty"`
+	Example       string       `json:"example,omitempty"`
+	LabelKey      string       `json:"labelKey,omitempty"`
 	RepeatsConfig bool         `json:"repeatsConfig,omitempty"`
+}
+
+func OutputLabelKey(out OutputKeyDefinition) string {
+	if out.Label == "" {
+		return ""
+	}
+	if out.LabelKey != "" {
+		return out.LabelKey
+	}
+	return "output_" + out.Key
 }
 
 type NodeDefinition struct {

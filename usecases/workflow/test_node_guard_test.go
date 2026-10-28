@@ -39,7 +39,7 @@ func agentToolLoopTester(t *testing.T, laps int) TestNodeUseCase {
 			return &workflow.NodeResult{Output: map[string]interface{}{"response": "pronto"}, NextNodeID: "target"}, nil
 		},
 	})
-	registry.Register(workflow.NodeTypeActionSetVariable, node_executors.NewSetVariableExecutor())
+	registry.Register(workflow.NodeTypeActionSetVariable, node_executors.NewSetVariableExecutor(nil))
 	return NewTestNodeUseCase(TestNodeDeps{WorkflowRepo: repo, Executors: fixedExecutors(registry), Timeout: 2 * time.Second})
 }
 

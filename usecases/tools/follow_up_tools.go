@@ -341,6 +341,8 @@ var followUpAdvices = map[string]string{
 	"follow_up_when_required":        "Informe in_minutes, ou time com days_from_today ou date.",
 	"follow_up_when_ambiguous":       "Use só uma forma de horário: in_minutes, ou time com days_from_today, ou time com date.",
 	"follow_up_when_invalid":         "Horário inválido: in_minutes e days_from_today são números inteiros, date é AAAA-MM-DD e time é HH:MM.",
+	"follow_up_field_invalid":        "Um campo do horário é inválido: quantidade inteira maior que zero, unidade minutes, hours ou days, dias 0 ou mais, data AAAA-MM-DD e horário HH:MM.",
+	"follow_up_when_past":            "A data e o horário já passaram. Escolha um momento no futuro.",
 	"follow_up_too_soon":             "O horário já passou ou está perto demais. Escolha um horário a partir de alguns minutos.",
 	"follow_up_too_far":              "O horário passa de 30 dias. Escolha uma data mais próxima.",
 	"follow_up_past_window":          "O horário cai depois do fim da janela de atendimento e não há template de reserva. Escolha um horário mais próximo.",

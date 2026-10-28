@@ -1,0 +1,345 @@
+{
+  "variables": [
+    {
+      "ref": "campvars.matricula",
+      "label": "Matrícula",
+      "open": false,
+      "group": "conversation",
+      "kind": "conversation",
+      "source": null,
+      "type": "number",
+      "example": null,
+      "availability": "always"
+    },
+    {
+      "ref": "campvars.vencimento",
+      "label": "Vencimento",
+      "open": false,
+      "group": "conversation",
+      "kind": "conversation",
+      "source": null,
+      "type": "date",
+      "example": null,
+      "availability": "always"
+    },
+    {
+      "ref": "campvars.apelido",
+      "label": "Apelido",
+      "open": false,
+      "undeclared": true,
+      "group": "conversation",
+      "kind": "conversation",
+      "source": null,
+      "type": "text",
+      "example": null,
+      "availability": "always"
+    },
+    {
+      "ref": "saudacao",
+      "label": "Saudação",
+      "open": true,
+      "group": "nodes",
+      "kind": "node",
+      "source": {
+        "nodeId": "sv",
+        "nodeName": "Definir variável"
+      },
+      "type": "unknown",
+      "example": null,
+      "availability": "always"
+    },
+    {
+      "ref": "node.h.status_code",
+      "label": "Requisição HTTP › Código HTTP",
+      "labelKey": "output_status_code",
+      "labelPrefix": "Requisição HTTP",
+      "open": true,
+      "group": "nodes",
+      "kind": "node",
+      "source": {
+        "nodeId": "h",
+        "nodeName": "Requisição HTTP"
+      },
+      "type": "number",
+      "example": "42",
+      "availability": "always"
+    },
+    {
+      "ref": "node.h.body",
+      "label": "Requisição HTTP › Corpo da resposta",
+      "labelKey": "output_body",
+      "labelPrefix": "Requisição HTTP",
+      "open": true,
+      "group": "nodes",
+      "kind": "node",
+      "source": {
+        "nodeId": "h",
+        "nodeName": "Requisição HTTP"
+      },
+      "type": "text",
+      "example": "texto",
+      "availability": "always"
+    },
+    {
+      "ref": "node.h.success",
+      "label": "Requisição HTTP › Deu certo",
+      "labelKey": "output_success",
+      "labelPrefix": "Requisição HTTP",
+      "open": true,
+      "group": "nodes",
+      "kind": "node",
+      "source": {
+        "nodeId": "h",
+        "nodeName": "Requisição HTTP"
+      },
+      "type": "boolean",
+      "example": "sim",
+      "availability": "always"
+    },
+    {
+      "ref": "cadastro",
+      "label": "Cadastro do aluno",
+      "open": true,
+      "group": "nodes",
+      "kind": "node",
+      "source": {
+        "nodeId": "h",
+        "nodeName": "Requisição HTTP"
+      },
+      "type": "object",
+      "example": null,
+      "availability": "always"
+    },
+    {
+      "ref": "campvars.lead_name",
+      "label": "Nome do contato",
+      "labelKey": "conversation_lead_name",
+      "open": false,
+      "group": "contact",
+      "kind": "system",
+      "source": {
+        "nodeId": "m",
+        "nodeName": "m"
+      },
+      "type": "text",
+      "example": "Ana Souza",
+      "availability": "always"
+    },
+    {
+      "ref": "campvars.lead_number",
+      "label": "Número do contato",
+      "labelKey": "conversation_lead_number",
+      "open": false,
+      "group": "contact",
+      "kind": "system",
+      "source": {
+        "nodeId": "m",
+        "nodeName": "m"
+      },
+      "type": "text",
+      "example": "5511999990000",
+      "availability": "always"
+    },
+    {
+      "ref": "campvars.campaign_name",
+      "label": "Nome da campanha",
+      "labelKey": "conversation_campaign_name",
+      "open": false,
+      "group": "contact",
+      "kind": "system",
+      "source": {
+        "nodeId": "m",
+        "nodeName": "m"
+      },
+      "type": "text",
+      "example": "Matrículas 2026",
+      "availability": "always"
+    },
+    {
+      "ref": "message",
+      "label": "Conversa › mensagem recebida",
+      "labelKey": "conversation_message",
+      "open": false,
+      "group": "contact",
+      "kind": "system",
+      "source": {
+        "nodeId": "m",
+        "nodeName": "m"
+      },
+      "type": "text",
+      "example": "Oi, quero saber o valor",
+      "availability": "always"
+    },
+    {
+      "ref": "contact_number",
+      "label": "Contato › número",
+      "labelKey": "contact_number",
+      "open": false,
+      "group": "contact",
+      "kind": "system",
+      "source": {
+        "nodeId": "m",
+        "nodeName": "m"
+      },
+      "type": "text",
+      "example": "5511999990000",
+      "availability": "always"
+    },
+    {
+      "ref": "channel",
+      "label": "Conversa › canal",
+      "labelKey": "conversation_channel",
+      "open": false,
+      "group": "contact",
+      "kind": "system",
+      "source": {
+        "nodeId": "m",
+        "nodeName": "m"
+      },
+      "type": "text",
+      "example": "whatsapp",
+      "availability": "always"
+    },
+    {
+      "ref": "sys.date",
+      "label": "Sistema › data de hoje",
+      "labelKey": "sys_date",
+      "open": false,
+      "group": "system",
+      "kind": "default",
+      "source": null,
+      "type": "date",
+      "example": null,
+      "availability": "always"
+    },
+    {
+      "ref": "sys.time",
+      "label": "Sistema › hora agora",
+      "labelKey": "sys_time",
+      "open": false,
+      "group": "system",
+      "kind": "default",
+      "source": null,
+      "type": "text",
+      "example": null,
+      "availability": "always"
+    },
+    {
+      "ref": "sys.timestamp",
+      "label": "Sistema › timestamp Unix",
+      "labelKey": "sys_timestamp",
+      "open": false,
+      "group": "system",
+      "kind": "default",
+      "source": null,
+      "type": "number",
+      "example": null,
+      "availability": "always"
+    }
+  ],
+  "cases": [
+    {
+      "text": "Oi {{campvars.matricula}}, tudo bem?",
+      "segments": [
+        {
+          "text": "Oi "
+        },
+        {
+          "text": "{{campvars.matricula}}",
+          "ref": "campvars.matricula",
+          "label": "Matrícula"
+        },
+        {
+          "text": ", tudo bem?"
+        }
+      ]
+    },
+    {
+      "text": "{{ campvars.matricula }} e {{var.campvars.apelido}}",
+      "segments": [
+        {
+          "text": "{{ campvars.matricula }}",
+          "ref": "campvars.matricula",
+          "label": "Matrícula"
+        },
+        {
+          "text": " e "
+        },
+        {
+          "text": "{{var.campvars.apelido}}",
+          "ref": "campvars.apelido",
+          "label": "Apelido"
+        }
+      ]
+    },
+    {
+      "text": "Status {{cadastro.status}} de {{campvars[lead_name]}}",
+      "segments": [
+        {
+          "text": "Status "
+        },
+        {
+          "text": "{{cadastro.status}}",
+          "ref": "cadastro.status",
+          "label": "Cadastro do aluno › status"
+        },
+        {
+          "text": " de "
+        },
+        {
+          "text": "{{campvars[lead_name]}}",
+          "ref": "campvars.lead_name",
+          "label": "Nome do contato"
+        }
+      ]
+    },
+    {
+      "text": "{{node.h.status_code}}{{sys.date}}",
+      "segments": [
+        {
+          "text": "{{node.h.status_code}}",
+          "ref": "node.h.status_code",
+          "label": "Requisição HTTP › Código HTTP"
+        },
+        {
+          "text": "{{sys.date}}",
+          "ref": "sys.date",
+          "label": "Sistema › data de hoje"
+        }
+      ]
+    },
+    {
+      "text": "sem nada",
+      "segments": [
+        {
+          "text": "sem nada"
+        }
+      ]
+    },
+    {
+      "text": "{{ desconhecida.coisa }} e {{x y}} e {{}}",
+      "segments": [
+        {
+          "text": "{{ desconhecida.coisa }}",
+          "ref": "desconhecida.coisa"
+        },
+        {
+          "text": " e {{x y}} e {{}}"
+        }
+      ]
+    },
+    {
+      "text": "{{var.saudacao}}!",
+      "segments": [
+        {
+          "text": "{{var.saudacao}}",
+          "ref": "saudacao",
+          "label": "Saudação"
+        },
+        {
+          "text": "!"
+        }
+      ]
+    }
+  ]
+}

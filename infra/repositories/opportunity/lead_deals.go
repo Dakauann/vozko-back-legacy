@@ -42,11 +42,18 @@ func DealScopeCondition(alias string, scope opportunity.DealScope) (string, []in
 	return "(" + strings.Join(conds, " OR ") + ")", args
 }
 
+func dealsOfLeadsWhere(alias, leadMatch string) string {
+	return alias + ".id IN (SELECT od.id FROM opportunities od WHERE od.workspace_id = ? AND od.lead_id " + leadMatch + " AND od.deleted_at IS NULL" +
+		" UNION SELECT oc.opportunity_id FROM opportunity_conversations oc JOIN " + crmfiltersql.LeadEntriesSource() +
+		" ON lead_entries.entry_id = oc.entry_id AND lead_entries.entry_type = oc.entry_type WHERE lead_entries.lead_id " + leadMatch + ")"
+}
+
 func leadDealsMembership(alias, workspaceID, leadID string) (string, []interface{}) {
-	return alias + ".id IN (SELECT od.id FROM opportunities od WHERE od.workspace_id = ? AND od.lead_id = ? AND od.deleted_at IS NULL" +
-			" UNION SELECT oc.opportunity_id FROM opportunity_conversations oc JOIN " + crmfiltersql.LeadEntriesSource() +
-			" ON lead_entries.entry_id = oc.entry_id AND lead_entries.entry_type = oc.entry_type WHERE lead_entries.lead_id = ?)",
-		[]interface{}{workspaceID, leadID, leadID}
+	return dealsOfLeadsWhere(alias, "= ?"), []interface{}{workspaceID, leadID, leadID}
+}
+
+func leadSetDealsMembership(alias, workspaceID string, leadIDs []string) (string, []interface{}) {
+	return dealsOfLeadsWhere(alias, "= ANY(?::uuid[])"), []interface{}{workspaceID, pq.Array(leadIDs), pq.Array(leadIDs)}
 }
 
 func LeadDealsCondition(alias, workspaceID, leadID string, scope opportunity.DealScope) (string, []interface{}) {

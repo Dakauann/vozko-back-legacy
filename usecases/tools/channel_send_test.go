@@ -101,7 +101,6 @@ func TestNoSeedsFallsThroughToWhatsApp(t *testing.T) {
 	}
 }
 
-
 func TestMediaIsSentThroughTheAdapter(t *testing.T) {
 	adapter := &toolAdapter{entryType: shared.EntryTypeTelegram, windowOpen: true}
 	ec := &conversation.EntryContext{EntryID: "conv-1", EntryType: shared.EntryTypeTelegram}

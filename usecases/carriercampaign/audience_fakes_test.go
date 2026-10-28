@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"time"
+	"vozko/domain/variabledecl/variabledecltest"
 
 	"vozko/domain/customfield"
 	"vozko/domain/lead"
@@ -56,7 +57,7 @@ func (audienceGate) Acquire(context.Context) (func(), error) { return func() {},
 func (h *harness) newAudience(t interface{ Fatal(...any) }) *campaignaudience_usecase.Service {
 	aud, err := campaignaudience_usecase.New(campaignaudience_usecase.Deps{
 		Selections: h.selections, Lists: audiencetest.NewLists(), Sheets: audienceSheets{}, Phones: audienceLookups{}, Emails: audienceLookups{},
-		EmailLeads: audienceLookups{}, EmailsSeen: &hygienetest.SeenEmails{}, Definitions: audienceLookups{}, Gate: audienceGate{}, Flight: audiencetest.Flight(audiencetest.NewState()), Now: func() time.Time { return h.now },
+		EmailLeads: audienceLookups{}, EmailsSeen: &hygienetest.SeenEmails{}, Definitions: audienceLookups{}, Gate: audienceGate{}, Flight: audiencetest.Flight(audiencetest.NewState()), Values: variabledecltest.Static{}, Now: func() time.Time { return h.now },
 	})
 	if err != nil {
 		t.Fatal(err)

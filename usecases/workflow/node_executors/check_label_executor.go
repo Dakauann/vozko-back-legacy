@@ -36,7 +36,7 @@ func (e *checkLabelExecutor) Definition() workflow.NodeDefinition {
 			{ID: checkLabelFailed, Label: "Erro", Optional: true},
 		},
 		OutputKeys: []workflow.OutputKeyDefinition{
-			{Key: "matched", Description: "true se a entrada possui a etiqueta", Label: "Tem a etiqueta", Type: workflow.VariableTypeBoolean},
+			{Key: "matched", Description: "true se a entrada possui a etiqueta", Label: "Tem a etiqueta", LabelKey: "output_matched_label", Type: workflow.VariableTypeBoolean},
 			{Key: "label_id", Description: "ID da etiqueta verificada", RepeatsConfig: true},
 			{Key: "label_name", Description: "Nome da etiqueta (se encontrada)", Label: "Nome da etiqueta", Type: workflow.VariableTypeText},
 			{Key: "error", Description: "Motivo quando as etiquetas não puderam ser lidas (saída Erro)", Label: "Erro", Type: workflow.VariableTypeText},

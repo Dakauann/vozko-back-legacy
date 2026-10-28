@@ -204,6 +204,26 @@ func (uc *ConversionsUseCase) dispatch(ctx context.Context, s ads.ConversionSett
 	return uc.access.failed(ctx, account, sendErr)
 }
 
+func (uc *ConversionsUseCase) SendWebsiteLead(ctx context.Context, workspaceID string, lead ads.WebsiteLead) error {
+	s, err := uc.settings.Get(ctx, workspaceID)
+	if errors.Is(err, ads.ErrSettingsNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	now := uc.access.now()
+	event, _ := ads.WebsiteLeadFor(*s, lead, now)
+	if event == nil {
+		return nil
+	}
+	account, token, err := uc.access.open(ctx, workspaceID, s.AdAccountID, ads.UseWrite)
+	if err != nil {
+		return err
+	}
+	return uc.access.failed(ctx, account, uc.gateway.SendEvents(ctx, token, []ads.ConversionEvent{*event}))
+}
+
 func eventNameOf(e ads.DealEvent) string {
 	if e == ads.DealWon {
 		return ads.EventNamePurchase

@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
+
+	"vozko/domain/workflow"
 )
 
 type dataRepair struct {
@@ -12,7 +14,7 @@ type dataRepair struct {
 }
 
 func repairNames() []string {
-	all := dataRepairs()
+	all := dataRepairs(nil)
 	names := make([]string, 0, len(all))
 	for _, r := range all {
 		names = append(names, r.name)
@@ -20,7 +22,7 @@ func repairNames() []string {
 	return names
 }
 
-func dataRepairs() []dataRepair {
+func dataRepairs(nodeOutputs workflow.DynamicHandleResolver) []dataRepair {
 	return []dataRepair{
 		{"wc_consume_used_schedules", consumeUsedSchedules},
 		{"drop_retired_setting_columns", dropRetiredSettingColumns},
@@ -33,6 +35,7 @@ func dataRepairs() []dataRepair {
 		{"wf_publish_running_workflows", publishRunningWorkflows},
 		{"wf_canonical_structured_configs", canonicalizeWorkflowGraphs},
 		{"wf_canonical_node_types", canonicalizeLegacyNodeTypes},
+		{"wf_retire_tool_mode", retireToolModes(nodeOutputs)},
 		{"inv_external_id_per_provider", repairInvoiceExternalIDs},
 		{"em_recheck_unconfirmed_no_mail", recheckUnconfirmedNoMail},
 		{"ag_tool_instances", copyAgentToolInstances},
@@ -43,8 +46,8 @@ func dataRepairs() []dataRepair {
 	}
 }
 
-func runDataRepairs(tx *gorm.DB) error {
-	for _, r := range dataRepairs() {
+func runDataRepairs(tx *gorm.DB, nodeOutputs workflow.DynamicHandleResolver) error {
+	for _, r := range dataRepairs(nodeOutputs) {
 		if err := r.run(tx); err != nil {
 			return fmt.Errorf("data repair %s: %w", r.name, err)
 		}

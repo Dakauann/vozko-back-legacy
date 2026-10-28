@@ -37,28 +37,46 @@ var assets embed.FS
 
 var frameTemplate = template.Must(template.ParseFS(assets, "assets/frame.html"))
 
-var assetVersion = contentVersion("frame.js", "frame.css")
+const powAsset = "pow.js"
 
-func contentVersion(names ...string) string {
+func (h *PublicHandler) assetBytes(name string) ([]byte, error) {
+	if name == powAsset {
+		return h.solver, nil
+	}
+	return assets.ReadFile(path.Join("assets", name))
+}
+
+func (h *PublicHandler) contentVersion(names ...string) (string, error) {
 	digest := sha256.New()
 	for _, name := range names {
-		data, err := assets.ReadFile(path.Join("assets", name))
+		data, err := h.assetBytes(name)
 		if err != nil {
-			panic(err)
+			return "", err
 		}
 		digest.Write(data)
 	}
-	return hex.EncodeToString(digest.Sum(nil))[:12]
+	return hex.EncodeToString(digest.Sum(nil))[:12], nil
 }
 
 type PublicHandler struct {
 	visitors  *wcuc.VisitorService
 	stream    wcdomain.EventStream
 	apiOrigin string
+	solver    []byte
+	version   string
 }
 
-func NewPublicHandler(visitors *wcuc.VisitorService, stream wcdomain.EventStream, apiOrigin string) *PublicHandler {
-	return &PublicHandler{visitors: visitors, stream: stream, apiOrigin: strings.TrimRight(apiOrigin, "/")}
+func NewPublicHandler(visitors *wcuc.VisitorService, stream wcdomain.EventStream, apiOrigin string, solver []byte) (*PublicHandler, error) {
+	if len(solver) == 0 {
+		return nil, errors.New("webchat: the proof of work solver is required")
+	}
+	h := &PublicHandler{visitors: visitors, stream: stream, apiOrigin: strings.TrimRight(apiOrigin, "/"), solver: solver}
+	version, err := h.contentVersion("frame.js", "frame.css", powAsset)
+	if err != nil {
+		return nil, err
+	}
+	h.version = version
+	return h, nil
 }
 
 type ChallengeRequest struct {
@@ -134,25 +152,25 @@ func (h *PublicHandler) Loader(w http.ResponseWriter, r *http.Request) {
 // @Summary		Arquivos do WebChat
 // @Description	JavaScript e CSS da janela do chat.
 // @Tags			WebChat
-// @Param			file	path	string	true	"frame.js ou frame.css"
+// @Param			file	path	string	true	"frame.js, frame.css ou pow.js"
 // @Success		200
 // @Failure		404
 // @Router			/public/webchat/assets/{file} [get]
 func (h *PublicHandler) Asset(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["file"]
-	if name != "frame.js" && name != "frame.css" {
+	if name != "frame.js" && name != "frame.css" && name != powAsset {
 		http.NotFound(w, r)
 		return
 	}
 	cacheControl := "no-cache"
-	if r.URL.Query().Get("v") == assetVersion {
+	if r.URL.Query().Get("v") == h.version {
 		cacheControl = assetsImmutable
 	}
 	h.serveAsset(w, name, cacheControl)
 }
 
 func (h *PublicHandler) serveAsset(w http.ResponseWriter, name, cacheControl string) {
-	data, err := assets.ReadFile(path.Join("assets", name))
+	data, err := h.assetBytes(name)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -205,7 +223,7 @@ func (h *PublicHandler) Frame(w http.ResponseWriter, r *http.Request) {
 		"Accent":    widget.AccentColor,
 		"Position":  string(widget.Position),
 		"Label":     widget.LauncherLabel,
-		"Version":   assetVersion,
+		"Version":   h.version,
 	}); err != nil {
 		http.Error(w, "frame unavailable", http.StatusInternalServerError)
 	}

@@ -29,7 +29,7 @@ func TestAnAgentThatCouldNotTransferWarnsInTheTargetsOwnEpisode(t *testing.T) {
 	if draft.EpisodeKey != UnmetEpisodeKey(target) || !draft.Email {
 		t.Fatalf("draft = %+v", draft)
 	}
-	for _, want := range []string{"Agente Prospecção", "Matrícula", "turma"} {
+	for _, want := range []string{"Agente Prospecção", "Matrícula", "Turma"} {
 		if !strings.Contains(draft.Title+" "+draft.Body, want) {
 			t.Fatalf("missing %q in %q / %q", want, draft.Title, draft.Body)
 		}

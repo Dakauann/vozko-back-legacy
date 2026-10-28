@@ -14,6 +14,7 @@ import (
 	businessphone "vozko/domain/whatsapp/business_phone"
 	wf "vozko/domain/whatsappform"
 	"vozko/domain/workspace"
+	"vozko/usecases/formlead"
 )
 
 var (
@@ -487,11 +488,15 @@ func newWorld(t *testing.T, caps ...workspace.CapabilityKey) *world {
 
 func (w *world) build() {
 	w.t.Helper()
+	formLeads, err := formlead.New(formlead.Deps{Phones: noLeadLookups{}, Emails: noLeadLookups{}, Profiles: w.effects, Consents: w.effects, Triggers: w.effects})
+	if err != nil {
+		w.t.Fatal(err)
+	}
 	svc, err := New(Deps{
 		Forms: w.forms, Versions: versionsRepo{w.forms}, Publications: w.pubs, Sends: w.sends, Responses: w.answers,
 		Gateway: w.gateway, Phones: w.phones, OwnedPhones: w.phones, Permissions: w.perms, Definitions: w.defs, Assets: w.assets,
 		Sender: w.sender, Conversations: w.targets, Access: w.targets, Scopes: w.targets, History: w.effects,
-		Profiles: w.effects, Consents: w.effects, Media: w.effects, Runs: w.effects, Triggers: w.effects, LeadNames: w.effects, Automations: w.automations, Notices: w.notices,
+		FormLeads: formLeads, Media: w.effects, Runs: w.effects, LeadNames: w.effects, Automations: w.automations, Notices: w.notices,
 		Now:    func() time.Time { return w.now },
 		NewID:  func() string { w.ids++; return fmt.Sprintf("id-%03d", w.ids) },
 		Random: w,

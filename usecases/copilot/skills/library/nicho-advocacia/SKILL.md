@@ -1,6 +1,7 @@
 ---
 name: nicho-advocacia
 description: Regras da OAB para publicidade de advogados (Provimento 205/2021) e como usar anúncios e WhatsApp dentro delas; carregue quando o cliente for advogado ou escritório de advocacia.
+also: site
 ---
 
 # Advogados e escritórios

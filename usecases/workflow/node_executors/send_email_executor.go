@@ -51,7 +51,7 @@ func (e *sendEmailExecutor) Definition() workflow.NodeDefinition {
 			{ID: "timeout", Label: "Tempo esgotado", Optional: true},
 		},
 		OutputKeys: []workflow.OutputKeyDefinition{
-			{Key: "to", Description: "Destinatários principais usados no envio", Label: "Destinatários", Type: workflow.VariableTypeList},
+			{Key: "to", Description: "Destinatários principais usados no envio", Label: "Destinatários", LabelKey: "output_to_many", Type: workflow.VariableTypeList},
 			{Key: "cc", Description: "Destinatários em cópia", Label: "Em cópia", Type: workflow.VariableTypeList},
 			{Key: "bcc", Description: "Destinatários em cópia oculta", Label: "Em cópia oculta", Type: workflow.VariableTypeList},
 			{Key: "subject", Description: "Assunto enviado", Label: "Assunto", Type: workflow.VariableTypeText},

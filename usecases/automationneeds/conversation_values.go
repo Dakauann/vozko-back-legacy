@@ -70,6 +70,7 @@ func (q *Queries) VariablesForm(ctx context.Context, in ConversationRef, target 
 	if err != nil {
 		return VariablesForm{}, err
 	}
+	needs = q.d.Service.Label(ctx, in.WorkspaceID, needs)
 	link := rootOf(automation, needs)
 	if link.Name == "" {
 		link.Name = q.nameOf(in.WorkspaceID, automation)
@@ -108,6 +109,10 @@ func (q *Queries) SaveConversationValues(ctx context.Context, in SaveValues) err
 	if !q.allows(in.ConversationRef) {
 		return ErrForbidden
 	}
+	return q.d.Service.Catalog(ctx, in.WorkspaceID).Variables(q.saveConversationValues(ctx, in))
+}
+
+func (q *Queries) saveConversationValues(ctx context.Context, in SaveValues) error {
 	assignment, err := q.assign(in.WorkspaceID, append(conversationvars.LiteralBindings(in.Values), in.Bindings...))
 	if err != nil {
 		return err
@@ -130,9 +135,10 @@ func (q *Queries) SaveConversationValues(ctx context.Context, in SaveValues) err
 func (q *Queries) ResolveValues(ctx context.Context, ref conversationvars.Ref, bindings []conversationvars.Binding) (map[string]string, error) {
 	assignment, err := q.assign(ref.WorkspaceID, bindings)
 	if err != nil {
-		return nil, err
+		return nil, q.d.Service.Catalog(ctx, ref.WorkspaceID).Variables(err)
 	}
-	return q.resolve(ctx, ref, assignment)
+	values, err := q.resolve(ctx, ref, assignment)
+	return values, q.d.Service.Catalog(ctx, ref.WorkspaceID).Variables(err)
 }
 
 func (q *Queries) assign(workspaceID string, bindings []conversationvars.Binding) (conversationvars.Assignment, error) {
@@ -152,7 +158,18 @@ func (q *Queries) resolve(ctx context.Context, ref conversationvars.Ref, assignm
 	if err != nil {
 		return nil, err
 	}
-	return assignment.Resolve(subject, snapshot.Values)
+	values, err := assignment.Resolve(subject, snapshot.Values)
+	if err != nil {
+		return nil, err
+	}
+	rejected, err := q.d.Service.Rejected(ctx, ref.WorkspaceID, values)
+	if err != nil {
+		return nil, err
+	}
+	if len(rejected) > 0 {
+		return nil, &conversationvars.VariablesError{Cause: conversationvars.ErrTypeInvalid, Names: rejected}
+	}
+	return values, nil
 }
 
 func (q *Queries) LeadFields(workspaceID string) ([]*customfield.Definition, error) {

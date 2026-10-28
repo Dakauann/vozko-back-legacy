@@ -148,12 +148,12 @@ func (c *Client) relayout(ctx context.Context, token string, target googlesheet.
 }
 
 func (c *Client) Workbook(ctx context.Context, token, spreadsheetID string) (googlesheet.Workbook, error) {
-	sheets, err := c.sheets(ctx, token, spreadsheetID, "sheets.properties(sheetId,title,gridProperties)")
+	body, err := c.spreadsheet(ctx, token, spreadsheetID, "properties.locale,sheets.properties(sheetId,title,gridProperties)")
 	if err != nil {
 		return googlesheet.Workbook{}, err
 	}
-	wb := googlesheet.Workbook{Tabs: make([]googlesheet.TabInfo, 0, len(sheets))}
-	for _, sheet := range sheets {
+	wb := googlesheet.Workbook{Locale: body.Properties.Locale, Tabs: make([]googlesheet.TabInfo, 0, len(body.Sheets))}
+	for _, sheet := range body.Sheets {
 		p := sheet.Properties
 		wb.Tabs = append(wb.Tabs, googlesheet.TabInfo{ID: p.SheetID, Title: p.Title, Rows: p.GridProperties.RowCount, Columns: p.GridProperties.ColumnCount})
 	}
@@ -161,12 +161,17 @@ func (c *Client) Workbook(ctx context.Context, token, spreadsheetID string) (goo
 }
 
 func (c *Client) sheets(ctx context.Context, token, spreadsheetID, fields string) ([]sheetBody, error) {
+	body, err := c.spreadsheet(ctx, token, spreadsheetID, fields)
+	return body.Sheets, err
+}
+
+func (c *Client) spreadsheet(ctx context.Context, token, spreadsheetID, fields string) (spreadsheetBody, error) {
 	endpoint := c.endpoints.Sheets + "/" + url.PathEscape(spreadsheetID) + "?" + url.Values{"fields": {fields}}.Encode()
 	var out spreadsheetBody
 	if err := c.do(ctx, http.MethodGet, endpoint, token, nil, &out); err != nil {
-		return nil, err
+		return spreadsheetBody{}, err
 	}
-	return out.Sheets, nil
+	return out, nil
 }
 
 func tabMissing() error {

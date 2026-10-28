@@ -49,6 +49,7 @@ type LaunchCheckDeps struct {
 	Balances       balance.BalanceReader
 	Caps           balance.MonthlySendCapUsageReader
 	Forms          template_usecase.FlowPublications
+	Sheets         CampaignSheets
 	Now            func() time.Time
 }
 
@@ -127,6 +128,7 @@ func (c *LaunchCheck) readHealth(ctx context.Context, camp *wc.Campaign, facts *
 	}
 	c.readAccess(camp, facts)
 	c.readCap(camp, facts)
+	c.readSheets(ctx, camp, facts)
 }
 
 func (c *LaunchCheck) readPhone(camp *wc.Campaign, facts *launchFacts) {

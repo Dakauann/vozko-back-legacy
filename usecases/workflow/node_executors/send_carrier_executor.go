@@ -128,7 +128,7 @@ func (e *sendCarrierExecutor) Definition() workflow.NodeDefinition {
 			{Key: "sent", Description: "true quando o envio foi aceito", Label: "Enviado", Type: workflow.VariableTypeBoolean},
 			{Key: "message_id", Description: "ID da mensagem RCS ou SMS", Label: "ID da mensagem", Type: workflow.VariableTypeText},
 			{Key: "channel", Description: "rcs ou sms", Label: "Canal", Type: workflow.VariableTypeText},
-			{Key: "status", Description: "Situação da mensagem no envio", Label: "Situação do envio", Type: workflow.VariableTypeText},
+			{Key: "status", Description: "Situação da mensagem no envio", Label: "Situação do envio", LabelKey: "output_status_send", Type: workflow.VariableTypeText},
 			{Key: "reason", Description: "Código do motivo quando o envio falha", Label: "Motivo", Type: workflow.VariableTypeText},
 			{Key: "error", Description: "Descrição da recusa quando o envio falha", Label: "Erro", Type: workflow.VariableTypeText},
 			{Key: "next_open", Description: "Quando reason é carrier_quiet_hours: próximo horário de envio (RFC 3339)", Label: "Próximo horário de envio", Type: workflow.VariableTypeDate},

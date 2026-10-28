@@ -30,6 +30,10 @@ type Queries interface {
 	OpenSwitchOff(ctx context.Context, workspaceID string, kind domain.SlotKind, slotID string) (*automationneeds_usecase.OpenSwitchOff, error)
 	VariablesForm(ctx context.Context, in automationneeds_usecase.ConversationRef, target *conversation.Automation) (automationneeds_usecase.VariablesForm, error)
 	SaveConversationValues(ctx context.Context, in automationneeds_usecase.SaveValues) error
+	FlowVariables(ctx context.Context, workspaceID, workflowID string) ([]automationneeds_usecase.FlowVariable, error)
+	ConversationData(ctx context.Context, in automationneeds_usecase.ConversationRef) ([]automationneeds_usecase.DataRow, error)
+	SetConversationData(ctx context.Context, in automationneeds_usecase.ConversationRef, name, value string) (automationneeds_usecase.DataRow, error)
+	SheetCandidates(ctx context.Context, workspaceID string, target *conversation.Automation, name string) (automationneeds_usecase.SheetCandidates, error)
 }
 
 type Handler struct {
@@ -62,6 +66,7 @@ type SwitchOffNoticeResponse struct {
 	Channel       automationneedsx.SlotResponse   `json:"channel"`
 	Automation    automationneedsx.LinkResponse   `json:"automation"`
 	Variables     []string                        `json:"variables"`
+	Recorded      []automationneedsx.NeedResponse `json:"recorded"`
 	StillNeeded   []automationneedsx.NeedResponse `json:"stillNeeded"`
 	SwitchedOffAt time.Time                       `json:"switchedOffAt"`
 	EligibleNow   bool                            `json:"eligibleNow"`
@@ -89,11 +94,9 @@ type ConversationVariablesRequest struct {
 }
 
 type VariableRowResponse struct {
-	Name        string                          `json:"name" example:"matricula"`
-	Description string                          `json:"description,omitempty" example:"Matrícula do aluno"`
-	Via         []automationneedsx.LinkResponse `json:"via"`
-	Current     string                          `json:"current,omitempty" example:"2026-17"`
-	Suggested   string                          `json:"suggested,omitempty" example:"lead.custom:matricula"`
+	automationneedsx.NeedResponse
+	Current   string `json:"current,omitempty" example:"2026-17"`
+	Suggested string `json:"suggested,omitempty" example:"lead.custom:matricula"`
 }
 
 type ConversationFieldResponse struct {
@@ -107,8 +110,181 @@ type ConversationVariablesResponse struct {
 	Fields     []ConversationFieldResponse    `json:"fields"`
 }
 
+type VariableRefResponse struct {
+	Name  string `json:"name" example:"matricula"`
+	Label string `json:"label" example:"Matrícula"`
+}
+
+type FlowNodeResponse struct {
+	ID   string `json:"id" example:"n4"`
+	Name string `json:"name" example:"Boas-vindas"`
+}
+
+type FlowFillerResponse struct {
+	Kind  string `json:"kind" enums:"default,campaign,handoff,transfer" example:"campaign"`
+	Value string `json:"value,omitempty" example:"Manhã"`
+}
+
+type FlowVariableResponse struct {
+	automationneedsx.NeedResponse
+	Required bool                 `json:"required"`
+	InFlow   bool                 `json:"inFlow"`
+	Used     bool                 `json:"used"`
+	Default  string               `json:"default,omitempty" example:"Manhã"`
+	Nodes    []FlowNodeResponse   `json:"nodes"`
+	FilledBy []FlowFillerResponse `json:"filledBy"`
+}
+
+type FlowVariablesResponse struct {
+	Variables []FlowVariableResponse `json:"variables"`
+}
+
+// @Summary		Dados do fluxo
+// @Description	Lista os dados da conversa que o rascunho salvo do fluxo precisa ou usa, já seguindo o agente que um nó de IA usa, os subfluxos e os fluxos que o agente chama. Cada linha traz o nome amigável (label) e o tipo da declaração do workspace (declared falso quando o nome ainda não foi declarado), se é obrigatória (required; opcional quando o fluxo dá um valor padrão em default), se o fluxo a declara (inFlow), se algum passo a usa (used), os passos deste fluxo que a usam (nodes), a cadeia de automações (via) e quem pode preenchê-la (filledBy: default, campaign, handoff, transfer; fluxos de voz não recebem dados). lead_name, lead_number e campaign_name nunca aparecem: a plataforma sempre preenche.
+// @Tags			Dados da conversa
+// @Produce		json
+// @Param			id	path		string	true	"ID do fluxo"
+// @Success		200	{object}	FlowVariablesResponse
+// @Failure		422	{object}	response.ErrorResponse	"automation_needs_not_found"
+// @Failure		503	{object}	response.ErrorResponse	"automation_needs_unreadable"
+// @Security		BearerAuth
+// @Router			/workflows/{id}/conversation-variables [get]
+func (h *Handler) FlowVariables(w http.ResponseWriter, r *http.Request) {
+	workspaceID, ok := httpx.RequireWorkspace(w, r)
+	if !ok {
+		return
+	}
+	rows, err := h.queries.FlowVariables(r.Context(), workspaceID, mux.Vars(r)["id"])
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	out := FlowVariablesResponse{Variables: make([]FlowVariableResponse, 0, len(rows))}
+	for _, row := range rows {
+		item := FlowVariableResponse{
+			NeedResponse: automationneedsx.Needs(domain.Needs{row.Need})[0], Required: row.Required, InFlow: row.InFlow, Used: row.Used,
+			Default: row.Need.Default, Nodes: []FlowNodeResponse{}, FilledBy: []FlowFillerResponse{},
+		}
+		for _, n := range row.Nodes {
+			item.Nodes = append(item.Nodes, FlowNodeResponse{ID: n.ID, Name: n.Name})
+		}
+		for _, f := range row.FilledBy {
+			item.FilledBy = append(item.FilledBy, FlowFillerResponse{Kind: string(f.Kind), Value: f.Value})
+		}
+		out.Variables = append(out.Variables, item)
+	}
+	response.WriteSuccess(w, http.StatusOK, out)
+}
+
+type DataRowResponse struct {
+	Name     string                            `json:"name" example:"matricula"`
+	Label    string                            `json:"label" example:"Matrícula"`
+	LabelKey string                            `json:"labelKey,omitempty" example:"conversation_lead_name"`
+	Declared bool                              `json:"declared"`
+	Type     automationneedsx.NeedTypeResponse `json:"type"`
+	Value    string                            `json:"value" example:"2026-17"`
+	Origin   string                            `json:"origin" enums:"system,campaign,stored,none" example:"stored"`
+	SetBy    string                            `json:"setBy,omitempty" example:"5b1f0c9e-2a4d-4c55-9d3e-1f2a3b4c5d6e"`
+	SetAt    *time.Time                        `json:"setAt,omitempty"`
+	Fits     bool                              `json:"fits"`
+}
+
+type DataResponse struct {
+	Values []DataRowResponse `json:"values"`
+}
+
+type DataValueRequest struct {
+	Value string `json:"value" example:"Tarde"`
+}
+
+func dataRowResponse(row automationneeds_usecase.DataRow) DataRowResponse {
+	options := row.Type.Options
+	if options == nil {
+		options = []string{}
+	}
+	out := DataRowResponse{
+		Name: row.Name, Label: row.Label, LabelKey: row.LabelKey, Declared: row.Declared,
+		Type:  automationneedsx.NeedTypeResponse{Kind: string(row.Type.Kind), Shape: string(row.Shape), Options: options},
+		Value: row.Value, Origin: string(row.Origin), SetBy: row.SetBy, Fits: row.Fits,
+	}
+	if !row.SetAt.IsZero() {
+		at := row.SetAt
+		out.SetAt = &at
+	}
+	return out
+}
+
+// @Summary		Dados da conversa
+// @Description	Valores atuais dos dados da conversa, com o nome amigável e o tipo da declaração: os que a plataforma preenche (origin system, com labelKey para traduzir), cada dado declarado no workspace e cada valor guardado nesta conversa. origin diz de onde veio o valor: campaign (da campanha), stored (passagem da conversa, transferência ou edição) ou none (sem valor). fits falso marca um valor que não cabe mais no tipo declarado. Valores guardados valem mais que os da campanha. Exige acesso à conversa.
+// @Tags			Conversas
+// @Produce		json
+// @Param			entryType	path		string	true	"Tipo da entrada"
+// @Param			entryId		path		string	true	"ID da entrada"
+// @Success		200			{object}	DataResponse
+// @Failure		403			{object}	response.ErrorResponse	"forbidden"
+// @Failure		503			{object}	response.ErrorResponse	"automation_needs_unreadable"
+// @Security		BearerAuth
+// @Router			/conversations/{entryType}/{entryId}/variable-values [get]
+func (h *Handler) ConversationData(w http.ResponseWriter, r *http.Request) {
+	ref, ok := conversationRefOf(w, r)
+	if !ok {
+		return
+	}
+	rows, err := h.queries.ConversationData(r.Context(), ref)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	out := DataResponse{Values: make([]DataRowResponse, 0, len(rows))}
+	for _, row := range rows {
+		out.Values = append(out.Values, dataRowResponse(row))
+	}
+	response.WriteSuccess(w, http.StatusOK, out)
+}
+
+// @Summary		Editar um dado da conversa
+// @Description	Grava o valor de um dado declarado (ou já guardado) nesta conversa, validado pelo tipo declarado, e registra na linha do tempo quem mudou qual dado (sem o valor). Os dados da plataforma não são editáveis. Exige acesso à conversa e a permissão de alterar conversas.
+// @Tags			Conversas
+// @Accept			json
+// @Produce		json
+// @Param			entryType	path		string				true	"Tipo da entrada"
+// @Param			entryId		path		string				true	"ID da entrada"
+// @Param			name		path		string				true	"Nome técnico do dado"
+// @Param			request		body		DataValueRequest	true	"Novo valor"
+// @Success		200			{object}	DataRowResponse
+// @Failure		400			{object}	response.ErrorResponse									"conversation_variable_invalid ou conversation_variable_not_editable"
+// @Failure		403			{object}	response.ErrorResponse									"forbidden"
+// @Failure		422			{object}	response.ErrorResponse{details=VariablesErrorDetails}	"conversation_variable_empty ou conversation_variable_type_invalid"
+// @Failure		503			{object}	response.ErrorResponse									"automation_needs_unreadable"
+// @Security		BearerAuth
+// @Router			/conversations/{entryType}/{entryId}/variable-values/{name} [put]
+func (h *Handler) SetConversationData(w http.ResponseWriter, r *http.Request) {
+	ref, ok := conversationRefOf(w, r)
+	if !ok {
+		return
+	}
+	var req DataValueRequest
+	if !httpx.DecodeStrictJSON(w, r, &req) {
+		return
+	}
+	row, err := h.queries.SetConversationData(r.Context(), ref, mux.Vars(r)["name"], req.Value)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	response.WriteSuccess(w, http.StatusOK, dataRowResponse(row))
+}
+
 type VariablesErrorDetails struct {
-	Variables []string `json:"variables" example:"matricula"`
+	Variables []VariableRefResponse `json:"variables"`
+}
+
+func VariablesDetails(named *conversationvars.VariablesError) VariablesErrorDetails {
+	out := VariablesErrorDetails{Variables: make([]VariableRefResponse, 0, len(named.Names))}
+	for _, name := range named.Names {
+		out.Variables = append(out.Variables, VariableRefResponse{Name: name, Label: named.LabelOf(name)})
+	}
+	return out
 }
 
 func idsOf(raw string) []string {
@@ -220,6 +396,7 @@ func (h *Handler) SwitchOff(w http.ResponseWriter, r *http.Request) {
 		Channel:       automationneedsx.Slot(domain.Slot{Kind: rec.SlotKind, ID: rec.SlotID, Name: rec.SlotName}),
 		Automation:    automationneedsx.Link(rec.Automation),
 		Variables:     rec.Variables,
+		Recorded:      automationneedsx.Needs(open.Recorded),
 		StillNeeded:   automationneedsx.Needs(open.Needs),
 		SwitchedOffAt: rec.SwitchedOffAt,
 		EligibleNow:   open.EligibleNow,
@@ -275,7 +452,7 @@ func (h *Handler) ConversationVariables(w http.ResponseWriter, r *http.Request) 
 // @Success		204
 // @Failure		400	{object}	response.ErrorResponse{details=VariablesErrorDetails}	"conversation_variable_invalid, conversation_variable_source_invalid ou conversation_variable_not_needed"
 // @Failure		403	{object}	response.ErrorResponse									"forbidden"
-// @Failure		422	{object}	response.ErrorResponse{details=VariablesErrorDetails}	"conversation_variable_empty ou automation_needs_not_found"
+// @Failure		422	{object}	response.ErrorResponse{details=VariablesErrorDetails}	"conversation_variable_empty, conversation_variable_type_invalid (o valor não cabe no tipo declarado: número, data, uma das opções) ou automation_needs_not_found"
 // @Failure		503	{object}	response.ErrorResponse									"automation_needs_unreadable"
 // @Security		BearerAuth
 // @Router			/conversations/{entryType}/{entryId}/variables [put]
@@ -335,7 +512,7 @@ func formResponse(form automationneeds_usecase.VariablesForm) ConversationVariab
 	}
 	for _, row := range form.Rows {
 		need := automationneedsx.Needs(domain.Needs{row.Need})[0]
-		out.Variables = append(out.Variables, VariableRowResponse{Name: need.Name, Description: need.Description, Via: need.Via, Current: row.Current, Suggested: string(row.Suggested)})
+		out.Variables = append(out.Variables, VariableRowResponse{NeedResponse: need, Current: row.Current, Suggested: string(row.Suggested)})
 	}
 	for _, f := range form.Fields {
 		out.Fields = append(out.Fields, ConversationFieldResponse{Field: f.Field, Value: f.Value})
@@ -356,6 +533,9 @@ var valueRefusals = []struct {
 	{conversationvars.ErrSourceInvalid, http.StatusBadRequest, "conversation_variable_source_invalid", "Essa origem não pode preencher a variável."},
 	{conversationvars.ErrNotNeeded, http.StatusBadRequest, "conversation_variable_not_needed", "Essa automação não usa essa variável."},
 	{conversationvars.ErrValueEmpty, http.StatusUnprocessableEntity, "conversation_variable_empty", "Essa origem não tem valor nesta conversa."},
+	{conversationvars.ErrTypeInvalid, http.StatusUnprocessableEntity, "conversation_variable_type_invalid", "O valor não está no formato desse dado."},
+	{conversationvars.ErrNotEditable, http.StatusBadRequest, "conversation_variable_not_editable", "Só dados declarados ou já guardados na conversa podem ser editados."},
+	{automationneeds_usecase.ErrNotASheet, http.StatusBadRequest, "conversation_variable_not_sheet", "Esse dado não é do tipo Planilha."},
 }
 
 func ValueCodes() []string {
@@ -380,7 +560,7 @@ func writeError(w http.ResponseWriter, err error) {
 		}
 		var named *conversationvars.VariablesError
 		if errors.As(err, &named) {
-			response.WriteErrorWithDetails(w, refusal.status, refusal.code, refusal.text, VariablesErrorDetails{Variables: named.Names})
+			response.WriteErrorWithDetails(w, refusal.status, refusal.code, refusal.text, VariablesDetails(named))
 			return
 		}
 		response.WriteErrorWithCode(w, refusal.status, refusal.code, refusal.text, nil)
@@ -395,6 +575,7 @@ func RegisterRoutes(
 	ac func(workspace_domain.Resource, workspace_domain.Action, http.HandlerFunc) http.HandlerFunc,
 ) {
 	protected.HandleFunc("/automation-needs", h.Eligibility).Methods(http.MethodGet)
+	protected.HandleFunc("/automation-needs/sheet-files", h.SheetFiles).Methods(http.MethodGet)
 	protected.HandleFunc("/automation-needs/agent/{id}/publish-impact", ac(workspace_domain.ResourceAgents, workspace_domain.ActionUpdate, func(w http.ResponseWriter, r *http.Request) {
 		h.publishImpact(w, r, conversation.AutomationAgent)
 	})).Methods(http.MethodGet)
@@ -402,6 +583,9 @@ func RegisterRoutes(
 		h.publishImpact(w, r, conversation.AutomationWorkflow)
 	})).Methods(http.MethodGet)
 	protected.HandleFunc("/automation-switch-offs", h.SwitchOff).Methods(http.MethodGet)
+	protected.HandleFunc("/workflows/{id}/conversation-variables", ac(workspace_domain.ResourceWorkflows, workspace_domain.ActionRead, h.FlowVariables)).Methods(http.MethodGet)
 	protected.HandleFunc("/conversations/{entryType}/{entryId}/variables", h.ConversationVariables).Methods(http.MethodGet)
 	protected.HandleFunc("/conversations/{entryType}/{entryId}/variables", h.SaveConversationVariables).Methods(http.MethodPut)
+	protected.HandleFunc("/conversations/{entryType}/{entryId}/variable-values", h.ConversationData).Methods(http.MethodGet)
+	protected.HandleFunc("/conversations/{entryType}/{entryId}/variable-values/{name}", ac(workspace_domain.ResourceConversations, workspace_domain.ActionUpdate, h.SetConversationData)).Methods(http.MethodPut)
 }

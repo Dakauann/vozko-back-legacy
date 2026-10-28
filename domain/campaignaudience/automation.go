@@ -37,14 +37,14 @@ func AutomationSlots(needs, optional automationneeds.Needs, template []Slot, sug
 			continue
 		}
 		taken[need.Name] = true
-		out = append(out, Slot{Key: need.Name, Name: need.Name, Kind: SlotAutomation, NeededBy: need.Owner().Name, Suggested: suggest.field(need.Name), Column: suggest.column(need.Name)})
+		out = append(out, Slot{Key: need.Name, Name: need.Display(), Kind: SlotAutomation, NeededBy: need.Owner().Name, Suggested: suggest.field(need.Name), Column: suggest.column(need.Name)})
 	}
 	for _, need := range optional {
 		if taken[need.Name] {
 			continue
 		}
 		taken[need.Name] = true
-		out = append(out, Slot{Key: need.Name, Name: need.Name, Kind: SlotAutomation, NeededBy: need.Owner().Name, Optional: true, Default: need.Default, Column: suggest.column(need.Name)})
+		out = append(out, Slot{Key: need.Name, Name: need.Display(), Kind: SlotAutomation, NeededBy: need.Owner().Name, Optional: true, Default: need.Default, Column: suggest.column(need.Name)})
 	}
 	return out
 }

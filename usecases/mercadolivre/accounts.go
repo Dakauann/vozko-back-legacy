@@ -102,7 +102,7 @@ func (uc *Accounts) Update(ctx context.Context, in UpdateAccountInput) (*mldomai
 	}); err != nil {
 		return nil, err
 	}
-	if err := uc.guard.Admit(account.WorkspaceID, account.Automation()); err != nil {
+	if err := uc.guard.Admit(account.WorkspaceID, automationneeds.SlotMercadoLivre, account.Automation()); err != nil {
 		return nil, err
 	}
 	if err := uc.accounts.Update(ctx, account); err != nil {

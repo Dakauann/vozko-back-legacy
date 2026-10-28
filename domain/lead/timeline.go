@@ -35,16 +35,18 @@ const (
 	TimelineDealEvent         TimelineKind = "deal_event"
 	TimelineMemory            TimelineKind = "memory"
 	TimelineRecord            TimelineKind = "record"
+	TimelineSiteSubmission    TimelineKind = "site_submission"
 )
 
 type TimelineRefType string
 
 const (
-	TimelineRefEntry  TimelineRefType = "entry"
-	TimelineRefCall   TimelineRefType = "call"
-	TimelineRefDeal   TimelineRefType = "deal"
-	TimelineRefMemory TimelineRefType = "memory"
-	TimelineRefEvent  TimelineRefType = "lead_event"
+	TimelineRefEntry      TimelineRefType = "entry"
+	TimelineRefCall       TimelineRefType = "call"
+	TimelineRefDeal       TimelineRefType = "deal"
+	TimelineRefMemory     TimelineRefType = "memory"
+	TimelineRefEvent      TimelineRefType = "lead_event"
+	TimelineRefSubmission TimelineRefType = "site_submission"
 )
 
 type TimelineRef struct {
@@ -84,6 +86,7 @@ type TimelineSummary struct {
 	Disposition   string
 	CallbackAt    *time.Time
 	CallListID    string
+	ProjectID     string
 }
 
 func TimelineDealEvents() []opportunity.EventType {
@@ -168,6 +171,7 @@ type TimelineScan struct {
 	Before      *shared.Keyset
 	Limit       int
 	Calls       bool
+	Submissions bool
 	Deals       *opportunity.DealScope
 }
 
@@ -176,11 +180,12 @@ type TimelineSource interface {
 }
 
 type TimelineGrants struct {
-	Entries   map[shared.EntryRef]bool
-	Calls     map[string]bool
-	CallLists map[string]bool
-	Deals     bool
-	Fields    Viewer
+	Entries     map[shared.EntryRef]bool
+	Calls       map[string]bool
+	CallLists   map[string]bool
+	Deals       bool
+	Submissions bool
+	Fields      Viewer
 }
 
 func (g TimelineGrants) Visible(item TimelineItem) (TimelineItem, bool) {
@@ -196,6 +201,8 @@ func (g TimelineGrants) Visible(item TimelineItem) (TimelineItem, bool) {
 		return item, item.Ref.Type == TimelineRefMemory
 	case TimelineRecord:
 		return g.visibleRecord(item)
+	case TimelineSiteSubmission:
+		return item, g.Submissions && item.Ref.Type == TimelineRefSubmission
 	}
 	return item, false
 }

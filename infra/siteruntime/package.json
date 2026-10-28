@@ -1,0 +1,11 @@
+{
+  "name": "vozko-siteruntime",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "happy-dom": "20.14.6"
+  }
+}

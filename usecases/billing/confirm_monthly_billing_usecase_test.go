@@ -92,7 +92,7 @@ func TestConfirm_PlanLookupErrorIsSkippedNotFatal(t *testing.T) {
 }
 
 func TestConfirm_PlanUpdateErrorPropagates(t *testing.T) {
-	subs := &fakeSubs{latest: planSub("ws-1", time.Now()), updateErr: errors.New("write failed")}
+	subs := &fakeSubs{latest: planSub("ws-1", time.Date(2026, 3, 23, 0, 0, 0, 0, time.UTC)), updateErr: errors.New("write failed")}
 	addons := &fakeAddons{}
 	if err := confirmFixture(subs, addons).Execute("ws-1"); err == nil {
 		t.Fatal("expected the plan update error to propagate")
@@ -102,7 +102,7 @@ func TestConfirm_PlanUpdateErrorPropagates(t *testing.T) {
 func TestConfirm_AddonUpdateErrorPropagates(t *testing.T) {
 	subs := &fakeSubs{latest: nil}
 	addons := &fakeAddons{
-		byWS:      map[string][]*workspace_addon.AddonSubscription{"ws-1": {addonSub(time.Now())}},
+		byWS:      map[string][]*workspace_addon.AddonSubscription{"ws-1": {addonSub(time.Date(2026, 3, 23, 0, 0, 0, 0, time.UTC))}},
 		updateErr: errors.New("write failed"),
 	}
 	if err := confirmFixture(subs, addons).Execute("ws-1"); err == nil {
@@ -118,19 +118,16 @@ func TestConfirm_AddonListErrorPropagates(t *testing.T) {
 	}
 }
 
-func TestConfirm_ConvergesAnyScatteredDateToAnchor(t *testing.T) {
-	scattered := []struct {
+func TestConfirm_ConvergesEveryBilledDateToAnchor(t *testing.T) {
+	billed := []struct {
 		name string
 		end  time.Time
 	}{
 		{"paid through the 7th (past)", time.Date(2026, 3, 7, 0, 0, 0, 0, time.UTC)},
 		{"paid through the 15th (past)", time.Date(2026, 3, 15, 0, 0, 0, 0, time.UTC)},
-		{"paid through the 28th (later this month)", time.Date(2026, 3, 28, 0, 0, 0, 0, time.UTC)},
-		{"paid through Apr 10 (next month)", time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC)},
-		{"paid far ahead to Jun 15", time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)},
 		{"already on the anchor", time.Date(2026, 3, 23, 0, 0, 0, 0, time.UTC)},
 	}
-	for _, tc := range scattered {
+	for _, tc := range billed {
 		t.Run(tc.name, func(t *testing.T) {
 			subs := &fakeSubs{latest: planSub("ws-1", tc.end)}
 			addons := &fakeAddons{byWS: map[string][]*workspace_addon.AddonSubscription{
@@ -139,20 +136,28 @@ func TestConfirm_ConvergesAnyScatteredDateToAnchor(t *testing.T) {
 			if err := confirmFixture(subs, addons).Execute("ws-1"); err != nil {
 				t.Fatalf("Execute: %v", err)
 			}
-			planDay := subs.updated[0].CurrentPeriodEnd.In(billing.LocationBRT()).Day()
-			if planDay != billing.DefaultDueDay {
-				t.Fatalf("plan starting %s did not converge to the anchor: landed on day %d, want %d",
-					tc.end.Format("2006-01-02"), planDay, billing.DefaultDueDay)
-			}
-			addonDay := addons.updated[0].CurrentPeriodEnd.In(billing.LocationBRT()).Day()
-			if addonDay != billing.DefaultDueDay {
-				t.Fatalf("addon starting %s did not converge to the anchor: landed on day %d, want %d",
-					tc.end.Format("2006-01-02"), addonDay, billing.DefaultDueDay)
-			}
-			if !subs.updated[0].CurrentPeriodEnd.After(time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)) {
-				t.Fatalf("period end %s must be after the payment date", subs.updated[0].CurrentPeriodEnd)
-			}
+			isApril23(t, "plan period end", subs.updated[0].CurrentPeriodEnd)
+			isApril23(t, "addon period end", addons.updated[0].CurrentPeriodEnd)
 		})
+	}
+}
+
+func TestConfirm_PeriodsPaidPastTheBilledCycleStayPut(t *testing.T) {
+	ahead := []time.Time{
+		time.Date(2026, 3, 28, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC),
+	}
+	for _, end := range ahead {
+		subs := &fakeSubs{latest: planSub("ws-1", end)}
+		addon := addonSub(end)
+		addons := &fakeAddons{byWS: map[string][]*workspace_addon.AddonSubscription{"ws-1": {addon}}}
+		if err := confirmFixture(subs, addons).Execute("ws-1"); err != nil {
+			t.Fatalf("Execute: %v", err)
+		}
+		if len(subs.updated) != 0 || len(addons.updated) != 0 || !addon.CurrentPeriodEnd.Equal(end) {
+			t.Fatalf("a period ending %s was not billed on Mar 23 and must not move", end.Format("2006-01-02"))
+		}
 	}
 }
 

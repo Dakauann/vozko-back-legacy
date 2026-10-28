@@ -99,13 +99,18 @@ func (d Destination) AIVariables() []VariableSource {
 }
 
 func (d Destination) CheckMapping(needs automationneeds.Needs, defs []*customfield.Definition) error {
-	var unneeded []string
+	var unneeded, picked []string
 	mapped := map[string]bool{}
 	var checked []conversationvars.Binding
 	for _, v := range d.Variables {
 		mapped[v.Name] = true
-		if needs.Find(v.Name) == nil {
+		need := needs.Find(v.Name)
+		if need == nil {
 			unneeded = append(unneeded, v.Name)
+			continue
+		}
+		if v.Source == SourceAI && len(need.SheetUses) > 0 {
+			picked = append(picked, v.Name)
 			continue
 		}
 		if v.Source != SourceAI {
@@ -115,9 +120,12 @@ func (d Destination) CheckMapping(needs automationneeds.Needs, defs []*customfie
 	if len(unneeded) > 0 {
 		return &conversationvars.VariablesError{Cause: ErrVariableNotNeeded, Names: unneeded}
 	}
+	if len(picked) > 0 {
+		return &conversationvars.VariablesError{Cause: ErrVariableSource, Names: picked}
+	}
 	var unmapped []string
 	for _, need := range needs {
-		if !mapped[need.Name] {
+		if !mapped[need.Name] && len(need.SheetUses) == 0 {
 			unmapped = append(unmapped, need.Name)
 		}
 	}

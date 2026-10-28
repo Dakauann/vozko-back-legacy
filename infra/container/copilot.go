@@ -77,6 +77,7 @@ func (c *Container) buildCopilot(
 	}, append(c.operationTools(), c.numberAutomationTools(getAgent)...)...)
 	toolset = append(toolset, emailCopilotTools(c.email, c.platformEmailRelay)...)
 	toolset = append(toolset, c.emailDesignTools()...)
+	toolset = append(toolset, c.siteCopilotTools()...)
 	screens := copilotscreen.NewBroker(c.redisProvider.SharedState())
 	screens.Start(context.Background())
 	svc, err := copilot_usecase.NewService(copilot_usecase.Deps{

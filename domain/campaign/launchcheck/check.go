@@ -48,6 +48,9 @@ const (
 	CodeNumberRestricted     Code = "number_restricted"
 	CodeNumberCannotSend     Code = "number_cannot_send"
 	CodeGroupsUnsendable     Code = "groups_unsendable"
+
+	CodeSheetVariableUnfit     Code = "sheet_variable_unfit"
+	CodeSheetVariableAttention Code = "sheet_variable_attention"
 )
 
 const (
@@ -69,6 +72,11 @@ type PhoneFacts struct {
 	Status businessphone.Status
 }
 
+type SheetFacts struct {
+	Unfit     bool
+	Attention bool
+}
+
 type Run struct {
 	Processed int
 	Failures  map[int]int
@@ -88,6 +96,7 @@ type Snapshot struct {
 	CapRoom         *int
 	BalanceShort    bool
 	OptedOutPending int
+	Sheets          *SheetFacts
 }
 
 type Finding struct {
@@ -138,6 +147,12 @@ func blocks(s Snapshot, add adder) {
 	}
 	if s.Phone != nil && s.Phone.Status.BlocksSending() {
 		add(Block, CodePhoneUnavailable, 0, 0)
+	}
+	if s.Sheets != nil && s.Sheets.Unfit {
+		add(Block, CodeSheetVariableUnfit, 0, 0)
+	}
+	if s.Sheets != nil && s.Sheets.Attention {
+		add(Block, CodeSheetVariableAttention, 0, 0)
 	}
 	if s.CapRoom != nil && *s.CapRoom <= 0 {
 		add(Block, CodeMonthlyCapFull, 0, 0)

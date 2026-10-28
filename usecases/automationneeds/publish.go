@@ -9,6 +9,7 @@ import (
 	domain "vozko/domain/automationneeds"
 	"vozko/domain/conversation"
 	ia "vozko/domain/inbox_assignment"
+	"vozko/domain/shared"
 	"vozko/domain/workflow"
 )
 
@@ -88,7 +89,7 @@ func (g *PublishGuard) PlanWorkflow(ctx context.Context, draft *workflow.Workflo
 			return Plan{}, err
 		}
 		if len(needs) > 0 {
-			return Plan{}, &domain.Refusal{Cause: domain.ErrVoiceVariables, Automation: rootOf(automation, needs), Needs: needs}
+			return Plan{}, g.d.Service.labeledRefusal(draft.WorkspaceID, &domain.Refusal{Cause: domain.ErrVoiceVariables, Automation: rootOf(automation, needs), Needs: needs})
 		}
 	}
 	return g.plan(ctx, draft.WorkspaceID, automation, src)
@@ -112,8 +113,10 @@ func (g *PublishGuard) Impact(ctx context.Context, workspaceID string, automatio
 			affected = append(affected, slot)
 		}
 	}
+	labels := g.d.Service.Catalog(ctx, workspaceID)
 	return domain.Impact(affected, func(a conversation.Automation) (domain.Needs, error) {
-		return domain.Of(src, workspaceID, a)
+		needs, err := domain.Of(src, workspaceID, a)
+		return labels.Apply(needs), err
 	})
 }
 
@@ -130,7 +133,67 @@ func (g *PublishGuard) dependsOn(src domain.Source, workspaceID string, running,
 	return depends
 }
 
+type slotWalk struct {
+	slot domain.Slot
+	walk domain.ChannelWalk
+}
+
+func (g *PublishGuard) slotWalks(ctx context.Context, workspaceID string, src domain.Source) ([]slotWalk, error) {
+	slots, err := g.d.Slots.InWorkspace(ctx, workspaceID)
+	if err != nil {
+		return nil, errors.Join(domain.ErrUnreadable, err)
+	}
+	var out []slotWalk
+	for _, slot := range slots {
+		for _, running := range slot.Running {
+			walk, err := domain.ChannelWalkOf(src, workspaceID, running, []shared.EntryType{slot.Kind.EntryType()})
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, slotWalk{slot: slot, walk: walk})
+		}
+	}
+	return out, nil
+}
+
+func (g *PublishGuard) ChannelsOf(ctx context.Context, w *workflow.Workflow) ([]shared.EntryType, error) {
+	if w == nil {
+		return nil, domain.ErrNotFound
+	}
+	walks, err := g.slotWalks(ctx, w.WorkspaceID, domain.OverlayWorkflow(g.d.Service.Source(), w))
+	if err != nil {
+		return nil, err
+	}
+	target := conversation.Automation{Kind: conversation.AutomationWorkflow, ID: w.ID}
+	set := map[shared.EntryType]bool{}
+	for _, sw := range walks {
+		for _, channel := range sw.walk.Reached[target] {
+			set[channel] = true
+		}
+	}
+	return workflow.SortedChannels(set), nil
+}
+
+func (g *PublishGuard) channelRefusal(ctx context.Context, workspaceID string, automation conversation.Automation, src domain.Source) error {
+	walks, err := g.slotWalks(ctx, workspaceID, src)
+	if err != nil {
+		return err
+	}
+	var blocked domain.ChannelWalk
+	for _, sw := range walks {
+		for _, block := range sw.walk.Blocks {
+			if block.Through(automation) {
+				blocked.Blocks = append(blocked.Blocks, block)
+			}
+		}
+	}
+	return domain.ChannelRefusal(automation, blocked)
+}
+
 func (g *PublishGuard) plan(ctx context.Context, workspaceID string, automation conversation.Automation, src domain.Source) (Plan, error) {
+	if err := g.channelRefusal(ctx, workspaceID, automation, src); err != nil {
+		return Plan{}, err
+	}
 	offs, err := g.Impact(ctx, workspaceID, automation, src)
 	if err != nil {
 		return Plan{}, err

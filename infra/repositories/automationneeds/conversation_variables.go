@@ -35,6 +35,18 @@ func (r *ConversationVariables) Values(ctx context.Context, entryID string, entr
 	return out, nil
 }
 
+func (r *ConversationVariables) Detailed(ctx context.Context, entryID string, entryType shared.EntryType) ([]conversationvars.Stored, error) {
+	var rows []schema.ConversationVariable
+	if err := r.db.WithContext(ctx).Where("entry_id = ? AND entry_type = ?", entryID, string(entryType)).Order("name").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]conversationvars.Stored, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, conversationvars.Stored{Name: row.Name, Value: row.Value, SetBy: row.SetBy, SetAt: row.UpdatedAt})
+	}
+	return out, nil
+}
+
 func (r *ConversationVariables) Save(ctx context.Context, ref conversationvars.Ref, values map[string]string, by string) error {
 	if len(values) == 0 {
 		return nil

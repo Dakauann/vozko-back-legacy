@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"vozko/domain/variabledecl/variabledecltest"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -214,7 +215,7 @@ func buildWorld(t *testing.T, resolveBeforeSend bool) *world {
 		Hygiene: sendHygiene, Plans: w.plans, Config: esuc.Config{ProbationDomain: probationDomain, TrustedDomain: trustedDomain, PublicBaseURL: publicBaseURL},
 	})
 	w.must(err)
-	audienceModule, err := campaignaudiencewiring.New(db, campaignaudiencewiring.Adapters{Selections: everyLead{db: db}, Leads: leads, Definitions: noLeadFields{}, Gate: openAudienceGate{}, Shared: w.shared, EmailsSeen: w.hygiene.Service})
+	audienceModule, err := campaignaudiencewiring.New(db, campaignaudiencewiring.Adapters{Selections: everyLead{db: db}, Leads: leads, Definitions: noLeadFields{}, Gate: openAudienceGate{}, Shared: w.shared, EmailsSeen: w.hygiene.Service, Values: variabledecltest.Static{}})
 	w.must(err)
 	w.audience = audienceModule.Service
 	w.campaigns, err = emailwiring.NewCampaigns(db, emailwiring.CampaignAdapters{

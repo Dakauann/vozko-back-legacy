@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"vozko/delivery/http/audiencex"
+	"vozko/delivery/http/automationneedsx"
 	"vozko/delivery/http/campaigndrafthttp"
 	"vozko/delivery/http/httpx"
 	"vozko/delivery/http/response"
@@ -824,7 +825,7 @@ func (h *CampaignHandler) DeleteEntry(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeCampaignError(w http.ResponseWriter, err error) {
-	if campaigndrafthttp.WriteLaunchRefusal(w, err) || httpx.WriteSelectionSendRefusal(w, err) || audiencex.WriteRefusal(w, err) {
+	if campaigndrafthttp.WriteLaunchRefusal(w, err) || httpx.WriteSelectionSendRefusal(w, err) || audiencex.WriteRefusal(w, err) || automationneedsx.WriteRefusal(w, err) {
 		return
 	}
 	var unusable *uwc.InstanceUnusableError
@@ -892,6 +893,9 @@ func writeCampaignError(w http.ResponseWriter, err error) {
 
 	case errors.Is(err, campaign.ErrWorkflowNotFound),
 		errors.Is(err, campaign.ErrAgentNotFound):
+		response.WriteErrorWithCode(w, http.StatusUnprocessableEntity, campaign.ErrorCode(err), err.Error(), nil)
+
+	case errors.Is(err, campaign.ErrSheetsOfficialOnly):
 		response.WriteErrorWithCode(w, http.StatusUnprocessableEntity, campaign.ErrorCode(err), err.Error(), nil)
 
 	case errors.Is(err, campaign.ErrAutomationUnavailable),

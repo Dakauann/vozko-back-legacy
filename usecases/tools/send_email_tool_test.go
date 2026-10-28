@@ -145,4 +145,3 @@ func TestSendEmailTool_ExecuteWithConfigReturnsToolErrors(t *testing.T) {
 		}
 	})
 }
-

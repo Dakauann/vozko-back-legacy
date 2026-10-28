@@ -61,6 +61,8 @@ const (
 	EventEmailForwardSkipped EventType = "email_forward_skipped"
 
 	EventAutomationTransferred EventType = "automation_transferred"
+
+	EventConversationVariableChanged EventType = "conversation_variable_changed"
 )
 
 func (t EventType) Valid() bool {
@@ -77,7 +79,7 @@ func (t EventType) Valid() bool {
 		EventQueueOverflow, EventCallLinked,
 		EventLeadExitAction, EventLeadSendRefused,
 		EventAgentReplyWithheld, EventEmailForwardSkipped,
-		EventAutomationTransferred:
+		EventAutomationTransferred, EventConversationVariableChanged:
 		return true
 	}
 	return false

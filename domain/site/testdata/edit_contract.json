@@ -1,0 +1,1181 @@
+{
+  "bases": {
+    "html": {
+      "stack": "html",
+      "files": {
+        "knobs.json": {
+          "content": "{\"knobs\":[{\"name\":\"Espaço do topo\",\"variable\":\"--hero-gap\",\"kind\":\"range\",\"min\":0,\"max\":8,\"step\":0.5,\"unit\":\"rem\"},{\"name\":\"Cor da marca\",\"variable\":\"--color-brand\",\"kind\":\"color\"}]}",
+          "rev": 1
+        },
+        "pages/index.html": {
+          "content": "<section class=\"hero py-20\">\n  <h1 class=\"text-4xl\">Oi</h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n</section>\n",
+          "rev": 3
+        },
+        "pages/obrigado.html": {
+          "content": "<h1>Obrigado</h1>\n",
+          "rev": 1
+        },
+        "partials/header.html": {
+          "content": "<header>Logo</header>\n",
+          "rev": 1
+        },
+        "scripts/motion.js": {
+          "content": "import { animate } from \"motion\";\n",
+          "rev": 1
+        },
+        "site.json": {
+          "content": "{\"name\":\"Clínica Sorriso\",\"lang\":\"pt-BR\",\"routes\":[{\"path\":\"/\",\"page\":\"pages/index.html\"},{\"path\":\"/obrigado\",\"page\":\"pages/obrigado.html\"}]}",
+          "rev": 1
+        },
+        "theme.css": {
+          "content": "@import \"tailwindcss\";\n@theme {\n  --color-brand: oklch(0.6 0.2 250);\n  --hero-gap: 4rem;\n}\n",
+          "rev": 2
+        }
+      }
+    },
+    "react": {
+      "stack": "react",
+      "files": {
+        "site.json": {
+          "content": "{\"name\":\"Clínica Sorriso\",\"lang\":\"pt-BR\",\"routes\":[{\"path\":\"/\",\"page\":\"src/pages/Home.jsx\"}]}",
+          "rev": 1
+        },
+        "src/index.css": {
+          "content": "@import \"tailwindcss\";\n@theme {\n  --color-brand: #0f766e;\n}\n",
+          "rev": 1
+        },
+        "src/main.jsx": {
+          "content": "import { createRoot } from \"react-dom/client\";\nimport \"./index.css\";\n",
+          "rev": 1
+        },
+        "src/pages/Home.jsx": {
+          "content": "const items = [\"Implante\", \"Clareamento\"];\nexport default function Home() {\n  return <ul>{items.map((item, i) => <li key={i}>{item}</li>)}</ul>;\n}\n",
+          "rev": 4
+        }
+      }
+    }
+  },
+  "batches": [
+    {
+      "name": "visual edits on a page",
+      "base": "html",
+      "operations": [
+        {
+          "op": "set_text",
+          "node": "pages/index.html#31",
+          "rev": 3,
+          "text": "Olá **mundo**"
+        },
+        {
+          "op": "set_classes",
+          "node": " pages/index.html#0 ",
+          "rev": 3,
+          "add": [
+            "py-24",
+            " "
+          ],
+          "remove": [
+            "py-20"
+          ],
+          "breakpoint": "md"
+        },
+        {
+          "op": "set_attr",
+          "node": "pages/index.html#62",
+          "rev": 3,
+          "name": "loading",
+          "value": "lazy"
+        },
+        {
+          "op": "set_attr",
+          "node": "pages/index.html#62",
+          "rev": 3,
+          "name": "title"
+        },
+        {
+          "op": "replace_image",
+          "node": "pages/index.html#62",
+          "rev": 3,
+          "media_id": "med_01HX",
+          "alt": ""
+        }
+      ],
+      "accepted": [
+        {
+          "op": "set_text",
+          "node": "pages/index.html#31",
+          "rev": 3,
+          "text": "Olá **mundo**"
+        },
+        {
+          "op": "set_classes",
+          "node": "pages/index.html#0",
+          "rev": 3,
+          "add": [
+            "py-24"
+          ],
+          "remove": [
+            "py-20"
+          ],
+          "breakpoint": "md"
+        },
+        {
+          "op": "set_attr",
+          "node": "pages/index.html#62",
+          "rev": 3,
+          "name": "loading",
+          "value": "lazy"
+        },
+        {
+          "op": "set_attr",
+          "node": "pages/index.html#62",
+          "rev": 3,
+          "name": "title"
+        },
+        {
+          "op": "replace_image",
+          "node": "pages/index.html#62",
+          "rev": 3,
+          "media_id": "med_01HX",
+          "alt": ""
+        }
+      ],
+      "executed": {
+        "texts": {
+          "0": [
+            {
+              "text": "Olá "
+            },
+            {
+              "text": "mundo",
+              "bold": true
+            }
+          ]
+        },
+        "media": {
+          "med_01HX": "https://cdn.vozko.test/media/med_01HX.webp"
+        },
+        "steps": [
+          {
+            "op": "set_text",
+            "index": 0,
+            "focus": "pages/index.html#31",
+            "files": {
+              "pages/index.html": "<section class=\"hero py-20\">\n  <h1 class=\"text-4xl\">Olá <strong>mundo</strong></h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n</section>\n"
+            }
+          },
+          {
+            "op": "set_classes",
+            "index": 1,
+            "focus": "pages/index.html#0",
+            "files": {
+              "pages/index.html": "<section class=\"hero py-20 md:py-24\">\n  <h1 class=\"text-4xl\">Olá <strong>mundo</strong></h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n</section>\n"
+            }
+          },
+          {
+            "op": "set_attr",
+            "index": 2,
+            "focus": "pages/index.html#95",
+            "files": {
+              "pages/index.html": "<section class=\"hero py-20 md:py-24\">\n  <h1 class=\"text-4xl\">Olá <strong>mundo</strong></h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\" loading=\"lazy\">\n</section>\n"
+            }
+          },
+          {
+            "op": "set_attr",
+            "index": 3,
+            "focus": "pages/index.html#95"
+          },
+          {
+            "op": "replace_image",
+            "index": 4,
+            "focus": "pages/index.html#95",
+            "files": {
+              "pages/index.html": "<section class=\"hero py-20 md:py-24\">\n  <h1 class=\"text-4xl\">Olá <strong>mundo</strong></h1>\n  <img src=\"https://cdn.vozko.test/media/med_01HX.webp\" alt=\"\" loading=\"lazy\">\n</section>\n"
+            }
+          }
+        ],
+        "final": {
+          "knobs.json": {
+            "content": "{\"knobs\":[{\"name\":\"Espaço do topo\",\"variable\":\"--hero-gap\",\"kind\":\"range\",\"min\":0,\"max\":8,\"step\":0.5,\"unit\":\"rem\"},{\"name\":\"Cor da marca\",\"variable\":\"--color-brand\",\"kind\":\"color\"}]}",
+            "rev": 1
+          },
+          "pages/index.html": {
+            "content": "<section class=\"hero py-20 md:py-24\">\n  <h1 class=\"text-4xl\">Olá <strong>mundo</strong></h1>\n  <img src=\"https://cdn.vozko.test/media/med_01HX.webp\" alt=\"\" loading=\"lazy\">\n</section>\n",
+            "rev": 7
+          },
+          "pages/obrigado.html": {
+            "content": "<h1>Obrigado</h1>\n",
+            "rev": 1
+          },
+          "partials/header.html": {
+            "content": "<header>Logo</header>\n",
+            "rev": 1
+          },
+          "scripts/motion.js": {
+            "content": "import { animate } from \"motion\";\n",
+            "rev": 1
+          },
+          "site.json": {
+            "content": "{\"name\":\"Clínica Sorriso\",\"lang\":\"pt-BR\",\"routes\":[{\"path\":\"/\",\"page\":\"pages/index.html\"},{\"path\":\"/obrigado\",\"page\":\"pages/obrigado.html\"}]}",
+            "rev": 1
+          },
+          "theme.css": {
+            "content": "@import \"tailwindcss\";\n@theme {\n  --color-brand: oklch(0.6 0.2 250);\n  --hero-gap: 4rem;\n}\n",
+            "rev": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "code edits follow the file set",
+      "base": "html",
+      "operations": [
+        {
+          "op": "write_file",
+          "path": "pages/sobre.html",
+          "content": "<h1>Sobre</h1>\n"
+        },
+        {
+          "op": "rename_file",
+          "path": "partials/header.html",
+          "to": "partials/topo.html",
+          "rev": 1
+        },
+        {
+          "op": "edit_file",
+          "path": "partials/topo.html",
+          "old": "Logo",
+          "new": "Marca",
+          "replace_all": true
+        },
+        {
+          "op": "delete_file",
+          "path": "scripts/motion.js",
+          "rev": 1
+        },
+        {
+          "op": "set_text",
+          "node": "pages/sobre.html#0",
+          "rev": 1,
+          "text": "Quem somos"
+        }
+      ],
+      "accepted": [
+        {
+          "op": "write_file",
+          "path": "pages/sobre.html",
+          "content": "<h1>Sobre</h1>\n"
+        },
+        {
+          "op": "rename_file",
+          "path": "partials/header.html",
+          "to": "partials/topo.html",
+          "rev": 1
+        },
+        {
+          "op": "edit_file",
+          "path": "partials/topo.html",
+          "old": "Logo",
+          "new": "Marca",
+          "replace_all": true
+        },
+        {
+          "op": "delete_file",
+          "path": "scripts/motion.js",
+          "rev": 1
+        },
+        {
+          "op": "set_text",
+          "node": "pages/sobre.html#0",
+          "rev": 1,
+          "text": "Quem somos"
+        }
+      ],
+      "executed": {
+        "texts": {
+          "4": [
+            {
+              "text": "Quem somos"
+            }
+          ]
+        },
+        "steps": [
+          {
+            "op": "write_file",
+            "index": 0,
+            "focus": "pages/sobre.html",
+            "files": {
+              "pages/sobre.html": "<h1>Sobre</h1>\n"
+            }
+          },
+          {
+            "op": "rename_file",
+            "index": 1,
+            "focus": "partials/topo.html",
+            "renamed": [
+              {
+                "from": "partials/header.html",
+                "to": "partials/topo.html"
+              }
+            ]
+          },
+          {
+            "op": "edit_file",
+            "index": 2,
+            "focus": "partials/topo.html",
+            "files": {
+              "partials/topo.html": "<header>Marca</header>\n"
+            }
+          },
+          {
+            "op": "delete_file",
+            "index": 3,
+            "focus": "scripts/motion.js",
+            "deleted": [
+              "scripts/motion.js"
+            ]
+          },
+          {
+            "op": "set_text",
+            "index": 4,
+            "focus": "pages/sobre.html#0",
+            "files": {
+              "pages/sobre.html": "<h1>Quem somos</h1>\n"
+            }
+          }
+        ],
+        "final": {
+          "knobs.json": {
+            "content": "{\"knobs\":[{\"name\":\"Espaço do topo\",\"variable\":\"--hero-gap\",\"kind\":\"range\",\"min\":0,\"max\":8,\"step\":0.5,\"unit\":\"rem\"},{\"name\":\"Cor da marca\",\"variable\":\"--color-brand\",\"kind\":\"color\"}]}",
+            "rev": 1
+          },
+          "pages/index.html": {
+            "content": "<section class=\"hero py-20\">\n  <h1 class=\"text-4xl\">Oi</h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n</section>\n",
+            "rev": 3
+          },
+          "pages/obrigado.html": {
+            "content": "<h1>Obrigado</h1>\n",
+            "rev": 1
+          },
+          "pages/sobre.html": {
+            "content": "<h1>Quem somos</h1>\n",
+            "rev": 2
+          },
+          "partials/topo.html": {
+            "content": "<header>Marca</header>\n",
+            "rev": 3
+          },
+          "site.json": {
+            "content": "{\"name\":\"Clínica Sorriso\",\"lang\":\"pt-BR\",\"routes\":[{\"path\":\"/\",\"page\":\"pages/index.html\"},{\"path\":\"/obrigado\",\"page\":\"pages/obrigado.html\"}]}",
+            "rev": 1
+          },
+          "theme.css": {
+            "content": "@import \"tailwindcss\";\n@theme {\n  --color-brand: oklch(0.6 0.2 250);\n  --hero-gap: 4rem;\n}\n",
+            "rev": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "refs chain duplicate, move and insert",
+      "base": "html",
+      "operations": [
+        {
+          "op": "duplicate",
+          "node": "pages/index.html#31",
+          "rev": 3,
+          "ref": "titulo"
+        },
+        {
+          "op": "move",
+          "node": "@titulo",
+          "after": "pages/index.html#62",
+          "rev": 3
+        },
+        {
+          "op": "insert_section",
+          "at": {
+            "after": "@titulo"
+          },
+          "html": "<section>Depoimentos</section>",
+          "ref": "depoimentos"
+        },
+        {
+          "op": "insert_section",
+          "at": {
+            "page": "pages/obrigado.html"
+          },
+          "rev": 1,
+          "library_key": "faq"
+        },
+        {
+          "op": "remove",
+          "node": "@depoimentos"
+        }
+      ],
+      "accepted": [
+        {
+          "op": "duplicate",
+          "node": "pages/index.html#31",
+          "rev": 3,
+          "ref": "titulo"
+        },
+        {
+          "op": "move",
+          "node": "@titulo",
+          "rev": 3,
+          "after": "pages/index.html#62"
+        },
+        {
+          "op": "insert_section",
+          "at": {
+            "after": "@titulo"
+          },
+          "html": "<section>Depoimentos</section>",
+          "ref": "depoimentos"
+        },
+        {
+          "op": "insert_section",
+          "rev": 1,
+          "at": {
+            "page": "pages/obrigado.html"
+          },
+          "library_key": "faq"
+        },
+        {
+          "op": "remove",
+          "node": "@depoimentos"
+        }
+      ],
+      "executed": {
+        "sections": {
+          "faq": "<section class=\"py-16\">\n  <h2>Perguntas frequentes</h2>\n</section>"
+        },
+        "steps": [
+          {
+            "op": "duplicate",
+            "index": 0,
+            "focus": "pages/index.html#62",
+            "files": {
+              "pages/index.html": "<section class=\"hero py-20\">\n  <h1 class=\"text-4xl\">Oi</h1>\n  <h1 class=\"text-4xl\">Oi</h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n</section>\n"
+            }
+          },
+          {
+            "op": "move",
+            "index": 1,
+            "focus": "pages/index.html#101",
+            "files": {
+              "pages/index.html": "<section class=\"hero py-20\">\n  <h1 class=\"text-4xl\">Oi</h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n  <h1 class=\"text-4xl\">Oi</h1>\n</section>\n"
+            }
+          },
+          {
+            "op": "insert_section",
+            "index": 2,
+            "focus": "pages/index.html#132",
+            "files": {
+              "pages/index.html": "<section class=\"hero py-20\">\n  <h1 class=\"text-4xl\">Oi</h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n  <h1 class=\"text-4xl\">Oi</h1>\n  <section>Depoimentos</section>\n</section>\n"
+            }
+          },
+          {
+            "op": "insert_section",
+            "index": 3,
+            "focus": "pages/obrigado.html#18",
+            "files": {
+              "pages/obrigado.html": "<h1>Obrigado</h1>\n<section class=\"py-16\">\n  <h2>Perguntas frequentes</h2>\n</section>\n"
+            }
+          },
+          {
+            "op": "remove",
+            "index": 4,
+            "focus": "pages/index.html#0",
+            "files": {
+              "pages/index.html": "<section class=\"hero py-20\">\n  <h1 class=\"text-4xl\">Oi</h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n  <h1 class=\"text-4xl\">Oi</h1>\n</section>\n"
+            }
+          }
+        ],
+        "final": {
+          "knobs.json": {
+            "content": "{\"knobs\":[{\"name\":\"Espaço do topo\",\"variable\":\"--hero-gap\",\"kind\":\"range\",\"min\":0,\"max\":8,\"step\":0.5,\"unit\":\"rem\"},{\"name\":\"Cor da marca\",\"variable\":\"--color-brand\",\"kind\":\"color\"}]}",
+            "rev": 1
+          },
+          "pages/index.html": {
+            "content": "<section class=\"hero py-20\">\n  <h1 class=\"text-4xl\">Oi</h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n  <h1 class=\"text-4xl\">Oi</h1>\n</section>\n",
+            "rev": 7
+          },
+          "pages/obrigado.html": {
+            "content": "<h1>Obrigado</h1>\n<section class=\"py-16\">\n  <h2>Perguntas frequentes</h2>\n</section>\n",
+            "rev": 2
+          },
+          "partials/header.html": {
+            "content": "<header>Logo</header>\n",
+            "rev": 1
+          },
+          "scripts/motion.js": {
+            "content": "import { animate } from \"motion\";\n",
+            "rev": 1
+          },
+          "site.json": {
+            "content": "{\"name\":\"Clínica Sorriso\",\"lang\":\"pt-BR\",\"routes\":[{\"path\":\"/\",\"page\":\"pages/index.html\"},{\"path\":\"/obrigado\",\"page\":\"pages/obrigado.html\"}]}",
+            "rev": 1
+          },
+          "theme.css": {
+            "content": "@import \"tailwindcss\";\n@theme {\n  --color-brand: oklch(0.6 0.2 250);\n  --hero-gap: 4rem;\n}\n",
+            "rev": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "theme tokens and knobs",
+      "base": "html",
+      "operations": [
+        {
+          "op": "set_token",
+          "name": "--color-brand",
+          "value": "oklch(0.7 0.1 30)"
+        },
+        {
+          "op": "set_knob",
+          "name": "Espaço do topo",
+          "value": 2.5
+        },
+        {
+          "op": "set_knob",
+          "name": "Cor da marca",
+          "value": "#ff0066"
+        }
+      ],
+      "accepted": [
+        {
+          "op": "set_token",
+          "name": "--color-brand",
+          "value": "oklch(0.7 0.1 30)"
+        },
+        {
+          "op": "set_knob",
+          "name": "Espaço do topo",
+          "value": 2.5
+        },
+        {
+          "op": "set_knob",
+          "name": "Cor da marca",
+          "value": "#ff0066"
+        }
+      ],
+      "executed": {
+        "steps": [
+          {
+            "op": "set_token",
+            "index": 0,
+            "focus": "theme.css",
+            "files": {
+              "theme.css": "@import \"tailwindcss\";\n@theme {\n  --color-brand: oklch(0.7 0.1 30);\n  --hero-gap: 4rem;\n}\n"
+            }
+          },
+          {
+            "op": "set_knob",
+            "index": 1,
+            "focus": "theme.css",
+            "files": {
+              "theme.css": "@import \"tailwindcss\";\n@theme {\n  --color-brand: oklch(0.7 0.1 30);\n  --hero-gap: 2.5rem;\n}\n"
+            }
+          },
+          {
+            "op": "set_knob",
+            "index": 2,
+            "focus": "theme.css",
+            "files": {
+              "theme.css": "@import \"tailwindcss\";\n@theme {\n  --color-brand: #ff0066;\n  --hero-gap: 2.5rem;\n}\n"
+            }
+          }
+        ],
+        "final": {
+          "knobs.json": {
+            "content": "{\"knobs\":[{\"name\":\"Espaço do topo\",\"variable\":\"--hero-gap\",\"kind\":\"range\",\"min\":0,\"max\":8,\"step\":0.5,\"unit\":\"rem\"},{\"name\":\"Cor da marca\",\"variable\":\"--color-brand\",\"kind\":\"color\"}]}",
+            "rev": 1
+          },
+          "pages/index.html": {
+            "content": "<section class=\"hero py-20\">\n  <h1 class=\"text-4xl\">Oi</h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n</section>\n",
+            "rev": 3
+          },
+          "pages/obrigado.html": {
+            "content": "<h1>Obrigado</h1>\n",
+            "rev": 1
+          },
+          "partials/header.html": {
+            "content": "<header>Logo</header>\n",
+            "rev": 1
+          },
+          "scripts/motion.js": {
+            "content": "import { animate } from \"motion\";\n",
+            "rev": 1
+          },
+          "site.json": {
+            "content": "{\"name\":\"Clínica Sorriso\",\"lang\":\"pt-BR\",\"routes\":[{\"path\":\"/\",\"page\":\"pages/index.html\"},{\"path\":\"/obrigado\",\"page\":\"pages/obrigado.html\"}]}",
+            "rev": 1
+          },
+          "theme.css": {
+            "content": "@import \"tailwindcss\";\n@theme {\n  --color-brand: #ff0066;\n  --hero-gap: 2.5rem;\n}\n",
+            "rev": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown fields are ignored and reported",
+      "base": "html",
+      "operations": [
+        {
+          "op": "remove",
+          "node": "pages/obrigado.html#0",
+          "rev": 1,
+          "reason": "duplicado",
+          "content": "x"
+        }
+      ],
+      "accepted": [
+        {
+          "op": "remove",
+          "node": "pages/obrigado.html#0",
+          "rev": 1
+        }
+      ],
+      "ignored": [
+        {
+          "index": 0,
+          "field": "content"
+        },
+        {
+          "index": 0,
+          "field": "reason"
+        }
+      ],
+      "executed": {
+        "steps": [
+          {
+            "op": "remove",
+            "index": 0,
+            "focus": "pages/obrigado.html",
+            "files": {
+              "pages/obrigado.html": ""
+            }
+          }
+        ],
+        "final": {
+          "knobs.json": {
+            "content": "{\"knobs\":[{\"name\":\"Espaço do topo\",\"variable\":\"--hero-gap\",\"kind\":\"range\",\"min\":0,\"max\":8,\"step\":0.5,\"unit\":\"rem\"},{\"name\":\"Cor da marca\",\"variable\":\"--color-brand\",\"kind\":\"color\"}]}",
+            "rev": 1
+          },
+          "pages/index.html": {
+            "content": "<section class=\"hero py-20\">\n  <h1 class=\"text-4xl\">Oi</h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n</section>\n",
+            "rev": 3
+          },
+          "pages/obrigado.html": {
+            "content": "",
+            "rev": 2
+          },
+          "partials/header.html": {
+            "content": "<header>Logo</header>\n",
+            "rev": 1
+          },
+          "scripts/motion.js": {
+            "content": "import { animate } from \"motion\";\n",
+            "rev": 1
+          },
+          "site.json": {
+            "content": "{\"name\":\"Clínica Sorriso\",\"lang\":\"pt-BR\",\"routes\":[{\"path\":\"/\",\"page\":\"pages/index.html\"},{\"path\":\"/obrigado\",\"page\":\"pages/obrigado.html\"}]}",
+            "rev": 1
+          },
+          "theme.css": {
+            "content": "@import \"tailwindcss\";\n@theme {\n  --color-brand: oklch(0.6 0.2 250);\n  --hero-gap: 4rem;\n}\n",
+            "rev": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "every failure at once and dependents skipped",
+      "base": "html",
+      "operations": [
+        {
+          "op": "write_file",
+          "path": "pages/Novo.html",
+          "content": "x"
+        },
+        {
+          "op": "edit_file",
+          "path": "pages/Novo.html",
+          "old": "x",
+          "new": "y"
+        },
+        {
+          "op": "set_attr",
+          "node": "pages/index.html#0",
+          "rev": 3,
+          "name": "onclick",
+          "value": "x()"
+        },
+        {
+          "op": "set_token",
+          "name": "--color-brand",
+          "value": "#000"
+        },
+        {
+          "op": "duplicate",
+          "node": "pages/obrigado.html#0",
+          "rev": 9,
+          "ref": "copia"
+        },
+        {
+          "op": "remove",
+          "node": "@copia"
+        },
+        {
+          "op": "delete_file",
+          "path": "pages/obrigado.html"
+        },
+        {
+          "op": "paint",
+          "node": "pages/index.html#0"
+        },
+        {
+          "op": "set_classes",
+          "node": "pages/index.html#0",
+          "rev": 3,
+          "add": [
+            "px-4"
+          ]
+        }
+      ],
+      "refusal": {
+        "failures": [
+          {
+            "index": 0,
+            "code": "path_invalid",
+            "field": "path"
+          },
+          {
+            "index": 2,
+            "code": "attribute_forbidden",
+            "field": "name"
+          },
+          {
+            "index": 4,
+            "code": "rev_invalid",
+            "field": "rev"
+          },
+          {
+            "index": 7,
+            "code": "operation_unknown",
+            "field": "op"
+          }
+        ],
+        "skipped": [
+          {
+            "index": 1,
+            "after": 0
+          },
+          {
+            "index": 5,
+            "after": 4
+          },
+          {
+            "index": 6,
+            "after": 4
+          },
+          {
+            "index": 8,
+            "after": 2
+          }
+        ]
+      }
+    },
+    {
+      "name": "stale revisions pass to the builder and future ones refuse",
+      "base": "html",
+      "operations": [
+        {
+          "op": "set_text",
+          "node": "pages/index.html#31",
+          "rev": 2,
+          "text": "Oi de novo"
+        },
+        {
+          "op": "set_text",
+          "node": "pages/obrigado.html#0",
+          "rev": 2,
+          "text": "Valeu"
+        }
+      ],
+      "refusal": {
+        "failures": [
+          {
+            "index": 1,
+            "code": "rev_invalid",
+            "field": "rev"
+          }
+        ]
+      }
+    },
+    {
+      "name": "placeholders refuse and edits must change something",
+      "base": "html",
+      "operations": [
+        {
+          "op": "edit_file",
+          "path": "pages/index.html",
+          "old": "<h1 class=\"text-4xl\">Oi</h1>",
+          "new": "<h1 class=\"text-4xl\">Oi</h1>\n  <!-- ... existing code ... -->"
+        },
+        {
+          "op": "write_file",
+          "path": "scripts/extra.js",
+          "content": "// rest unchanged\n"
+        },
+        {
+          "op": "edit_file",
+          "path": "pages/obrigado.html",
+          "old": "Obrigado",
+          "new": "Obrigado"
+        }
+      ],
+      "refusal": {
+        "failures": [
+          {
+            "index": 0,
+            "code": "edit_placeholder",
+            "field": "new"
+          },
+          {
+            "index": 1,
+            "code": "edit_placeholder",
+            "field": "content"
+          },
+          {
+            "index": 2,
+            "code": "edit_noop",
+            "field": "new"
+          }
+        ]
+      }
+    },
+    {
+      "name": "react component text inside a mapped list",
+      "base": "react",
+      "operations": [
+        {
+          "op": "set_text",
+          "node": "src/pages/Home.jsx#113",
+          "rev": 4,
+          "text": "Lentes de contato",
+          "item": 1
+        },
+        {
+          "op": "write_file",
+          "path": "src/components/Hero.tsx",
+          "content": "export function Hero() {\n  return <h1>Oi</h1>;\n}\n"
+        },
+        {
+          "op": "edit_file",
+          "path": "src/pages/Home.jsx",
+          "old": "Clareamento",
+          "new": "Clareamento dental",
+          "replace_all": true
+        }
+      ],
+      "accepted": [
+        {
+          "op": "set_text",
+          "node": "src/pages/Home.jsx#113",
+          "rev": 4,
+          "item": 1,
+          "text": "Lentes de contato"
+        },
+        {
+          "op": "write_file",
+          "path": "src/components/Hero.tsx",
+          "content": "export function Hero() {\n  return <h1>Oi</h1>;\n}\n"
+        },
+        {
+          "op": "edit_file",
+          "path": "src/pages/Home.jsx",
+          "old": "Clareamento",
+          "new": "Clareamento dental",
+          "replace_all": true
+        }
+      ],
+      "executed": {
+        "texts": {
+          "0": [
+            {
+              "text": "Lentes de contato"
+            }
+          ]
+        },
+        "failures": [
+          {
+            "index": 2,
+            "code": "edit_not_found",
+            "field": "old",
+            "detail": "nearest match at line 1\n1: const items = [\"Implante\", \"Lentes de contato\"];"
+          }
+        ]
+      }
+    },
+    {
+      "name": "react refuses the html layout and stylesheet nodes",
+      "base": "react",
+      "operations": [
+        {
+          "op": "write_file",
+          "path": "pages/index.html",
+          "content": ""
+        },
+        {
+          "op": "set_classes",
+          "node": "src/index.css#0",
+          "rev": 1,
+          "add": [
+            "a"
+          ]
+        },
+        {
+          "op": "delete_file",
+          "path": "src/main.jsx"
+        }
+      ],
+      "refusal": {
+        "failures": [
+          {
+            "index": 0,
+            "code": "path_invalid",
+            "field": "path"
+          },
+          {
+            "index": 1,
+            "code": "node_invalid",
+            "field": "node"
+          },
+          {
+            "index": 2,
+            "code": "file_required",
+            "field": "path"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a batch must be a list of operations",
+      "base": "html",
+      "operations": {
+        "op": "remove"
+      },
+      "malformed": true
+    }
+  ],
+  "replays": [
+    {
+      "name": "visual step then code steps",
+      "base": "html",
+      "steps": [
+        {
+          "op": "set_text",
+          "index": 0,
+          "focus": "pages/index.html#31",
+          "files": {
+            "pages/index.html": "<section class=\"hero py-20\">\n  <h1 class=\"text-4xl\">Olá <strong>mundo</strong></h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n</section>\n"
+          }
+        },
+        {
+          "op": "rename_file",
+          "index": 1,
+          "focus": "partials/topo.html",
+          "renamed": [
+            {
+              "from": "partials/header.html",
+              "to": "partials/topo.html"
+            }
+          ]
+        },
+        {
+          "op": "edit_file",
+          "index": 2,
+          "focus": "partials/topo.html",
+          "files": {
+            "partials/topo.html": "<header>Marca</header>\n"
+          }
+        },
+        {
+          "op": "delete_file",
+          "index": 3,
+          "focus": "scripts/motion.js",
+          "deleted": [
+            "scripts/motion.js"
+          ]
+        },
+        {
+          "op": "set_classes",
+          "index": 4,
+          "focus": "pages/index.html#0"
+        }
+      ],
+      "final": {
+        "knobs.json": {
+          "content": "{\"knobs\":[{\"name\":\"Espaço do topo\",\"variable\":\"--hero-gap\",\"kind\":\"range\",\"min\":0,\"max\":8,\"step\":0.5,\"unit\":\"rem\"},{\"name\":\"Cor da marca\",\"variable\":\"--color-brand\",\"kind\":\"color\"}]}",
+          "rev": 1
+        },
+        "pages/index.html": {
+          "content": "<section class=\"hero py-20\">\n  <h1 class=\"text-4xl\">Olá <strong>mundo</strong></h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n</section>\n",
+          "rev": 4
+        },
+        "pages/obrigado.html": {
+          "content": "<h1>Obrigado</h1>\n",
+          "rev": 1
+        },
+        "partials/topo.html": {
+          "content": "<header>Marca</header>\n",
+          "rev": 3
+        },
+        "site.json": {
+          "content": "{\"name\":\"Clínica Sorriso\",\"lang\":\"pt-BR\",\"routes\":[{\"path\":\"/\",\"page\":\"pages/index.html\"},{\"path\":\"/obrigado\",\"page\":\"pages/obrigado.html\"}]}",
+          "rev": 1
+        },
+        "theme.css": {
+          "content": "@import \"tailwindcss\";\n@theme {\n  --color-brand: oklch(0.6 0.2 250);\n  --hero-gap: 4rem;\n}\n",
+          "rev": 2
+        }
+      }
+    },
+    {
+      "name": "a rename with new content bumps the revision once",
+      "base": "html",
+      "steps": [
+        {
+          "op": "rename_file",
+          "index": 0,
+          "focus": "pages/fim.html",
+          "renamed": [
+            {
+              "from": "pages/obrigado.html",
+              "to": "pages/fim.html"
+            }
+          ],
+          "files": {
+            "pages/fim.html": "<h1>Fim</h1>\n"
+          }
+        },
+        {
+          "op": "set_token",
+          "index": 1,
+          "focus": "theme.css",
+          "files": {
+            "theme.css": "@import \"tailwindcss\";\n@theme {\n  --color-brand: oklch(0.7 0.1 30);\n  --hero-gap: 4rem;\n}\n"
+          }
+        }
+      ],
+      "final": {
+        "knobs.json": {
+          "content": "{\"knobs\":[{\"name\":\"Espaço do topo\",\"variable\":\"--hero-gap\",\"kind\":\"range\",\"min\":0,\"max\":8,\"step\":0.5,\"unit\":\"rem\"},{\"name\":\"Cor da marca\",\"variable\":\"--color-brand\",\"kind\":\"color\"}]}",
+          "rev": 1
+        },
+        "pages/fim.html": {
+          "content": "<h1>Fim</h1>\n",
+          "rev": 2
+        },
+        "pages/index.html": {
+          "content": "<section class=\"hero py-20\">\n  <h1 class=\"text-4xl\">Oi</h1>\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n</section>\n",
+          "rev": 3
+        },
+        "partials/header.html": {
+          "content": "<header>Logo</header>\n",
+          "rev": 1
+        },
+        "scripts/motion.js": {
+          "content": "import { animate } from \"motion\";\n",
+          "rev": 1
+        },
+        "site.json": {
+          "content": "{\"name\":\"Clínica Sorriso\",\"lang\":\"pt-BR\",\"routes\":[{\"path\":\"/\",\"page\":\"pages/index.html\"},{\"path\":\"/obrigado\",\"page\":\"pages/obrigado.html\"}]}",
+          "rev": 1
+        },
+        "theme.css": {
+          "content": "@import \"tailwindcss\";\n@theme {\n  --color-brand: oklch(0.7 0.1 30);\n  --hero-gap: 4rem;\n}\n",
+          "rev": 3
+        }
+      }
+    },
+    {
+      "name": "react writes a new component",
+      "base": "react",
+      "steps": [
+        {
+          "op": "write_file",
+          "index": 0,
+          "focus": "src/components/Hero.tsx",
+          "files": {
+            "src/components/Hero.tsx": "export function Hero() {\n  return <h1>Oi</h1>;\n}\n"
+          }
+        },
+        {
+          "op": "set_text",
+          "index": 1,
+          "focus": "src/pages/Home.jsx#113",
+          "files": {
+            "src/pages/Home.jsx": "const items = [\"Implante\", \"Lentes de contato\"];\nexport default function Home() {\n  return <ul>{items.map((item, i) => <li key={i}>{item}</li>)}</ul>;\n}\n"
+          }
+        }
+      ],
+      "final": {
+        "site.json": {
+          "content": "{\"name\":\"Clínica Sorriso\",\"lang\":\"pt-BR\",\"routes\":[{\"path\":\"/\",\"page\":\"src/pages/Home.jsx\"}]}",
+          "rev": 1
+        },
+        "src/components/Hero.tsx": {
+          "content": "export function Hero() {\n  return <h1>Oi</h1>;\n}\n",
+          "rev": 1
+        },
+        "src/index.css": {
+          "content": "@import \"tailwindcss\";\n@theme {\n  --color-brand: #0f766e;\n}\n",
+          "rev": 1
+        },
+        "src/main.jsx": {
+          "content": "import { createRoot } from \"react-dom/client\";\nimport \"./index.css\";\n",
+          "rev": 1
+        },
+        "src/pages/Home.jsx": {
+          "content": "const items = [\"Implante\", \"Lentes de contato\"];\nexport default function Home() {\n  return <ul>{items.map((item, i) => <li key={i}>{item}</li>)}</ul>;\n}\n",
+          "rev": 5
+        }
+      }
+    },
+    {
+      "name": "a rename onto an existing file is refused",
+      "base": "html",
+      "steps": [
+        {
+          "op": "rename_file",
+          "index": 0,
+          "renamed": [
+            {
+              "from": "pages/obrigado.html",
+              "to": "pages/index.html"
+            }
+          ]
+        }
+      ],
+      "refusal": "steps_invalid"
+    },
+    {
+      "name": "steps with unknown fields are refused",
+      "base": "html",
+      "steps": [
+        {
+          "op": "set_text",
+          "index": 0,
+          "patch": "x"
+        }
+      ],
+      "refusal": "steps_invalid"
+    }
+  ]
+}

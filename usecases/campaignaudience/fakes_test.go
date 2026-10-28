@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 	"vozko/domain/automationneeds"
+	"vozko/domain/variabledecl/variabledecltest"
 
 	"vozko/domain/campaignaudience"
 	"vozko/domain/customfield"
@@ -262,6 +263,7 @@ func newWorld(t interface{ Fatal(...any) }) *world {
 		Channels:    []Channel{w.channel, w.email},
 		Gate:        w.gate,
 		Flight:      audiencetest.Flight(w.state),
+		Values:      variabledecltest.Static{},
 		Now:         func() time.Time { return testNow },
 		NewID: func() string {
 			w.ids++

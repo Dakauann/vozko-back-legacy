@@ -7,6 +7,7 @@ import (
 
 type CORSMiddleware struct {
 	trustedOrigins map[string]struct{}
+	delegated      []string
 }
 
 func NewCORSMiddleware(trustedOrigins []string) *CORSMiddleware {
@@ -25,8 +26,26 @@ const (
 	corsMaxAge       = "86400"
 )
 
+func (c *CORSMiddleware) Delegating(prefixes ...string) *CORSMiddleware {
+	c.delegated = append(c.delegated, prefixes...)
+	return c
+}
+
+func (c *CORSMiddleware) delegates(path string) bool {
+	for _, prefix := range c.delegated {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *CORSMiddleware) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if c.delegates(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
 		origin := r.Header.Get("Origin")
 
 		if origin != "" {

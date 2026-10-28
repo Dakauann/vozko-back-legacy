@@ -239,7 +239,7 @@ func TestExpireSubscriptions_SmallBatchSize(t *testing.T) {
 func TestExpireSubscriptions_DunningGrace(t *testing.T) {
 	repo := &countingExpireRepo{returns: []expireReturn{{n: 0, err: nil}}}
 	fixedNow := time.Date(2026, 2, 24, 12, 0, 0, 0, time.UTC)
-	uc := NewExpireSubscriptionsUseCase(repo, nil).(*expireSubscriptionsUseCase)
+	uc := NewExpireSubscriptionsUseCase(repo, nil, nil).(*expireSubscriptionsUseCase)
 	uc.now = func() time.Time { return fixedNow }
 
 	if _, err := uc.Execute(); err != nil {
@@ -260,7 +260,7 @@ func TestExpireSubscriptions_DunningGrace(t *testing.T) {
 
 func TestNewExpireSubscriptionsUseCase_Constructor(t *testing.T) {
 	repo := &countingExpireRepo{returns: []expireReturn{{n: 0, err: nil}}}
-	uc := NewExpireSubscriptionsUseCase(repo, nil)
+	uc := NewExpireSubscriptionsUseCase(repo, nil, nil)
 	if uc == nil {
 		t.Fatal("expected non-nil usecase")
 	}

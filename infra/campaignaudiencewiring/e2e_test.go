@@ -8,6 +8,7 @@ import (
 	"sort"
 	"testing"
 	"time"
+	"vozko/domain/variabledecl/variabledecltest"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -231,7 +232,7 @@ func newWorld(t *testing.T) *world {
 	eligibility, err := campaignguard.NewEligibility(lead_repository.NewSendFacts(db), spam)
 	w.must(err)
 	definitions := customfield_repository.NewRepository(db)
-	module, err := campaignaudiencewiring.New(db, campaignaudiencewiring.Adapters{Selections: w.leadSelections(definitions), Leads: w.leads, Definitions: definitions, Templates: workspaceTemplates{templates: templates, access: access}, Gate: openGate{}, Shared: w.shared, EmailsSeen: &hygienetest.SeenEmails{}})
+	module, err := campaignaudiencewiring.New(db, campaignaudiencewiring.Adapters{Selections: w.leadSelections(definitions), Leads: w.leads, Definitions: definitions, Templates: workspaceTemplates{templates: templates, access: access}, Gate: openGate{}, Shared: w.shared, EmailsSeen: &hygienetest.SeenEmails{}, Values: variabledecltest.Static{}})
 	w.must(err)
 	w.audience = module.Service
 	step, err := campaignautomation.NewStep(seriesWorkflow{workspaceID: w.ws}, noAgents{})

@@ -1,6 +1,7 @@
 package database
 
 import (
+	"vozko/domain/workflow"
 	"vozko/infra/database/schema"
 
 	"gorm.io/gorm"
@@ -28,7 +29,7 @@ func serializeMigration(tx *gorm.DB, lockTimeout string) error {
 	return tx.Exec("SELECT set_config('lock_timeout', $1, true)", lockTimeout).Error
 }
 
-func RunMigrations(db *gorm.DB) error {
+func RunMigrations(db *gorm.DB, nodeOutputs workflow.DynamicHandleResolver) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		if err := prepareMigration(tx); err != nil {
 			return err
@@ -40,7 +41,7 @@ func RunMigrations(db *gorm.DB) error {
 			}
 		}
 
-		if err := runDataRepairs(tx); err != nil {
+		if err := runDataRepairs(tx, nodeOutputs); err != nil {
 			return err
 		}
 
@@ -272,6 +273,7 @@ func autoMigratedModels() [][]any {
 			&schema.WebchatConversation{},
 			&schema.ConversationDelegation{},
 			&schema.ConversationVariable{},
+			&schema.ConversationVariableDeclaration{},
 			&schema.AutomationSwitchOff{},
 			&schema.ConversationPersonalMark{},
 			&schema.PersonalInboxPreference{},
@@ -319,5 +321,8 @@ func autoMigratedModels() [][]any {
 		schema.GoogleSheetModels(),
 		schema.ChoiceStatsModels(),
 		schema.AgentToolModels(),
+		schema.SiteStorageModels(),
+		schema.SitePublishModels(),
+		schema.SiteFormModels(),
 	}
 }

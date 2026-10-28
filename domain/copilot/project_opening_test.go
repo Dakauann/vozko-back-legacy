@@ -49,7 +49,7 @@ func TestOnlyAppCommandsRunWithoutAProject(t *testing.T) {
 		t.Fatal("creating a project and opening a design come before any editor")
 	}
 	for _, name := range ScreenCommandNames() {
-		if name != ScreenCreateProject && name != ScreenOpenDesign && !name.NeedsProject() {
+		if name != ScreenCreateProject && name != ScreenOpenDesign && name != ScreenOpenSite && !name.NeedsProject() {
 			t.Errorf("%s acts on the open project and must need one", name)
 		}
 	}

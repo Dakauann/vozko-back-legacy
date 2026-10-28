@@ -282,12 +282,13 @@ func (h *Handler) EditColumns(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Remover planilha
-// @Description	Remove a planilha do workspace e descarta as linhas que ainda não foram gravadas. O arquivo continua no Google Drive.
+// @Description	Remove a planilha do workspace e descarta as linhas que ainda não foram gravadas. O arquivo continua no Google Drive. Enquanto uma campanha em andamento ou pausada tiver contatos com este arquivo como dado do tipo Planilha, a remoção é recusada com 409 google_sheet_in_use e details.campaigns com os nomes das campanhas.
 // @Tags			Google Planilhas
 // @Produce		json
 // @Param			id	path		string	true	"Planilha"
 // @Success		200	{object}	DeletedResponse
 // @Failure		404	{object}	response.ErrorResponse
+// @Failure		409	{object}	response.ErrorResponse	"google_sheet_in_use"
 // @Security		BearerAuth
 // @Router			/google-sheets/{id} [delete]
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -299,7 +300,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Saúde da planilha
-// @Description	Linhas aguardando, em envio, retidas, recusadas e gravadas nos últimos dias, com as linhas com problema mais recentes.
+// @Description	Linhas aguardando, em envio, retidas, recusadas e gravadas nos últimos dias, com as linhas com problema mais recentes. editing traz a edição à mão em andamento no arquivo (ou null): enquanto ela durar, as linhas aguardando esperam a edição terminar.
 // @Tags			Google Planilhas
 // @Produce		json
 // @Param			id	path		string	true	"Planilha"
@@ -313,7 +314,7 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	response.WriteSuccess(w, http.StatusOK, toHealthResponse(view))
+	response.WriteSuccess(w, http.StatusOK, toHealthResponse(view, userOf(r)))
 }
 
 // @Summary		Reenviar linhas com problema
@@ -560,6 +561,12 @@ var refusals = []response.ErrorRefusal{
 	{Err: googlesheet.ErrRemovalReasonTooLong, Refusal: refusal(http.StatusBadRequest, googlesheet.CodeRemovalReasonTooLong, "O motivo passa de 500 caracteres")},
 	{Err: googlesheet.ErrRemovalActorRequired, Refusal: refusal(http.StatusBadRequest, googlesheet.CodeRemovalActorRequired, "A remoção precisa de quem a pediu")},
 	{Err: googlesheet.ErrSheetBusy, Refusal: refusal(http.StatusConflict, googlesheet.CodeSheetBusy, "A planilha está gravando linhas agora; tente de novo em instantes")},
+	{Err: googlesheet.ErrFileBeingEdited, Refusal: refusal(http.StatusConflict, googlesheet.CodeFileBeingEdited, "O arquivo está sendo editado à mão; termine a edição antes")},
+	{Err: googlesheet.ErrEditSessionNotFound, Refusal: refusal(http.StatusNotFound, googlesheet.CodeEditSessionNotFound, "Sessão de edição não encontrada")},
+	{Err: googlesheet.ErrEditSessionEnded, Refusal: refusal(http.StatusConflict, googlesheet.CodeEditSessionEnded, "A sessão de edição já terminou")},
+	{Err: googlesheet.ErrEditSessionNotYours, Refusal: refusal(http.StatusForbidden, googlesheet.CodeEditSessionNotYours, "A sessão de edição é de outra pessoa")},
+	{Err: googlesheet.ErrEditEndReasonUnknown, Refusal: refusal(http.StatusBadRequest, googlesheet.CodeEditEndReasonUnknown, "Motivo para terminar a edição desconhecido")},
+	{Err: googlesheet.ErrSheetInUse, Refusal: refusal(http.StatusConflict, googlesheet.CodeSheetInUse, "Campanhas em andamento gravam nesta planilha")},
 }
 
 type valueRefusal struct {
@@ -620,6 +627,17 @@ func writeError(w http.ResponseWriter, err error) {
 	var repeat *googlesheet.RepeatError
 	if errors.As(err, &repeat) {
 		response.WriteErrorWithDetails(w, http.StatusConflict, repeat.Code, repeat.Message(), repeatRefusal{Sheet: sheet, Header: repeat.HeaderList(), RowID: repeat.RowID})
+		return
+	}
+	var inUse *googlesheet.InUseError
+	if errors.As(err, &inUse) {
+		response.WriteErrorWithDetails(w, http.StatusConflict, googlesheet.CodeSheetInUse, "Campanhas em andamento gravam nesta planilha", sheetInUseRefusal{Campaigns: inUse.Campaigns})
+		return
+	}
+	var taken *googlesheet.EditTakenError
+	if errors.As(err, &taken) {
+		response.WriteErrorWithDetails(w, http.StatusConflict, googlesheet.CodeFileBeingEdited, "O arquivo está sendo editado à mão; termine a edição antes",
+			fileBeingEditedRefusal{EditedBy: taken.Session.StartedBy, EditedByName: taken.HolderName, Since: taken.Session.StartedAt})
 		return
 	}
 	var googleErr *gsuc.GoogleRefusal

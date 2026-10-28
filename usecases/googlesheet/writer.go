@@ -62,6 +62,7 @@ type WriterDeps struct {
 	Marks   Marker
 	Alerts  Alerts
 	Metrics metrics.GoogleSheetsMetricsRecorder
+	Edits   googlesheet.EditSessionRepository
 	Config  WriterConfig
 }
 
@@ -76,6 +77,7 @@ type Writer struct {
 	marks   Marker
 	alerts  Alerts
 	metrics metrics.GoogleSheetsMetricsRecorder
+	edits   editGate
 	cfg     WriterConfig
 	now     Clock
 	seed    func() int64
@@ -88,15 +90,15 @@ var _ Nudger = (*Writer)(nil)
 
 func NewWriter(d WriterDeps) *Writer {
 	if d.Sheets == nil || d.Rows == nil || d.API == nil || d.Errors == nil || d.Access == nil || d.Limiter == nil ||
-		d.Leases == nil || d.Marks == nil || d.Alerts == nil || d.Metrics == nil {
-		panic("googlesheet: the writer requires sheets, rows, the sheets api, an error classifier, google access, a limiter, leases, marks, alerts and metrics")
+		d.Leases == nil || d.Marks == nil || d.Alerts == nil || d.Metrics == nil || d.Edits == nil {
+		panic("googlesheet: the writer requires sheets, rows, the sheets api, an error classifier, google access, a limiter, leases, marks, alerts, metrics and the edit sessions")
 	}
 	if d.Config.Concurrency < 1 || d.Config.BatchRows < 1 || d.Config.BatchBytes < 1 || d.Config.LeaseTTL <= d.Config.DrainBudget {
 		panic(fmt.Sprintf("googlesheet: invalid writer config %+v", d.Config))
 	}
 	return &Writer{
 		sheets: d.Sheets, rows: d.Rows, api: d.API, errs: d.Errors, access: d.Access, limiter: d.Limiter,
-		leases: d.Leases, marks: d.Marks, alerts: d.Alerts, metrics: d.Metrics, cfg: d.Config,
+		leases: d.Leases, marks: d.Marks, alerts: d.Alerts, metrics: d.Metrics, edits: editGate{sessions: d.Edits}, cfg: d.Config,
 		now:    utcNow,
 		seed:   rand.Int64,
 		jitter: func() time.Duration { return time.Duration(rand.Int64N(int64(maxJitter))) },
@@ -196,6 +198,9 @@ func (w *Writer) WriteSheet(ctx context.Context, sheetID string) error {
 	}
 	deadline := w.now().Add(w.cfg.DrainBudget)
 	for w.now().Before(deadline) {
+		if paused, err := w.pausedForEdit(ctx, sheet); err != nil || paused {
+			return err
+		}
 		more, err := s.writeNext(ctx)
 		if err != nil || !more {
 			return err
@@ -204,22 +209,41 @@ func (w *Writer) WriteSheet(ctx context.Context, sheetID string) error {
 	return nil
 }
 
+func (w *Writer) pausedForEdit(ctx context.Context, sheet *googlesheet.Sheet) (bool, error) {
+	err := w.edits.check(ctx, sheet.WorkspaceID, sheet.SpreadsheetID, w.now())
+	if errors.Is(err, googlesheet.ErrFileBeingEdited) {
+		w.metrics.AddGoogleSheetsEvent("edit", "paused")
+		return true, nil
+	}
+	return false, err
+}
+
 func (w *Writer) attention(ctx context.Context, sheet *googlesheet.Sheet, reason googlesheet.AttentionReason, detail string) error {
-	sheet.NeedsAttention(reason, detail)
-	if err := w.sheets.SaveStatus(ctx, sheet); err != nil {
+	if err := raiseAttention(ctx, w.sheets, w.alerts, sheet, reason, detail); err != nil {
 		return err
 	}
 	w.metrics.AddGoogleSheetsEvent("attention", string(reason))
-	if err := w.alerts.NeedsAttention(ctx, sheet); err != nil {
+	return nil
+}
+
+func raiseAttention(ctx context.Context, sheets googlesheet.SheetRepository, alerts Alerts, sheet *googlesheet.Sheet, reason googlesheet.AttentionReason, detail string) error {
+	sheet.NeedsAttention(reason, detail)
+	if err := sheets.SaveStatus(ctx, sheet); err != nil {
+		return err
+	}
+	if err := alerts.NeedsAttention(ctx, sheet); err != nil {
 		log.Printf("[googlesheet] attention alert of %s not published: %v", sheet.ID, err)
 	}
 	return nil
 }
 
 type session struct {
-	w      *Writer
-	sheet  *googlesheet.Sheet
-	access googleaccount.Access
+	w          *Writer
+	sheet      *googlesheet.Sheet
+	access     googleaccount.Access
+	workbook   googlesheet.Workbook
+	localeRead bool
+	relinked   bool
 }
 
 func (s *session) take(ctx context.Context, write bool) (bool, error) {
@@ -325,6 +349,7 @@ func (s *session) openTab(ctx context.Context, period string) (googlesheet.Targe
 	if err != nil {
 		return googlesheet.Target{}, false, s.readFailed(ctx, err)
 	}
+	s.sawWorkbook(workbook)
 	target := googlesheet.Target{SpreadsheetID: s.sheet.SpreadsheetID, TabName: title}
 	if existing, taken := workbook.Titled(title); taken {
 		target.TabID, target.TabName = existing.ID, existing.Title
@@ -392,7 +417,7 @@ func (s *session) layoutFailed(ctx context.Context, err error) error {
 
 func (s *session) verify(ctx context.Context, target googlesheet.Target) (bool, error) {
 	w := s.w
-	if target.TabID != s.sheet.TabID {
+	if target.TabID != s.sheet.TabID || s.needsLocale() {
 		return s.checkRoom(ctx, target)
 	}
 	key := tabCheckKey(s.sheet.ID)
@@ -443,6 +468,7 @@ func (s *session) checkRoom(ctx context.Context, target googlesheet.Target) (boo
 	if err != nil {
 		return false, s.readFailed(ctx, err)
 	}
+	s.sawWorkbook(workbook)
 	if _, ok := workbook.Tab(target.TabID); !ok {
 		return false, w.attention(ctx, s.sheet, googlesheet.ReasonSpreadsheetGone, tabGoneDetail)
 	}
@@ -482,6 +508,9 @@ func (s *session) writeNext(ctx context.Context) (bool, error) {
 	var at *cursor
 	if err == nil && ok {
 		at, ok, err = s.position(ctx, target)
+	}
+	if err == nil && ok {
+		err = s.relink(ctx)
 	}
 	if err != nil || !ok {
 		return false, errors.Join(err, w.rows.Unclaim(ctx, rowIDs(run)))
@@ -566,7 +595,7 @@ func (s *session) encode(ctx context.Context, claimed []*googlesheet.Row) ([]*go
 	values := make([][]any, 0, len(claimed))
 	sizes := make([]int, 0, len(claimed))
 	for i, row := range claimed {
-		encoded, err := s.sheet.EncodeRow(row.ID, row.Cells, tabs)
+		encoded, err := s.sheet.EncodeRow(row.ID, row.Cells, googlesheet.Links{Tabs: tabs, Locale: s.workbook.Locale})
 		if errors.Is(err, googlesheet.ErrLinkTargetPending) {
 			rest := claimed[i:]
 			if len(batch) == 0 {
@@ -585,7 +614,7 @@ func (s *session) encode(ctx context.Context, claimed []*googlesheet.Row) ([]*go
 				continue
 			}
 		}
-		if failErr := s.w.rows.Fail(ctx, row.ID, googlesheet.ErrorCode(err), err.Error()); failErr != nil {
+		if failErr := s.w.rows.Fail(ctx, row.ID, googlesheet.EncodeFailureCode(err), err.Error()); failErr != nil {
 			log.Printf("[googlesheet] row %s could not be encoded and not marked failed: %v", row.ID, failErr)
 		}
 	}

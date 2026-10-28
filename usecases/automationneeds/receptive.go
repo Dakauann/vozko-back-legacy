@@ -28,8 +28,8 @@ func NewReceptive(service *Service, records domain.SwitchOffRecords, alerts *Ale
 
 var _ domain.ReceptiveGuard = (*Receptive)(nil)
 
-func (r *Receptive) Admit(workspaceID string, config conversation.ChannelAutomation) error {
-	return r.service.AdmitReceptive(workspaceID, config)
+func (r *Receptive) Admit(workspaceID string, kind domain.SlotKind, config conversation.ChannelAutomation) error {
+	return r.service.AdmitReceptive(workspaceID, kind, config)
 }
 
 func (r *Receptive) Saved(ctx context.Context, workspaceID string, kind domain.SlotKind, slotID string, config conversation.ChannelAutomation) {

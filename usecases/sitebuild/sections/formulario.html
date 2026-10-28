@@ -1,0 +1,34 @@
+<section id="contato" class="bg-surface font-sans text-ink">
+  <div class="mx-auto grid max-w-6xl items-center gap-12 px-6 py-20 md:grid-cols-2 md:py-24">
+    <div>
+      <p class="text-sm font-semibold tracking-widest text-brand uppercase">Fale com a gente</p>
+      <h2 class="mt-3 font-display text-4xl font-semibold text-balance">Peça seu orçamento sem compromisso</h2>
+      <p class="mt-4 max-w-md text-lg leading-relaxed text-muted">Preencha em menos de um minuto. Um especialista retorna pelo WhatsApp ainda hoje.</p>
+      <ul class="mt-8 grid gap-3 text-base">
+        <li class="flex items-center gap-3"><span class="grid size-6 place-items-center rounded-full bg-brand text-xs font-bold text-brand-ink">✓</span>Resposta em até 1 dia útil</li>
+        <li class="flex items-center gap-3"><span class="grid size-6 place-items-center rounded-full bg-brand text-xs font-bold text-brand-ink">✓</span>Seus dados ficam protegidos</li>
+      </ul>
+    </div>
+    <div class="rounded-card border border-line bg-white p-8 shadow-2xl shadow-ink/10">
+      <form data-vz-form="orcamento" class="grid gap-4">
+        <label class="grid gap-1.5 text-sm font-medium">
+          Nome
+          <input type="text" name="lead.name" required autocomplete="name" placeholder="Como podemos te chamar?" class="rounded-xl border border-line bg-surface px-4 py-3 text-base outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15">
+        </label>
+        <label class="grid gap-1.5 text-sm font-medium">
+          WhatsApp
+          <input type="tel" name="lead.phone" required autocomplete="tel" placeholder="(11) 90000-0000" class="rounded-xl border border-line bg-surface px-4 py-3 text-base outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15">
+        </label>
+        <label class="grid gap-1.5 text-sm font-medium">
+          E-mail
+          <input type="email" name="lead.email" autocomplete="email" placeholder="voce@email.com" class="rounded-xl border border-line bg-surface px-4 py-3 text-base outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15">
+        </label>
+        <label class="flex items-start gap-3 text-sm leading-relaxed text-muted">
+          <input type="checkbox" name="consent" required class="mt-1 size-4 accent-brand">
+          Autorizo o contato por WhatsApp, telefone ou e-mail e concordo com a <a href="/privacidade" class="font-medium text-brand underline">Política de Privacidade</a>.
+        </label>
+        <button type="submit" class="mt-2 rounded-xl bg-brand px-6 py-4 text-base font-semibold text-brand-ink transition hover:brightness-110">Quero meu orçamento</button>
+      </form>
+    </div>
+  </div>
+</section>

@@ -44,7 +44,7 @@ func (e *exportMessagesSheetExecutor) Definition() workflow.NodeDefinition {
 			When: "Para registrar a linha do tempo de um cliente numa planilha do Google Planilhas, por exemplo quando a conversa entra na etapa de pagamento recebido.",
 			Behavior: "Lê as mensagens novas da conversa desde a última exportação para esta planilha e grava todas de uma vez, uma linha por mensagem, na ordem em que aconteceram. " +
 				"As colunas com fonte de mensagem (data, quem enviou, sentido, texto, link da mídia) mudam a cada linha; as do lead e da conversa se repetem em todas. " +
-				"Repetir o passo nunca duplica linhas. A saída 'erro' recebe recusas da planilha, e nesse caso nada é marcado como exportado.",
+				"Repetir o passo nunca duplica linhas. A saída 'erro' recebe recusas da planilha, e nesse caso nada é marcado como exportado." + sheetVariableGuidance,
 			Examples: []string{
 				"config: {\"sheet_id\":\"<id>\",\"values\":{\"valor\":\"{{var.valor}}\"}}",
 			},
@@ -60,12 +60,13 @@ func (e *exportMessagesSheetExecutor) Definition() workflow.NodeDefinition {
 			{Key: "sheet_id", Description: "ID da planilha", Label: "ID da planilha", Type: workflow.VariableTypeText},
 			{Key: "sheet_title", Description: "Título da planilha", Label: "Título da planilha", Type: workflow.VariableTypeText},
 			{Key: "sheet_url", Description: "Link da planilha no Google", Label: "Link da planilha", Type: workflow.VariableTypeText},
-			{Key: "error", Description: "Descrição da recusa", Label: "Recusa", Type: workflow.VariableTypeText},
+			{Key: "error", Description: "Descrição da recusa", Label: "Recusa", LabelKey: "output_error_refusal", Type: workflow.VariableTypeText},
 			{Key: "error_code", Description: "Código da recusa", Label: "Código da recusa", Type: workflow.VariableTypeText},
 		},
 		DefaultConfig: map[string]interface{}{AddSheetRowSheetKey: "", AddSheetRowValuesKey: map[string]interface{}{}},
 		ConfigSchema: []workflow.ConfigField{
 			{Key: AddSheetRowSheetKey, Label: "Planilha", Type: "select", OptionsSource: "google_sheets", Required: true},
+			sheetVariableField(),
 			{Key: AddSheetRowValuesKey, Label: "Colunas", Type: "sheet_columns",
 				Description: "O valor das colunas preenchidas pelo fluxo, igual em todas as linhas desta exportação. Aceita variáveis do fluxo {{...}}."},
 		},
@@ -86,7 +87,10 @@ func (e *exportMessagesSheetExecutor) Execute(ctx *workflow.NodeContext) (*workf
 	if len(missing) > 0 {
 		return sheetRowRefused(ctx, googlesheet.CodeUnresolvedVariable, "variáveis sem valor: "+strings.Join(missing, ", ")), nil
 	}
-	sheetID, _ := ctx.Node.Config[AddSheetRowSheetKey].(string)
+	sheetID, err := workflow.SheetStepTarget(ctx.Node, ctx.State)
+	if err != nil {
+		return sheetRowRefused(ctx, workflow.CodeSheetVariableUnresolved, err.Error()), nil
+	}
 	target := gsuc.ExportTarget{WorkspaceID: ctx.Run.WorkspaceID, SheetID: strings.TrimSpace(sheetID), Origin: workflowSheetOrigin(ctx.Run)}
 
 	callCtx, release := ctx.CallContext()

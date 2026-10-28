@@ -1,11 +1,21 @@
 package node_executors
 
-import "vozko/domain/workflow"
+import (
+	"context"
 
-type setVariableExecutor struct{}
+	"vozko/domain/workflow"
+)
 
-func NewSetVariableExecutor() workflow.NodeExecutor {
-	return &setVariableExecutor{}
+type ValueRules interface {
+	Rejected(ctx context.Context, workspaceID string, values map[string]string) ([]string, error)
+}
+
+type setVariableExecutor struct {
+	rules ValueRules
+}
+
+func NewSetVariableExecutor(rules ValueRules) workflow.NodeExecutor {
+	return &setVariableExecutor{rules: rules}
 }
 
 func (e *setVariableExecutor) Definition() workflow.NodeDefinition {
@@ -35,6 +45,7 @@ func (e *setVariableExecutor) Definition() workflow.NodeDefinition {
 		},
 		ConfigSchema: []workflow.ConfigField{
 			{Key: "variable", Label: "Nome da Variável", Type: "text", Placeholder: "minha_variavel", Required: true},
+			{Key: "variable_label", Label: "Nome amigável", Type: "text", Placeholder: "Saudação", Description: "Como a variável aparece nas listas e nos campos."},
 			{Key: "value", Label: "Valor", Type: "text", Placeholder: "valor"},
 		},
 	}
@@ -56,8 +67,36 @@ func (e *setVariableExecutor) Execute(ctx *workflow.NodeContext) (*workflow.Node
 		}
 		value = resolved
 	}
+	if refused := e.checkConversationValue(ctx, varName, value); refused != "" {
+		return &workflow.NodeResult{
+			Output: map[string]interface{}{"variable": varName, "value": nil, "error": refused, "error_code": refused},
+		}, nil
+	}
 	ctx.State.Set(varName, value)
 	return &workflow.NodeResult{
 		Output: map[string]interface{}{"variable": varName, "value": value},
 	}, nil
+}
+
+const (
+	variableValueInvalid     = "variable_value_invalid"
+	variableRulesUnavailable = "variable_rules_unavailable"
+)
+
+func (e *setVariableExecutor) checkConversationValue(ctx *workflow.NodeContext, varName string, value interface{}) string {
+	name, ok := workflow.CampaignVarOf(varName)
+	if !ok {
+		return ""
+	}
+	if e.rules == nil || ctx.Run == nil {
+		return variableRulesUnavailable
+	}
+	rejected, err := e.rules.Rejected(context.Background(), ctx.Run.WorkspaceID, map[string]string{name: workflow.TemplateText(value)})
+	switch {
+	case err != nil:
+		return variableRulesUnavailable
+	case len(rejected) > 0:
+		return variableValueInvalid
+	}
+	return ""
 }

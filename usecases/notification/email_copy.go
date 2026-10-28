@@ -25,6 +25,7 @@ var categoryLabels = map[notification.Category]string{
 	notification.CategorySupport:       "Suporte",
 	notification.CategorySystem:        "Sistema",
 	notification.CategoryAutomations:   "Automações",
+	notification.CategoryLeads:         "Leads",
 }
 
 var severityTones = map[notification.Severity]string{

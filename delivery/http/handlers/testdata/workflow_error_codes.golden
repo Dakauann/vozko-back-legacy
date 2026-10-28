@@ -40,10 +40,10 @@ invalid_node_type
 invalid_opportunity_pipeline
 invalid_queue
 invalid_response_mode
+invalid_sheet_variable
 invalid_stage
 invalid_status
 invalid_template
-invalid_tool_mode
 invalid_tool_param_type
 invalid_trigger_type
 invalid_version
@@ -73,6 +73,7 @@ stage_not_conversation_funnel
 test_input_invalid
 test_value_invalid
 test_value_not_needed
+test_value_type_invalid
 test_values_unavailable
 test_values_unwired
 trigger_has_incoming_edge

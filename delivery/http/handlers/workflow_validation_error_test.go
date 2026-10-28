@@ -46,7 +46,6 @@ func TestDraftValidationErrorsAreRefusedAs422InPortugueseNotAs500(t *testing.T) 
 		fmt.Errorf("%w: node %q workflow_id %q", workflow.ErrNodeInvalidWorkflowID, "n", "w"),
 		fmt.Errorf("%w: node %q knowledge_base_id %q", workflow.ErrNodeInvalidKnowledgeBaseID, "n", "k"),
 		fmt.Errorf("%w: node %q (action_send_text)", workflow.ErrNodeIncompatibleScope, "n"),
-		fmt.Errorf("%w: node %q tool_mode %q", workflow.ErrNodeInvalidToolMode, "n", "x"),
 		fmt.Errorf("%w: node %q response_mode %q", workflow.ErrNodeInvalidResponseMode, "n", "x"),
 		fmt.Errorf("%w: AI agent node %q", workflow.ErrNodeSegmentedSendConflict, "n"),
 		fmt.Errorf("%w: node %q: x", workflow.ErrNodeInvalidInteractiveConfig, "n"),

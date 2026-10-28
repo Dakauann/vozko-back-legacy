@@ -1,0 +1,542 @@
+[
+  [
+    "output_agent_id",
+    "ID do agente"
+  ],
+  [
+    "output_already_recorded",
+    "Registro já existia"
+  ],
+  [
+    "output_assigned_user_email",
+    "E-mail de quem recebeu"
+  ],
+  [
+    "output_assigned_user_id",
+    "ID de quem recebeu"
+  ],
+  [
+    "output_attendees",
+    "Participantes"
+  ],
+  [
+    "output_available_slots",
+    "Horários livres"
+  ],
+  [
+    "output_available_slots_json",
+    "Horários livres (JSON)"
+  ],
+  [
+    "output_bcc",
+    "Em cópia oculta"
+  ],
+  [
+    "output_body",
+    "Corpo da resposta"
+  ],
+  [
+    "output_business_phone_id",
+    "ID do número"
+  ],
+  [
+    "output_busy_count",
+    "Eventos ocupados"
+  ],
+  [
+    "output_calendar_email",
+    "Conta Google"
+  ],
+  [
+    "output_cancelled",
+    "Canceladas"
+  ],
+  [
+    "output_cancelled_ids",
+    "IDs cancelados"
+  ],
+  [
+    "output_caption",
+    "Legenda enviada"
+  ],
+  [
+    "output_cc",
+    "Em cópia"
+  ],
+  [
+    "output_changed",
+    "Mudou agora"
+  ],
+  [
+    "output_changed_fields",
+    "Campos preenchidos"
+  ],
+  [
+    "output_channel",
+    "Canal"
+  ],
+  [
+    "output_close_outcome",
+    "Desfecho"
+  ],
+  [
+    "output_close_reason",
+    "Motivo do encerramento"
+  ],
+  [
+    "output_close_source",
+    "Origem do encerramento"
+  ],
+  [
+    "output_conflicts",
+    "Campos mantidos"
+  ],
+  [
+    "output_created",
+    "Criada agora"
+  ],
+  [
+    "output_currency",
+    "Moeda"
+  ],
+  [
+    "output_current_stage_id",
+    "ID da etapa atual"
+  ],
+  [
+    "output_current_stage_name",
+    "Etapa atual"
+  ],
+  [
+    "output_date",
+    "Data"
+  ],
+  [
+    "output_date_from",
+    "Início do período"
+  ],
+  [
+    "output_date_to",
+    "Fim do período"
+  ],
+  [
+    "output_datetime",
+    "Data e hora"
+  ],
+  [
+    "output_delivered",
+    "Mensagens enviadas pelo nó"
+  ],
+  [
+    "output_department_id",
+    "ID do departamento"
+  ],
+  [
+    "output_department_name",
+    "Departamento"
+  ],
+  [
+    "output_duplicate",
+    "Linha já registrada"
+  ],
+  [
+    "output_duplicates",
+    "Já exportadas"
+  ],
+  [
+    "output_end_time",
+    "Fim"
+  ],
+  [
+    "output_entry_id",
+    "ID da conversa"
+  ],
+  [
+    "output_entry_type",
+    "Tipo da conversa"
+  ],
+  [
+    "output_error",
+    "Erro"
+  ],
+  [
+    "output_error_code",
+    "Código da recusa"
+  ],
+  [
+    "output_error_field",
+    "Campo recusado"
+  ],
+  [
+    "output_error_field_label",
+    "Nome do campo recusado"
+  ],
+  [
+    "output_error_refusal",
+    "Recusa"
+  ],
+  [
+    "output_event_id",
+    "ID do evento"
+  ],
+  [
+    "output_existing_row_id",
+    "ID da linha existente"
+  ],
+  [
+    "output_exported",
+    "Mensagens exportadas"
+  ],
+  [
+    "output_fallback_template_id",
+    "ID do template reserva"
+  ],
+  [
+    "output_follow_up_id",
+    "ID do agendamento"
+  ],
+  [
+    "output_form_id",
+    "ID do formulário"
+  ],
+  [
+    "output_form_response_id",
+    "ID da resposta"
+  ],
+  [
+    "output_formatted",
+    "Data formatada"
+  ],
+  [
+    "output_from_pipeline_id",
+    "ID do funil anterior"
+  ],
+  [
+    "output_from_pipeline_name",
+    "Funil anterior"
+  ],
+  [
+    "output_from_stage_id",
+    "ID da etapa anterior"
+  ],
+  [
+    "output_from_stage_name",
+    "Etapa anterior"
+  ],
+  [
+    "output_google_event_id",
+    "ID do evento no Google"
+  ],
+  [
+    "output_has_more",
+    "Há mais mensagens"
+  ],
+  [
+    "output_hour",
+    "Hora (0 a 23)"
+  ],
+  [
+    "output_index",
+    "Posição do item"
+  ],
+  [
+    "output_interrupted",
+    "Áudio interrompido"
+  ],
+  [
+    "output_is_first",
+    "É o primeiro"
+  ],
+  [
+    "output_is_last",
+    "É o último"
+  ],
+  [
+    "output_iso",
+    "Data ISO 8601"
+  ],
+  [
+    "output_item",
+    "Item atual"
+  ],
+  [
+    "output_key",
+    "Tecla pressionada"
+  ],
+  [
+    "output_kind",
+    "Tipo"
+  ],
+  [
+    "output_label_id",
+    "ID da etiqueta"
+  ],
+  [
+    "output_label_name",
+    "Nome da etiqueta"
+  ],
+  [
+    "output_lead_id",
+    "ID do lead"
+  ],
+  [
+    "output_matched",
+    "Condição atendida"
+  ],
+  [
+    "output_matched_case",
+    "Caso escolhido"
+  ],
+  [
+    "output_matched_channel",
+    "Tinha caminho para o canal"
+  ],
+  [
+    "output_matched_check",
+    "Verificação atendida"
+  ],
+  [
+    "output_matched_label",
+    "Tem a etiqueta"
+  ],
+  [
+    "output_matched_stage",
+    "Está na etapa"
+  ],
+  [
+    "output_media_type",
+    "Tipo da mídia"
+  ],
+  [
+    "output_media_url",
+    "Link da mídia"
+  ],
+  [
+    "output_meeting_link",
+    "Link do Google Meet"
+  ],
+  [
+    "output_message_id",
+    "ID da mensagem"
+  ],
+  [
+    "output_messages",
+    "Mensagens"
+  ],
+  [
+    "output_minute",
+    "Minuto"
+  ],
+  [
+    "output_model",
+    "Modelo"
+  ],
+  [
+    "output_next_edge",
+    "Saída seguida"
+  ],
+  [
+    "output_open_count",
+    "Oportunidades abertas"
+  ],
+  [
+    "output_opportunities",
+    "Oportunidades"
+  ],
+  [
+    "output_opportunity_id",
+    "ID da oportunidade"
+  ],
+  [
+    "output_passed",
+    "Passou no filtro"
+  ],
+  [
+    "output_pipeline_changed",
+    "Trocou de funil"
+  ],
+  [
+    "output_pipeline_id",
+    "ID do funil"
+  ],
+  [
+    "output_pipeline_name",
+    "Funil"
+  ],
+  [
+    "output_provider_message_id",
+    "ID no provedor"
+  ],
+  [
+    "output_queued",
+    "Foi para a fila"
+  ],
+  [
+    "output_reason",
+    "Motivo"
+  ],
+  [
+    "output_repeated",
+    "Envio já feito antes"
+  ],
+  [
+    "output_response_text",
+    "Resposta da IA"
+  ],
+  [
+    "output_row_id",
+    "ID da linha"
+  ],
+  [
+    "output_scheduled_at",
+    "Agendado para"
+  ],
+  [
+    "output_scheduled_at_utc",
+    "Horário (UTC)"
+  ],
+  [
+    "output_scheduled_for",
+    "Horário local"
+  ],
+  [
+    "output_selected_option_id",
+    "ID da opção escolhida"
+  ],
+  [
+    "output_selected_option_title",
+    "Opção escolhida"
+  ],
+  [
+    "output_send_id",
+    "ID do envio"
+  ],
+  [
+    "output_sent",
+    "Enviado"
+  ],
+  [
+    "output_server_response",
+    "Resposta do servidor"
+  ],
+  [
+    "output_sheet_id",
+    "ID da planilha"
+  ],
+  [
+    "output_sheet_title",
+    "Título da planilha"
+  ],
+  [
+    "output_sheet_url",
+    "Link da planilha"
+  ],
+  [
+    "output_stage_id",
+    "ID da etapa"
+  ],
+  [
+    "output_stage_name",
+    "Nome da etapa"
+  ],
+  [
+    "output_start_time",
+    "Início"
+  ],
+  [
+    "output_state",
+    "Situação do consentimento"
+  ],
+  [
+    "output_status",
+    "Situação"
+  ],
+  [
+    "output_status_code",
+    "Código HTTP"
+  ],
+  [
+    "output_status_subflow",
+    "Situação do sub-fluxo"
+  ],
+  [
+    "output_sub_state",
+    "Estado final do sub-fluxo"
+  ],
+  [
+    "output_subject",
+    "Assunto"
+  ],
+  [
+    "output_success",
+    "Deu certo"
+  ],
+  [
+    "output_template_id",
+    "ID do template"
+  ],
+  [
+    "output_template_name",
+    "Nome do template"
+  ],
+  [
+    "output_text",
+    "Texto enviado"
+  ],
+  [
+    "output_time",
+    "Hora"
+  ],
+  [
+    "output_timestamp",
+    "Timestamp Unix"
+  ],
+  [
+    "output_timezone",
+    "Fuso horário"
+  ],
+  [
+    "output_title",
+    "Título"
+  ],
+  [
+    "output_to",
+    "Destinatário"
+  ],
+  [
+    "output_to_many",
+    "Destinatários"
+  ],
+  [
+    "output_tool_args",
+    "Argumentos da ferramenta"
+  ],
+  [
+    "output_tool_name",
+    "Ferramenta chamada"
+  ],
+  [
+    "output_total",
+    "Total de itens"
+  ],
+  [
+    "output_transferred",
+    "Atendente assumiu"
+  ],
+  [
+    "output_value",
+    "Valor"
+  ],
+  [
+    "output_value_cents",
+    "Valor em centavos"
+  ],
+  [
+    "output_wait_minutes",
+    "Minutos de espera"
+  ],
+  [
+    "output_weekday",
+    "Dia da semana"
+  ]
+]

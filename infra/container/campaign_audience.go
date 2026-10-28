@@ -26,6 +26,7 @@ func (c *Container) campaignAudienceModule() *campaignaudiencewiring.Module {
 		Gate:        c.sharedAnalyticsGate(),
 		Shared:      c.redisProvider.SharedState(),
 		EmailsSeen:  c.emailHygiene().Service,
+		Values:      c.variableDeclarations(),
 	})
 	if err != nil {
 		log.Fatalf("[campaign-audience] %v", err)

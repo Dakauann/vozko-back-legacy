@@ -291,7 +291,7 @@ func TestWriterPutsTheLinkFormulaPointingAtTheTimelineTab(t *testing.T) {
 		t.Fatalf("appends = %+v", w.api.appends)
 	}
 	formula, ok := w.api.appends[0].rows[0][3].(googlesheet.Formula)
-	want, _ := googlesheet.LinkFormula(googlesheet.TabRef{ID: 31, Title: "Negociações"}, anchorRowID, googlesheet.DefaultLinkLabel)
+	want, _ := googlesheet.LinkFormula(googlesheet.TabRef{ID: 31, Title: "Negociações"}, anchorRowID, googlesheet.DefaultLinkLabel, googlesheet.SeparatorSemicolon)
 	if !ok || formula != want {
 		t.Fatalf("link cell = %#v, want %s", w.api.appends[0].rows[0][3], want)
 	}

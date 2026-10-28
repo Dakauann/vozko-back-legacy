@@ -196,3 +196,21 @@ func TestHeldConversationsAreTheAutomationsOnThatChannelWithoutADelegation(t *te
 		}
 	})
 }
+
+func TestStoredValuesComeWithWhoSetThem(t *testing.T) {
+	inRolledBackTx(t, func(tx *gorm.DB) {
+		repo := NewConversationVariables(tx)
+		ctx := context.Background()
+		ref := conversationvars.Ref{WorkspaceID: uuid.NewString(), EntryID: uuid.NewString(), EntryType: shared.EntryTypeWhatsApp}
+		if err := repo.Save(ctx, ref, map[string]string{"turno": "Tarde", "matricula": "1"}, "u-7"); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := repo.Detailed(ctx, ref.EntryID, ref.EntryType)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 2 || rows[0].Name != "matricula" || rows[1].Value != "Tarde" || rows[1].SetBy != "u-7" || rows[1].SetAt.IsZero() {
+			t.Fatalf("rows = %+v", rows)
+		}
+	})
+}

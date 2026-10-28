@@ -19,6 +19,7 @@ type cancelSweepUseCase struct {
 	onReduced workspace_addon.EntitlementChangeHandler
 	alerter   billing.OpsAlerter
 	notices   BillingNotices
+	access    AccessHooks
 	cutoffDay int
 	batchSize int
 	now       clockFn
@@ -43,6 +44,11 @@ func NewCancelSweepUseCase(
 		batchSize: defaultEmitBatchSize,
 		now:       brtNow,
 	}
+}
+
+func (uc *cancelSweepUseCase) WithAccessHooks(hooks AccessHooks) *cancelSweepUseCase {
+	uc.access = hooks
+	return uc
 }
 
 func (uc *cancelSweepUseCase) Execute() (int, error) {
@@ -137,6 +143,10 @@ func (uc *cancelSweepUseCase) sweepWorkspace(inv *invoice.Invoice) (bool, error)
 		return false, uc.invoices.UpdateStatus(inv.ID, invoice.StatusExpired)
 	}
 
+	if !billsPlan(inv) {
+		return false, uc.lapseBilledAddons(inv)
+	}
+
 	addons, err := uc.addons.ListActiveByWorkspace(ws)
 	if err != nil {
 		return false, fmt.Errorf("list addons: %w", err)
@@ -161,8 +171,50 @@ func (uc *cancelSweepUseCase) sweepWorkspace(inv *invoice.Invoice) (bool, error)
 		return false, fmt.Errorf("cancel channels at vendor: %w", err)
 	}
 
+	if uc.access != nil {
+		if err := uc.access.OnAccessCut(context.Background(), ws); err != nil {
+			return false, fmt.Errorf("cut workspace access: %w", err)
+		}
+	}
+
 	if err := uc.invoices.UpdateStatus(inv.ID, invoice.StatusExpired); err != nil {
 		return false, fmt.Errorf("mark invoice expired: %w", err)
 	}
 	return true, nil
+}
+
+func billsPlan(inv *invoice.Invoice) bool {
+	if len(inv.LineItems) == 0 {
+		return true
+	}
+	for _, line := range inv.LineItems {
+		if line.Kind == invoice.LineItemPlan {
+			return true
+		}
+	}
+	return false
+}
+
+func (uc *cancelSweepUseCase) lapseBilledAddons(inv *invoice.Invoice) error {
+	ws := inv.WorkspaceID
+	addons, err := uc.addons.ListActiveByWorkspace(ws)
+	if err != nil {
+		return fmt.Errorf("list addons: %w", err)
+	}
+	for _, a := range addons {
+		if inv.DueDate != nil && !a.DueBy(*inv.DueDate) {
+			continue
+		}
+		a.Status = workspace_plan.SubscriptionStatusExpired
+		if err := uc.addons.Update(a); err != nil {
+			return fmt.Errorf("lapse addon %s: %w", a.ID, err)
+		}
+	}
+	if err := uc.onReduced.OnEntitlementReduced(ws, workspace_addon.EntitlementWhatsAppBusinessPhones); err != nil {
+		return fmt.Errorf("cancel channels at vendor: %w", err)
+	}
+	if err := uc.invoices.UpdateStatus(inv.ID, invoice.StatusExpired); err != nil {
+		return fmt.Errorf("mark invoice expired: %w", err)
+	}
+	return nil
 }

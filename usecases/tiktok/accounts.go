@@ -95,7 +95,7 @@ func (uc *Accounts) Update(ctx context.Context, in UpdateAccountInput) (*ttdomai
 	}); err != nil {
 		return nil, err
 	}
-	if err := uc.d.Receptive.Admit(account.WorkspaceID, account.Automation()); err != nil {
+	if err := uc.d.Receptive.Admit(account.WorkspaceID, automationneeds.SlotTikTok, account.Automation()); err != nil {
 		return nil, err
 	}
 	if err := uc.d.Accounts.Update(ctx, account); err != nil {

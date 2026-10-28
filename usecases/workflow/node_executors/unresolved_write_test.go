@@ -67,7 +67,7 @@ func TestSetVariableNeverStoresAnUnresolvedPlaceholder(t *testing.T) {
 	ctx := stageNodeCtx(workflow.NodeTypeActionSetVariable, map[string]interface{}{"variable": "nome", "value": "{{message}}"}, nil)
 	ctx.Trace = &workflow.StepTrace{}
 
-	result, err := NewSetVariableExecutor().Execute(ctx)
+	result, err := NewSetVariableExecutor(nil).Execute(ctx)
 	require.NoError(t, err)
 
 	_, stored := ctx.State.Get("nome")
@@ -81,7 +81,7 @@ func TestSetVariableStoresAResolvedValue(t *testing.T) {
 	ctx.Trace = &workflow.StepTrace{}
 	ctx.State.Set("message", "Paulo")
 
-	result, err := NewSetVariableExecutor().Execute(ctx)
+	result, err := NewSetVariableExecutor(nil).Execute(ctx)
 	require.NoError(t, err)
 
 	require.Equal(t, "Sr. Paulo", ctx.State.GetString("nome"))

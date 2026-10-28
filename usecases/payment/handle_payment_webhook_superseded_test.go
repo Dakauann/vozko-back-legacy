@@ -37,7 +37,7 @@ func newSupersededRig(status invoice.Status) *supersededRig {
 	}
 	rig.uc = NewHandlePaymentWebhookUseCase(rig.repo, nil, rig.credit, bookDebit{rig.book}, nil).
 		WithMonthlyBilling(rig.confirm).
-		WithReversals(rig.book, &fakeLocks{}, rig.alerts)
+		WithReversals(rig.book, &fakeLocks{}, rig.alerts, newFakeReleases())
 	return rig
 }
 

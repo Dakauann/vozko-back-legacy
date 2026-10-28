@@ -70,7 +70,7 @@ func (u *Inboxes) Update(ctx context.Context, workspaceID, senderID string, sett
 	}); err != nil {
 		return nil, fmt.Errorf("%w: %v", em.ErrInvalidReference, err)
 	}
-	if err := u.guard.Admit(workspaceID, inbox.Automation()); err != nil {
+	if err := u.guard.Admit(workspaceID, automationneeds.SlotEmail, inbox.Automation()); err != nil {
 		return nil, err
 	}
 	if err := u.inboxes.Update(ctx, inbox); err != nil {

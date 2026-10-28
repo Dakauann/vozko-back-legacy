@@ -21,8 +21,11 @@ func validDraft() Draft {
 }
 
 func TestEveryCatalogCategoryIsValidAndUnknownOnesAreNot(t *testing.T) {
-	if len(Categories()) != 11 {
-		t.Fatalf("the catalog must list eleven categories, got %d", len(Categories()))
+	if len(Categories()) != 12 {
+		t.Fatalf("the catalog must list twelve categories, got %d", len(Categories()))
+	}
+	if !CategoryLeads.Valid() || CategoryLeads != "leads" {
+		t.Fatal("page form submissions need the leads category")
 	}
 	if !CategoryAutomations.Valid() || CategoryAutomations != "automations" {
 		t.Fatal("workflow runtime alerts need the automations category")

@@ -43,7 +43,7 @@ func TestAssignRefusesBindingsNoConversationCouldResolve(t *testing.T) {
 		{"an unknown lead field", []Binding{{Name: "turma", Source: campaign.CustomBinding("turma")}}, ErrSourceInvalid, []string{"turma"}},
 		{"a sensitive lead field", []Binding{{Name: "doc", Source: campaign.CustomBinding("cpf")}}, ErrSourceInvalid, []string{"doc"}},
 		{"a value on a lead field", []Binding{{Name: "turma", Source: campaign.BindFirstName, Value: "x"}}, ErrSourceInvalid, []string{"turma"}},
-		{"a value on the current value", []Binding{{Name: "turma", Source: SourceCurrent, Value: "x"}}, ErrSourceInvalid, []string{"turma"}},
+		{"another variable that is not a name", []Binding{{Name: "turma", Source: SourceCurrent, Value: "não é nome"}}, ErrSourceInvalid, []string{"turma"}},
 		{"a blank fixed value", []Binding{{Name: "turma", Source: campaign.BindLiteral, Value: "  "}, {Name: "escola", Source: campaign.BindLiteral}}, ErrValueEmpty, []string{"turma", "escola"}},
 		{"a fixed value too long", []Binding{{Name: "turma", Source: campaign.BindLiteral, Value: strings.Repeat("é", MaxValueRunes+1)}}, ErrValueInvalid, []string{"turma"}},
 	}
@@ -133,5 +133,20 @@ func TestLiteralBindingsCarryTheOldValuesMapInNameOrder(t *testing.T) {
 	want := []Binding{{Name: "escola", Source: campaign.BindLiteral, Value: "Prisma"}, {Name: "turma", Source: campaign.BindLiteral, Value: "B"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("bindings = %+v", got)
+	}
+}
+
+func TestAVariableCanTakeTheCurrentValueOfAnotherOne(t *testing.T) {
+	a, err := Assign([]Binding{{Name: "planilha_destino", Source: SourceCurrent, Value: "planilha_franquia"}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := a.Resolve(campaign.BindingSubject{}, map[string]string{"planilha_franquia": "sp-centro"})
+	if err != nil || !reflect.DeepEqual(got, map[string]string{"planilha_destino": "sp-centro"}) {
+		t.Fatalf("copied = %v, %v", got, err)
+	}
+	_, err = a.Resolve(campaign.BindingSubject{}, map[string]string{})
+	if names := refusedNames(t, err, ErrValueEmpty); !reflect.DeepEqual(names, []string{"planilha_destino"}) {
+		t.Fatalf("names = %v", names)
 	}
 }

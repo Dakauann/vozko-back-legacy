@@ -18,6 +18,7 @@ type WorkspaceAddonDefinition struct {
 	AnnualPriceMicros  int64      `gorm:"not null;default:0"`
 	MonthlyCostMicros  int64      `gorm:"not null;default:0"`
 	AnnualCostMicros   int64      `gorm:"not null;default:0"`
+	MaxUnits           int        `gorm:"not null;default:0"`
 	IsActive           bool       `gorm:"not null;default:true"`
 	IsGloballyVisible  bool       `gorm:"not null;default:true"`
 	ArchivedAt         *time.Time `gorm:"index"`
@@ -35,20 +36,22 @@ func (d *WorkspaceAddonDefinition) BeforeCreate(tx *gorm.DB) error {
 }
 
 type WorkspaceAddonSubscription struct {
-	ID                 string     `gorm:"primaryKey;type:uuid"`
-	WorkspaceID        string     `gorm:"type:uuid;not null;index"`
-	AddonDefinitionID  string     `gorm:"type:uuid;not null;index"`
-	AddonKey           string     `gorm:"type:varchar(80);not null"`
-	EntitlementKind    string     `gorm:"type:varchar(40);not null;index"`
-	Quantity           int        `gorm:"not null;default:1"`
-	UnitsPerQuantity   int        `gorm:"not null;default:1"`
-	BillingCycle       string     `gorm:"type:varchar(20);not null;default:'monthly'"`
-	Status             string     `gorm:"type:varchar(20);not null;index"`
-	UnitPriceMicros    int64      `gorm:"not null;default:0"`
-	BoundResourceType  *string    `gorm:"type:varchar(40);index"`
-	BoundResourceID    *string    `gorm:"type:varchar(120);index"`
-	CurrentPeriodStart time.Time  `gorm:"not null;index"`
-	CurrentPeriodEnd   time.Time  `gorm:"not null;index"`
+	ID                 string    `gorm:"primaryKey;type:uuid"`
+	WorkspaceID        string    `gorm:"type:uuid;not null;index"`
+	AddonDefinitionID  string    `gorm:"type:uuid;not null;index"`
+	AddonKey           string    `gorm:"type:varchar(80);not null"`
+	EntitlementKind    string    `gorm:"type:varchar(40);not null;index"`
+	Quantity           int       `gorm:"not null;default:1"`
+	UnitsPerQuantity   int       `gorm:"not null;default:1"`
+	BillingCycle       string    `gorm:"type:varchar(20);not null;default:'monthly'"`
+	Status             string    `gorm:"type:varchar(20);not null;index"`
+	UnitPriceMicros    int64     `gorm:"not null;default:0"`
+	BoundResourceType  *string   `gorm:"type:varchar(40);index"`
+	BoundResourceID    *string   `gorm:"type:varchar(120);index"`
+	CurrentPeriodStart time.Time `gorm:"not null;index"`
+	CurrentPeriodEnd   time.Time `gorm:"not null;index"`
+	ScheduledQuantity  *int
+	ScheduledFrom      *time.Time
 	CancelledAt        *time.Time `gorm:"index"`
 	CreatedAt          time.Time  `gorm:"autoCreateTime"`
 	UpdatedAt          time.Time  `gorm:"autoUpdateTime"`

@@ -143,3 +143,12 @@ func closingStage(stages []*stage.Stage, won bool) (opportunity.StageRef, error)
 	}
 	return opportunity.StageRef{}, ErrPipelineHasNoLostStage
 }
+
+func (s *Service) InitialStage(workspaceID, pipelineID string) (string, error) {
+	stages, err := s.PipelineStages(workspaceID, pipelineID)
+	if err != nil {
+		return "", err
+	}
+	ref, err := initialStage(stages)
+	return ref.ID, err
+}

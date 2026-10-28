@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"vozko/infra/database"
+	workflow_usecase "vozko/usecases/workflow"
 )
 
 func (c *Container) initDatabase() {
@@ -12,7 +13,7 @@ func (c *Container) initDatabase() {
 		log.Fatal("Failed to connect to database for migrations:", err)
 	}
 
-	if err := database.RunMigrations(migrationDB); err != nil {
+	if err := database.RunMigrations(migrationDB, workflow_usecase.CatalogNodeOutputs()); err != nil {
 		log.Fatal("Failed to run migrations:", err)
 	}
 

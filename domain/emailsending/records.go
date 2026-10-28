@@ -1,6 +1,10 @@
 package emailsending
 
-import "strings"
+import (
+	"strings"
+
+	"vozko/domain/dnsrecord"
+)
 
 type RecordPurpose string
 
@@ -97,11 +101,5 @@ func DMARCCompatible(value string) bool {
 }
 
 func RelativeHost(fqdn, domain string) string {
-	if fqdn == domain {
-		return "@"
-	}
-	if strings.HasSuffix(fqdn, "."+domain) {
-		return strings.TrimSuffix(fqdn, "."+domain)
-	}
-	return fqdn
+	return dnsrecord.RelativeHost(fqdn, domain)
 }

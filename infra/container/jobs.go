@@ -220,7 +220,7 @@ func (c *Container) initJobRunner() {
 		"unofficial_whatsapp_capacity_reconcile": cronPackage.Executes(uwBundle.ReconcileCapacity),
 		"unofficial_whatsapp_history_sweep":      cronPackage.Executes(uwBundle.HistorySync),
 		"unofficial_whatsapp_groups_sweep":       cronPackage.Executes(uwBundle.WorkspaceGroups.Sweep()),
-	}, c.notificationJobs(), c.tiktokJobs(), c.googleJobs(), c.googleSheetsJobs(), c.emailJobs(), c.carrierCronJobs())
+	}, c.notificationJobs(), c.tiktokJobs(), c.googleJobs(), c.googleSheetsJobs(), c.emailJobs(), c.carrierCronJobs(), c.sitePublishJobs(), c.siteFormJobs())
 
 	registry, err := cronPackage.NewRegistry(c.redisProvider.SharedState(), cronPackage.Catalog, bindings)
 	if err != nil {

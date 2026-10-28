@@ -13,7 +13,7 @@ type batchSubscriptionReader interface {
 }
 
 type batchAddonReader interface {
-	SumActiveGrantedUnitsByWorkspaceIDs(workspaceIDs []string, kind workspace_addon.EntitlementKind) (map[string]int, error)
+	SumActiveGrantedUnitsByWorkspaceIDs(workspaceIDs []string, kind workspace_addon.EntitlementKind, at time.Time) (map[string]int, error)
 }
 
 type batchEntitlementResolver struct {
@@ -49,7 +49,7 @@ func (r *batchEntitlementResolver) ResolveMany(workspaceIDs []string, kind works
 	if err != nil {
 		return nil, err
 	}
-	addonUnits, err := r.addons.SumActiveGrantedUnitsByWorkspaceIDs(workspaceIDs, kind)
+	addonUnits, err := r.addons.SumActiveGrantedUnitsByWorkspaceIDs(workspaceIDs, kind, now)
 	if err != nil {
 		return nil, err
 	}

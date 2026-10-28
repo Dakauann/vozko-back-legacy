@@ -90,7 +90,7 @@ func newSeedFixture(t *testing.T, detail *workflow.RunDetail) *seedFixture {
 	registry := NewNodeExecutorRegistry()
 	registry.Register(workflow.NodeTypeActionSetVariable, f.row)
 	registry.Register(workflow.NodeTypeActionAIAgent, f.ai)
-	saved, err := NewTestValuesUseCase(f.values, needsSourceStub{})
+	saved, err := NewTestValuesUseCase(f.values, needsSourceStub{}, rulesStub{})
 	if err != nil {
 		t.Fatal(err)
 	}

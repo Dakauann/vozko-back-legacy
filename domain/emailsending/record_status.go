@@ -1,22 +1,14 @@
 package emailsending
 
-import "strings"
+import "vozko/domain/dnsrecord"
 
-type RecordStatus string
+type RecordStatus = dnsrecord.Status
 
 const (
-	RecordVerified RecordStatus = "verified"
-	RecordPending  RecordStatus = "pending"
-	RecordUnknown  RecordStatus = "unknown"
+	RecordVerified = dnsrecord.Verified
+	RecordPending  = dnsrecord.Pending
+	RecordUnknown  = dnsrecord.Unknown
 )
-
-func (s RecordStatus) Valid() bool {
-	switch s {
-	case RecordVerified, RecordPending, RecordUnknown:
-		return true
-	}
-	return false
-}
 
 func (r DNSRecord) CurrentStatus() RecordStatus {
 	if r.Status.Valid() {
@@ -25,10 +17,7 @@ func (r DNSRecord) CurrentStatus() RecordStatus {
 	return RecordPending
 }
 
-type DNSAnswer struct {
-	Values []string
-	Failed bool
-}
+type DNSAnswer = dnsrecord.Answer
 
 type DNSAnswers struct {
 	MX  map[string]DNSAnswer
@@ -79,18 +68,9 @@ func verifiedWhen(ok bool) RecordStatus {
 }
 
 func observed(answers map[string]DNSAnswer, name string, matches func(string) bool) RecordStatus {
-	answer, ok := answers[hostKey(name)]
-	if !ok || answer.Failed {
-		return RecordUnknown
-	}
-	for _, v := range answer.Values {
-		if matches(v) {
-			return RecordVerified
-		}
-	}
-	return RecordPending
+	return dnsrecord.Observe(answers, name, matches)
 }
 
 func hostKey(name string) string {
-	return strings.ToLower(strings.TrimSuffix(strings.TrimSpace(name), "."))
+	return dnsrecord.HostKey(name)
 }

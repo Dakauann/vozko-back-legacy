@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"vozko/domain/conversation"
+	"vozko/domain/publicform"
 )
 
 const (
@@ -78,6 +79,7 @@ type Widget struct {
 	Status       Status  `json:"status"`
 
 	AllowedOrigins []string `json:"allowedOrigins"`
+	siteOrigins    []string
 
 	AccentColor    string   `json:"accentColor"`
 	Position       Position `json:"position"`
@@ -156,7 +158,7 @@ func canonicalOrigins(raw []string) []string {
 	seen := make(map[string]struct{}, len(raw))
 	for _, r := range raw {
 		key := strings.TrimSpace(r)
-		if p, err := ParseOriginPattern(r); err == nil {
+		if p, err := publicform.ParseOriginPattern(r); err == nil {
 			key = p.String()
 		}
 		if key == "" {
@@ -232,8 +234,8 @@ func validateOrigins(origins []string) error {
 		return ErrWidgetTooManyOrigins
 	}
 	for _, o := range origins {
-		if _, err := ParseOriginPattern(o); err != nil {
-			return err
+		if _, err := publicform.ParseOriginPattern(o); err != nil {
+			return PublicFormRefusal(err)
 		}
 	}
 	return nil
@@ -247,39 +249,20 @@ func validPolicyURL(raw string) bool {
 	return err == nil && u.Scheme == "https" && u.Host != "" && u.User == nil
 }
 
-func (w *Widget) originPatterns() []OriginPattern {
-	out := make([]OriginPattern, 0, len(w.AllowedOrigins))
-	for _, o := range w.AllowedOrigins {
-		if p, err := ParseOriginPattern(o); err == nil {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
 func (w *Widget) AllowsOrigin(origin string) bool {
-	for _, p := range w.originPatterns() {
-		if p.Matches(origin) {
-			return true
-		}
-	}
-	return false
+	return w.origins().Allows(origin)
 }
 
 func (w *Widget) FrameAncestors() string {
-	patterns := w.originPatterns()
-	if len(patterns) == 0 {
+	origins := w.origins()
+	if origins.Empty() {
 		return "'none'"
 	}
-	parts := make([]string, len(patterns))
-	for i, p := range patterns {
-		parts[i] = p.String()
-	}
-	return strings.Join(parts, " ")
+	return strings.Join(origins.Origins(), " ")
 }
 
 func (w *Widget) Serves() bool {
-	return w != nil && w.Status == StatusActive && len(w.originPatterns()) > 0
+	return w != nil && w.Status == StatusActive && !w.origins().Empty()
 }
 
 func (w *Widget) AsksIntake() bool {

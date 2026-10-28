@@ -80,7 +80,11 @@ func (w FollowUpWhen) Resolve(now time.Time, loc *time.Location) (time.Time, err
 	if err != nil {
 		return time.Time{}, err
 	}
-	return time.Date(day.Year(), day.Month(), day.Day(), hour, minute, 0, 0, loc), nil
+	at := time.Date(day.Year(), day.Month(), day.Day(), hour, minute, 0, 0, loc)
+	if date != "" && at.Before(now) {
+		return time.Time{}, ErrFollowUpWhenPast
+	}
+	return at, nil
 }
 
 func (w FollowUpWhen) day(now time.Time, loc *time.Location, date string) (time.Time, error) {
@@ -212,6 +216,8 @@ var followUpCodes = []followUpCode{
 	{"follow_up_when_required", []error{ErrFollowUpWhenRequired}},
 	{"follow_up_when_ambiguous", []error{ErrFollowUpWhenAmbiguous}},
 	{"follow_up_when_invalid", []error{ErrFollowUpWhenInvalid}},
+	{"follow_up_field_invalid", []error{ErrFollowUpFieldInvalid}},
+	{"follow_up_when_past", []error{ErrFollowUpWhenPast}},
 	{"follow_up_too_soon", []error{ErrScheduledAtTooSoon}},
 	{"follow_up_too_far", []error{ErrScheduledAtTooFar}},
 	{"follow_up_past_window", []error{ErrScheduledAtPastWindow}},

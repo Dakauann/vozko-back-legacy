@@ -1,8 +1,10 @@
 package billing_usecase
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"time"
 
 	billing "vozko/domain/billing"
 	workspace_addon "vozko/domain/workspace/workspace_addon"
@@ -13,11 +15,15 @@ type confirmMonthlyBillingUseCase struct {
 	subs     workspace_plan.SubscriptionRepository
 	addons   workspace_addon.AddonSubscriptionRepository
 	onChange workspace_addon.EntitlementChangeHandler
+	access   AccessHooks
 	dueDay   int
 	now      clockFn
 }
 
-var _ billing.ConfirmMonthlyBillingUseCase = (*confirmMonthlyBillingUseCase)(nil)
+var (
+	_ billing.ConfirmMonthlyBillingUseCase = (*confirmMonthlyBillingUseCase)(nil)
+	_ billing.ConfirmBilledCycleUseCase    = (*confirmMonthlyBillingUseCase)(nil)
+)
 
 func NewConfirmMonthlyBillingUseCase(
 	subs workspace_plan.SubscriptionRepository,
@@ -36,19 +42,28 @@ func (uc *confirmMonthlyBillingUseCase) WithReactivation(handler workspace_addon
 	return uc
 }
 
+func (uc *confirmMonthlyBillingUseCase) WithAccessHooks(hooks AccessHooks) *confirmMonthlyBillingUseCase {
+	uc.access = hooks
+	return uc
+}
+
 func (uc *confirmMonthlyBillingUseCase) Execute(workspaceID string) error {
+	return uc.ExecuteForCycle(workspaceID, billing.LatestIssuedDue(uc.now()))
+}
+
+func (uc *confirmMonthlyBillingUseCase) ExecuteForCycle(workspaceID string, billedDue time.Time) error {
 	now := uc.now()
 	revived := false
 
 	if sub, err := uc.subs.GetLatestByWorkspaceID(workspaceID); err != nil {
 		log.Printf("[billing-confirm] workspace %s: get plan subscription failed: %v", workspaceID, err)
 	} else if sub != nil {
-		if sub.Status == workspace_plan.SubscriptionStatusExpired {
-			revived = true
-		}
-		sub.Extend(now, uc.dueDay)
-		if err := uc.subs.Update(sub); err != nil {
-			return fmt.Errorf("update plan subscription: %w", err)
+		wasExpired := sub.Status == workspace_plan.SubscriptionStatusExpired
+		if renewPlan(sub, billedDue, now, uc.dueDay) {
+			revived = revived || wasExpired
+			if err := uc.subs.Update(sub); err != nil {
+				return fmt.Errorf("update plan subscription: %w", err)
+			}
 		}
 	}
 
@@ -57,10 +72,11 @@ func (uc *confirmMonthlyBillingUseCase) Execute(workspaceID string) error {
 		return fmt.Errorf("list reactivatable addons: %w", err)
 	}
 	for _, a := range addons {
-		if a.Status == workspace_plan.SubscriptionStatusExpired {
-			revived = true
+		wasExpired := a.Status == workspace_plan.SubscriptionStatusExpired
+		if !a.RenewForInvoice(billedDue, now, uc.dueDay) {
+			continue
 		}
-		a.Extend(now, uc.dueDay)
+		revived = revived || (wasExpired && a.Status == workspace_plan.SubscriptionStatusActive)
 		if err := uc.addons.Update(a); err != nil {
 			return fmt.Errorf("update addon %s: %w", a.ID, err)
 		}
@@ -71,5 +87,23 @@ func (uc *confirmMonthlyBillingUseCase) Execute(workspaceID string) error {
 			log.Printf("[billing-confirm] workspace %s: channel reactivation after late payment failed: %v", workspaceID, err)
 		}
 	}
+	if revived && uc.access != nil {
+		if err := uc.access.OnAccessRestored(context.Background(), workspaceID); err != nil {
+			log.Printf("[billing-confirm] workspace %s: access restore after late payment failed: %v", workspaceID, err)
+		}
+	}
 	return nil
+}
+
+func renewPlan(sub *workspace_plan.WorkspaceSubscription, billedDue, now time.Time, dueDay int) bool {
+	if billing.DueOn(sub.CurrentPeriodEnd, billedDue) {
+		sub.Extend(now, dueDay)
+		return true
+	}
+	if sub.Status == workspace_plan.SubscriptionStatusExpired && sub.CurrentPeriodEnd.After(now) {
+		sub.Status = workspace_plan.SubscriptionStatusActive
+		sub.UpdatedAt = now
+		return true
+	}
+	return false
 }

@@ -11,6 +11,7 @@ import (
 	"vozko/domain/invoice"
 	workspace_addon "vozko/domain/workspace/workspace_addon"
 	workspace_plan "vozko/domain/workspace/workspace_plan"
+	billing_usecase "vozko/usecases/billing"
 )
 
 type createSubscriptionInvoiceUseCase struct {
@@ -24,12 +25,14 @@ type createSubscriptionInvoiceUseCase struct {
 type subscribeWorkspaceUseCase struct {
 	plans         workspace_plan.PlanRepository
 	subscriptions workspace_plan.SubscriptionRepository
+	access        billing_usecase.AccessHooks
 	now           clockFn
 }
 
 type renewWorkspaceSubscriptionUseCase struct {
 	plans         workspace_plan.PlanRepository
 	subscriptions workspace_plan.SubscriptionRepository
+	access        billing_usecase.AccessHooks
 	now           clockFn
 }
 
@@ -69,12 +72,12 @@ func NewCreateSubscriptionInvoiceUseCase(
 	}
 }
 
-func NewSubscribeWorkspaceUseCase(plans workspace_plan.PlanRepository, subscriptions workspace_plan.SubscriptionRepository) workspace_plan.SubscribeWorkspaceUseCase {
-	return &subscribeWorkspaceUseCase{plans: plans, subscriptions: subscriptions, now: utcNow}
+func NewSubscribeWorkspaceUseCase(plans workspace_plan.PlanRepository, subscriptions workspace_plan.SubscriptionRepository, access billing_usecase.AccessHooks) workspace_plan.SubscribeWorkspaceUseCase {
+	return &subscribeWorkspaceUseCase{plans: plans, subscriptions: subscriptions, access: access, now: utcNow}
 }
 
-func NewRenewWorkspaceSubscriptionUseCase(plans workspace_plan.PlanRepository, subscriptions workspace_plan.SubscriptionRepository) workspace_plan.RenewWorkspaceSubscriptionUseCase {
-	return &renewWorkspaceSubscriptionUseCase{plans: plans, subscriptions: subscriptions, now: utcNow}
+func NewRenewWorkspaceSubscriptionUseCase(plans workspace_plan.PlanRepository, subscriptions workspace_plan.SubscriptionRepository, access billing_usecase.AccessHooks) workspace_plan.RenewWorkspaceSubscriptionUseCase {
+	return &renewWorkspaceSubscriptionUseCase{plans: plans, subscriptions: subscriptions, access: access, now: utcNow}
 }
 
 func NewCancelWorkspaceSubscriptionUseCase(plans workspace_plan.PlanRepository, subscriptions workspace_plan.SubscriptionRepository) workspace_plan.CancelWorkspaceSubscriptionUseCase {
@@ -274,6 +277,7 @@ func (uc *subscribeWorkspaceUseCase) Execute(workspaceID, planID string, billing
 	if err := uc.subscriptions.Create(subscription); err != nil {
 		return nil, err
 	}
+	restoreAccess(uc.access, workspaceID)
 	return &workspace_plan.WorkspaceSubscriptionDetails{Subscription: subscription, Plan: plan}, nil
 }
 
@@ -311,6 +315,7 @@ func (uc *renewWorkspaceSubscriptionUseCase) Execute(workspaceID string) (*works
 	if err := uc.subscriptions.Update(subscription); err != nil {
 		return nil, err
 	}
+	restoreAccess(uc.access, workspaceID)
 	plan, err := uc.plans.GetByID(subscription.PlanDefinitionID)
 	if err != nil {
 		return nil, err
@@ -395,15 +400,17 @@ const expireDunningGraceDays = billing.DefaultCancelDeadlineDay - billing.Defaul
 type expireSubscriptionsUseCase struct {
 	subscriptions workspace_plan.SubscriptionRepository
 	onReduced     workspace_addon.EntitlementChangeHandler
+	access        billing_usecase.AccessHooks
 	batchSize     int
 	graceDays     int
 	now           clockFn
 }
 
-func NewExpireSubscriptionsUseCase(subscriptions workspace_plan.SubscriptionRepository, onReduced workspace_addon.EntitlementChangeHandler) workspace_plan.ExpireSubscriptionsUseCase {
+func NewExpireSubscriptionsUseCase(subscriptions workspace_plan.SubscriptionRepository, onReduced workspace_addon.EntitlementChangeHandler, access billing_usecase.AccessHooks) workspace_plan.ExpireSubscriptionsUseCase {
 	return &expireSubscriptionsUseCase{
 		subscriptions: subscriptions,
 		onReduced:     onReduced,
+		access:        access,
 		batchSize:     defaultExpireBatchSize,
 		graceDays:     expireDunningGraceDays,
 		now:           utcNow,
@@ -417,7 +424,7 @@ func (uc *expireSubscriptionsUseCase) Execute() (int64, error) {
 	for {
 		workspaceIDs, err := uc.subscriptions.ExpireOverdue(cutoff, uc.batchSize)
 		if err != nil {
-			uc.reconcileWhatsApp(affected)
+			uc.reconcile(affected)
 			return total, err
 		}
 		for _, ws := range workspaceIDs {
@@ -428,8 +435,15 @@ func (uc *expireSubscriptionsUseCase) Execute() (int64, error) {
 			break
 		}
 	}
-	uc.reconcileWhatsApp(affected)
+	uc.reconcile(affected)
 	return total, nil
+}
+
+func (uc *expireSubscriptionsUseCase) reconcile(workspaceIDs map[string]struct{}) {
+	uc.reconcileWhatsApp(workspaceIDs)
+	for ws := range workspaceIDs {
+		cutAccess(uc.access, ws)
+	}
 }
 
 func (uc *expireSubscriptionsUseCase) reconcileWhatsApp(workspaceIDs map[string]struct{}) {

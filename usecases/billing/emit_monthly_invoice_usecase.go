@@ -1,6 +1,7 @@
 package billing_usecase
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -62,6 +63,15 @@ func (uc *emitMonthlyInvoicesUseCase) Execute() (int, error) {
 	windowEnd := billing.NextAnchor(now, uc.dueDay)
 	rate := uc.exchangeRate()
 
+	emitted, err := uc.emitPlansDue(windowEnd, rate)
+	if err != nil {
+		return emitted, err
+	}
+	addonOnly, err := uc.emitAddonsDue(windowEnd, rate)
+	return emitted + addonOnly, err
+}
+
+func (uc *emitMonthlyInvoicesUseCase) emitPlansDue(windowEnd time.Time, rate float64) (int, error) {
 	emitted := 0
 	afterID := ""
 	for {
@@ -74,13 +84,31 @@ func (uc *emitMonthlyInvoicesUseCase) Execute() (int, error) {
 		}
 		for _, sub := range page {
 			afterID = sub.ID
-			created, err := uc.emitForWorkspace(sub, windowEnd, rate)
-			if err != nil {
-				log.Printf("[billing-emit] workspace %s emit failed: %v", sub.WorkspaceID, err)
-				continue
-			}
-			if created {
-				emitted++
+			uc.emitAndCount(&emitted, sub, true, windowEnd, rate)
+		}
+		if len(page) < uc.batchSize {
+			break
+		}
+	}
+	return emitted, nil
+}
+
+func (uc *emitMonthlyInvoicesUseCase) emitAddonsDue(windowEnd time.Time, rate float64) (int, error) {
+	emitted := 0
+	afterID := ""
+	for {
+		page, err := uc.addons.ListWorkspaceIDsWithAddonsDue(windowEnd, afterID, uc.batchSize)
+		if err != nil {
+			return emitted, err
+		}
+		if len(page) == 0 {
+			break
+		}
+		for _, workspaceID := range page {
+			afterID = workspaceID
+			plan, billable := uc.addonOnlyPlan(workspaceID, windowEnd)
+			if billable {
+				uc.emitAndCount(&emitted, plan, false, windowEnd, rate)
 			}
 		}
 		if len(page) < uc.batchSize {
@@ -88,6 +116,35 @@ func (uc *emitMonthlyInvoicesUseCase) Execute() (int, error) {
 		}
 	}
 	return emitted, nil
+}
+
+func (uc *emitMonthlyInvoicesUseCase) addonOnlyPlan(workspaceID string, windowEnd time.Time) (*workspace_plan.WorkspaceSubscription, bool) {
+	plan, err := uc.subs.GetLatestByWorkspaceID(workspaceID)
+	if errors.Is(err, workspace_plan.ErrSubscriptionNotFound) {
+		return nil, false
+	}
+	if err != nil {
+		log.Printf("[billing-emit] workspace %s add-ons skipped, its plan could not be read: %v", workspaceID, err)
+		return nil, false
+	}
+	if plan == nil || plan.Status != workspace_plan.SubscriptionStatusActive {
+		return nil, false
+	}
+	if billing.DueOn(plan.CurrentPeriodEnd, windowEnd) {
+		return nil, false
+	}
+	return plan, true
+}
+
+func (uc *emitMonthlyInvoicesUseCase) emitAndCount(emitted *int, sub *workspace_plan.WorkspaceSubscription, billPlan bool, windowEnd time.Time, rate float64) {
+	created, err := uc.emitForWorkspace(sub, billPlan, windowEnd, rate)
+	if err != nil {
+		log.Printf("[billing-emit] workspace %s emit failed: %v", sub.WorkspaceID, err)
+		return
+	}
+	if created {
+		*emitted++
+	}
 }
 
 func (uc *emitMonthlyInvoicesUseCase) exchangeRate() float64 {
@@ -99,10 +156,18 @@ func (uc *emitMonthlyInvoicesUseCase) exchangeRate() float64 {
 	return workspace_pricing.USDToBRLRate(items)
 }
 
-func (uc *emitMonthlyInvoicesUseCase) emitForWorkspace(sub *workspace_plan.WorkspaceSubscription, anchor time.Time, rate float64) (bool, error) {
-	plan, err := uc.plans.GetByID(sub.PlanDefinitionID)
-	if err != nil {
-		return false, fmt.Errorf("get plan: %w", err)
+func (uc *emitMonthlyInvoicesUseCase) emitForWorkspace(sub *workspace_plan.WorkspaceSubscription, billPlan bool, anchor time.Time, rate float64) (bool, error) {
+	var plan *workspace_plan.PlanDefinition
+	planBRLCents := int64(0)
+	cycle := workspace_plan.BillingCycleMonthly
+	if billPlan {
+		found, err := uc.plans.GetByID(sub.PlanDefinitionID)
+		if err != nil {
+			return false, fmt.Errorf("get plan: %w", err)
+		}
+		plan = found
+		planBRLCents = sub.BillingCycle.TotalPriceBRLCents(plan.BasePriceBRLCents)
+		cycle = sub.BillingCycle
 	}
 
 	addons, err := uc.addons.ListActiveByWorkspace(sub.WorkspaceID)
@@ -110,19 +175,23 @@ func (uc *emitMonthlyInvoicesUseCase) emitForWorkspace(sub *workspace_plan.Works
 		return false, fmt.Errorf("list addons: %w", err)
 	}
 
+	renewed := make([]*workspace_addon.AddonSubscription, 0, len(addons))
 	addonUSD := make([]int64, 0, len(addons))
 	for _, a := range addons {
-		addonUSD = append(addonUSD, a.UnitPriceMicros*int64(a.Quantity))
+		if !a.DueBy(anchor) || a.QuantityAt(anchor) <= 0 {
+			continue
+		}
+		renewed = append(renewed, a)
+		addonUSD = append(addonUSD, a.UnitPriceMicros*int64(a.QuantityAt(anchor)))
 	}
 
-	planBRLCents := sub.BillingCycle.TotalPriceBRLCents(plan.BasePriceBRLCents)
 	totalBRL, creditableBRL := billing.MonthlyChargeBRL(planBRLCents, addonUSD, rate)
 	if totalBRL <= 0 {
 		return false, nil
 	}
 
-	lineItems := make([]invoice.InvoiceLineItem, 0, len(addons)+1)
-	if creditableBRL > 0 {
+	lineItems := make([]invoice.InvoiceLineItem, 0, len(renewed)+1)
+	if plan != nil && creditableBRL > 0 {
 		lineItems = append(lineItems, invoice.InvoiceLineItem{
 			Kind:       invoice.LineItemPlan,
 			Label:      plan.Name,
@@ -130,13 +199,14 @@ func (uc *emitMonthlyInvoicesUseCase) emitForWorkspace(sub *workspace_plan.Works
 			Creditable: true,
 		})
 	}
-	for _, a := range addons {
-		lineBRL := math.Round(float64(a.UnitPriceMicros*int64(a.Quantity))/1_000_000*rate*100) / 100
+	for _, a := range renewed {
+		quantity := a.QuantityAt(anchor)
+		lineBRL := math.Round(float64(a.UnitPriceMicros*int64(quantity))/1_000_000*rate*100) / 100
 		lineItems = append(lineItems, invoice.InvoiceLineItem{
 			Kind:      invoice.LineItemChannel,
 			Label:     a.AddonKey,
 			AmountBRL: lineBRL,
-			Quantity:  a.Quantity,
+			Quantity:  quantity,
 		})
 	}
 
@@ -158,7 +228,7 @@ func (uc *emitMonthlyInvoicesUseCase) emitForWorkspace(sub *workspace_plan.Works
 		AmountBRL:        totalBRL,
 		CreditableBRL:    creditableBRL,
 		BillingType:      uc.billingType,
-		BillingCycle:     string(sub.BillingCycle),
+		BillingCycle:     string(cycle),
 		IdempotencyKey:   key,
 		DueDate:          &anchor,
 		LineItems:        lineItems,

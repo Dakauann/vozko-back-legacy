@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"vozko/domain/whatsapplink"
 )
 
 const LayerQR LayerType = "qr"
@@ -28,7 +30,7 @@ const (
 	MinQRLogoAspect = 0.1
 	MaxQRLogoAspect = 10
 
-	WhatsappLinkBase = "https://wa.me/"
+	WhatsappLinkBase = whatsapplink.Base
 )
 
 var (
@@ -167,10 +169,7 @@ func (l QRLink) issue() string {
 func (l QRLink) content() string {
 	switch l.Kind {
 	case QRLinkWhatsapp:
-		if l.Message == "" {
-			return WhatsappLinkBase + l.Phone
-		}
-		return WhatsappLinkBase + l.Phone + "?text=" + encodeURIComponent(l.Message)
+		return whatsapplink.URL(l.Phone, l.Message)
 	case QRLinkText:
 		return l.Text
 	}
@@ -224,19 +223,6 @@ func cutSchemeFold(value, scheme string) (string, bool) {
 		return "", false
 	}
 	return value[len(scheme):], true
-}
-
-func encodeURIComponent(text string) string {
-	var out strings.Builder
-	for i := 0; i < len(text); i++ {
-		b := text[i]
-		if (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || strings.IndexByte("-_.!~*'()", b) >= 0 {
-			out.WriteByte(b)
-			continue
-		}
-		out.WriteString("%" + strings.ToUpper(strconv.FormatUint(uint64(b)>>4, 16)+strconv.FormatUint(uint64(b)&15, 16)))
-	}
-	return out.String()
 }
 
 func srgbLinear(channel uint64) float64 {

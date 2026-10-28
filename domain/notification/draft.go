@@ -35,6 +35,7 @@ const (
 	SourceEmailWebhook     = "email_webhook"
 	SourceCampaignSchedule = "campaign_schedule"
 	SourceAutomationVars   = "automation_variables"
+	SourceSiteForm         = "site_form"
 
 	SourceConversationNoteMention = "conversation_note_mention"
 )

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -221,6 +222,7 @@ const (
 	CodeWriteRefusedByGoogle    = "google_sheet_write_refused_by_google"
 	CodeWriteLinkPending        = "google_sheet_write_link_pending"
 	CodeWriteLinkTargetMissing  = "google_sheet_write_link_target_missing"
+	CodeWriteLocaleUnsupported  = "google_sheet_write_locale_unsupported"
 )
 
 var failureCodes = map[FailureKind]string{
@@ -243,7 +245,15 @@ func RowErrorCodes() []string {
 	return []string{
 		CodeWriteRateLimited, CodeWriteUnavailable, CodeWriteAccessLost, CodeWriteSpreadsheetMissing,
 		CodeWriteAccountRefused, CodeWriteRefusedByGoogle, CodeInvalidValue, CodeWriteLinkPending, CodeWriteLinkTargetMissing,
+		CodeWriteLocaleUnsupported,
 	}
+}
+
+func EncodeFailureCode(err error) string {
+	if errors.Is(err, ErrLocaleUnsupported) {
+		return CodeWriteLocaleUnsupported
+	}
+	return ErrorCode(err)
 }
 
 func AttentionReasons() []AttentionReason {

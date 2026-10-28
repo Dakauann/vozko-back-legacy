@@ -9,4 +9,6 @@ type GoogleRoutes struct {
 	Accounts      *googleaccounthttp.Handler
 	Sheets        *googlesheethttp.Handler
 	SheetRemovals *googlesheethttp.RowRemovalHandler
+	SheetEdits    *googlesheethttp.EditSessionHandler
+	SheetFits     *googlesheethttp.ModelFitHandler
 }

@@ -5,6 +5,7 @@ import (
 	"log"
 	"log/slog"
 	"vozko/delivery/http/automationneedshttp"
+	"vozko/delivery/http/variabledeclhttp"
 
 	deliveryHttp "vozko/delivery/http"
 	"vozko/delivery/http/agentpublishhttp"
@@ -82,6 +83,7 @@ func agentRoutes(c *Container) deliveryHttp.AgentRoutes {
 		Runs:       agentrunhttp.NewHandler(c.agentRuns(), c.useCases.getAgent),
 		Scenarios:  agentscenariohttp.NewHandler(c.agentScenarios(), c.useCases.getAgent),
 		Needs:      automationneedshttp.NewHandler(c.automationQueries()),
+		Variables:  variabledeclhttp.NewHandler(c.variableDeclarations()),
 	}
 }
 

@@ -2,6 +2,7 @@ package workspace_addon_usecase
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -46,8 +47,12 @@ func (r *fakeDefRepo) ListActiveVisible(string) ([]*workspace_addon.AddonDefinit
 }
 
 type fakeSubRepo struct {
-	subs      map[string]*workspace_addon.AddonSubscription
-	createErr error
+	subs       map[string]*workspace_addon.AddonSubscription
+	createErr  error
+	updateErr  error
+	lockedView *fakeSubRepo
+	mu         sync.Mutex
+	locks      []string
 }
 
 func newFakeSubRepo(subs ...*workspace_addon.AddonSubscription) *fakeSubRepo {
@@ -66,23 +71,45 @@ func (r *fakeSubRepo) Create(s *workspace_addon.AddonSubscription) error {
 	return nil
 }
 func (r *fakeSubRepo) Update(s *workspace_addon.AddonSubscription) error {
+	if r.updateErr != nil {
+		return r.updateErr
+	}
 	r.subs[s.ID] = s
 	return nil
 }
+
+func (r *fakeSubRepo) WithUnitsLock(ws string, kind workspace_addon.EntitlementKind, run func(workspace_addon.AddonSubscriptionRepository) error) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.locks = append(r.locks, ws+":"+string(kind))
+	if r.lockedView != nil {
+		return run(r.lockedView)
+	}
+	return run(r)
+}
+
+func (r *fakeSubRepo) ListWorkspaceIDsWithAddonsDue(time.Time, string, int) ([]string, error) {
+	return nil, nil
+}
 func (r *fakeSubRepo) GetByID(id string) (*workspace_addon.AddonSubscription, error) {
 	if s, ok := r.subs[id]; ok {
-		return s, nil
+		return copyOf(s), nil
 	}
 	return nil, workspace_addon.ErrAddonSubscriptionNotFound
 }
 func (r *fakeSubRepo) GetActiveByWorkspaceAndDefinition(ws, defID string) (*workspace_addon.AddonSubscription, error) {
 	for _, s := range r.subs {
 		if s.WorkspaceID == ws && s.AddonDefinitionID == defID && s.Status == workspace_plan.SubscriptionStatusActive {
-			return s, nil
+			return copyOf(s), nil
 		}
 	}
 	return nil, workspace_addon.ErrAddonSubscriptionNotFound
 }
+func copyOf(s *workspace_addon.AddonSubscription) *workspace_addon.AddonSubscription {
+	clone := *s
+	return &clone
+}
+
 func (r *fakeSubRepo) GetActiveByBoundResource(string, string) (*workspace_addon.AddonSubscription, error) {
 	return nil, workspace_addon.ErrAddonSubscriptionNotFound
 }
@@ -128,7 +155,7 @@ func (r *fakeSubRepo) ListDueForRenewal(at time.Time, _ int) ([]*workspace_addon
 	return out, nil
 }
 
-func (r *fakeSubRepo) SumActiveGrantedUnitsByWorkspaceIDs(_ []string, _ workspace_addon.EntitlementKind) (map[string]int, error) {
+func (r *fakeSubRepo) SumActiveGrantedUnitsByWorkspaceIDs(_ []string, _ workspace_addon.EntitlementKind, _ time.Time) (map[string]int, error) {
 	return map[string]int{}, nil
 }
 
@@ -155,6 +182,9 @@ func (r *fakeBalanceRepo) EnsureBalanceExists(ws, cur string) (*balance.Balance,
 	return &balance.Balance{WorkspaceID: ws, Amount: r.amount, Currency: cur}, nil
 }
 func (r *fakeBalanceRepo) CreditBalance(p balance.CreditBalanceInput) (*balance.Transaction, error) {
+	if p.OncePerReference && p.ReferenceID != nil && r.byRef[*p.ReferenceID] {
+		return nil, balance.ErrReferenceAlreadyRecorded
+	}
 	r.amount += p.Amount
 	if p.ReferenceID != nil {
 		r.byRef[*p.ReferenceID] = true
@@ -163,6 +193,9 @@ func (r *fakeBalanceRepo) CreditBalance(p balance.CreditBalanceInput) (*balance.
 	return &balance.Transaction{}, nil
 }
 func (r *fakeBalanceRepo) DebitBalance(p balance.DebitBalanceInput) (*balance.Transaction, error) {
+	if p.OncePerReference && p.ReferenceID != nil && r.byRef[*p.ReferenceID] {
+		return nil, balance.ErrReferenceAlreadyRecorded
+	}
 	if !p.AllowNegative && r.amount < p.Amount {
 		return nil, balance.ErrInsufficientBalance
 	}
@@ -273,7 +306,7 @@ func TestPurchaseAddon_DebitsWalletAndActivates(t *testing.T) {
 	defs := newFakeDefRepo(activeDef("d1", workspace_addon.EntitlementCallChannels, 5_000_000))
 	subs := newFakeSubRepo()
 	bal := newFakeBalanceRepo(10_000_000)
-	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, now: testClock}
+	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, now: testClock, newID: newPurchaseID}
 
 	sub, err := uc.Execute("ws", workspace_addon.PurchaseAddonInput{AddonDefinitionID: "d1", Quantity: 1, BillingCycle: workspace_plan.BillingCycleMonthly})
 	if err != nil {
@@ -298,7 +331,7 @@ func TestPurchaseAddon_InsufficientBalance(t *testing.T) {
 	defs := newFakeDefRepo(activeDef("d1", workspace_addon.EntitlementCallChannels, 5_000_000))
 	subs := newFakeSubRepo()
 	bal := newFakeBalanceRepo(1_000_000)
-	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, now: testClock}
+	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, now: testClock, newID: newPurchaseID}
 
 	_, err := uc.Execute("ws", workspace_addon.PurchaseAddonInput{AddonDefinitionID: "d1", Quantity: 1, BillingCycle: workspace_plan.BillingCycleMonthly})
 	if err != balance.ErrInsufficientBalance {
@@ -316,7 +349,7 @@ func TestPurchaseAddon_ProratesBeforeAnchorWithinSameMonth(t *testing.T) {
 	defs := newFakeDefRepo(activeDef("d1", workspace_addon.EntitlementCallChannels, 5_000_000))
 	subs := newFakeSubRepo()
 	bal := newFakeBalanceRepo(10_000_000)
-	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, now: func() time.Time {
+	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, newID: newPurchaseID, now: func() time.Time {
 		return time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)
 	}}
 
@@ -338,7 +371,7 @@ func TestPurchaseAddon_RefundsOnPersistFailure(t *testing.T) {
 	subs := newFakeSubRepo()
 	subs.createErr = errors.New("db write failed")
 	bal := newFakeBalanceRepo(10_000_000)
-	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, now: testClock}
+	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, now: testClock, newID: newPurchaseID}
 
 	_, err := uc.Execute("ws", workspace_addon.PurchaseAddonInput{AddonDefinitionID: "d1", Quantity: 1, BillingCycle: workspace_plan.BillingCycleMonthly})
 	if err == nil {
@@ -355,7 +388,7 @@ func TestPurchaseAddon_RefundsOnPersistFailure(t *testing.T) {
 	}
 }
 
-func TestPurchaseAddon_TopUpExistingAddonChargesFullPeriod(t *testing.T) {
+func TestPurchaseAddon_MoreUnitsOnAnExistingAddonChargeOnlyTheDaysLeft(t *testing.T) {
 	existing := &workspace_addon.AddonSubscription{
 		ID: "existing-1", WorkspaceID: "ws", AddonDefinitionID: "d1", AddonKey: "d1",
 		EntitlementKind: workspace_addon.EntitlementCallChannels, Quantity: 1, UnitsPerQuantity: 1,
@@ -366,7 +399,7 @@ func TestPurchaseAddon_TopUpExistingAddonChargesFullPeriod(t *testing.T) {
 	defs := newFakeDefRepo(activeDef("d1", workspace_addon.EntitlementCallChannels, 5_000_000))
 	subs := newFakeSubRepo(existing)
 	bal := newFakeBalanceRepo(10_000_000)
-	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, now: testClock}
+	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, now: testClock, newID: newPurchaseID}
 
 	sub, err := uc.Execute("ws", workspace_addon.PurchaseAddonInput{AddonDefinitionID: "d1", Quantity: 1, BillingCycle: workspace_plan.BillingCycleMonthly})
 	if err != nil {
@@ -375,8 +408,11 @@ func TestPurchaseAddon_TopUpExistingAddonChargesFullPeriod(t *testing.T) {
 	if sub.ID != "existing-1" || sub.Quantity != 2 {
 		t.Fatalf("expected the existing addon quantity bumped to 2, got id=%s qty=%d", sub.ID, sub.Quantity)
 	}
-	if bal.amount != 5_000_000 {
-		t.Fatalf("expected a full-period debit leaving 5_000_000, got %d", bal.amount)
+	if bal.amount != 5_833_333 {
+		t.Fatalf("expected 25 of 30 days debited (4_166_667), leaving 5_833_333, got %d", bal.amount)
+	}
+	if !sub.CurrentPeriodStart.Equal(existing.CurrentPeriodStart) {
+		t.Fatalf("buying more keeps the paid period start, got %s", sub.CurrentPeriodStart)
 	}
 }
 
@@ -384,7 +420,7 @@ func TestPurchaseAddon_AnnualUsesAnnualPriceAndYearPeriod(t *testing.T) {
 	defs := newFakeDefRepo(activeDef("d1", workspace_addon.EntitlementCallChannels, 5_000_000))
 	subs := newFakeSubRepo()
 	bal := newFakeBalanceRepo(100_000_000)
-	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, now: testClock}
+	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, now: testClock, newID: newPurchaseID}
 
 	sub, err := uc.Execute("ws", workspace_addon.PurchaseAddonInput{AddonDefinitionID: "d1", Quantity: 1, BillingCycle: workspace_plan.BillingCycleAnnual})
 	if err != nil {
@@ -402,7 +438,7 @@ func TestPurchaseAddon_RejectsInactiveDefinition(t *testing.T) {
 	inactive := activeDef("d1", workspace_addon.EntitlementCallChannels, 5_000_000)
 	inactive.IsActive = false
 	defs := newFakeDefRepo(inactive)
-	uc := &purchaseAddonUseCase{defs: defs, subs: newFakeSubRepo(), balanceRepo: newFakeBalanceRepo(10_000_000), now: testClock}
+	uc := &purchaseAddonUseCase{defs: defs, subs: newFakeSubRepo(), balanceRepo: newFakeBalanceRepo(10_000_000), now: testClock, newID: newPurchaseID}
 
 	if _, err := uc.Execute("ws", workspace_addon.PurchaseAddonInput{AddonDefinitionID: "d1", Quantity: 1}); err != workspace_addon.ErrAddonInactive {
 		t.Fatalf("expected ErrAddonInactive, got %v", err)
@@ -410,7 +446,7 @@ func TestPurchaseAddon_RejectsInactiveDefinition(t *testing.T) {
 }
 
 func TestPurchaseAddon_RejectsInvalidInput(t *testing.T) {
-	uc := &purchaseAddonUseCase{defs: newFakeDefRepo(), subs: newFakeSubRepo(), balanceRepo: newFakeBalanceRepo(10_000_000), now: testClock}
+	uc := &purchaseAddonUseCase{defs: newFakeDefRepo(), subs: newFakeSubRepo(), balanceRepo: newFakeBalanceRepo(10_000_000), now: testClock, newID: newPurchaseID}
 	if _, err := uc.Execute("", workspace_addon.PurchaseAddonInput{AddonDefinitionID: "d1"}); err != workspace_addon.ErrInvalidAddonSubscription {
 		t.Fatalf("empty workspace must be rejected, got %v", err)
 	}
@@ -423,7 +459,7 @@ func TestPurchaseAddon_FreeAddonActivatesWithoutDebit(t *testing.T) {
 	defs := newFakeDefRepo(activeDef("free", workspace_addon.EntitlementCallChannels, 0))
 	subs := newFakeSubRepo()
 	bal := newFakeBalanceRepo(0)
-	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, now: testClock}
+	uc := &purchaseAddonUseCase{defs: defs, subs: subs, balanceRepo: bal, now: testClock, newID: newPurchaseID}
 
 	sub, err := uc.Execute("ws", workspace_addon.PurchaseAddonInput{AddonDefinitionID: "free", Quantity: 1, BillingCycle: workspace_plan.BillingCycleMonthly})
 	if err != nil {

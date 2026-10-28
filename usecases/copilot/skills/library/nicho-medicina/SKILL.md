@@ -1,6 +1,7 @@
 ---
 name: nicho-medicina
 description: Regras do CFM para publicidade médica (Resolução 2.336/2023) e como fazer anúncios e atendimento para médicos e clínicas médicas dentro delas; carregue quando o cliente for médico ou clínica médica.
+also: site
 ---
 
 # Médicos e clínicas médicas

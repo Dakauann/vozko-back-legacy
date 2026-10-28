@@ -23,7 +23,7 @@ type InboxSettings struct {
 	Automation   conversation.ChannelAutomation
 }
 
-func (s *Service) checkInbox(ctx context.Context, workspaceID string, in InboxSettings) error {
+func (s *Service) checkInbox(ctx context.Context, workspaceID string, kind automationneeds.SlotKind, in InboxSettings) error {
 	a := in.Automation
 	if (a.EnableAgentResponses && a.AgentID == nil) || (a.EnableWorkflow && a.WorkflowID == nil) {
 		return ErrAutomationIncomplete
@@ -33,11 +33,11 @@ func (s *Service) checkInbox(ctx context.Context, workspaceID string, in InboxSe
 	}); err != nil {
 		return err
 	}
-	return s.Receptive.Admit(workspaceID, a)
+	return s.Receptive.Admit(workspaceID, kind, a)
 }
 
 func (s *Service) SetSenderInbox(ctx context.Context, workspaceID, id string, in InboxSettings) (*rcs.Sender, error) {
-	if err := s.checkInbox(ctx, workspaceID, in); err != nil {
+	if err := s.checkInbox(ctx, workspaceID, automationneeds.SlotRCS, in); err != nil {
 		return nil, err
 	}
 	sender, err := s.Repos.Senders.FindByID(ctx, workspaceID, id)
@@ -54,7 +54,7 @@ func (s *Service) SetSenderInbox(ctx context.Context, workspaceID, id string, in
 }
 
 func (s *Service) SetRouteInbox(ctx context.Context, workspaceID, id string, in InboxSettings) (*sms.Route, error) {
-	if err := s.checkInbox(ctx, workspaceID, in); err != nil {
+	if err := s.checkInbox(ctx, workspaceID, automationneeds.SlotSMS, in); err != nil {
 		return nil, err
 	}
 	route, err := s.Repos.Routes.FindByID(ctx, workspaceID, id)

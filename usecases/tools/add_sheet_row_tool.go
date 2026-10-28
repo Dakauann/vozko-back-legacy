@@ -12,7 +12,9 @@ import (
 	"vozko/domain/agenttool"
 	"vozko/domain/googleaccount"
 	"vozko/domain/googlesheet"
+	"vozko/domain/shared"
 	"vozko/domain/tools"
+	"vozko/domain/workflow"
 	gsuc "vozko/usecases/googlesheet"
 )
 
@@ -22,6 +24,9 @@ const (
 	GoogleSheetFilesOptionsSource = "google_sheet_files"
 	addSheetRowConfigKey          = "sheet_id"
 	addSheetRowWhenKey            = "when_to_use"
+	addSheetRowVariableKey        = workflow.SheetStepVariableKey
+
+	ConversationSheetVariablesOptionsSource = "conversation_sheet_variables"
 )
 
 const (
@@ -32,6 +37,7 @@ const (
 	addSheetRowFailed      = "Não foi possível registrar agora. Não prometa o registro; diga que a equipe vai verificar."
 	addSheetRowNoInputs    = "Esta planilha não tem campos para o agente preencher. Não chame esta ferramenta."
 	addSheetRowRepeated    = "Esta linha já estava registrada; não registre de novo."
+	addSheetRowNoFile      = "A planilha desta conversa não foi escolhida ou não serve. Não prometa o registro; diga que a equipe vai verificar."
 )
 
 var columnParamTypes = map[googlesheet.ColumnType]string{
@@ -54,15 +60,20 @@ type SheetRows interface {
 	Preview(ctx context.Context, workspaceID, sheetID string, values map[string]any, origin googlesheet.Origin) (*googlesheet.Sheet, googlesheet.Cells, error)
 }
 
-type addSheetRowTool struct {
-	sheets SheetRows
+type ConversationSheets interface {
+	AgentSheetFiles(ctx context.Context, workspaceID, entryID string, entryType shared.EntryType, agentID string) (map[string]workflow.SheetFile, error)
 }
 
-func NewAddSheetRowTool(sheets SheetRows) tools.Handler {
+type addSheetRowTool struct {
+	sheets        SheetRows
+	conversations ConversationSheets
+}
+
+func NewAddSheetRowTool(sheets SheetRows, conversations ConversationSheets) tools.Handler {
 	if sheets == nil {
 		return nil
 	}
-	return &addSheetRowTool{sheets: sheets}
+	return &addSheetRowTool{sheets: sheets, conversations: conversations}
 }
 
 func (t *addSheetRowTool) Definition() tools.Definition {
@@ -90,6 +101,13 @@ func (t *addSheetRowTool) Definition() tools.Definition {
 				Description:        "Quando o agente deve registrar uma linha nesta planilha.",
 				DisplayName:        "Quando registrar",
 				DisplayDescription: "Ex.: quando o cliente confirmar o pedido. Sem isto, vale a descrição da aba.",
+			},
+			addSheetRowVariableKey: {
+				Type:               "string",
+				Description:        "Dado da conversa do tipo Planilha, como {{campvars.planilha_franquia}}. Com ele, a linha vai para a planilha escolhida para a conversa, e a aba acima é só o modelo das colunas.",
+				DisplayName:        "Muda por conversa",
+				DisplayDescription: "Grava na planilha escolhida para cada conversa, com as colunas da aba modelo. O agente nunca escolhe nem troca a planilha.",
+				OptionsSource:      ConversationSheetVariablesOptionsSource,
 			},
 		},
 		RequiredConfig: []string{addSheetRowConfigKey},
@@ -150,13 +168,17 @@ func (t *addSheetRowTool) ExecuteWithConfig(ctx context.Context, config map[stri
 	if refused, ok := t.refuseWithoutInputs(ctx, config); ok {
 		return refused, nil
 	}
+	target, ok := t.target(ctx, config, origin)
+	if !ok {
+		return unresolvedSheet(), nil
+	}
 	callID := tools.CallIDFrom(ctx)
 	if callID == "" {
 		callID = uuid.NewString()
 	}
 	result, err := t.sheets.Enqueue(ctx, gsuc.EnqueueInput{
 		WorkspaceID:    configString(config, "__workspace_id"),
-		SheetID:        configString(config, addSheetRowConfigKey),
+		SheetID:        target,
 		Values:         params,
 		IdempotencyKey: googlesheet.KeyForTool(origin.EntryID, callID, params),
 		Origin:         origin,
@@ -181,7 +203,11 @@ func (t *addSheetRowTool) Preview(ctx context.Context, config map[string]interfa
 	if refused, ok := t.refuseWithoutInputs(ctx, config); ok {
 		return refused, nil
 	}
-	sheet, cells, err := t.sheets.Preview(ctx, configString(config, "__workspace_id"), configString(config, addSheetRowConfigKey), params, origin)
+	target, ok := t.target(ctx, config, origin)
+	if !ok {
+		return unresolvedSheet(), nil
+	}
+	sheet, cells, err := t.sheets.Preview(ctx, configString(config, "__workspace_id"), target, params, origin)
 	if err != nil {
 		return sheetRowRefusal(err), nil
 	}
@@ -277,3 +303,28 @@ func (t *addSheetRowTool) ValidateBinding(ctx context.Context, workspaceID strin
 }
 
 var _ tools.BindingValidator = (*addSheetRowTool)(nil)
+
+func (t *addSheetRowTool) target(ctx context.Context, config map[string]interface{}, origin googlesheet.Origin) (string, bool) {
+	model := configString(config, addSheetRowConfigKey)
+	name, set, err := workflow.SheetVariableOf(config[addSheetRowVariableKey])
+	switch {
+	case err != nil:
+		return "", false
+	case !set:
+		return model, true
+	case t.conversations == nil:
+		return "", false
+	}
+	files, err := t.conversations.AgentSheetFiles(ctx, configString(config, "__workspace_id"), origin.EntryID, shared.EntryType(origin.EntryType), origin.AgentID)
+	if err != nil {
+		return "", false
+	}
+	tab := files[name].Tabs[model]
+	return tab, tab != ""
+}
+
+func unresolvedSheet() tools.ExecutionResult {
+	result := refusal(addSheetRowNoFile)
+	result.ErrorCode = workflow.CodeSheetVariableUnresolved
+	return result
+}

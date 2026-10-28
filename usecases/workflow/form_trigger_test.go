@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"vozko/domain/workflow"
-	whatsappform_usecase "vozko/usecases/whatsappform"
+	"vozko/usecases/formlead"
 )
 
 type uniqueRunRepo struct {
@@ -62,8 +62,8 @@ func newTriggerHarness(t *testing.T, workflows ...*workflow.Workflow) triggerHar
 
 func (h triggerHarness) submit(t *testing.T, formID, responseID string) {
 	t.Helper()
-	err := h.firer.FormSubmitted(context.Background(), whatsappform_usecase.FormTrigger{
-		WorkspaceID: "ws-1", EntryID: "entry-1", EntryType: "whatsapp", FormID: formID, ResponseID: responseID,
+	err := h.firer.FormSubmitted(context.Background(), formlead.Trigger{
+		WorkspaceID: "ws-1", EntryID: "entry-1", EntryType: "whatsapp", Form: formlead.Form{Kind: formlead.KindWhatsAppForm, ID: formID}, SubmissionID: responseID,
 		Data: map[string]any{workflow.DataKeyFormResponseID: responseID, "form.email": "ana@example.com"},
 	})
 	if err != nil {
@@ -123,16 +123,16 @@ func TestFormSubmittedStartsOnlyTheWorkflowsForThatForm(t *testing.T) {
 
 func TestFormSubmittedRefusesAnIncompleteTrigger(t *testing.T) {
 	h := newTriggerHarness(t, formTriggeredWorkflow("wf-any", nil))
-	complete := whatsappform_usecase.FormTrigger{WorkspaceID: "ws-1", EntryID: "entry-1", EntryType: "whatsapp", FormID: "form-1", ResponseID: "resp-1"}
+	complete := formlead.Trigger{WorkspaceID: "ws-1", EntryID: "entry-1", EntryType: "whatsapp", Form: formlead.Form{Kind: formlead.KindWhatsAppForm, ID: "form-1"}, SubmissionID: "resp-1"}
 	cases := []struct {
 		name  string
-		shape func(*whatsappform_usecase.FormTrigger)
+		shape func(*formlead.Trigger)
 	}{
-		{"no workspace", func(in *whatsappform_usecase.FormTrigger) { in.WorkspaceID = "" }},
-		{"no entry", func(in *whatsappform_usecase.FormTrigger) { in.EntryID = "" }},
-		{"no entry type", func(in *whatsappform_usecase.FormTrigger) { in.EntryType = "" }},
-		{"no form", func(in *whatsappform_usecase.FormTrigger) { in.FormID = "" }},
-		{"no response", func(in *whatsappform_usecase.FormTrigger) { in.ResponseID = " " }},
+		{"no workspace", func(in *formlead.Trigger) { in.WorkspaceID = "" }},
+		{"no entry", func(in *formlead.Trigger) { in.EntryID = "" }},
+		{"no entry type", func(in *formlead.Trigger) { in.EntryType = "" }},
+		{"no form", func(in *formlead.Trigger) { in.Form.ID = "" }},
+		{"no response", func(in *formlead.Trigger) { in.SubmissionID = " " }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

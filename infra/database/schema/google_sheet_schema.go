@@ -134,5 +134,5 @@ type GoogleSheetUniqueKey struct {
 func (GoogleSheetUniqueKey) TableName() string { return "google_sheet_unique_keys" }
 
 func GoogleSheetModels() []any {
-	return []any{&GoogleSheet{}, &GoogleSheetRow{}, &GoogleSheetExportCursor{}, &GoogleSheetTab{}, &GoogleSheetFile{}, &GoogleSheetUniqueKey{}, &GoogleSheetRowRemoval{}}
+	return []any{&GoogleSheet{}, &GoogleSheetRow{}, &GoogleSheetExportCursor{}, &GoogleSheetTab{}, &GoogleSheetFile{}, &GoogleSheetUniqueKey{}, &GoogleSheetRowRemoval{}, &GoogleSheetEditSession{}}
 }

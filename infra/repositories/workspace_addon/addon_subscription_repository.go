@@ -90,26 +90,20 @@ func (r *addonSubscriptionRepository) ListActiveByWorkspaceAndKind(workspaceID s
 	return subscriptionsFromSchema(rows), nil
 }
 
-func (r *addonSubscriptionRepository) SumActiveGrantedUnitsByWorkspaceIDs(workspaceIDs []string, kind workspace_addon.EntitlementKind) (map[string]int, error) {
+func (r *addonSubscriptionRepository) SumActiveGrantedUnitsByWorkspaceIDs(workspaceIDs []string, kind workspace_addon.EntitlementKind, at time.Time) (map[string]int, error) {
 	out := make(map[string]int, len(workspaceIDs))
 	if len(workspaceIDs) == 0 {
 		return out, nil
 	}
-	var rows []struct {
-		WorkspaceID string
-		Units       int
-	}
-	err := r.db.Model(&schema.WorkspaceAddonSubscription{}).
-		Select("workspace_id, COALESCE(SUM(quantity * units_per_quantity), 0) AS units").
-		Where("workspace_id IN ? AND entitlement_kind = ? AND status = ?",
-			workspaceIDs, string(kind), string(workspace_plan.SubscriptionStatusActive)).
-		Group("workspace_id").
-		Scan(&rows).Error
+	var rows []schema.WorkspaceAddonSubscription
+	err := r.db.Where("workspace_id IN ? AND entitlement_kind = ? AND status = ?",
+		workspaceIDs, string(kind), string(workspace_plan.SubscriptionStatusActive)).
+		Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
-	for _, row := range rows {
-		out[row.WorkspaceID] = row.Units
+	for _, sub := range subscriptionsFromSchema(rows) {
+		out[sub.WorkspaceID] += sub.GrantedUnitsAt(at)
 	}
 	return out, nil
 }
@@ -190,6 +184,8 @@ func subscriptionToSchema(sub *workspace_addon.AddonSubscription) *schema.Worksp
 		BoundResourceID:    sub.BoundResourceID,
 		CurrentPeriodStart: sub.CurrentPeriodStart,
 		CurrentPeriodEnd:   sub.CurrentPeriodEnd,
+		ScheduledQuantity:  sub.ScheduledQuantity,
+		ScheduledFrom:      sub.ScheduledFrom,
 		CancelledAt:        sub.CancelledAt,
 		CreatedAt:          sub.CreatedAt,
 		UpdatedAt:          sub.UpdatedAt,
@@ -212,8 +208,37 @@ func subscriptionFromSchema(row *schema.WorkspaceAddonSubscription) *workspace_a
 		BoundResourceID:    row.BoundResourceID,
 		CurrentPeriodStart: row.CurrentPeriodStart,
 		CurrentPeriodEnd:   row.CurrentPeriodEnd,
+		ScheduledQuantity:  row.ScheduledQuantity,
+		ScheduledFrom:      row.ScheduledFrom,
 		CancelledAt:        row.CancelledAt,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
 	}
+}
+
+const (
+	unitsLockSQL         = `SELECT pg_advisory_xact_lock(hashtextextended(?::text, 0))`
+	unitsLockKeyPrefix   = "addon_units:"
+	workspacesWithDueSQL = `SELECT DISTINCT workspace_id::text FROM workspace_addon_subscriptions WHERE status = ? AND current_period_end <= ? AND workspace_id::text > ? ORDER BY 1 LIMIT ?`
+)
+
+func (r *addonSubscriptionRepository) WithUnitsLock(workspaceID string, kind workspace_addon.EntitlementKind, run func(locked workspace_addon.AddonSubscriptionRepository) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(unitsLockSQL, unitsLockKeyPrefix+workspaceID+":"+string(kind)).Error; err != nil {
+			return err
+		}
+		return run(&addonSubscriptionRepository{db: tx})
+	})
+}
+
+func (r *addonSubscriptionRepository) ListWorkspaceIDsWithAddonsDue(through time.Time, afterWorkspaceID string, limit int) ([]string, error) {
+	if limit <= 0 {
+		limit = 500
+	}
+	var ids []string
+	err := r.db.Raw(workspacesWithDueSQL, string(workspace_plan.SubscriptionStatusActive), through, afterWorkspaceID, limit).Scan(&ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
 }

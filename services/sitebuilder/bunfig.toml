@@ -1,0 +1,6 @@
+[install]
+exact = true
+minimumReleaseAge = 1209600
+
+[test]
+preload = ["./test/setup.ts"]

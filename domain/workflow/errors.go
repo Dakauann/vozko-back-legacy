@@ -59,7 +59,6 @@ var (
 	ErrValidationUnavailable            = errors.New("workflow: a resource the draft uses could not be checked")
 	ErrNodeInvalidModelID               = errors.New("workflow: AI model ID is invalid or not available from the provider")
 	ErrNodeIncompatibleScope            = errors.New("workflow: node is incompatible with workflow trigger scope")
-	ErrNodeInvalidToolMode              = errors.New("workflow: invalid tool_mode value (must be 'route' or 'execute')")
 	ErrNodeInvalidToolParamType         = errors.New("workflow: a custom-tool parameter has an invalid type (must be a supported parameter type)")
 	ErrNodeInvalidResponseMode          = errors.New("workflow: invalid response_mode value (must be 'default' or 'segmented')")
 	ErrNodeSegmentedSendConflict        = errors.New("workflow: AI agent with segmented response_mode sends messages automatically, remove the downstream send_text node to avoid duplicate messages")

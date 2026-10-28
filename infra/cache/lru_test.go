@@ -64,3 +64,13 @@ func TestLRUIsSafeForConcurrentUse(t *testing.T) {
 		t.Fatalf("Len = %d, exceeds the bound", lru.Len())
 	}
 }
+
+func TestLRUDeleteForgetsAnEntry(t *testing.T) {
+	c := NewLRU[string, int](2)
+	c.Put("a", 1)
+	c.Delete("a")
+	c.Delete("missing")
+	if _, ok := c.Get("a"); ok || c.Len() != 0 {
+		t.Fatalf("got len %d", c.Len())
+	}
+}

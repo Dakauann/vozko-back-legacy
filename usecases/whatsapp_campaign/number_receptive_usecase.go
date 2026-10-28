@@ -48,7 +48,7 @@ func (uc *NumberReceptive) Update(workspaceID, phoneID string, settings wc.Recep
 	if uc.guard == nil {
 		return wc.ReceptiveSettings{}, automationneeds.ErrUnreadable
 	}
-	if err := uc.guard.Admit(phone.OwnerWorkspaceID, settings.ChannelAutomation()); err != nil {
+	if err := uc.guard.Admit(phone.OwnerWorkspaceID, automationneeds.SlotWhatsAppNumber, settings.ChannelAutomation()); err != nil {
 		return wc.ReceptiveSettings{}, err
 	}
 	if _, _, err := uc.ensure.Execute(phone.OwnerWorkspaceID, phone.ID, phone.DisplayPhoneNumber); err != nil {

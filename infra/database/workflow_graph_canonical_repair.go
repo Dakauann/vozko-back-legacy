@@ -40,11 +40,37 @@ var storedGraphTables = []storedGraphTable{
 	{name: "workflow_versions", selectSQL: versionGraphsWithStructuredConfigSQL, rewrite: rewriteVersionGraph},
 }
 
-func canonicalizeWorkflowGraphs(tx *gorm.DB) error {
+type rewrittenGraph struct {
+	graph   []byte
+	changed bool
+	held    []string
+}
+
+type graphRepair struct {
+	name    string
+	path    string
+	rewrite func(raw []byte) (rewrittenGraph, error)
+}
+
+func canonicalGraphRepair(path string) graphRepair {
+	return graphRepair{name: "canonical", path: path, rewrite: func(raw []byte) (rewrittenGraph, error) {
+		out, changed, err := workflow.CanonicalizeGraphJSON(raw)
+		return rewrittenGraph{graph: out, changed: changed}, err
+	}}
+}
+
+func storedGraphTablesExist(tx *gorm.DB) bool {
 	for _, table := range storedGraphTables {
 		if !tx.Migrator().HasTable(table.name) {
-			return nil
+			return false
 		}
+	}
+	return true
+}
+
+func canonicalizeWorkflowGraphs(tx *gorm.DB) error {
+	if !storedGraphTablesExist(tx) {
+		return nil
 	}
 	return canonicalizeStoredGraphs(tx)
 }
@@ -54,19 +80,23 @@ func canonicalizeStoredGraphs(tx *gorm.DB) error {
 }
 
 func canonicalizeGraphsMatching(tx *gorm.DB, path string, batch int) error {
+	return repairStoredGraphs(tx, canonicalGraphRepair(path), batch)
+}
+
+func repairStoredGraphs(tx *gorm.DB, repair graphRepair, batch int) error {
 	for _, table := range storedGraphTables {
-		if err := canonicalizeGraphsOf(tx, table, path, batch); err != nil {
+		if err := repairGraphsOf(tx, table, repair, batch); err != nil {
 			return fmt.Errorf("%s: %w", table.name, err)
 		}
 	}
 	return nil
 }
 
-func canonicalizeGraphsOf(tx *gorm.DB, table storedGraphTable, path string, batch int) error {
+func repairGraphsOf(tx *gorm.DB, table storedGraphTable, repair graphRepair, batch int) error {
 	after := workflowVersionRepairFirstKey
 	for {
 		var rows []storedGraphRow
-		if err := tx.Raw(table.selectSQL, after, path, batch).Scan(&rows).Error; err != nil {
+		if err := tx.Raw(table.selectSQL, after, repair.path, batch).Scan(&rows).Error; err != nil {
 			return err
 		}
 		if len(rows) == 0 {
@@ -74,15 +104,18 @@ func canonicalizeGraphsOf(tx *gorm.DB, table storedGraphTable, path string, batc
 		}
 		for _, row := range rows {
 			after = row.ID
-			canonical, changed, err := workflow.CanonicalizeGraphJSON([]byte(row.Graph))
+			result, err := repair.rewrite([]byte(row.Graph))
 			if err != nil {
-				slog.Error("workflow.graph_canonical_repair.graph_unreadable", slog.String("table", table.name), slog.String("id", row.ID), slog.String("error", err.Error()))
+				slog.Error("workflow.graph_repair.graph_unreadable", slog.String("repair", repair.name), slog.String("table", table.name), slog.String("id", row.ID), slog.String("error", err.Error()))
 				continue
 			}
-			if !changed {
+			if len(result.held) > 0 {
+				slog.Warn("workflow.graph_repair.graph_held", slog.String("repair", repair.name), slog.String("table", table.name), slog.String("id", row.ID), slog.Any("nodes", result.held))
+			}
+			if !result.changed {
 				continue
 			}
-			if err := table.rewrite(tx, row, canonical); err != nil {
+			if err := table.rewrite(tx, row, result.graph); err != nil {
 				return fmt.Errorf("%s: %w", row.ID, err)
 			}
 		}

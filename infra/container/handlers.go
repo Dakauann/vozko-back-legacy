@@ -208,7 +208,7 @@ func (c *Container) initHandlers() {
 			c.useCases.cancelAddonSubscription,
 			c.useCases.listWorkspaceAddons,
 			c.useCases.getWorkspaceEntitlements,
-		),
+		).WithQuantityChanges(c.useCases.scheduleAddonQuantity),
 		metrics:      metricsHandler,
 		metricsQuery: metricsQueryHandler,
 		whatsappCampaign: handlers.NewWhatsAppCampaignHandler(

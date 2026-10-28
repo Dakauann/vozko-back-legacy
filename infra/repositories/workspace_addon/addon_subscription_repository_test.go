@@ -2,6 +2,7 @@ package workspace_addon_repository
 
 import (
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
+	workspace_addon "vozko/domain/workspace/workspace_addon"
 	workspace_plan "vozko/domain/workspace/workspace_plan"
 )
 
@@ -66,5 +68,72 @@ func TestListReactivatableByWorkspace_FilterAndMapping(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("query did not match the expected revival filter: %v", err)
+	}
+}
+
+func TestUnitsLockHoldsAnAdvisoryLockForTheWholeChange(t *testing.T) {
+	db, mock, sqlDB := newMockDB(t)
+	defer sqlDB.Close()
+	repo := NewAddonSubscriptionRepository(db)
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`SELECT pg_advisory_xact_lock\(hashtextextended\(\$1::text, 0\)\)`).
+		WithArgs("addon_units:ws-1:site_domains").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`SELECT \* FROM "workspace_addon_subscriptions" WHERE workspace_id = \$1 AND entitlement_kind = \$2 AND status = \$3`).
+		WithArgs("ws-1", "site_domains", string(workspace_plan.SubscriptionStatusActive)).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectCommit()
+
+	err := repo.WithUnitsLock("ws-1", workspace_addon.EntitlementSiteDomains, func(locked workspace_addon.AddonSubscriptionRepository) error {
+		_, err := locked.ListActiveByWorkspaceAndKind("ws-1", workspace_addon.EntitlementSiteDomains)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("WithUnitsLock: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("the reads must run inside the locked transaction: %v", err)
+	}
+}
+
+func TestUnitsLockRollsBackWhenTheChangeFails(t *testing.T) {
+	db, mock, sqlDB := newMockDB(t)
+	defer sqlDB.Close()
+	repo := NewAddonSubscriptionRepository(db)
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`SELECT pg_advisory_xact_lock`).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	boom := errors.New("save failed")
+	err := repo.WithUnitsLock("ws-1", workspace_addon.EntitlementSiteDomains, func(workspace_addon.AddonSubscriptionRepository) error { return boom })
+	if !errors.Is(err, boom) {
+		t.Fatalf("the failure must surface, got %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWorkspacesWithAddonsDuePageByWorkspaceText(t *testing.T) {
+	db, mock, sqlDB := newMockDB(t)
+	defer sqlDB.Close()
+	repo := NewAddonSubscriptionRepository(db)
+	through := time.Date(2026, 3, 23, 3, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery(`SELECT DISTINCT workspace_id::text FROM workspace_addon_subscriptions WHERE status = \$1 AND current_period_end <= \$2 AND workspace_id::text > \$3 ORDER BY 1 LIMIT \$4`).
+		WithArgs(string(workspace_plan.SubscriptionStatusActive), through, "", 2).
+		WillReturnRows(sqlmock.NewRows([]string{"workspace_id"}).AddRow("ws-1").AddRow("ws-2"))
+
+	got, err := repo.ListWorkspaceIDsWithAddonsDue(through, "", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0] != "ws-1" || got[1] != "ws-2" {
+		t.Fatalf("got %v", got)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
 	}
 }

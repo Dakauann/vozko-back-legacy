@@ -38,6 +38,7 @@ var errorCodes = []struct {
 	{ErrAgentNotFound, "campaign_agent_not_found"},
 	{ErrAgentVarsMissing, "AGENT_REQUIRED_VARIABLE_MISSING"},
 	{ErrAutomationUnavailable, "campaign_automation_unavailable"},
+	{ErrSheetsOfficialOnly, "campaign_sheet_variables_official_only"},
 	{ErrIdempotencyUnavailable, "campaign_idempotency_unavailable"},
 	{ErrLeadTargetsUnavailable, "campaign_lead_targets_unavailable"},
 	{ErrLaunchModeInvalid, "campaign_launch_mode_invalid"},

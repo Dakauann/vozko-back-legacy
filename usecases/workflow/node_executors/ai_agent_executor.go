@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"vozko/domain/agent"
-	"vozko/domain/automationneeds"
 	"vozko/domain/agentrun"
 	"vozko/domain/ai"
 	aa "vozko/domain/ai_attendance"
+	"vozko/domain/automationneeds"
 	"vozko/domain/balance"
 	"vozko/domain/conversation"
 	"vozko/domain/rag"
@@ -149,11 +149,11 @@ func (e *aiAgentExecutor) Definition() workflow.NodeDefinition {
 			When: "Para conversar com o contato usando IA, classificar intenção ou orquestrar ferramentas. source=prompt (defina model+instructions) para um agente ad-hoc; source=agent (defina agent_id) para reutilizar um agente salvo.",
 			Behavior: "ENVIO: em response_mode=segmented o PRÓPRIO NÓ envia as mensagens no WhatsApp (divididas, com indicador de 'digitando'), não conecte um send_text depois (envio duplicado, é bloqueado). " +
 				"Em response_mode=default o nó também envia a resposta no WhatsApp; use um send_text apenas para enviar por outro canal, transformar o texto, ou quando o agente roteia para ferramentas (aí o nó NÃO envia). " +
-				"tool_mode (essencial quando há custom_tools): nos dois modos a IA escolhe uma ferramenta e o fluxo SAI pela saída cujo nome é o da ferramenta. 'route' (padrão) = o caminho da ferramenta segue só as arestas desenhadas; para a IA receber o resultado, conecte o fim do caminho de volta ao agente. 'execute' = quando o caminho da ferramenta termina sem próxima aresta, o fluxo volta sozinho ao agente com o resultado, e a resposta final sai pela saída padrão. Defina custom_tools e tool_mode ANTES de conectar. " +
+				"Com custom_tools, a IA escolhe uma ferramenta e o fluxo SAI pela saída cujo nome é o da ferramenta. " + workflow.ToolReturnRule() + " Defina custom_tools ANTES de conectar. " +
 				"Ao chamar uma ferramenta, cada argumento fica acessível adiante como {{node.<id>.<arg>}} (ex.: {{node.n2.cep}}).",
 			Examples: []string{
 				"config: {\"source\":\"prompt\",\"model\":\"<find_resource ai_models>\",\"instructions\":\"Você é um atendente cordial de cartões...\",\"response_mode\":\"segmented\"}  // o nó envia sozinho; ligue só a 'default' (ex.: wait_for_reply)",
-				"Ferramenta + HTTP: ai_agent(tool_mode=route, custom_tools=[{name:buscar_cep, parameters:[{name:cep}]}]), conecte a saída \"buscar_cep\" → http_request com url usando {{node.<idDoAgente>.cep}}; conecte o \"sucesso\" do http de volta ao agente.",
+				"Ferramenta + HTTP: ai_agent(custom_tools=[{name:buscar_cep, parameters:[{name:cep}]}]), conecte a saída \"buscar_cep\" → http_request com url usando {{node.<idDoAgente>.cep}}; quando o http termina sem próxima aresta, o fluxo volta ao agente com o resultado.",
 			},
 		},
 		DefaultConfig: map[string]interface{}{
@@ -171,7 +171,6 @@ func (e *aiAgentExecutor) Definition() workflow.NodeDefinition {
 			"knowledge_base_ids": []interface{}{},
 			"mcp_collection_ids": []interface{}{},
 			"custom_tools":       []interface{}{},
-			workflow.ToolModeKey: string(workflow.ToolModeRoute),
 		},
 		Outputs: []workflow.HandleDefinition{
 			{ID: "default", Label: "Resposta (texto)"},
@@ -215,10 +214,6 @@ func (e *aiAgentExecutor) Definition() workflow.NodeDefinition {
 			{Key: "knowledge_base_ids", Label: "Bases de conhecimento", Type: "multi-select", Placeholder: "Selecione bases de conhecimento", OptionsSource: "knowledge_bases", Description: "Bases de conhecimento para RAG. Quando usando um agente, as bases vinculadas ao agente são usadas automaticamente."},
 			{Key: "mcp_collection_ids", Label: "Coleções MCP", Type: "multi-select", Placeholder: "Selecione coleções MCP", OptionsSource: "mcp_collections", Description: "Coleções MCP que delimitam as ferramentas disponíveis para esta IA."},
 			{Key: "custom_tools", Label: "Ferramentas", Type: "tools", Placeholder: ""},
-			{Key: workflow.ToolModeKey, Label: "Modo das ferramentas", Type: "select", Description: "Rotear: o caminho da ferramenta segue só as arestas desenhadas. Executar: quando o caminho da ferramenta termina, o fluxo volta ao agente com o resultado.", Options: []workflow.ConfigFieldOption{
-				{Value: string(workflow.ToolModeRoute), Label: "Rotear pelas saídas"},
-				{Value: string(workflow.ToolModeExecute), Label: "Executar e voltar ao agente"},
-			}},
 		},
 	}
 }
@@ -461,7 +456,7 @@ func (e *aiAgentExecutor) Execute(ctx *workflow.NodeContext) (*workflow.NodeResu
 
 	messages = append(messages, ai.ContextNote(additionalContext, knowledge, executedActions))
 
-	customTools := parseCustomToolsConfig(ctx.Node.Config)
+	customTools := workflow.CustomToolsOf(ctx.Node.Config)
 	hasCustomTools := len(customTools) > 0
 
 	var toolDefs []tools.Definition
@@ -809,79 +804,7 @@ func composeHistory(history []*conversation.Message, limit int) []ai.Message {
 	return messages
 }
 
-type customToolConfig struct {
-	Name        string
-	Description string
-	Parameters  []customToolParam
-}
-
-type customToolParam struct {
-	Name        string
-	Type        string
-	Description string
-	Required    bool
-	Enum        []string
-}
-
-func parseCustomToolsConfig(config map[string]interface{}) []customToolConfig {
-	raw, ok := config["custom_tools"].([]interface{})
-	if !ok || len(raw) == 0 {
-		return nil
-	}
-	var out []customToolConfig
-	for _, item := range raw {
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		name, _ := m["name"].(string)
-		if name == "" {
-			continue
-		}
-		desc, _ := m["description"].(string)
-		ct := customToolConfig{
-			Name:        name,
-			Description: desc,
-		}
-		if params, ok := m["parameters"].([]interface{}); ok {
-			for _, p := range params {
-				pm, ok := p.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				pName, _ := pm["name"].(string)
-				if pName == "" {
-					continue
-				}
-				pType, _ := pm["type"].(string)
-				if pType == "" {
-					pType = "string"
-				}
-				pDesc, _ := pm["description"].(string)
-				pReq, _ := pm["required"].(bool)
-				var pEnum []string
-				if rawEnum, ok := pm["enum"].([]interface{}); ok {
-					for _, e := range rawEnum {
-						if s, ok := e.(string); ok && s != "" {
-							pEnum = append(pEnum, s)
-						}
-					}
-				}
-				ct.Parameters = append(ct.Parameters, customToolParam{
-					Name:        pName,
-					Type:        pType,
-					Description: pDesc,
-					Required:    pReq,
-					Enum:        pEnum,
-				})
-			}
-		}
-		out = append(out, ct)
-	}
-	return out
-}
-
-func buildCustomToolDefs(cts []customToolConfig) []tools.Definition {
+func buildCustomToolDefs(cts []workflow.CustomTool) []tools.Definition {
 	defs := make([]tools.Definition, 0, len(cts))
 	for _, ct := range cts {
 		params := make(map[string]tools.Parameter, len(ct.Parameters))
@@ -907,7 +830,7 @@ func buildCustomToolDefs(cts []customToolConfig) []tools.Definition {
 }
 
 func AIAgentToolOutputs(config map[string]interface{}) []workflow.HandleDefinition {
-	cts := parseCustomToolsConfig(config)
+	cts := workflow.CustomToolsOf(config)
 	outputs := make([]workflow.HandleDefinition, 0, len(cts)+2)
 	for _, ct := range cts {
 		if strings.TrimSpace(ct.Name) == "" {

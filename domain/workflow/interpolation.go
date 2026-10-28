@@ -488,3 +488,24 @@ func sortStrings(s []string) {
 		}
 	}
 }
+
+type TemplateSegment struct {
+	Text string `json:"text"`
+	Ref  string `json:"ref,omitempty"`
+}
+
+func TemplateSegments(text string) []TemplateSegment {
+	var out []TemplateSegment
+	cursor := 0
+	for _, m := range interpolationPattern.FindAllStringSubmatchIndex(text, -1) {
+		if m[0] > cursor {
+			out = append(out, TemplateSegment{Text: text[cursor:m[0]]})
+		}
+		out = append(out, TemplateSegment{Text: text[m[0]:m[1]], Ref: canonicalRef(text[m[2]:m[3]])})
+		cursor = m[1]
+	}
+	if cursor < len(text) {
+		out = append(out, TemplateSegment{Text: text[cursor:]})
+	}
+	return out
+}

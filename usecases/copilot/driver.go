@@ -202,7 +202,7 @@ func (d *Driver) dispatch(ctx context.Context, call ai.ToolCall, emit agentloop.
 			"PERMISSÃO NEGADA: o usuário não tem permissão para %s:%s neste workspace. Não tente contornar.",
 			m.Resource, m.Action)}
 	}
-	if copilot.NeedsApproval(tool, d.cc.Mode) {
+	if copilot.NeedsApprovalFor(tool, d.cc.Mode, call.Arguments) {
 		return d.propose(ctx, tool, call, emit)
 	}
 	args := call.Arguments

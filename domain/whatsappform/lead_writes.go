@@ -3,7 +3,6 @@ package whatsappform
 import (
 	"strconv"
 	"strings"
-	"time"
 
 	"vozko/domain/customfield"
 	"vozko/domain/lead"
@@ -71,22 +70,14 @@ func joinerFor(t customfield.FieldType) string {
 	return listJoiner
 }
 
-func ToConsent(doc Document, answers Answers, responseID string, at time.Time) *lead.ConsentChange {
+func ConsentGrantText(doc Document, answers Answers) (string, bool) {
 	for _, ref := range doc.Fields() {
 		f := ref.Field
 		answer, ok := answers.Values[f.Key]
 		if !ok || f.Binding == nil || f.Binding.Target != BindWhatsAppConsent || answer.Checked == nil || !*answer.Checked {
 			continue
 		}
-		label := strings.TrimSpace(f.Label)
-		return &lead.ConsentChange{
-			Kind:     lead.ConsentGrant,
-			Source:   lead.ConsentForm,
-			Actor:    lead.ConsentActor{Type: lead.ConsentActorLead},
-			Purpose:  label,
-			Evidence: lead.ConsentEvidence{Type: lead.EvidenceFormSubmission, Ref: responseID, Excerpt: label},
-			At:       at,
-		}
+		return f.Label, true
 	}
-	return nil
+	return "", false
 }

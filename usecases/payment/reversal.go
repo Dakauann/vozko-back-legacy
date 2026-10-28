@@ -16,28 +16,75 @@ import (
 	"vozko/domain/workspace"
 )
 
-const reversalLockTimeout = 30 * time.Second
+const (
+	reversalLockTimeout = 30 * time.Second
+	releasedAheadPrefix = "invoice-reversal-released:"
+	releasedAheadTTL    = 180 * 24 * time.Hour
+)
 
-var errReversalsNotWired = errors.New("payment reversals need a ledger reader, a lock and an ops alerter")
+var errReversalsNotWired = errors.New("payment reversals need a ledger reader, a lock, an ops alerter and a release record")
 
 type keyLocker interface {
 	Acquire(ctx context.Context, key string) (func() (bool, error), error)
 }
 
-type reversalDeps struct {
-	ledger balance.ReferenceNetReader
-	locks  keyLocker
-	alerts billing.OpsAlerter
+type releaseRecord interface {
+	SetString(key, value string, ttl time.Duration) error
+	Exists(key string) (bool, error)
 }
 
-func (uc *handlePaymentWebhookUseCase) WithReversals(ledger balance.ReferenceNetReader, locks keyLocker, alerts billing.OpsAlerter) *handlePaymentWebhookUseCase {
-	if ledger != nil && locks != nil && alerts != nil {
-		uc.reversals = &reversalDeps{ledger: ledger, locks: locks, alerts: alerts}
+type reversalDeps struct {
+	ledger   balance.ReferenceNetReader
+	locks    keyLocker
+	alerts   billing.OpsAlerter
+	releases releaseRecord
+}
+
+func (uc *handlePaymentWebhookUseCase) WithReversals(ledger balance.ReferenceNetReader, locks keyLocker, alerts billing.OpsAlerter, releases releaseRecord) *handlePaymentWebhookUseCase {
+	if ledger != nil && locks != nil && alerts != nil && releases != nil {
+		uc.reversals = &reversalDeps{ledger: ledger, locks: locks, alerts: alerts, releases: releases}
 	}
 	return uc
 }
 
+func releasedAheadKey(invoiceID string) string {
+	return releasedAheadPrefix + invoiceID
+}
+
+type ReversalHooks interface {
+	OnPaymentReversed(ctx context.Context, workspaceID string) error
+	OnReversalReleased(ctx context.Context, workspaceID string) error
+}
+
+func (uc *handlePaymentWebhookUseCase) WithReversalHooks(hooks ReversalHooks) *handlePaymentWebhookUseCase {
+	uc.reversalHooks = hooks
+	return uc
+}
+
+func (uc *handlePaymentWebhookUseCase) afterReversal(workspaceID string, released bool) {
+	if uc.reversalHooks == nil {
+		return
+	}
+	hook, name := uc.reversalHooks.OnPaymentReversed, "cut"
+	if released {
+		hook, name = uc.reversalHooks.OnReversalReleased, "restore"
+	}
+	if err := hook(context.Background(), workspaceID); err != nil {
+		log.Printf("[invoice-webhook] workspace %s: access %s after a payment reversal failed, the sites sweep retries it: %v", workspaceID, name, err)
+	}
+}
+
 func (uc *handlePaymentWebhookUseCase) reverse(inv *invoice.Invoice, event *payment.WebhookEvent) error {
+	if err := uc.takeBack(inv, event); err != nil {
+		return err
+	}
+	if inv.Status == invoice.StatusReversed {
+		uc.afterReversal(inv.WorkspaceID, false)
+	}
+	return nil
+}
+
+func (uc *handlePaymentWebhookUseCase) takeBack(inv *invoice.Invoice, event *payment.WebhookEvent) error {
 	if uc.reversals == nil {
 		return errReversalsNotWired
 	}
@@ -50,6 +97,18 @@ func (uc *handlePaymentWebhookUseCase) reverse(inv *invoice.Invoice, event *paym
 		return err
 	}
 	defer unlock()
+
+	if meaning, _ := payment.MeaningOf(event.Event); meaning == payment.MeaningReversalOpened {
+		released, err := uc.reversals.releases.Exists(releasedAheadKey(inv.ID))
+		if err != nil {
+			return fmt.Errorf("read the early release of invoice %s: %w", inv.ID, err)
+		}
+		if released {
+			uc.alert("Payment reversal opened after its release",
+				fmt.Sprintf("invoice=%s workspace=%s event=%s: the dispute was already released, nothing is taken back", inv.ID, inv.WorkspaceID, event.Event))
+			return nil
+		}
+	}
 
 	kind := payment.ReversalKindForBillingType(inv.BillingType)
 	credited, err := uc.reversals.ledger.NetCreditUnder(inv.WorkspaceID, inv.ID)
@@ -104,14 +163,20 @@ func (uc *handlePaymentWebhookUseCase) releaseReversal(inv *invoice.Invoice) err
 	if uc.reversals == nil {
 		return errReversalsNotWired
 	}
-	if inv.Status != invoice.StatusReversed {
-		return nil
-	}
 	unlock, err := uc.lockInvoice(inv.ID)
 	if err != nil {
 		return err
 	}
 	defer unlock()
+
+	current, err := uc.invoiceRepo.GetByID(inv.ID)
+	if err != nil {
+		return fmt.Errorf("read invoice %s for its release: %w", inv.ID, err)
+	}
+	inv.Status = current.Status
+	if inv.Status != invoice.StatusReversed {
+		return uc.recordReleaseAhead(inv)
+	}
 
 	already, err := uc.reversedSoFar(inv)
 	if err != nil {
@@ -138,8 +203,18 @@ func (uc *handlePaymentWebhookUseCase) releaseReversal(inv *invoice.Invoice) err
 		return err
 	}
 	inv.Status = invoice.StatusPaid
+	uc.afterReversal(inv.WorkspaceID, true)
 	uc.alert("Payment reversal released", fmt.Sprintf("invoice=%s workspace=%s given back=%d micros", inv.ID, inv.WorkspaceID, already))
 	uc.notifyRelease(inv)
+	return nil
+}
+
+func (uc *handlePaymentWebhookUseCase) recordReleaseAhead(inv *invoice.Invoice) error {
+	if err := uc.reversals.releases.SetString(releasedAheadKey(inv.ID), string(inv.Status), releasedAheadTTL); err != nil {
+		return fmt.Errorf("record the early release of invoice %s: %w", inv.ID, err)
+	}
+	uc.alert("Payment reversal released before it opened",
+		fmt.Sprintf("invoice=%s workspace=%s status=%s: a later opening of this reversal takes nothing back", inv.ID, inv.WorkspaceID, inv.Status))
 	return nil
 }
 

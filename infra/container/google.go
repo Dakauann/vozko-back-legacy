@@ -109,6 +109,8 @@ func googleRoutes(c *Container) deliveryHttp.GoogleRoutes {
 		}),
 		Sheets:        googlesheethttp.NewHandler(c.googleSheets.Manager, c.googleSheets.Intake),
 		SheetRemovals: googlesheethttp.NewRowRemovalHandler(c.googleSheets.Removals),
+		SheetEdits:    googlesheethttp.NewEditSessionHandler(c.googleSheets.Edits),
+		SheetFits:     googlesheethttp.NewModelFitHandler(c.googleSheets.Manager),
 	}
 }
 
@@ -126,6 +128,7 @@ type googleSheetsBundle struct {
 	Manager   *gsuc.Manager
 	Retention *gsuc.Retention
 	Removals  *gsuc.RowRemover
+	Edits     *gsuc.EditSessions
 }
 
 func (c *Container) initGoogleSheets() {
@@ -152,9 +155,10 @@ func (c *Container) initGoogleSheets() {
 	rows := googlesheet_repository.NewRowRepository(c.db)
 	api := googlesheets.New(googlesheets.GoogleEndpoints)
 	alerts := gsuc.NewAlerts(c.notifications().Publisher)
+	edits := googlesheet_repository.NewEditSessionRepository(c.db)
 	writer := gsuc.NewWriter(gsuc.WriterDeps{
 		Sheets: sheets, Rows: rows, API: api, Errors: googlesheets.Classifier{}, Access: c.google.Tokens, Limiter: limiter,
-		Leases: leases, Marks: shared, Alerts: alerts, Metrics: c.services.metrics, Config: writerConfig,
+		Leases: leases, Marks: shared, Alerts: alerts, Metrics: c.services.metrics, Edits: edits, Config: writerConfig,
 	})
 	resolver := gsuc.NewContextValues(gsuc.ContextValuesDeps{
 		Leads:           c.repositories.lead,
@@ -171,7 +175,8 @@ func (c *Container) initGoogleSheets() {
 	}
 	manager := gsuc.NewManager(gsuc.ManagerDeps{
 		Sheets: sheets, Rows: rows, API: api, Errors: googlesheets.Classifier{}, Access: c.google.Tokens,
-		Limiter: limiter, Marks: shared, Alerts: alerts, Nudger: writer,
+		Limiter: limiter, Marks: shared, Alerts: alerts, Nudger: writer, Edits: edits,
+		Usage: googlesheet_repository.NewCampaignUsage(c.db),
 		Names: gsuc.OriginNames{Agents: c.agentName, Workflows: c.workflowName, People: c.memberName},
 	})
 	c.googleSheets = &googleSheetsBundle{
@@ -183,6 +188,7 @@ func (c *Container) initGoogleSheets() {
 		Removals: gsuc.NewRowRemover(gsuc.RowRemoverDeps{
 			Manager: manager, Removals: googlesheet_repository.NewRowRemovalRepository(c.db), Leases: leases,
 		}),
+		Edits: gsuc.NewEditSessions(gsuc.EditSessionsDeps{Manager: manager, Sessions: edits, Leases: leases}),
 	}
 }
 
@@ -221,8 +227,9 @@ func (c *Container) googleSheetsJobs() cronJobs {
 	}
 	sheets := c.googleSheets
 	return cronJobs{
-		"google_sheets_dispatch":  cronPackage.Method(sheets.Writer, sheets.Writer.DispatchPending),
-		"google_sheets_retention": cronPackage.Executes(sheets.Retention),
+		"google_sheets_dispatch":    cronPackage.Method(sheets.Writer, sheets.Writer.DispatchPending),
+		"google_sheets_retention":   cronPackage.Executes(sheets.Retention),
+		"google_sheets_edit_expiry": cronPackage.Executes(sheets.Edits),
 	}
 }
 

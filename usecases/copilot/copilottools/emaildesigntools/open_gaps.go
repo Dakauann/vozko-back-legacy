@@ -2,14 +2,15 @@ package emaildesigntools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"vozko/domain/copilot"
 	"vozko/domain/emaildesign"
+	"vozko/usecases/copilot/copilottools"
 )
 
 const (
@@ -21,8 +22,8 @@ const (
 	snapshotSilent   = "O editor não respondeu à leitura do início desta resposta; email_read lê o e-mail assim que ele voltar a responder."
 	snapshotGaps     = "O que impede salvar e enviar, lido do editor no início desta resposta (block_id, tipo, texto, código):\n"
 	snapshotNoGaps   = "Lido do editor no início desta resposta: nada impede salvar e enviar."
-	closingNoteStart = "Antes de encerrar: o e-mail ainda tem lacunas que impedem salvar e enviar, e a sua resposta não fala delas:\n"
-	closingNoteEnd   = "Escreva de novo a resposta final, completa: diga ao usuário o que falta e peça esses dados numa só pergunta, ou corrija o que depende só de você. Nunca invente links, nomes ou endereços para fechar uma lacuna."
+	closingPending   = "o e-mail ainda tem lacunas que impedem salvar e enviar"
+	closingNever     = "Nunca invente links, nomes ou endereços para fechar uma lacuna."
 )
 
 var gapWords = map[string][]string{
@@ -51,25 +52,13 @@ func withOpenGaps(body map[string]interface{}, live liveDesign) gappedResult {
 }
 
 func (g gappedResult) MarshalJSON() ([]byte, error) {
-	gaps, err := json.Marshal(g.gaps)
-	if err != nil {
-		return nil, err
-	}
-	tail := `"` + resultOpenGaps + `":` + string(gaps) + "}"
-	if len(g.body) == 0 {
-		return []byte("{" + tail), nil
-	}
-	body, err := json.Marshal(g.body)
-	if err != nil {
-		return nil, err
-	}
-	return append(body[:len(body)-1], []byte(","+tail)...), nil
+	return copilottools.JSONEndingWith(g.body, resultOpenGaps, g.gaps)
 }
 
-func gapLines(gaps []emaildesign.Gap) string {
-	var b strings.Builder
+func gapEntries(gaps []emaildesign.Gap) []string {
+	entries := make([]string, 0, len(gaps))
 	for _, gap := range gaps {
-		b.WriteString("- ")
+		var b strings.Builder
 		if gap.BlockID == "" {
 			b.WriteString("settings")
 		} else {
@@ -83,22 +72,13 @@ func gapLines(gaps []emaildesign.Gap) string {
 		if gap.Field != "" {
 			b.WriteString(" em " + gap.Field)
 		}
-		b.WriteString("\n")
+		entries = append(entries, b.String())
 	}
-	return b.String()
+	return entries
 }
 
 func mentioned(reply string, gap emaildesign.Gap) bool {
-	lower := strings.ToLower(reply)
-	if gap.Text != "" && strings.Contains(lower, strings.ToLower(gap.Text)) {
-		return true
-	}
-	for _, word := range append(gapWords[gap.Code], gap.Code) {
-		if strings.Contains(lower, word) {
-			return true
-		}
-	}
-	return false
+	return copilottools.ReplyMentions(reply, slices.Concat([]string{gap.Text, gap.Code}, gapWords[gap.Code]))
 }
 
 func watching(cc copilot.Context) bool {
@@ -139,7 +119,7 @@ func (t *emailReadTool) ViewSnapshot(ctx context.Context, cc copilot.Context) st
 	if len(gaps) == 0 {
 		return head + snapshotNoGaps
 	}
-	return head + snapshotGaps + strings.TrimSuffix(gapLines(gaps), "\n")
+	return head + snapshotGaps + strings.TrimSuffix(copilottools.Bullets(gapEntries(gaps)), "\n")
 }
 
 func (t *emailReadTool) ClosingNote(ctx context.Context, cc copilot.Context, reply string) string {
@@ -157,5 +137,5 @@ func (t *emailReadTool) ClosingNote(ctx context.Context, cc copilot.Context, rep
 	if len(left) == 0 {
 		return ""
 	}
-	return closingNoteStart + gapLines(left) + closingNoteEnd
+	return copilottools.ClosingNote(closingPending, gapEntries(left), closingNever)
 }

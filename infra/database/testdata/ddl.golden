@@ -589,6 +589,12 @@ CREATE INDEX IF NOT EXISTS idx_google_sheet_row_removals_lead ON google_sheet_ro
 -- idx_google_sheet_row_removals_entry
 CREATE INDEX IF NOT EXISTS idx_google_sheet_row_removals_entry ON google_sheet_row_removals (entry_type, entry_id) WHERE entry_id <> '';
 
+-- idx_google_sheet_edit_sessions_file
+CREATE INDEX IF NOT EXISTS idx_google_sheet_edit_sessions_file ON google_sheet_edit_sessions (workspace_id, spreadsheet_id, started_at DESC, id DESC);
+
+-- idx_google_sheet_edit_sessions_expiry
+CREATE INDEX IF NOT EXISTS idx_google_sheet_edit_sessions_expiry ON google_sheet_edit_sessions (expires_at) WHERE ended_at IS NULL;
+
 ## google constraints
 
 -- ux_google_account_workspace_email
@@ -602,6 +608,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_google_sheet_rows_key ON google_sheet_rows 
 
 -- ux_google_sheet_row_removals_row
 CREATE UNIQUE INDEX IF NOT EXISTS ux_google_sheet_row_removals_row ON google_sheet_row_removals (row_id);
+
+-- ux_google_sheet_edit_sessions_open
+CREATE UNIQUE INDEX IF NOT EXISTS ux_google_sheet_edit_sessions_open ON google_sheet_edit_sessions (workspace_id, spreadsheet_id) WHERE ended_at IS NULL;
 
 ## composite lead keys
 
@@ -877,6 +886,7 @@ cm_mark_email_bodies
 wf_publish_running_workflows
 wf_canonical_structured_configs
 wf_canonical_node_types
+wf_retire_tool_mode
 inv_external_id_per_provider
 em_recheck_unconfirmed_no_mail
 ag_tool_instances

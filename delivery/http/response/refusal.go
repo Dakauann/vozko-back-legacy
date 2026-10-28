@@ -17,6 +17,10 @@ type ErrorRefusal struct {
 	Refusal Refusal
 }
 
+func NewRefusal(status int, code, message string) Refusal {
+	return Refusal{Status: status, Code: code, Message: message}
+}
+
 func (r Refusal) Expecting(expected map[string]string) Refusal {
 	r.Expected = expected
 	return r

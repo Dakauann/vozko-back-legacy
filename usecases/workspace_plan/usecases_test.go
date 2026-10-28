@@ -1416,10 +1416,10 @@ func TestConstructors_CreateObjects(t *testing.T) {
 	if uc := NewCreateSubscriptionInvoiceUseCase(plans, subs, inv, nil); uc == nil {
 		t.Fatal("NewCreateSubscriptionInvoiceUseCase returned nil")
 	}
-	if uc := NewSubscribeWorkspaceUseCase(plans, subs); uc == nil {
+	if uc := NewSubscribeWorkspaceUseCase(plans, subs, nil); uc == nil {
 		t.Fatal("NewSubscribeWorkspaceUseCase returned nil")
 	}
-	if uc := NewRenewWorkspaceSubscriptionUseCase(plans, subs); uc == nil {
+	if uc := NewRenewWorkspaceSubscriptionUseCase(plans, subs, nil); uc == nil {
 		t.Fatal("NewRenewWorkspaceSubscriptionUseCase returned nil")
 	}
 	if uc := NewCancelWorkspaceSubscriptionUseCase(plans, subs); uc == nil {

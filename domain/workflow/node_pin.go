@@ -153,7 +153,7 @@ func RunPinIDs(g *Graph) []string {
 }
 
 func WithholdPins(g Graph, visible func(runID string) bool) Graph {
-	out := Graph{Nodes: make([]Node, len(g.Nodes)), Edges: g.Edges}
+	out := Graph{Nodes: make([]Node, len(g.Nodes)), Edges: g.Edges, Variables: g.Variables}
 	for i, n := range g.Nodes {
 		if n.Pinned != nil {
 			if runID := n.Pinned.Source.RunID(); runID != "" && !visible(runID) {
@@ -166,7 +166,7 @@ func WithholdPins(g Graph, visible func(runID string) bool) Graph {
 }
 
 func RestoreWithheldPins(incoming, stored Graph) Graph {
-	out := Graph{Nodes: make([]Node, len(incoming.Nodes)), Edges: incoming.Edges}
+	out := Graph{Nodes: make([]Node, len(incoming.Nodes)), Edges: incoming.Edges, Variables: incoming.Variables}
 	for i, n := range incoming.Nodes {
 		if n.Pinned != nil && n.Pinned.Withheld {
 			n.Pinned = storedPinMatching(&stored, n.ID, n.Pinned)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -19,11 +20,17 @@ type variablesStub struct {
 	err     error
 	wf      *workflow.Workflow
 	nodeID  string
+	labels  map[string]map[string]workflow.RefLabel
 }
 
 func (s *variablesStub) At(_ context.Context, wf *workflow.Workflow, nodeID string) (workflow.VariableCatalog, error) {
 	s.wf, s.nodeID = wf, nodeID
 	return s.catalog, s.err
+}
+
+func (s *variablesStub) Labels(_ context.Context, wf *workflow.Workflow) (map[string]map[string]workflow.RefLabel, error) {
+	s.wf = wf
+	return s.labels, s.err
 }
 
 func variablesRequest() *http.Request {
@@ -86,5 +93,26 @@ func TestTheNodeVariablesOfAnotherDepartmentAreRefused(t *testing.T) {
 	(&WorkflowHandler{workflows: &departmentGuardedWorkflows{getErr: workflow.ErrWorkflowAccessDenied}, variables: stub}).NodeVariables(rec, variablesRequest())
 	if rec.Code != http.StatusForbidden || stub.wf != nil {
 		t.Fatalf("status %d stub %+v", rec.Code, stub)
+	}
+}
+
+func TestTheNodeVariablesAreSearchedOnTheServer(t *testing.T) {
+	stub := &variablesStub{catalog: workflow.VariableCatalog{Variables: []workflow.CatalogVariable{{Ref: "a", Label: "Status do pedido"}, {Ref: "b", Label: "Status"}}}}
+	r := workflowRequestAs(http.MethodGet, "/workflows/w1/nodes/n1/variables?q=status", nil, &auth.Claims{UserID: "u1"})
+	rec := httptest.NewRecorder()
+	(&WorkflowHandler{workflows: &departmentGuardedWorkflows{}, variables: stub}).NodeVariables(rec, mux.SetURLVars(r, map[string]string{"id": "w1", "nodeId": "n1"}))
+	var body workflow.VariableCatalog
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || len(body.Variables) != 2 || body.Variables[0].Ref != "b" {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestTheVariableLabelsAnswerEveryNode(t *testing.T) {
+	stub := &variablesStub{labels: map[string]map[string]workflow.RefLabel{"n1": {"sumiu.x": {Unknown: true}}}}
+	r := workflowRequestAs(http.MethodGet, "/workflows/w1/variable-labels", nil, &auth.Claims{UserID: "u1"})
+	rec := httptest.NewRecorder()
+	(&WorkflowHandler{workflows: &departmentGuardedWorkflows{}, variables: stub}).VariableLabels(rec, mux.SetURLVars(r, map[string]string{"id": "w1"}))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"unknown":true`) || stub.wf == nil || stub.wf.ID != "w1" {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
 	}
 }

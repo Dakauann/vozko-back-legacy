@@ -73,7 +73,7 @@ func StripDraftOnly(g Graph) Graph {
 	if !g.HasDraftOnly() {
 		return g
 	}
-	out := Graph{Nodes: make([]Node, len(g.Nodes)), Edges: g.Edges}
+	out := Graph{Nodes: make([]Node, len(g.Nodes)), Edges: g.Edges, Variables: g.Variables}
 	for i, n := range g.Nodes {
 		n.Pinned = nil
 		n.TestInputs = nil

@@ -18,8 +18,8 @@ func roundCents(v float64) float64 {
 	return math.Round(v*100) / 100
 }
 
-func ActivationPeriod(at time.Time, emitDay, dueDay, cycleMonths int, isNew bool, fullMicros int64) (charge int64, periodEnd time.Time) {
-	if !isNew || cycleMonths != 1 {
+func ActivationPeriod(at time.Time, emitDay, dueDay, cycleMonths int, fullMicros int64) (charge int64, periodEnd time.Time) {
+	if cycleMonths != 1 {
 		return fullMicros, at.AddDate(0, cycleMonths, 0)
 	}
 	atBRT := at.In(LocationBRT())

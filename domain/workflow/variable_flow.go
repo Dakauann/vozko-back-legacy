@@ -12,16 +12,20 @@ const (
 )
 
 type provision struct {
-	ref     string
-	match   provisionMatch
-	label   string
-	group   VariableGroup
-	kind    VariableKind
-	typ     VariableType
-	example *string
-	hidden  bool
-	node    int
-	edge    func(label string) bool
+	ref         string
+	match       provisionMatch
+	label       string
+	labelKey    string
+	labelDetail string
+	labelPrefix string
+	undeclared  bool
+	group       VariableGroup
+	kind        VariableKind
+	typ         VariableType
+	example     *string
+	hidden      bool
+	node        int
+	edge        func(label string) bool
 }
 
 type flowEdge struct {
@@ -233,6 +237,21 @@ func (f *variableFlow) fixpoint(order []int, size int, must bool) []bitset {
 		}
 	}
 	return in
+}
+
+func (f *variableFlow) refLabelValues(ref string) map[string]string {
+	for _, seq := range f.matching(ref) {
+		p := f.provisions[seq]
+		if p.hidden || p.label == "" {
+			continue
+		}
+		text := p.label
+		if p.ref != ref && strings.HasPrefix(ref, p.ref+".") {
+			text = label(append([]string{p.label}, strings.Split(strings.TrimPrefix(ref, p.ref+"."), ".")...)...)
+		}
+		return map[string]string{"label": text}
+	}
+	return nil
 }
 
 func (f *variableFlow) matching(ref string) []int {

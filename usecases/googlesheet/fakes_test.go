@@ -504,13 +504,60 @@ type fakeAPI struct {
 	applied       int
 	readCalls     int
 	workbookCalls int
+	onInsert      func()
+	locale        string
+	linkCells     map[int64][]googlesheet.LinkCell
+	linkReads     int
+	formulaWrites []formulaWrite
+	formulaErr    error
+}
+
+type formulaWrite struct {
+	tab   int64
+	cells []googlesheet.FormulaCell
 }
 
 func newFakeAPI() *fakeAPI {
 	return &fakeAPI{
 		rejectRef: map[string]bool{}, headers: map[int64][]any{}, body: map[int64][][]any{},
 		workbook: googlesheet.Workbook{Tabs: []googlesheet.TabInfo{{ID: 0, Title: "Pedidos", Rows: 1000, Columns: 10}}},
+		locale:   googlesheet.DefaultLocale, linkCells: map[int64][]googlesheet.LinkCell{},
 	}
+}
+
+func (f *fakeAPI) LinkCells(_ context.Context, _ string, target googlesheet.Target, columns []int) ([]googlesheet.LinkCell, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.linkReads++
+	if f.readErr != nil {
+		return nil, f.readErr
+	}
+	var out []googlesheet.LinkCell
+	for _, cell := range f.linkCells[target.TabID] {
+		for _, col := range columns {
+			if cell.Column == col {
+				out = append(out, cell)
+			}
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeAPI) WriteFormulas(_ context.Context, _ string, target googlesheet.Target, cells []googlesheet.FormulaCell) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.formulaWrites = append(f.formulaWrites, formulaWrite{tab: target.TabID, cells: cells})
+	if f.formulaErr != nil {
+		return f.formulaErr
+	}
+	for _, fix := range cells {
+		for i, cell := range f.linkCells[target.TabID] {
+			if cell.Row == fix.Row && cell.Column == fix.Column {
+				f.linkCells[target.TabID][i].Formula, f.linkCells[target.TabID][i].Failed = fix.Formula, false
+			}
+		}
+	}
+	return nil
 }
 
 func (f *fakeAPI) grid(tab int64) [][]any {
@@ -628,6 +675,9 @@ func (f *fakeAPI) InsertRows(_ context.Context, _ string, target googlesheet.Tar
 		refs[i] = row[0].(string)
 	}
 	f.appends = append(f.appends, appendCall{tab: target.TabID, at: at, refs: refs, rows: rows})
+	if f.onInsert != nil {
+		f.onInsert()
+	}
 	if len(f.appendErrs) > 0 {
 		err := f.appendErrs[0]
 		f.appendErrs = f.appendErrs[1:]
@@ -726,7 +776,7 @@ func (f *fakeAPI) Workbook(context.Context, string, string) (googlesheet.Workboo
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.workbookCalls++
-	return googlesheet.Workbook{Tabs: append([]googlesheet.TabInfo(nil), f.workbook.Tabs...)}, f.readErr
+	return googlesheet.Workbook{Locale: f.locale, Tabs: append([]googlesheet.TabInfo(nil), f.workbook.Tabs...)}, f.readErr
 }
 
 func (f *fakeAPI) written() []string {

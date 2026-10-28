@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"vozko/domain/conversation"
+	"vozko/domain/emailaddress"
 	em "vozko/domain/emailinbox"
 	"vozko/domain/emailsending"
 	"vozko/domain/shared"
@@ -48,28 +49,62 @@ func (t *OutboundTranscript) Transcribe(ctx context.Context, e em.OutboundEmail)
 	if err := e.Validate(); err != nil {
 		return "", err
 	}
-	sender, err := t.sender(ctx, e)
-	if err != nil {
-		return "", err
-	}
-	contact, known, err := t.contact(ctx, e)
-	if err != nil || !known {
-		return "", err
-	}
-	inbox, err := ensureSenderInbox(ctx, t.d.Domains, t.d.Inboxes, *sender)
-	if err != nil {
-		return "", err
-	}
-	conv, _, err := t.d.Conversations.FindOrCreate(ctx, em.FindOrCreateConversationInput{
-		WorkspaceID: e.WorkspaceID, ContactID: contact.ID, SenderID: sender.ID,
-	})
-	if err != nil {
+	conv, inbox, err := t.open(ctx, e)
+	if err != nil || conv == nil {
 		return "", err
 	}
 	if err := t.record(ctx, *conv, string(inbox.Address), e); err != nil {
 		return "", err
 	}
 	return conv.ID, nil
+}
+
+type OpenConversationInput struct {
+	WorkspaceID string
+	SenderID    string
+	Address     emailaddress.Address
+	LeadID      string
+	LeadName    string
+}
+
+func (t *OutboundTranscript) OpenConversation(ctx context.Context, in OpenConversationInput) (string, error) {
+	address, err := emailaddress.Normalize(string(in.Address))
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(in.WorkspaceID) == "" || strings.TrimSpace(in.SenderID) == "" {
+		return "", em.ErrConversationNotFound
+	}
+	conv, _, err := t.open(ctx, em.OutboundEmail{WorkspaceID: in.WorkspaceID, SenderID: in.SenderID, To: address, LeadID: in.LeadID, LeadName: in.LeadName, OpensContact: true})
+	if err != nil {
+		return "", err
+	}
+	if conv == nil {
+		return "", em.ErrConversationNotFound
+	}
+	return conv.ID, nil
+}
+
+func (t *OutboundTranscript) open(ctx context.Context, e em.OutboundEmail) (*em.Conversation, *em.Inbox, error) {
+	sender, err := t.sender(ctx, e)
+	if err != nil {
+		return nil, nil, err
+	}
+	contact, known, err := t.contact(ctx, e)
+	if err != nil || !known {
+		return nil, nil, err
+	}
+	inbox, err := ensureSenderInbox(ctx, t.d.Domains, t.d.Inboxes, *sender)
+	if err != nil {
+		return nil, nil, err
+	}
+	conv, _, err := t.d.Conversations.FindOrCreate(ctx, em.FindOrCreateConversationInput{
+		WorkspaceID: e.WorkspaceID, ContactID: contact.ID, SenderID: sender.ID,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return conv, inbox, nil
 }
 
 func (t *OutboundTranscript) TranscribeInto(ctx context.Context, conv em.Conversation, from string, e em.OutboundEmail) error {

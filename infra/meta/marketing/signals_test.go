@@ -168,7 +168,7 @@ func TestSendEventsFailsWhenMetaReceivedFewer(t *testing.T) {
 func TestSendEventsRefusesUnserializableEventsBeforeCalling(t *testing.T) {
 	g, log := wireGateway(t, reply(`{"events_received":1}`))
 	unknownSource := whatsappPurchase()
-	unknownSource.ActionSource = "website"
+	unknownSource.ActionSource = "physical_store"
 	unknownChannel := whatsappPurchase()
 	unknownChannel.Identity.Channel = "telegram"
 	noValue := whatsappPurchase()
@@ -193,5 +193,25 @@ func TestSendEventsWithNothingToSendMakesNoCall(t *testing.T) {
 	}
 	if len(log.all()) != 0 {
 		t.Fatalf("calls = %+v", log.all())
+	}
+}
+
+func TestSendEventsSerializesAWebsiteLeadWithTheBrowserData(t *testing.T) {
+	g, log := wireGateway(t, func(call wireCall) (int, string) { return http.StatusOK, `{"events_received":1}` })
+	website := advertising.ConversionEvent{
+		EventID: "sub-1", Name: advertising.EventNameWebsiteLead, Time: eventTime, Target: advertising.TargetPixel, TargetID: "300",
+		ActionSource: advertising.ActionSourceWebsite, EmailHash: "emhash", PhoneHash: "phhash", Fbp: "fb.1.1.2", Fbc: "fb.1.1.abc",
+		ClientUserAgent: "Mozilla/5.0", SourceURL: "https://loja.vozko.site/oferta",
+	}
+	if err := g.SendEvents(context.Background(), "tok", []advertising.ConversionEvent{website}); err != nil {
+		t.Fatal(err)
+	}
+	unix := strconv.FormatInt(eventTime.Unix(), 10)
+	sameJSON(t, log.all()[0].body, `{"data":[{"event_name":"Lead","event_time":`+unix+`,"event_id":"sub-1","action_source":"website","event_source_url":"https://loja.vozko.site/oferta",
+		"user_data":{"em":["emhash"],"ph":["phhash"],"fbp":"fb.1.1.2","fbc":"fb.1.1.abc","client_user_agent":"Mozilla/5.0"}}]}`)
+	noBrowser := website
+	noBrowser.ClientUserAgent = ""
+	if err := g.SendEvents(context.Background(), "tok", []advertising.ConversionEvent{noBrowser}); err == nil {
+		t.Fatal("a website event without the browser must be refused")
 	}
 }

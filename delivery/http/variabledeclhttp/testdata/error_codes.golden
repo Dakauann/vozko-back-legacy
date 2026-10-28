@@ -1,0 +1,9 @@
+variable_declarations_unreadable
+variable_description_too_long
+variable_example_invalid
+variable_label_invalid
+variable_name_invalid
+variable_name_reserved
+variable_not_found
+variable_type_invalid
+variable_type_unknown

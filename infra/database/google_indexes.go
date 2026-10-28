@@ -3,11 +3,11 @@ package database
 import "slices"
 
 func googlePerformanceIndexes() []ddl {
-	return slices.Concat(googleAccountPerformanceIndexes(), googleSheetPerformanceIndexes(), googleSheetRemovalIndexes())
+	return slices.Concat(googleAccountPerformanceIndexes(), googleSheetPerformanceIndexes(), googleSheetRemovalIndexes(), googleSheetEditIndexes())
 }
 
 func googleSchemaConstraints() []ddl {
-	return slices.Concat(googleAccountSchemaConstraints(), googleSheetSchemaConstraints(), googleSheetRemovalConstraints())
+	return slices.Concat(googleAccountSchemaConstraints(), googleSheetSchemaConstraints(), googleSheetRemovalConstraints(), googleSheetEditConstraints())
 }
 
 func googleAccountPerformanceIndexes() []ddl {

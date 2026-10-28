@@ -9,7 +9,7 @@ CHAVES DE SAÍDA: todo nó executado grava um conjunto de "chaves de saída" (li
 
 CASOS COMUNS:
 - Resposta de um agente de IA: a chave de saída é response_text → use {{node.<idDoAgente>.response_text}} (ou {{ai.response_text}}).
-- Argumentos de uma ferramenta chamada pelo agente (tool_mode=route): CADA argumento é uma chave de saída → {{node.<idDoAgente>.<arg>}} (ex.: {{node.n2.cep}}). O objeto inteiro fica em tool_args.
+- Argumentos de uma ferramenta chamada pelo agente: CADA argumento é uma chave de saída → {{node.<idDoAgente>.<arg>}} (ex.: {{node.n2.cep}}). O objeto inteiro fica em tool_args.
 - Resposta JSON de um http_request: CADA campo do JSON vira uma chave de saída → {{node.<id>.<campo>}}.
 - Objeto retornado por um nó code: cada campo vira uma chave de saída → {{node.<id>.<campo>}}.
 

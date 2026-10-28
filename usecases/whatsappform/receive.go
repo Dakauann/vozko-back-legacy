@@ -4,22 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
-	"vozko/domain/actor"
 	"vozko/domain/lead"
 	wf "vozko/domain/whatsappform"
 	"vozko/domain/workflow"
-	lead_usecase "vozko/usecases/lead"
+	"vozko/usecases/formlead"
 )
 
 const (
-	ConsentGranted   = "granted"
-	ConsentUnchanged = "unchanged"
-	FileStoreFailed  = "store_failed"
-	refusedNoLead    = "lead_missing"
+	FileStoreFailed = "store_failed"
+	refusedNoLead   = "lead_missing"
 )
 
 type InboundForm struct {
@@ -185,8 +181,8 @@ func (s *Service) apply(ctx context.Context, m matched, resp wf.Response) (wf.Re
 		}
 	}
 	if !resp.Report.Triggered {
-		trigger := FormTrigger{WorkspaceID: resp.WorkspaceID, EntryID: resp.EntryID, EntryType: resp.EntryType, FormID: resp.FormID, ResponseID: resp.ID, Data: data}
-		if err := s.deps.Triggers.FormSubmitted(ctx, trigger); err != nil {
+		trigger := formlead.Trigger{WorkspaceID: resp.WorkspaceID, EntryID: resp.EntryID, EntryType: resp.EntryType, Form: whatsAppForm(resp.FormID), SubmissionID: resp.ID, Data: data}
+		if err := s.deps.FormLeads.Trigger(ctx, trigger); err != nil {
 			return wf.Response{}, err
 		}
 		resp.Report.Triggered = true
@@ -210,50 +206,32 @@ func filesFailed(report wf.ApplyReport) bool {
 	return false
 }
 
-func refusalCode(err error) string {
-	if code := lead.ErrorCode(err); code != "" {
-		return code
-	}
-	return "lead_refused"
+func whatsAppForm(formID string) formlead.Form {
+	return formlead.Form{Kind: formlead.KindWhatsAppForm, ID: formID}
 }
 
 func (s *Service) writeLead(ctx context.Context, doc wf.Document, resp *wf.Response) error {
-	if resp.LeadID == "" {
-		resp.Report.Refused = append(resp.Report.Refused, refusedNoLead)
-		return nil
-	}
 	defs, err := s.leadDefinitions(resp.WorkspaceID)
 	if err != nil {
 		return err
 	}
-	if profile := wf.ToProfile(doc, resp.Answers, defs); !profile.Empty() {
-		result, err := s.deps.Profiles.Update(ctx, lead_usecase.ProfileUpdate{
-			WorkspaceID: resp.WorkspaceID, LeadID: resp.LeadID, Actor: actor.SystemID, Source: lead.ProfileFromForm, Profile: profile,
-		})
-		switch {
-		case lead.IsInputRefusal(err):
-			resp.Report.Refused = append(resp.Report.Refused, refusalCode(err))
-		case err != nil:
-			return fmt.Errorf("lead %s from response %s: %w", resp.LeadID, resp.ID, err)
-		default:
-			resp.Report.Changed, resp.Report.Conflicts = result.Changed, result.Conflicts
-		}
+	sub := formlead.Submission{
+		WorkspaceID: resp.WorkspaceID, Form: whatsAppForm(resp.FormID), ID: resp.ID, Identity: formlead.Identity{LeadID: resp.LeadID},
+		Profile: wf.ToProfile(doc, resp.Answers, defs), SubmittedAt: resp.SubmittedAt,
 	}
-	change := wf.ToConsent(doc, resp.Answers, resp.ID, resp.SubmittedAt)
-	if change == nil {
-		return nil
+	if text, granted := wf.ConsentGrantText(doc, resp.Answers); granted {
+		sub.Consent = &formlead.Consent{Text: text}
 	}
-	outcome, err := s.deps.Consents.Record(ctx, resp.WorkspaceID, resp.LeadID, *change)
+	out, err := s.deps.FormLeads.Write(ctx, sub)
 	switch {
-	case lead.IsInputRefusal(err):
-		resp.Report.Refused = append(resp.Report.Refused, refusalCode(err))
+	case errors.Is(err, lead.ErrLeadIdentityRequired):
+		resp.Report.Refused = append(resp.Report.Refused, refusedNoLead)
+		return nil
 	case err != nil:
-		return fmt.Errorf("consent of lead %s from response %s: %w", resp.LeadID, resp.ID, err)
-	case outcome.Changed:
-		resp.Report.Consent = ConsentGranted
-	default:
-		resp.Report.Consent = ConsentUnchanged
+		return err
 	}
+	resp.Report.Refused = append(resp.Report.Refused, out.Refused...)
+	resp.Report.Changed, resp.Report.Conflicts, resp.Report.Consent = out.Changed, out.Conflicts, out.Consent
 	return nil
 }
 

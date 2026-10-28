@@ -19,6 +19,7 @@ func TestEveryEntryPointQueryBindsExactlyTheArgumentsItIsGiven(t *testing.T) {
 		{"last deliveries", lastDeliveriesSQL, 1},
 		{"last starts", lastStartsSQL, 1},
 		{"forms", formsSQL, 2},
+		{"page forms", pageFormsSQL, 2},
 		{"agents", boundAgentsSQL, 3},
 		{"template exits", templateExitsSQL, 2},
 		{"campaign exits", campaignExitsSQL, 2},
@@ -58,6 +59,16 @@ func TestTheMercadoLivreAccountIsNamedBySellerNameFirst(t *testing.T) {
 		if c.kind == workflow.ChannelMercadoLivreAccount && c.name != mldomain.AccountNameSQL("") {
 			t.Fatalf("mercado livre account name = %q", c.name)
 		}
+	}
+}
+
+func TestPageFormKeysAreTheFormIDsThatAreNotWhatsAppForms(t *testing.T) {
+	got := pageFormKeysOf([]string{"4f1c2b6e-8e8a-4c1d-9f6e-2b1f8f9a0c11", " Qk3xZ0aT1v9mB2cD4eF5gH6i ", "bad key!", ""})
+	if len(got) != 1 || got[0] != "Qk3xZ0aT1v9mB2cD4eF5gH6i" {
+		t.Fatalf("page form keys = %v", got)
+	}
+	if !strings.Contains(pageFormsSQL, "FROM site_form_keys") || !strings.Contains(pageFormsSQL, "m.active") {
+		t.Fatalf("page forms are read from their keys and live manifests: %s", pageFormsSQL)
 	}
 }
 

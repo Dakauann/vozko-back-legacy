@@ -43,6 +43,7 @@ type Deps struct {
 	Channels    []Channel
 	Gate        cache.Gate
 	Flight      cache.Flight
+	Values      VariableValues
 	Now         func() time.Time
 	NewID       func() string
 }
@@ -56,7 +57,7 @@ func New(deps Deps) (*Service, error) {
 	missing := map[string]bool{
 		"selections": deps.Selections == nil, "lists": deps.Lists == nil, "sheets": deps.Sheets == nil,
 		"phones": deps.Phones == nil, "emails": deps.Emails == nil, "email leads": deps.EmailLeads == nil, "emails seen": deps.EmailsSeen == nil,
-		"definitions": deps.Definitions == nil, "gate": deps.Gate == nil, "flight": deps.Flight == nil,
+		"definitions": deps.Definitions == nil, "gate": deps.Gate == nil, "flight": deps.Flight == nil, "variable values": deps.Values == nil,
 	}
 	for name, absent := range missing {
 		if absent {
@@ -243,6 +244,10 @@ func (s *Service) walk(ctx context.Context, w walk, visit visitor) (*campaignaud
 	if err != nil {
 		return nil, campaignaudience.Count{}, err
 	}
+	accept, err := s.typed(ctx, w.actor.WorkspaceID, &prepared)
+	if err != nil {
+		return nil, campaignaudience.Count{}, err
+	}
 	bound, err := s.bindAudience(w.actor, w.spec.Source, list, prepared, w.spec.Variables)
 	if err != nil {
 		return nil, campaignaudience.Count{}, err
@@ -254,7 +259,7 @@ func (s *Service) walk(ctx context.Context, w walk, visit visitor) (*campaignaud
 	if err != nil {
 		return nil, campaignaudience.Count{}, err
 	}
-	tally := campaignaudience.NewTally(w.channel, w.spec.Source, bound).Awaiting(prepared.Awaits)
+	tally := campaignaudience.NewTally(w.channel, w.spec.Source, bound).Awaiting(prepared.Awaits).Checking(accept)
 	add := func(c campaignaudience.Candidate) error {
 		d := tally.Add(c)
 		if visit == nil {

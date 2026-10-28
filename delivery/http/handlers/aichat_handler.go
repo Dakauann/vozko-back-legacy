@@ -549,7 +549,7 @@ func (h *AIChatHandler) writeQueueError(w http.ResponseWriter, err error) {
 }
 
 // @Summary		Responder a um comando da Elo na tela aberta
-// @Description	Quando a Elo trabalha no Estúdio, ela envia pelo stream da conversa um evento `screen_command` (`{id, name, projectId, args}`), com `name` em `read`, `edit`, `look`, `resolve_source`, `follow_job`, `export`, `listen` ou `save_preset`. O editor aberto executa o comando e devolve o resultado aqui, uma única vez, dentro do tempo do comando; depois disso a resposta é ignorada e a Elo é avisada de que o editor não respondeu.
+// @Description	Quando a Elo trabalha no Estúdio, ela envia pelo stream da conversa um evento `screen_command` (`{id, name, projectId, args}`), com `name` em `read`, `edit`, `look`, `resolve_source`, `follow_job`, `export`, `listen` ou `save_preset`; no editor de páginas, `read`, `edit`, `look` (imagem da prévia em cada largura pedida) e `inspect` (o DOM de cada rota da prévia, em `data.documents`). O editor aberto executa o comando e devolve o resultado aqui, uma única vez, dentro do tempo do comando; depois disso a resposta é ignorada e a Elo é avisada de que o editor não respondeu.
 // @Description
 // @Description	`create_project` chega também fora do Estúdio, com `projectId` vazio e o pedido do projeto em `args` (`kind`, `name`, `media`, `sizes`, `aspect`, `durationMs`). Quem responde é a aba da conversa: ela cria o projeto e, se o usuário escolheu abrir telas sozinho, abre o editor dele. `data` traz `{projectId, kind, opened}`, com `opened` true só quando o editor foi aberto. Uma aba que não pode criar responde `ok` false com `code: no_editor`, e outra aba pode responder no lugar dela.
 // @Description

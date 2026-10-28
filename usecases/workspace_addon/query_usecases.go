@@ -67,6 +67,7 @@ func (uc *getWorkspaceEntitlementsUseCase) Execute(workspaceID string) ([]worksp
 		return nil, err
 	}
 
+	now := uc.now()
 	kinds := workspace_addon.AllEntitlementKinds()
 	out := make([]workspace_addon.WorkspaceEntitlement, 0, len(kinds))
 	for _, kind := range kinds {
@@ -88,7 +89,7 @@ func (uc *getWorkspaceEntitlementsUseCase) Execute(workspaceID string) ([]worksp
 		}
 		addonUnits := 0
 		for _, s := range subs {
-			addonUnits += s.GrantedUnits()
+			addonUnits += s.GrantedUnitsAt(now)
 		}
 		out = append(out, workspace_addon.WorkspaceEntitlement{
 			Kind:       kind,

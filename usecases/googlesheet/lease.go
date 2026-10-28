@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"time"
 
 	"vozko/domain/cache"
 )
@@ -11,7 +12,11 @@ import (
 func sheetLeaseKey(sheetID string) string { return "gs:sheet:" + sheetID }
 
 func acquireSheet(ctx context.Context, leases cache.Locker, sheetID string) (release func(), busy bool, err error) {
-	probe, cancel := context.WithTimeout(ctx, leaseProbe)
+	return acquireSheetWithin(ctx, leases, sheetID, leaseProbe)
+}
+
+func acquireSheetWithin(ctx context.Context, leases cache.Locker, sheetID string, wait time.Duration) (release func(), busy bool, err error) {
+	probe, cancel := context.WithTimeout(ctx, wait)
 	held, err := leases.Acquire(probe, sheetLeaseKey(sheetID))
 	cancel()
 	if err != nil {

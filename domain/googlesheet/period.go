@@ -152,7 +152,8 @@ type TabInfo struct {
 }
 
 type Workbook struct {
-	Tabs []TabInfo
+	Locale string
+	Tabs   []TabInfo
 }
 
 const MaxCellsPerSpreadsheet = 10_000_000

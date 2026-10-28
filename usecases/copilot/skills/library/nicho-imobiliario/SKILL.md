@@ -1,6 +1,7 @@
 ---
 name: nicho-imobiliario
 description: Anúncios e atendimento para corretores e imobiliárias (CRECI obrigatório, categoria especial de moradia da Meta, qualificação de interessados); carregue quando o cliente vender ou alugar imóveis.
+also: site
 ---
 
 # Corretores e imobiliárias

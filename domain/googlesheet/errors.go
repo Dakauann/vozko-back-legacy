@@ -113,6 +113,12 @@ var errorCodes = []struct {
 	{ErrRemovalReasonTooLong, CodeRemovalReasonTooLong},
 	{ErrRemovalActorRequired, CodeRemovalActorRequired},
 	{ErrSheetBusy, CodeSheetBusy},
+	{ErrFileBeingEdited, CodeFileBeingEdited},
+	{ErrEditSessionNotFound, CodeEditSessionNotFound},
+	{ErrEditSessionEnded, CodeEditSessionEnded},
+	{ErrEditSessionNotYours, CodeEditSessionNotYours},
+	{ErrEditEndReasonUnknown, CodeEditEndReasonUnknown},
+	{ErrSheetInUse, CodeSheetInUse},
 }
 
 func AllErrors() []error {

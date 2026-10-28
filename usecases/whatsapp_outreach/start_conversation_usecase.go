@@ -2,13 +2,10 @@ package whatsapp_outreach
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
 
 	"vozko/domain/conversation"
 	ia "vozko/domain/inbox_assignment"
@@ -117,7 +114,7 @@ func (uc *startConversationUseCase) Execute(ctx context.Context, in wo.StartConv
 		return nil, err
 	}
 
-	entry, entryExisted := uc.findExistingEntry(in.WorkspaceID, number, phone.ID)
+	entry, entryExisted := findExistingEntry(uc.deps.Entries, in.WorkspaceID, number, phone.ID)
 
 	if uc.deps.Windows != nil && !tmpl.IsAuthentication() {
 		open, windowErr := uc.deps.Windows.IsWindowOpen(leadRecord.ID, phone.ID)
@@ -152,23 +149,9 @@ func (uc *startConversationUseCase) Execute(ctx context.Context, in wo.StartConv
 	}()
 
 	if entry == nil {
-		entry = &wce.WhatsAppCampaignEntry{
-			ID:         uuid.New().String(),
-			CampaignID: campaign.ID,
-			LeadID:     leadRecord.ID,
-			Status:     wce.SendStatusPending,
-			Variables:  in.BodyParams,
-		}
-		if createErr := uc.deps.Entries.Create(entry); createErr != nil {
-			if errors.Is(createErr, wce.ErrEntryDuplicate) {
-				if existing, findErr := uc.deps.Entries.FindByCampaignAndLead(campaign.ID, leadRecord.ID); findErr == nil && existing != nil {
-					entry, entryExisted = existing, true
-				} else {
-					return nil, createErr
-				}
-			} else {
-				return nil, createErr
-			}
+		entry, entryExisted, err = createEntry(uc.deps.Entries, campaign.ID, leadRecord.ID, in.BodyParams)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -247,13 +230,6 @@ func (uc *startConversationUseCase) settleStart(hold ia.StartHold, sent bool) {
 	}
 }
 
-func (uc *startConversationUseCase) findExistingEntry(workspaceID, number, phoneID string) (*wce.WhatsAppCampaignEntry, bool) {
-	existing, err := uc.deps.Entries.FindByNumberBusinessPhoneAndWorkspace(number, phoneID, workspaceID)
-	if err != nil || existing == nil {
-		return nil, false
-	}
-	return existing, true
-}
 
 func (uc *startConversationUseCase) departmentAllows(in wo.StartConversationInput, campaign *wc.Campaign) bool {
 	if in.IsAdmin || len(in.DepartmentIDs) == 0 {

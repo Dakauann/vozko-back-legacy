@@ -1,0 +1,61 @@
+FROM golang:1.26-bookworm AS gateway-build
+
+WORKDIR /src
+COPY go.mod go.sum ./
+COPY brand/ brand/
+COPY domain/ domain/
+COPY infra/netguard/ infra/netguard/
+COPY infra/siterendergate/ infra/siterendergate/
+COPY cmd/siterendergate/ cmd/siterendergate/
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /siterendergate ./cmd/siterendergate
+
+FROM scratch AS gateway
+
+COPY --from=gateway-build /siterendergate /siterendergate
+USER 65534:65534
+EXPOSE 3128 3129 9222
+ENTRYPOINT ["/siterendergate"]
+
+FROM chromedp/headless-shell:155.0.8059.40@sha256:0dc9356ce1428962cddcf938dab712a8c56de79adc326f9138298f13df440071 AS renderer
+
+RUN groupadd --gid 10001 renderer \
+    && useradd --uid 10001 --gid 10001 --create-home --home-dir /home/renderer --shell /usr/sbin/nologin renderer
+
+COPY --chmod=0555 <<'EOF' /usr/local/bin/siterender-run
+#!/bin/sh
+set -eu
+case " $* " in
+  *" --no-sandbox "*|*" --disable-setuid-sandbox "*) echo "siterender: the Chromium sandbox cannot be disabled" >&2; exit 64 ;;
+esac
+case " $* " in
+  *" --proxy-server="*) ;;
+  *) echo "siterender: --proxy-server is required" >&2; exit 64 ;;
+esac
+mkdir -p /tmp/profile
+socat TCP4-LISTEN:9222,fork,reuseaddr TCP4:127.0.0.1:9223 &
+exec /headless-shell/headless-shell \
+  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port=9223 \
+  --user-data-dir=/tmp/profile \
+  --proxy-bypass-list='<-loopback>' \
+  --force-webrtc-ip-handling-policy=disable_non_proxied_udp \
+  --use-gl=angle \
+  --use-angle=swiftshader \
+  --disable-background-networking \
+  --disable-component-update \
+  --disable-domain-reliability \
+  --disable-sync \
+  --disable-breakpad \
+  --no-first-run \
+  --no-default-browser-check \
+  --metrics-recording-only \
+  --mute-audio \
+  --hide-scrollbars \
+  "$@"
+EOF
+
+USER 10001:10001
+ENV HOME=/home/renderer
+EXPOSE 9222
+ENTRYPOINT ["/usr/local/bin/siterender-run"]
+CMD ["--proxy-server=http://siterender-gateway:3128"]

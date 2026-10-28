@@ -1,6 +1,7 @@
 package node_executors
 
 import (
+	"errors"
 	"log"
 	"strconv"
 	"strings"
@@ -26,8 +27,6 @@ const (
 	followUpFallbackKey   = "fallback_template_id"
 	followUpFallbackParam = "fallback_params"
 )
-
-var followUpUnitMinutes = map[string]int{"minutes": 1, "hours": 60, "days": 24 * 60}
 
 type scheduleMessageExecutor struct {
 	followUps sm.FollowUpUseCase
@@ -67,11 +66,13 @@ func (e *scheduleMessageExecutor) Definition() workflow.NodeDefinition {
 		},
 		OutputKeys: []workflow.OutputKeyDefinition{
 			{Key: "follow_up_id", Description: "ID da mensagem agendada, para cancelar depois", Label: "ID do agendamento", Type: workflow.VariableTypeText},
-			{Key: "scheduled_at", Description: "Horário do envio em UTC (ISO 8601)", Label: "Horário (UTC)", Type: workflow.VariableTypeText},
+			{Key: "scheduled_at", Description: "Horário do envio em UTC (ISO 8601)", Label: "Horário (UTC)", LabelKey: "output_scheduled_at_utc", Type: workflow.VariableTypeText},
 			{Key: "scheduled_for", Description: "Horário do envio no fuso do workspace (DD/MM/AAAA HH:MM)", Label: "Horário local", Type: workflow.VariableTypeText},
 			{Key: "kind", Description: "text ou template", Label: "Tipo", Type: workflow.VariableTypeText},
-			{Key: "error", Description: "Descrição da recusa", Label: "Recusa", Type: workflow.VariableTypeText},
+			{Key: "error", Description: "Descrição da recusa", Label: "Recusa", LabelKey: "output_error_refusal", Type: workflow.VariableTypeText},
 			{Key: "error_code", Description: "Código da recusa", Label: "Código da recusa", Type: workflow.VariableTypeText},
+			{Key: "error_field", Description: "Campo do horário que foi recusado", Label: "Campo recusado", Type: workflow.VariableTypeText},
+			{Key: "error_field_label", Description: "Nome do campo do horário que foi recusado", Label: "Nome do campo recusado", Type: workflow.VariableTypeText},
 		},
 		DefaultConfig: map[string]interface{}{
 			"text":              "",
@@ -91,13 +92,13 @@ func (e *scheduleMessageExecutor) Definition() workflow.NodeDefinition {
 				{Value: followUpWhenDay, Label: "Daqui a alguns dias, num horário"},
 				{Value: followUpWhenDate, Label: "Numa data e horário"},
 			}},
-			{Key: "delay_amount", Label: "Quanto tempo", Type: "number", RequiredWhen: inMode, VisibleWhen: inMode},
-			{Key: "delay_unit", Label: "Unidade", Type: "select", VisibleWhen: inMode, Options: []workflow.ConfigFieldOption{
+			{Key: "delay_amount", Label: "Quanto tempo", Type: "number", Description: "Número inteiro maior que zero, ou uma variável.", RequiredWhen: inMode, VisibleWhen: inMode},
+			{Key: "delay_unit", Label: "Unidade", Type: "select", Description: "Ou uma variável com minutes, hours ou days.", RequiredWhen: inMode, VisibleWhen: inMode, Options: []workflow.ConfigFieldOption{
 				{Value: "minutes", Label: "Minutos"}, {Value: "hours", Label: "Horas"}, {Value: "days", Label: "Dias"},
 			}},
-			{Key: "days_from_today", Label: "Dias a partir de hoje", Type: "number", Description: "0 hoje, 1 amanhã.", VisibleWhen: dayMode},
+			{Key: "days_from_today", Label: "Dias a partir de hoje", Type: "number", Description: "0 hoje, 1 amanhã, ou uma variável.", RequiredWhen: dayMode, VisibleWhen: dayMode},
 			{Key: "date", Label: "Data", Type: "text", Placeholder: "AAAA-MM-DD ou {{var.data}}", RequiredWhen: dateMode, VisibleWhen: dateMode},
-			{Key: "time", Label: "Horário", Type: "text", Placeholder: "HH:MM", Description: "No fuso do workspace.", RequiredWhen: clockModes, VisibleWhen: clockModes},
+			{Key: "time", Label: "Horário", Type: "text", Placeholder: "HH:MM", Description: "HH:MM no fuso do workspace, ou uma variável.", RequiredWhen: clockModes, VisibleWhen: clockModes},
 			{Key: followUpFallbackKey, Label: "Template de reserva", Type: "select", OptionsSource: "whatsapp_templates",
 				Description: "Só no WhatsApp oficial: enviado quando o horário cair fora da janela de 24 horas."},
 			{Key: followUpFallbackParam, Label: "Valores do template", Type: "tags", Description: "As variáveis do template de reserva, na ordem. Aceita variáveis do fluxo {{...}}."},
@@ -118,10 +119,13 @@ func (e *scheduleMessageExecutor) Execute(ctx *workflow.NodeContext) (*workflow.
 	if strings.TrimSpace(text) == "" {
 		return nil, workflow.ErrNodeConfigMissing
 	}
-	when, missing := followUpWhenFrom(ctx)
+	when, refused := followUpWhenFrom(ctx)
+	if refused != nil {
+		return refused, nil
+	}
 	fallback, missingParams := followUpFallbackFrom(ctx)
-	if missing = append(missing, missingParams...); len(missing) > 0 {
-		return followUpNodeRefusedWith(ctx, sm.ErrFollowUpVariableMissing, "variáveis sem valor: "+strings.Join(missing, ", ")), nil
+	if len(missingParams) > 0 {
+		return followUpNodeRefusedWith(ctx, sm.ErrFollowUpVariableMissing, "Valores do template sem valor"), nil
 	}
 
 	callCtx, release := ctx.CallContext()
@@ -151,25 +155,42 @@ func (e *scheduleMessageExecutor) Execute(ctx *workflow.NodeContext) (*workflow.
 	return routeOutput(&workflow.NodeResult{Output: output}, outgoingEdges(ctx), followUpScheduled), nil
 }
 
-func followUpWhenFrom(ctx *workflow.NodeContext) (sm.FollowUpWhen, []string) {
-	config := ctx.Node.Config
-	mode, _ := config[followUpWhenModeKey].(string)
-	switch mode {
-	case followUpWhenDay:
-		clock, missing := strictConfigText(ctx, "time")
-		days := configInt(config, "days_from_today")
-		return sm.FollowUpWhen{DaysFromToday: &days, Time: clock}, missing
-	case followUpWhenDate:
-		date, missingDate := strictConfigText(ctx, "date")
-		clock, missingTime := strictConfigText(ctx, "time")
-		return sm.FollowUpWhen{Date: date, Time: clock}, append(missingDate, missingTime...)
+func followUpWhenFrom(ctx *workflow.NodeContext) (sm.FollowUpWhen, *workflow.NodeResult) {
+	mode, _ := ctx.Node.Config[followUpWhenModeKey].(string)
+	values := map[sm.FollowUpField]string{}
+	for _, field := range sm.FollowUpFieldsOf(mode) {
+		text, missing := followUpFieldText(ctx, field)
+		if len(missing) > 0 {
+			return sm.FollowUpWhen{}, followUpFieldRefused(ctx, sm.ErrFollowUpVariableMissing, field, field.Label()+" usa um dado sem valor neste ponto do fluxo.")
+		}
+		values[field] = text
 	}
-	unit, _ := config["delay_unit"].(string)
-	perUnit, ok := followUpUnitMinutes[unit]
-	if !ok {
-		perUnit = 1
+	when, err := sm.ParseFollowUpWhen(mode, values)
+	var fieldErr *sm.FollowUpFieldError
+	if errors.As(err, &fieldErr) {
+		return sm.FollowUpWhen{}, followUpFieldRefused(ctx, err, fieldErr.Field, fieldErr.Sentence())
 	}
-	return sm.FollowUpWhen{InMinutes: configInt(config, "delay_amount") * perUnit}, nil
+	return when, nil
+}
+
+func followUpFieldText(ctx *workflow.NodeContext, field sm.FollowUpField) (string, []string) {
+	switch v := ctx.Node.Config[string(field)].(type) {
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64), nil
+	case int:
+		return strconv.Itoa(v), nil
+	case string:
+		return strictConfigText(ctx, string(field))
+	}
+	return "", nil
+}
+
+func followUpFieldRefused(ctx *workflow.NodeContext, err error, field sm.FollowUpField, message string) *workflow.NodeResult {
+	output := map[string]interface{}{
+		"error": message, "error_code": sm.FollowUpErrorCode(err),
+		"error_field": string(field), "error_field_label": field.Label(),
+	}
+	return routeFailure(&workflow.NodeResult{Output: output}, outgoingEdges(ctx), followUpRefused)
 }
 
 func followUpFallbackFrom(ctx *workflow.NodeContext) (*sm.TemplateContent, []string) {
@@ -192,21 +213,6 @@ func strictConfigText(ctx *workflow.NodeContext, key string) (string, []string) 
 	raw, _ := ctx.Node.Config[key].(string)
 	resolved, unresolved := workflow.InterpolateStrict(raw, ctx.State, nil)
 	return strings.TrimSpace(resolved), unresolved
-}
-
-func configInt(config map[string]interface{}, key string) int {
-	switch v := config[key].(type) {
-	case float64:
-		return int(v)
-	case int:
-		return v
-	case string:
-		n, err := strconv.Atoi(strings.TrimSpace(v))
-		if err == nil {
-			return n
-		}
-	}
-	return 0
 }
 
 func configBool(config map[string]interface{}, key string, fallback bool) bool {
@@ -251,7 +257,7 @@ func (e *cancelScheduledMessagesExecutor) Definition() workflow.NodeDefinition {
 		OutputKeys: []workflow.OutputKeyDefinition{
 			{Key: "cancelled", Description: "Quantas mensagens foram canceladas", Label: "Canceladas", Type: workflow.VariableTypeNumber},
 			{Key: "cancelled_ids", Description: "IDs das mensagens canceladas", Label: "IDs cancelados", Type: workflow.VariableTypeList},
-			{Key: "error", Description: "Descrição da recusa", Label: "Recusa", Type: workflow.VariableTypeText},
+			{Key: "error", Description: "Descrição da recusa", Label: "Recusa", LabelKey: "output_error_refusal", Type: workflow.VariableTypeText},
 			{Key: "error_code", Description: "Código da recusa", Label: "Código da recusa", Type: workflow.VariableTypeText},
 		},
 		DefaultConfig: map[string]interface{}{followUpScopeKey: followUpScopeMine, "follow_up_id": ""},

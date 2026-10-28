@@ -13,6 +13,7 @@ import (
 	"vozko/domain/customfield"
 	"vozko/domain/lead"
 	"vozko/domain/shared"
+	"vozko/domain/variabledecl"
 )
 
 type fakeSnapshots struct {
@@ -223,5 +224,36 @@ func TestSavingRefusesWhatWouldLeaveTheAutomationBlank(t *testing.T) {
 				t.Fatalf("nothing is stored when the form is refused: %v", f.store.saved)
 			}
 		})
+	}
+}
+
+func TestSavedValuesMustFitTheDeclaredTypeAndRefusalsCarryTheLabels(t *testing.T) {
+	f := newFormFakes()
+	q := f.queries(t, true)
+	q.d.Service.declarations = fakeDeclarations{rows: []variabledecl.Declaration{{Name: "turma", Label: "Turma do aluno", Type: variabledecl.Type{Kind: variabledecl.KindChoice, Options: []string{"A", "B"}}}}}
+	err := q.SaveConversationValues(context.Background(), SaveValues{ConversationRef: conversationRef, Automation: ref(conversation.AutomationAgent, "escola"), Bindings: []conversationvars.Binding{{Name: "turma", Source: campaign.BindLiteral, Value: "Z"}}})
+	var named *conversationvars.VariablesError
+	if !errors.Is(err, conversationvars.ErrTypeInvalid) || !errors.As(err, &named) || !reflect.DeepEqual(named.Names, []string{"turma"}) || named.Labels["turma"] != "Turma do aluno" {
+		t.Fatalf("err = %v (%+v)", err, named)
+	}
+	if len(f.store.saved) != 0 {
+		t.Fatalf("stored = %v", f.store.saved)
+	}
+	if err := q.SaveConversationValues(context.Background(), SaveValues{ConversationRef: conversationRef, Automation: ref(conversation.AutomationAgent, "escola"), Bindings: []conversationvars.Binding{{Name: "turma", Source: campaign.BindLiteral, Value: "B"}}}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = q.ResolveValues(context.Background(), conversationvars.Ref{WorkspaceID: "ws", EntryID: "e1", EntryType: shared.EntryTypeWhatsApp}, []conversationvars.Binding{{Name: "turma", Source: campaign.BindLiteral, Value: "Z"}})
+	if !errors.Is(err, conversationvars.ErrTypeInvalid) {
+		t.Fatalf("transfer path err = %v", err)
+	}
+}
+
+func TestEmptyValueRefusalsCarryTheLabelsToo(t *testing.T) {
+	f := newFormFakes()
+	q := f.queries(t, true)
+	err := q.SaveConversationValues(context.Background(), SaveValues{ConversationRef: conversationRef, Automation: ref(conversation.AutomationAgent, "escola"), Bindings: []conversationvars.Binding{{Name: "turma", Source: campaign.BindLiteral, Value: " "}}})
+	var named *conversationvars.VariablesError
+	if !errors.As(err, &named) || named.Labels["turma"] != "Turma" {
+		t.Fatalf("err = %v (%+v)", err, named)
 	}
 }

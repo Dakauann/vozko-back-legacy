@@ -1,6 +1,7 @@
 package workflow_usecase
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"vozko/domain/agent"
 	"vozko/domain/automationneeds"
+	"vozko/domain/conversationvars"
 	"vozko/domain/workflow"
 )
 
@@ -74,9 +76,26 @@ func payingNeeds() needsSourceStub {
 	}}
 }
 
+type rulesStub struct {
+	rejected []string
+	err      error
+}
+
+func (r rulesStub) Rejected(context.Context, string, map[string]string) ([]string, error) {
+	return r.rejected, r.err
+}
+
+func (rulesStub) Label(_ context.Context, _ string, needs automationneeds.Needs) automationneeds.Needs {
+	out := append(automationneeds.Needs(nil), needs...)
+	for i := range out {
+		out[i].Label = "Rótulo " + out[i].Name
+	}
+	return out
+}
+
 func newTestValues(t *testing.T, store workflow.TestValuesRepository) *TestValuesUseCase {
 	t.Helper()
-	uc, err := NewTestValuesUseCase(store, payingNeeds())
+	uc, err := NewTestValuesUseCase(store, payingNeeds(), rulesStub{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +203,46 @@ func TestTestValuesFailClosedWhenTheyCannotBeRead(t *testing.T) {
 	if _, err := newTestValues(t, newMemoryTestValues()).Form(broken, "u1"); !errors.Is(err, automationneeds.ErrNotFound) {
 		t.Fatalf("needs err = %v", err)
 	}
-	if _, err := NewTestValuesUseCase(nil, payingNeeds()); err == nil {
+	if _, err := NewTestValuesUseCase(nil, payingNeeds(), rulesStub{}); err == nil {
 		t.Fatal("the use case needs a store")
+	}
+}
+
+func TestTestValuesMustFitTheDeclaredTypeAndTheFormNamesVariablesByLabel(t *testing.T) {
+	store := newMemoryTestValues()
+	uc, err := NewTestValuesUseCase(store, payingNeeds(), rulesStub{rejected: []string{"matricula"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = uc.Save(payingWorkflow(), "u1", map[string]string{"matricula": "abc"})
+	var named *conversationvars.VariablesError
+	if !errors.Is(err, workflow.ErrTestValueTypeInvalid) || !errors.As(err, &named) || named.Labels["matricula"] != "Rótulo matricula" {
+		t.Fatalf("err = %v", err)
+	}
+	if len(store.rows) != 0 {
+		t.Fatalf("stored = %v", store.rows)
+	}
+	form, err := newTestValues(t, store).Form(payingWorkflow(), "u1")
+	if err != nil || form.Needs[0].Label != "Rótulo matricula" {
+		t.Fatalf("form = %+v, %v", form, err)
+	}
+}
+
+func TestTestValuesFailClosedWhenTheTypesCannotBeRead(t *testing.T) {
+	uc, _ := NewTestValuesUseCase(newMemoryTestValues(), payingNeeds(), rulesStub{err: errors.New("down")})
+	if _, err := uc.Save(payingWorkflow(), "u1", map[string]string{"matricula": "1"}); !errors.Is(err, workflow.ErrTestValuesUnavailable) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestTheTestRunTakesTheFlowDefaults(t *testing.T) {
+	store := newMemoryTestValues()
+	wf := payingWorkflow()
+	wf.Graph.Nodes = append(wf.Graph.Nodes, workflow.Node{ID: "n9", Type: workflow.NodeTypeActionSendText, Config: map[string]interface{}{"text": "{{campvars.tom}}"}})
+	wf.Graph.Variables = []workflow.VariableUse{{Name: "tom", Default: "cordial"}}
+	store.rows["ws1|wf-pay|u1"] = map[string]string{"matricula": "1", "valor_pendencia": "2", "nome_cliente": "Ana"}
+	values, err := newTestValues(t, store).RunValues(wf, "u1")
+	if err != nil || values["tom"] != "cordial" {
+		t.Fatalf("values = %v, err = %v", values, err)
 	}
 }

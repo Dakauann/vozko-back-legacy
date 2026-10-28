@@ -279,12 +279,28 @@ func recordBranch(scan lead.TimelineScan) timelineBranch {
 	}
 }
 
+func submissionBranch(scan lead.TimelineScan) timelineBranch {
+	item := quoted(string(lead.TimelineSiteSubmission)+":") + " || ts.id::text"
+	return timelineBranch{
+		selects: timelineSelect(quoted(string(lead.TimelineSiteSubmission)), "ts.created_at", item, quoted(string(lead.TimelineRefSubmission)), "ts.id::text",
+			"''", "''", "''", "jsonb_build_object('title', ts.form_id, 'text', ts.route, 'source', COALESCE(ts.utm ->> 'source', ''), 'projectId', ts.project_id::text)", noCallFacts),
+		from:  "site_submissions ts",
+		where: "ts.workspace_id = ? AND ts.lead_id = ?",
+		args:  []interface{}{scan.WorkspaceID, scan.LeadID},
+		at:    "ts.created_at",
+		item:  item,
+	}
+}
+
 func timelineQuery(scan lead.TimelineScan) (string, []interface{}) {
 	branches := []timelineBranch{conversationBranch(scan), officialMilestonesBranch(scan), unofficialMilestonesBranch(scan)}
 	branches = append(branches, callBranches(scan)...)
 	branches = append(branches, dealBranches(scan)...)
 	branches = append(branches, dealEventBranches(scan)...)
 	branches = append(branches, memoryBranch(scan), recordBranch(scan))
+	if scan.Submissions {
+		branches = append(branches, submissionBranch(scan))
+	}
 	parts := make([]string, 0, len(branches))
 	var args []interface{}
 	for _, b := range branches {
@@ -338,6 +354,7 @@ type timelineSummaryRow struct {
 	CallListID        string     `json:"callListId"`
 	Refusal           string     `json:"refusal"`
 	CallListAssignees []string   `json:"callListAssignees"`
+	ProjectID         string     `json:"projectId"`
 }
 
 func (s timelineSummaryRow) summary() lead.TimelineSummary {
@@ -352,7 +369,7 @@ func (s timelineSummaryRow) summary() lead.TimelineSummary {
 		Event: s.Event, Fields: fields, Direction: s.Direction, Source: s.Source, DurationSec: s.DurationSec,
 		AnsweredAt: s.AnsweredAt, ValueCents: s.ValueCents, Currency: s.Currency, PipelineID: s.PipelineID,
 		StageID: s.StageID, Category: s.Category, Text: s.Text, FromStageID: s.FromStageID, StageName: s.StageName, FromStageName: s.FromStageName,
-		CallListID: s.CallListID,
+		CallListID: s.CallListID, ProjectID: s.ProjectID,
 	}
 	if outcome, shown := calllist.StampedCallOutcome(s.Disposition, s.Refusal, s.CallbackAt); shown {
 		summary.Disposition, summary.CallbackAt = outcome.Disposition, outcome.CallbackAt

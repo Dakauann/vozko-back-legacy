@@ -17,7 +17,7 @@ func Allow() *Guard { return &Guard{} }
 
 func Refuse(err error) *Guard { return &Guard{Refusal: err} }
 
-func (g *Guard) Admit(_ string, config conversation.ChannelAutomation) error {
+func (g *Guard) Admit(_ string, _ domain.SlotKind, config conversation.ChannelAutomation) error {
 	g.Admitted = append(g.Admitted, config)
 	return g.Refusal
 }

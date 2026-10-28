@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"strings"
+	"time"
 
 	"vozko/brand"
 	"vozko/domain/affiliate"
@@ -28,8 +29,9 @@ type handlePaymentWebhookUseCase struct {
 	recordEarning         affiliate.RecordEarningUseCase
 	notifications         notification.Publisher
 	dashboardURL          string
-	confirmMonthlyBilling billing.ConfirmMonthlyBillingUseCase
+	confirmMonthlyBilling billing.ConfirmBilledCycleUseCase
 	reversals             *reversalDeps
+	reversalHooks         ReversalHooks
 }
 
 func NewHandlePaymentWebhookUseCase(
@@ -56,7 +58,7 @@ func (uc *handlePaymentWebhookUseCase) WithNotifications(publisher notification.
 	return uc
 }
 
-func (uc *handlePaymentWebhookUseCase) WithMonthlyBilling(confirmer billing.ConfirmMonthlyBillingUseCase) *handlePaymentWebhookUseCase {
+func (uc *handlePaymentWebhookUseCase) WithMonthlyBilling(confirmer billing.ConfirmBilledCycleUseCase) *handlePaymentWebhookUseCase {
 	uc.confirmMonthlyBilling = confirmer
 	return uc
 }
@@ -231,10 +233,17 @@ func (uc *handlePaymentWebhookUseCase) settle(inv *invoice.Invoice) error {
 }
 
 func monthlyBillingCreditableUSD(inv *invoice.Invoice) int64 {
-	if inv.CreditableUSD > 0 {
+	if inv.CreditableUSD > 0 || len(inv.LineItems) > 0 {
 		return inv.CreditableUSD
 	}
 	return inv.AmountUSD
+}
+
+func billedDue(inv *invoice.Invoice) time.Time {
+	if inv.DueDate != nil {
+		return *inv.DueDate
+	}
+	return billing.LatestIssuedDue(time.Now())
 }
 
 func (uc *handlePaymentWebhookUseCase) settleMonthlyBilling(inv *invoice.Invoice) error {
@@ -262,7 +271,7 @@ func (uc *handlePaymentWebhookUseCase) settleMonthlyBilling(inv *invoice.Invoice
 	}
 
 	if uc.confirmMonthlyBilling != nil {
-		if err := uc.confirmMonthlyBilling.Execute(inv.WorkspaceID); err != nil {
+		if err := uc.confirmMonthlyBilling.ExecuteForCycle(inv.WorkspaceID, billedDue(inv)); err != nil {
 			log.Printf("[invoice-webhook] WARNING: monthly invoice %s paid + credited but subscription extension failed for workspace %s: %v", inv.ID, inv.WorkspaceID, err)
 		}
 	}

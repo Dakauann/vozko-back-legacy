@@ -75,11 +75,15 @@ func (m *Manager) tabReads(access googleaccount.Access) tabReads {
 }
 
 func (m *Manager) sheetTabs(ctx context.Context, sheet *googlesheet.Sheet, workbook googlesheet.Workbook) ([]googlesheet.Target, error) {
+	return liveTabs(ctx, m.sheets, sheet, workbook)
+}
+
+func liveTabs(ctx context.Context, sheets googlesheet.SheetRepository, sheet *googlesheet.Sheet, workbook googlesheet.Workbook) ([]googlesheet.Target, error) {
 	targets := []googlesheet.Target{sheet.Target()}
 	if !sheet.Periodic() {
 		return targets, nil
 	}
-	tabs, err := m.sheets.Tabs(ctx, sheet.ID)
+	tabs, err := sheets.Tabs(ctx, sheet.ID)
 	if err != nil {
 		return nil, err
 	}

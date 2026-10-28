@@ -8,6 +8,7 @@ import (
 	"vozko/domain/cache"
 	"vozko/domain/conversation"
 	wcdomain "vozko/domain/webchat"
+	"vozko/usecases/publicform"
 )
 
 const challengeKeyPrefix = "webchat:challenge:"
@@ -28,6 +29,7 @@ type VisitorDeps struct {
 	Automation    Automation
 	Events        wcdomain.EventPublisher
 	Operators     OperatorNotifier
+	SiteOrigins   SiteOrigins
 	Now           func() time.Time
 	Async         func(func())
 }
@@ -139,8 +141,25 @@ func visitorState(w *wcdomain.Widget, v *wcdomain.Visitor) VisitorState {
 	}
 }
 
-func (s *VisitorService) servedWidget(ctx context.Context, publicKey, parentOrigin string) (*wcdomain.Widget, error) {
+func (s *VisitorService) widgetByKey(ctx context.Context, publicKey string) (*wcdomain.Widget, error) {
 	w, err := s.Widgets.FindByPublicKey(ctx, publicKey)
+	if err != nil {
+		return nil, err
+	}
+	if s.SiteOrigins == nil {
+		w.AcceptSiteOrigins(nil)
+		return w, nil
+	}
+	origins, err := s.SiteOrigins.WidgetOrigins(ctx, w.WorkspaceID, w.ID)
+	if err != nil {
+		return nil, err
+	}
+	w.AcceptSiteOrigins(origins)
+	return w, nil
+}
+
+func (s *VisitorService) servedWidget(ctx context.Context, publicKey, parentOrigin string) (*wcdomain.Widget, error) {
+	w, err := s.widgetByKey(ctx, publicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +173,7 @@ func (s *VisitorService) servedWidget(ctx context.Context, publicKey, parentOrig
 }
 
 func (s *VisitorService) WidgetForFrame(ctx context.Context, publicKey string) (*wcdomain.Widget, error) {
-	w, err := s.Widgets.FindByPublicKey(ctx, publicKey)
+	w, err := s.widgetByKey(ctx, publicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +188,12 @@ func (s *VisitorService) Challenge(ctx context.Context, publicKey, parentOrigin 
 	if err != nil {
 		return wcdomain.Challenge{}, err
 	}
-	return wcdomain.NewChallenge(s.Keys, w.ID, wcdomain.ChallengeBits, s.Now())
+	challenge, err := s.challenges().Issue(w.ID, s.Now())
+	return challenge, wcdomain.PublicFormRefusal(err)
+}
+
+func (s *VisitorService) challenges() publicform.ChallengeGate {
+	return publicform.ChallengeGate{Key: s.Keys.Challenge, Spent: s.OneShot, KeyPrefix: challengeKeyPrefix, Bits: wcdomain.ChallengeBits}
 }
 
 func (s *VisitorService) StartSession(ctx context.Context, in StartSessionInput) (*SessionView, error) {
@@ -304,18 +328,8 @@ func (s *VisitorService) visitorFromToken(ctx context.Context, w *wcdomain.Widge
 }
 
 func (s *VisitorService) spendChallenge(w *wcdomain.Widget, token, nonce string, now time.Time) error {
-	id, err := wcdomain.VerifyChallenge(s.Keys, token, nonce, w.ID, wcdomain.ChallengeBits, now)
-	if err != nil {
-		return err
-	}
-	if s.OneShot == nil {
-		return wcdomain.ErrChallengeReused
-	}
-	fresh, err := s.OneShot.SetNX(challengeKeyPrefix+id, "1", wcdomain.ChallengeTTL+time.Minute)
-	if err != nil || !fresh {
-		return wcdomain.ErrChallengeReused
-	}
-	return nil
+	_, err := s.challenges().Admit(token, nonce, w.ID, now)
+	return wcdomain.PublicFormRefusal(err)
 }
 
 func (s *VisitorService) allowNewVisitor(w *wcdomain.Widget, ipHash string) error {
@@ -351,12 +365,5 @@ func (s *VisitorService) Authenticate(ctx context.Context, token, ip string) (*S
 }
 
 func allow(limiter cache.RateLimiter, key string) error {
-	if limiter == nil {
-		return wcdomain.ErrRateLimited
-	}
-	allowed, _, err := limiter.Allow(key)
-	if err != nil || !allowed {
-		return wcdomain.ErrRateLimited
-	}
-	return nil
+	return wcdomain.PublicFormRefusal(publicform.Allow(limiter, key))
 }

@@ -1,0 +1,16 @@
+export default function Footer() {
+  return (
+    <footer className="bg-night text-surface/80">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-12 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="font-display text-xl text-surface">Sua Empresa</p>
+          <p className="mt-2 text-sm">Rua Exemplo, 123, São Paulo, SP</p>
+        </div>
+        <div className="flex flex-wrap gap-6 text-sm">
+          <a href="/privacidade" className="hover:text-surface">Política de Privacidade</a>
+          <a href="#" data-vz-whatsapp="" data-vz-cta="whatsapp-rodape" className="hover:text-surface">WhatsApp</a>
+        </div>
+      </div>
+    </footer>
+  );
+}

@@ -19,6 +19,7 @@ func RegisterProtectedRoutes(
 	protected.HandleFunc("/workspaces/{workspaceId}/addons", h.ListWorkspace).Methods(http.MethodGet)
 	protected.HandleFunc("/workspaces/{workspaceId}/addons", ac(pl, workspace_domain.ActionCreate, h.Purchase)).Methods(http.MethodPost)
 	protected.HandleFunc("/workspaces/{workspaceId}/addons/{addonSubscriptionId}/cancel", ac(pl, workspace_domain.ActionDelete, h.Cancel)).Methods(http.MethodPost)
+	protected.HandleFunc("/workspaces/{workspaceId}/addons/{addonSubscriptionId}/quantity", ac(pl, workspace_domain.ActionDelete, h.ChangeQuantity)).Methods(http.MethodPut)
 	protected.HandleFunc("/workspaces/{workspaceId}/entitlements", h.GetEntitlements).Methods(http.MethodGet)
 }
 

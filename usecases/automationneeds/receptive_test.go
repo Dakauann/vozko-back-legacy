@@ -51,7 +51,7 @@ func TestReEnablingAChannelSettlesItsSwitchOffNotice(t *testing.T) {
 
 func TestReceptiveAdmitUsesTheSharedRule(t *testing.T) {
 	r, _ := newReceptive(t, &memRecords{})
-	err := r.Admit("ws", conversation.ChannelAutomation{AgentID: id("escola"), EnableAgentResponses: true})
+	err := r.Admit("ws", domain.SlotInstagram, conversation.ChannelAutomation{AgentID: id("escola"), EnableAgentResponses: true})
 	if !errors.Is(err, domain.ErrReceptiveUnmet) {
 		t.Fatalf("err = %v", err)
 	}

@@ -1,6 +1,7 @@
 ---
 name: nicho-odontologia
 description: Regras do CFO para publicidade odontológica (Código de Ética e Resolução 196/2019) e como anunciar para dentistas e clínicas odontológicas; carregue quando o cliente for dentista ou clínica odontológica.
+also: site
 ---
 
 # Dentistas e clínicas odontológicas

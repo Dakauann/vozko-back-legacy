@@ -13,13 +13,12 @@ import (
 
 	"vozko/domain/conversation"
 	"vozko/domain/customfield"
-	"vozko/domain/lead"
 	"vozko/domain/notification"
 	"vozko/domain/shared"
 	businessphone "vozko/domain/whatsapp/business_phone"
 	wf "vozko/domain/whatsappform"
 	"vozko/domain/workspace"
-	lead_usecase "vozko/usecases/lead"
+	"vozko/usecases/formlead"
 )
 
 var errIncomplete = errors.New("whatsapp forms: a required dependency is missing")
@@ -84,12 +83,9 @@ type History interface {
 	RecordFormMessage(ctx context.Context, out OutboundForm) error
 }
 
-type ProfileWriter interface {
-	Update(ctx context.Context, in lead_usecase.ProfileUpdate) (lead_usecase.ProfileResult, error)
-}
-
-type ConsentWriter interface {
-	Record(ctx context.Context, workspaceID, leadID string, change lead.ConsentChange) (lead_usecase.ConsentOutcome, error)
+type FormLeads interface {
+	Write(ctx context.Context, sub formlead.Submission) (formlead.Outcome, error)
+	Trigger(ctx context.Context, in formlead.Trigger) error
 }
 
 type StoredFile struct {
@@ -108,19 +104,6 @@ type MediaStore interface {
 
 type RunResumer interface {
 	ResumeForm(ctx context.Context, runID string, data map[string]any) error
-}
-
-type FormTrigger struct {
-	WorkspaceID string
-	EntryID     string
-	EntryType   string
-	FormID      string
-	ResponseID  string
-	Data        map[string]any
-}
-
-type TriggerFirer interface {
-	FormSubmitted(ctx context.Context, in FormTrigger) error
 }
 
 type LeadNames interface {
@@ -144,11 +127,9 @@ type Deps struct {
 	Access        shared.EntryAccessChecker
 	Scopes        Scopes
 	History       History
-	Profiles      ProfileWriter
-	Consents      ConsentWriter
+	FormLeads     FormLeads
 	Media         MediaStore
 	Runs          RunResumer
-	Triggers      TriggerFirer
 	LeadNames     LeadNames
 	Automations   AutomationCatalog
 	Notices       notification.EpisodePublisher
@@ -171,8 +152,8 @@ func New(deps Deps) (*Service, error) {
 		{"phones", deps.Phones == nil}, {"owned phones", deps.OwnedPhones == nil}, {"permissions", deps.Permissions == nil},
 		{"definitions", deps.Definitions == nil}, {"assets", deps.Assets == nil}, {"sender", deps.Sender == nil},
 		{"conversations", deps.Conversations == nil}, {"access", deps.Access == nil}, {"scopes", deps.Scopes == nil},
-		{"history", deps.History == nil}, {"profiles", deps.Profiles == nil}, {"consents", deps.Consents == nil},
-		{"media", deps.Media == nil}, {"runs", deps.Runs == nil}, {"triggers", deps.Triggers == nil},
+		{"history", deps.History == nil}, {"form leads", deps.FormLeads == nil},
+		{"media", deps.Media == nil}, {"runs", deps.Runs == nil},
 		{"lead names", deps.LeadNames == nil}, {"automations", deps.Automations == nil}, {"notices", deps.Notices == nil},
 	}
 	for _, r := range required {

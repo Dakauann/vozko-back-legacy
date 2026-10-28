@@ -29,10 +29,10 @@ func TestAutomationSlotsPreselectTheColumnOfTheSameNameAndMarkOptionalVariables(
 	}
 	got := AutomationSlots(needs, optional, nil, suggest)
 	want := []Slot{
-		{Key: "matricula", Name: "matricula", Kind: SlotAutomation, NeededBy: "Cobrança", Suggested: campaign.CustomBinding("matricula")},
-		{Key: "nome_cliente", Name: "nome_cliente", Kind: SlotAutomation, NeededBy: "Cobrança", Suggested: campaign.CustomBinding("nome_cliente"), Column: "NOME_CLIENTE"},
-		{Key: "tom", Name: "tom", Kind: SlotAutomation, NeededBy: "Agente", Optional: true, Default: "cordial"},
-		{Key: "unidade", Name: "unidade", Kind: SlotAutomation, NeededBy: "Agente", Optional: true, Default: "Centro", Column: "NOME_CLIENTE"},
+		{Key: "matricula", Name: "Matricula", Kind: SlotAutomation, NeededBy: "Cobrança", Suggested: campaign.CustomBinding("matricula")},
+		{Key: "nome_cliente", Name: "Nome cliente", Kind: SlotAutomation, NeededBy: "Cobrança", Suggested: campaign.CustomBinding("nome_cliente"), Column: "NOME_CLIENTE"},
+		{Key: "tom", Name: "Tom", Kind: SlotAutomation, NeededBy: "Agente", Optional: true, Default: "cordial"},
+		{Key: "unidade", Name: "Unidade", Kind: SlotAutomation, NeededBy: "Agente", Optional: true, Default: "Centro", Column: "NOME_CLIENTE"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("slots = %+v\nwant %+v", got, want)
@@ -195,5 +195,32 @@ func TestALeadsAudienceNeverWaitsOnAnOptionalVariable(t *testing.T) {
 	}
 	if _, metadata := tally.Split(d.Values); metadata != nil {
 		t.Fatalf("metadata = %v, the agent keeps its defaults", metadata)
+	}
+}
+
+func TestAnAutomationValueThatDoesNotFitItsTypeCountsAsMissing(t *testing.T) {
+	tally := NewTally(ChannelWhatsApp, SourceList, listBound()).Checking(func(key, value string) bool {
+		return key != "matricula" || value != "abc"
+	})
+	ready := tally.Add(Candidate{Line: 2, Contact: "a", HasContact: true, Values: []string{"Ana", "00123", "R$ 10", "", "Sul"}})
+	waiting := tally.Add(Candidate{Line: 3, Contact: "b", HasContact: true, Values: []string{"Bia", "abc", "R$ 20", "", ""}})
+	if ready.Outcome != OutcomeSend || waiting.Outcome != OutcomeUndecided {
+		t.Fatalf("outcomes = %v %v", ready.Outcome, waiting.Outcome)
+	}
+	matricula := tally.Count().Variables[1]
+	if matricula.Missing != 1 || matricula.Invalid != 1 {
+		t.Fatalf("matricula = %+v", matricula)
+	}
+	if waiting.Values[1] != "" {
+		t.Fatalf("an invalid value never reaches the entry: %v", waiting.Values)
+	}
+}
+
+func TestTheTypeCheckNeverTouchesTemplateFields(t *testing.T) {
+	tally := NewTally(ChannelWhatsApp, SourceList, listBound()).Checking(func(string, string) bool { return false })
+	tally.Add(Candidate{Line: 2, Contact: "a", HasContact: true, Values: []string{"Ana", "", "R$ 10", "", ""}})
+	count := tally.Count()
+	if count.Variables[0].Invalid != 0 || count.Variables[0].Missing != 0 {
+		t.Fatalf("template slot = %+v", count.Variables[0])
 	}
 }

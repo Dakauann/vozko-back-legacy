@@ -35,7 +35,7 @@ func lintDataRefAvailability(g *Graph, defs map[NodeType]NodeDefinition, add fun
 			case AvailableOnSomePaths:
 				add(LintIssue{
 					Code: LintDataRefSomePaths, Severity: SeverityAdvisory,
-					NodeID: n.ID, Field: read.field, Path: read.ref,
+					NodeID: n.ID, Field: read.field, Path: read.ref, Values: flow.refLabelValues(read.ref),
 					Message: fmt.Sprintf("O nó %q usa {{%s}} em %q, mas só alguns caminhos até ele fornecem esse dado; nos outros o valor fica vazio", n.ID, read.ref, read.field),
 					Hint:    "Faça todos os caminhos até este nó passarem por um passo que defina o dado, ou trate o valor vazio antes.",
 				})

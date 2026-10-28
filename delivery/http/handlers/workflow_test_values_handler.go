@@ -2,13 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/gorilla/mux"
 
+	"vozko/delivery/http/automationneedshttp"
 	"vozko/delivery/http/automationneedsx"
 	"vozko/delivery/http/httpx"
 	"vozko/delivery/http/response"
+	"vozko/domain/conversationvars"
 	"vozko/domain/workflow"
 	workflow_usecase "vozko/usecases/workflow"
 )
@@ -90,7 +93,7 @@ func (h *WorkflowHandler) TestValues(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} response.ErrorResponse "Corpo inválido (invalid_body) ou valor longo demais (test_value_invalid)"
 // @Failure 403 {object} response.ErrorResponse "Workflow de outro departamento"
 // @Failure 404 {object} response.ErrorResponse "Workflow não encontrado"
-// @Failure 422 {object} response.ErrorResponse "test_value_not_needed: o fluxo não usa essa variável"
+// @Failure 422 {object} response.ErrorResponse "test_value_not_needed: o fluxo não usa essa variável; test_value_type_invalid: o valor não cabe no tipo declarado, com details.variables [{name,label}]"
 // @Failure 503 {object} response.ErrorResponse "test_values_unavailable ou automation_needs_unreadable: não foi possível gravar agora"
 // @Router /workflows/{id}/test-values [put]
 func (h *WorkflowHandler) SaveTestValues(w http.ResponseWriter, r *http.Request) {
@@ -104,6 +107,11 @@ func (h *WorkflowHandler) SaveTestValues(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	form, err := h.testValues.Save(wf, userID, req.Values)
+	var named *conversationvars.VariablesError
+	if errors.As(err, &named) && errors.Is(err, workflow.ErrTestValueTypeInvalid) {
+		response.WriteErrorWithDetails(w, http.StatusUnprocessableEntity, "test_value_type_invalid", "Um valor do teste não está no formato desse dado.", automationneedshttp.VariablesDetails(named))
+		return
+	}
 	if err != nil {
 		h.handleDomainError(w, err)
 		return

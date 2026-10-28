@@ -108,6 +108,9 @@ func (g Graph) Clone() Graph {
 	if g.Edges != nil {
 		out.Edges = append([]Edge(nil), g.Edges...)
 	}
+	if g.Variables != nil {
+		out.Variables = append([]VariableUse(nil), g.Variables...)
+	}
 	return out
 }
 

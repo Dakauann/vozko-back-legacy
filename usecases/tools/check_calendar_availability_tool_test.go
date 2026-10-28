@@ -40,7 +40,7 @@ func (m *mockCalendarRepo) GetEvent(string, string) (*calendar.CalendarEvent, er
 func (m *mockCalendarRepo) ListEvents(calendar.ListEventsInput) (*shared.PaginatedResult[*calendar.CalendarEvent], error) {
 	return nil, nil
 }
-func (m *mockCalendarRepo) SaveWatchChannel(*calendar.CalendarWatchChannel) error   { return nil }
+func (m *mockCalendarRepo) SaveWatchChannel(*calendar.CalendarWatchChannel) error { return nil }
 func (m *mockCalendarRepo) GetWatchChannelByChannelID(string) (*calendar.CalendarWatchChannel, error) {
 	return nil, nil
 }
@@ -57,14 +57,14 @@ func (m *mockCalendarRepo) GetEventByGoogleEventID(string, string) (*calendar.Ca
 func (m *mockCalendarRepo) UpdateEventStatus(string, string, string) error { return nil }
 
 type mockGoogleCalendarService struct {
-	events        []*calendar.CalendarEvent
-	listErr       error
-	createID      string
-	meetLink      string
-	createErr     error
-	createdEvent  *calendar.CalendarEvent
-	createdMeet   bool
-	sendUpdates   string
+	events       []*calendar.CalendarEvent
+	listErr      error
+	createID     string
+	meetLink     string
+	createErr    error
+	createdEvent *calendar.CalendarEvent
+	createdMeet  bool
+	sendUpdates  string
 }
 
 func (m *mockGoogleCalendarService) CreateGoogleEvent(accessToken string, event *calendar.CalendarEvent, createMeet bool, sendUpdates string) (string, string, error) {
@@ -401,7 +401,6 @@ func TestCheckCalendarAvailability_DefaultDateTo_EndOfBusiness(t *testing.T) {
 		t.Errorf("expected 4 slots (14-18h with 60min), got %d", len(slots))
 	}
 }
-
 
 func TestCheckCalendarAvailability_DateToBeforeFrom(t *testing.T) {
 	tool := newAvailabilityTool(&mockCalendarRepo{conn: validConn()}, &mockGoogleCalendarService{})

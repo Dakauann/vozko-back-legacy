@@ -2,6 +2,7 @@ package whatsappform_usecase
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"sync"
 
@@ -9,6 +10,7 @@ import (
 	"vozko/domain/lead"
 	"vozko/domain/shared"
 	wf "vozko/domain/whatsappform"
+	"vozko/usecases/formlead"
 	lead_usecase "vozko/usecases/lead"
 )
 
@@ -254,7 +256,7 @@ type effects struct {
 	stored     []StoredFile
 	mediaErr   error
 	resumed    []resumedRun
-	triggered  []FormTrigger
+	triggered  []formlead.Trigger
 	names      map[string]string
 }
 
@@ -300,7 +302,7 @@ func (e *effects) ResumeForm(_ context.Context, runID string, data map[string]an
 	return nil
 }
 
-func (e *effects) FormSubmitted(_ context.Context, in FormTrigger) error {
+func (e *effects) FormSubmitted(_ context.Context, in formlead.Trigger) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.triggered = append(e.triggered, in)
@@ -315,4 +317,16 @@ func (e *effects) Names(_ context.Context, workspaceID string, ids []string) (ma
 		}
 	}
 	return out, nil
+}
+
+var errUnexpectedLeadLookup = errors.New("whatsapp forms never look a lead up by phone or email")
+
+type noLeadLookups struct{}
+
+func (noLeadLookups) FindOrCreate(string, string, lead.LeadUpdate) (*lead.Lead, bool, error) {
+	return nil, false, errUnexpectedLeadLookup
+}
+
+func (noLeadLookups) FindOrCreateManyByEmail(context.Context, string, []lead.BulkEmailInput) (map[string]*lead.Lead, error) {
+	return nil, errUnexpectedLeadLookup
 }

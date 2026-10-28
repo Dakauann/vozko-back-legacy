@@ -266,7 +266,7 @@ func (e *checkOpportunityExecutor) Definition() workflow.NodeDefinition {
 			{ID: "false", Label: "Não"},
 		},
 		OutputKeys: []workflow.OutputKeyDefinition{
-			{Key: "matched", Description: "true quando a verificação foi atendida", Label: "Verificação atendida", Type: workflow.VariableTypeBoolean},
+			{Key: "matched", Description: "true quando a verificação foi atendida", Label: "Verificação atendida", LabelKey: "output_matched_check", Type: workflow.VariableTypeBoolean},
 			{Key: "opportunity_id", Description: "ID da oportunidade (vazio se não há)", Label: "ID da oportunidade", Type: workflow.VariableTypeText},
 			{Key: "status", Description: "Situação da oportunidade: open, won ou lost", Label: "Situação", Type: workflow.VariableTypeText},
 			{Key: "stage_id", Description: "ID da etapa da oportunidade", Label: "ID da etapa", Type: workflow.VariableTypeText},

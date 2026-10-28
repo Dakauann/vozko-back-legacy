@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"vozko/domain/automationneeds"
 	"vozko/domain/googlesheet"
+	"vozko/domain/variabledecl"
 	"vozko/domain/workflow"
-	"vozko/usecases/workflow/node_executors"
 )
 
 type GoogleSheetLookup interface {
@@ -15,9 +16,12 @@ type GoogleSheetLookup interface {
 }
 
 type googleSheetValidator struct {
-	sheets      GoogleSheetLookup
-	workspaceID string
-	links       workflow.SheetLinks
+	sheets       GoogleSheetLookup
+	workspaceID  string
+	links        workflow.SheetLinks
+	columns      workflow.SheetChannelColumns
+	declarations VariableRules
+	voice        bool
 }
 
 func (v *googleSheetValidator) Validate(n *workflow.Node) error {
@@ -35,9 +39,13 @@ func (v *googleSheetValidator) Validate(n *workflow.Node) error {
 	if err != nil {
 		return err
 	}
-	if err := sheet.CheckMapping(sheetMapping(n.Config[node_executors.AddSheetRowValuesKey])); err != nil {
+	if err := v.checkVariable(n, sheet); err != nil {
+		return err
+	}
+	if err := sheet.CheckMapping(workflow.SheetStepMapping(n)); err != nil {
 		return fmt.Errorf("%w: node %q: %v", workflow.ErrNodeSheetMappingInvalid, n.ID, err)
 	}
+	v.recordChannelColumns(sheetID, sheet)
 	if n.Type == workflow.NodeTypeActionExportMessagesSheet && !sheet.HasMessageColumns() {
 		return fmt.Errorf("%w: node %q: %w", workflow.ErrNodeSheetMappingInvalid, n.ID, googlesheet.ErrNoMessageColumns)
 	}
@@ -70,15 +78,34 @@ func (v *googleSheetValidator) recordLinks(nodeID, sheetID string, sheet *google
 	return nil
 }
 
-func sheetMapping(raw interface{}) map[string]string {
-	values, _ := raw.(map[string]interface{})
-	mapping := make(map[string]string, len(values))
-	for key, value := range values {
-		text, ok := value.(string)
-		if !ok {
-			text = workflow.TemplateText(value)
-		}
-		mapping[key] = text
+func (v *googleSheetValidator) recordChannelColumns(sheetID string, sheet *googlesheet.Sheet) {
+	columns := workflow.SheetChannelColumnsOf(sheet.Columns)
+	if len(columns) == 0 {
+		return
 	}
-	return mapping
+	if v.columns == nil {
+		v.columns = workflow.SheetChannelColumns{}
+	}
+	v.columns[sheetID] = columns
+}
+
+func (v *googleSheetValidator) checkVariable(n *workflow.Node, model *googlesheet.Sheet) error {
+	name, set, err := workflow.SheetStepVariable(n)
+	if err != nil || !set {
+		return err
+	}
+	if v.voice {
+		return fmt.Errorf("%w: node %q: ligações não trazem dados da conversa; use uma planilha fixa", workflow.ErrNodeSheetVariableInvalid, n.ID)
+	}
+	if v.declarations == nil {
+		return fmt.Errorf("%w: node %q: os dados da conversa não puderam ser lidos", workflow.ErrValidationUnavailable, n.ID)
+	}
+	labeled := v.declarations.Label(context.Background(), v.workspaceID, automationneeds.Needs{{Name: name}})
+	if len(labeled) != 1 || !labeled[0].Declared || labeled[0].Type.Kind != variabledecl.KindSheet {
+		return fmt.Errorf("%w: node %q: %q não é um dado da conversa do tipo Planilha", workflow.ErrNodeSheetVariableInvalid, n.ID, name)
+	}
+	if labeled[0].Type.Settings[variabledecl.SettingModel] != model.SpreadsheetID {
+		return fmt.Errorf("%w: node %q: a aba %q não é da planilha modelo de %s", workflow.ErrNodeSheetVariableInvalid, n.ID, model.Title, labeled[0].Display())
+	}
+	return nil
 }

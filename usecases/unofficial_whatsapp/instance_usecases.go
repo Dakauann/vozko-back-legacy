@@ -120,7 +120,7 @@ func (uc *UpdateInstanceConfigUseCase) Execute(ctx context.Context, in UpdateIns
 	if uc.guard == nil {
 		return nil, automationneeds.ErrUnreadable
 	}
-	if err := uc.guard.Admit(instance.WorkspaceID, instance.Automation()); err != nil {
+	if err := uc.guard.Admit(instance.WorkspaceID, automationneeds.SlotUnofficial, instance.Automation()); err != nil {
 		return nil, err
 	}
 	if err := uc.instances.Update(ctx, instance); err != nil {

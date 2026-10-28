@@ -46,14 +46,17 @@ func TestTheBuilderCatalogStatesEachTriggersScope(t *testing.T) {
 	}
 }
 
-func TestTheBuilderPromptExplainsWhereConversationTriggersComeFromAndNoLongerHidesToolMode(t *testing.T) {
+func TestTheBuilderPromptExplainsTriggerScopeAndTheOneToolReturnRule(t *testing.T) {
 	uc, st := builderStateOver(t)
 	prompt := uc.systemPrompt(st)
 	if !strings.Contains(prompt, "ESCOPO DOS GATILHOS") {
 		t.Fatal("the prompt does not explain trigger scope")
 	}
-	if strings.Contains(prompt, "OCULTO") {
-		t.Fatal("tool_mode is a declared field now, the prompt must not call it hidden")
+	if !strings.Contains(prompt, workflow.ToolReturnRule()) {
+		t.Fatal("the prompt must state the tool return rule")
+	}
+	if strings.Contains(prompt, "tool_mode") || strings.Contains(prompt, "OCULTO") {
+		t.Fatal("the prompt still talks about the retired tool mode")
 	}
 }
 

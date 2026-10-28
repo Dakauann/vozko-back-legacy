@@ -1,0 +1,13 @@
+challenge_expired
+challenge_invalid
+challenge_reused
+challenge_unsolved
+form_unavailable
+form_unknown
+internal_error
+rate_limited
+submission_fields_invalid
+submission_invalid
+submission_origin_refused
+submission_refused
+submissions_page_invalid

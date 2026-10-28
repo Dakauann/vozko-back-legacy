@@ -3,6 +3,7 @@ package s3
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -17,6 +18,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 
 	"vozko/domain/media"
 )
@@ -32,10 +35,13 @@ var (
 )
 
 func NewS3Service() *S3Service {
+	return NewS3ServiceForBucket(os.Getenv("CLOUDFLARE_R2_BUCKET_NAME"))
+}
+
+func NewS3ServiceForBucket(bucket string) *S3Service {
 	accessKeyId := os.Getenv("CLOUDFLARE_R2_KEY_ID")
 	accessKeySecret := os.Getenv("CLOUDFLARE_R2_SECRET_KEY")
 	accountId := os.Getenv("CLOUDFLARE_ACCOUNT_ID")
-	bucket := os.Getenv("CLOUDFLARE_R2_BUCKET_NAME")
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyId, accessKeySecret, "")),
@@ -106,6 +112,32 @@ func (s *S3Service) DownloadFile(ctx context.Context, key string) ([]byte, strin
 		contentType = *output.ContentType
 	}
 	return data, contentType, nil
+}
+
+func (s *S3Service) Exists(ctx context.Context, key string) (bool, error) {
+	_, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err == nil {
+		return true, nil
+	}
+	if missingObject(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+func missingObject(err error) bool {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.ErrorCode() {
+		case "NotFound", "NoSuchKey":
+			return true
+		}
+	}
+	var respErr *smithyhttp.ResponseError
+	return errors.As(err, &respErr) && respErr.HTTPStatusCode() == http.StatusNotFound
 }
 
 func (s *S3Service) DeleteFile(ctx context.Context, key string) error {

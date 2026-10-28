@@ -27,7 +27,7 @@ func TestActivationPeriod_ChargeAndPeriodEnd(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			charge, end := ActivationPeriod(tc.at, emitDay, dueDay, 1, true, monthly)
+			charge, end := ActivationPeriod(tc.at, emitDay, dueDay, 1, monthly)
 			if charge != tc.charge {
 				t.Fatalf("charge = %d, want %d", charge, tc.charge)
 			}
@@ -49,7 +49,7 @@ func TestActivationPeriod_NeverMoreThanOneMonth(t *testing.T) {
 		dim := daysInMonth(ym.y, ym.m, LocationBRT())
 		for d := 1; d <= dim; d++ {
 			at := brtDay(ym.y, ym.m, d)
-			charge, end := ActivationPeriod(at, emitDay, dueDay, 1, true, monthly)
+			charge, end := ActivationPeriod(at, emitDay, dueDay, 1, monthly)
 			if charge <= 0 || charge > monthly {
 				t.Fatalf("%s: charge %d must be in (0, %d]", at.Format("2006-01-02"), charge, monthly)
 			}
@@ -60,15 +60,22 @@ func TestActivationPeriod_NeverMoreThanOneMonth(t *testing.T) {
 	}
 }
 
-func TestActivationPeriod_AnnualAndTopUpChargeFullPeriod(t *testing.T) {
+func TestActivationPeriod_AnnualChargesTheFullPeriod(t *testing.T) {
 	const annual = int64(300_000_000)
 	at := brtDay(2026, time.June, 25)
-	if charge, end := ActivationPeriod(at, 18, 23, 12, true, annual); charge != annual || end.Year() != 2027 {
+	if charge, end := ActivationPeriod(at, 18, 23, 12, annual); charge != annual || end.Year() != 2027 {
 		t.Fatalf("annual = (%d, %s), want (%d, +12 months)", charge, end.Format("2006-01-02"), annual)
 	}
+}
+
+func TestActivationPeriod_MoreUnitsMidCycleChargeOnlyTheDaysLeft(t *testing.T) {
 	const monthly = int64(30_000_000)
-	if charge, _ := ActivationPeriod(at, 18, 23, 1, false, monthly); charge != monthly {
-		t.Fatalf("top-up charge = %d, want the full month %d", charge, monthly)
+	charge, end := ActivationPeriod(brtDay(2026, time.June, 10), 18, 23, 1, monthly)
+	if charge != 12_580_645 {
+		t.Fatalf("units bought on Jun 10 cost %d, want the 13 days left of the cycle (12580645)", charge)
+	}
+	if e := end.In(LocationBRT()); e.Day() != 23 || e.Month() != time.June {
+		t.Fatalf("units bought on Jun 10 are paid until %s, want Jun 23", e.Format("2006-01-02"))
 	}
 }
 

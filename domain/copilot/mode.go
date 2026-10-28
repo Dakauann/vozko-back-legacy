@@ -36,3 +36,14 @@ func NeedsApproval(tool Tool, mode Mode) bool {
 	}
 	return tool.Meta().Mutating
 }
+
+type ArgumentGraded interface {
+	NeedsApprovalFor(mode Mode, args map[string]interface{}) bool
+}
+
+func NeedsApprovalFor(tool Tool, mode Mode, args map[string]interface{}) bool {
+	if graded, ok := tool.(ArgumentGraded); ok && graded.NeedsApprovalFor(mode, args) {
+		return true
+	}
+	return NeedsApproval(tool, mode)
+}

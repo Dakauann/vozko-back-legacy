@@ -1,0 +1,1 @@
+{"knobs":[{"name":"Cor da marca","variable":"--color-brand","kind":"color"},{"name":"Arredondamento dos cartões","variable":"--radius-card","kind":"range","min":0,"max":2.5,"step":0.25,"unit":"rem"}]}

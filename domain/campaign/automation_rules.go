@@ -15,6 +15,7 @@ var (
 	ErrAgentNotFound         = errors.New("campaign: the agent does not exist in this workspace")
 	ErrAgentVarsMissing      = agent.ErrAgentRequiredVariableMissing
 	ErrAutomationUnavailable = errors.New("campaign: the workflow and agent checks are not available")
+	ErrSheetsOfficialOnly    = errors.New("campaign: only official WhatsApp campaigns can choose a Planilha per conversation")
 )
 
 type EntryMetadata struct {

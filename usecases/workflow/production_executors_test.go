@@ -51,7 +51,7 @@ func TestProductionExecutorsRefuseToStartWithoutTheRefusalLineLogger(t *testing.
 		t.Fatalf("got %v, want ErrWorkspaceZonesRequired", err)
 	}
 	registry := NewNodeExecutorRegistry()
-	if err := RegisterProductionExecutors(registry, ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}, MediaURLs: externalMediaURLs(), AIAttendance: sandboxRuntime{}, FollowUps: simFollowUps{effects: newSimEffects()}, WorkspaceZones: utcZones{}}); err != nil {
+	if err := RegisterProductionExecutors(registry, ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}, MediaURLs: externalMediaURLs(), AIAttendance: sandboxRuntime{}, FollowUps: simFollowUps{effects: newSimEffects()}, WorkspaceZones: utcZones{}, VariableRules: acceptingRules{}}); err != nil {
 		t.Fatalf("got %v", err)
 	}
 	for _, nodeType := range []workflow.NodeType{workflow.NodeTypeActionSendText, workflow.NodeTypeActionSendForm, workflow.NodeTypeActionScheduleMessage, workflow.NodeTypeActionCancelScheduledMessages} {
@@ -70,11 +70,17 @@ func TestSimulationsRecordRefusedSendsNowhereOnPurpose(t *testing.T) {
 
 func TestCarrierNodeExistsOnlyWhileAChannelIsLaunched(t *testing.T) {
 	registry := NewNodeExecutorRegistry()
-	if err := RegisterProductionExecutors(registry, ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}, MediaURLs: externalMediaURLs(), AIAttendance: sandboxRuntime{}, FollowUps: simFollowUps{effects: newSimEffects()}, WorkspaceZones: utcZones{}}); err != nil {
+	if err := RegisterProductionExecutors(registry, ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}, MediaURLs: externalMediaURLs(), AIAttendance: sandboxRuntime{}, FollowUps: simFollowUps{effects: newSimEffects()}, WorkspaceZones: utcZones{}, VariableRules: acceptingRules{}}); err != nil {
 		t.Fatal(err)
 	}
 	_, registered := registry.Get(workflow.NodeTypeActionSendCarrier)
 	if launched := len(carriermessaging.LaunchedChannels()) > 0; registered != launched {
 		t.Fatalf("carrier node registered = %v while a channel launched is %v", registered, launched)
 	}
+}
+
+type acceptingRules struct{}
+
+func (acceptingRules) Rejected(context.Context, string, map[string]string) ([]string, error) {
+	return nil, nil
 }

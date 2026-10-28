@@ -3,6 +3,7 @@ package payment_usecase
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"vozko/domain/balance"
 	"vozko/domain/invoice"
@@ -17,11 +18,13 @@ func (u *erroringCreditBalance) Execute(balance.CreditBalanceInput) (*balance.Tr
 
 type webhookConfirmMonthly struct {
 	calls []string
+	dues  []time.Time
 	err   error
 }
 
-func (c *webhookConfirmMonthly) Execute(workspaceID string) error {
+func (c *webhookConfirmMonthly) ExecuteForCycle(workspaceID string, billedDue time.Time) error {
 	c.calls = append(c.calls, workspaceID)
+	c.dues = append(c.dues, billedDue)
 	return c.err
 }
 
@@ -136,5 +139,30 @@ func TestHandleAsaasWebhook_MonthlyBillingCreditFailureRollsBackToPending(t *tes
 	}
 	if len(confirm.calls) != 0 {
 		t.Fatalf("subscriptions must not be extended when the credit failed, got %v", confirm.calls)
+	}
+}
+
+func TestHandleAsaasWebhook_AnAddonOnlyInvoiceCreditsNothingAndConfirmsItsOwnCycle(t *testing.T) {
+	due := time.Date(2026, 10, 23, 3, 0, 0, 0, time.UTC)
+	repo := &webhookInvoiceRepo{byExternal: map[string]*invoice.Invoice{
+		"pay-a": {
+			ID: "inv-a", ExternalID: "pay-a", WorkspaceID: "ws-2", Purpose: invoice.PurposeMonthlyBilling,
+			AmountBRL: 10, AmountUSD: 2_000_000, CreditableUSD: 0, ExchangeRate: 5, DueDate: &due,
+			LineItems: []invoice.InvoiceLineItem{{Kind: invoice.LineItemChannel, Label: "Domínios", AmountBRL: 10, Quantity: 2}},
+		},
+	}}
+	credit := &webhookCreditBalance{}
+	confirm := &webhookConfirmMonthly{}
+	uc := NewHandlePaymentWebhookUseCase(repo, nil, credit, &webhookDebitBalance{}, nil).
+		WithMonthlyBilling(confirm)
+
+	if err := uc.Execute(&payment.AsaasWebhookEvent{Event: "PAYMENT_RECEIVED", Payment: payment.AsaasWebhookPayment{ID: "pay-a"}}); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if len(credit.calls) != 0 {
+		t.Fatalf("paying for add-ons never turns into wallet balance, got %+v", credit.calls)
+	}
+	if len(confirm.dues) != 1 || !confirm.dues[0].Equal(due) || confirm.calls[0] != "ws-2" {
+		t.Fatalf("the payment confirms the cycle the invoice billed, got %v %v", confirm.calls, confirm.dues)
 	}
 }

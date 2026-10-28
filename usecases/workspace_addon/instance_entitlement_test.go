@@ -71,6 +71,7 @@ func TestAddonsTopUpTheGrantedAllowance(t *testing.T) {
 		Status:           workspace_plan.SubscriptionStatusActive,
 		Quantity:         3,
 		UnitsPerQuantity: 1,
+		CurrentPeriodEnd: time.Now().AddDate(0, 1, 0),
 	})
 
 	resolver := NewEntitlementResolver(
@@ -187,6 +188,6 @@ func (f *fakeBatchSubs) GetCurrentByWorkspaceIDs([]string, time.Time) (map[strin
 
 type fakeBatchAddons struct{}
 
-func (f *fakeBatchAddons) SumActiveGrantedUnitsByWorkspaceIDs([]string, workspace_addon.EntitlementKind) (map[string]int, error) {
+func (f *fakeBatchAddons) SumActiveGrantedUnitsByWorkspaceIDs([]string, workspace_addon.EntitlementKind, time.Time) (map[string]int, error) {
 	return map[string]int{}, nil
 }

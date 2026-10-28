@@ -114,3 +114,13 @@ func TestAFileTitleIsTrimmedAndRefusedWhenBlankOrTooLong(t *testing.T) {
 		})
 	}
 }
+
+func TestDashboardLinksOpenTheFilePageWithTheTabSelected(t *testing.T) {
+	s := &Sheet{ID: "7b1c2f9e-0a51-4c1e-9b0e-2f1d6f5d1a11", SpreadsheetID: "1AbC_d-9"}
+	if got := FileDashboardLink("1AbC_d-9"); got != "/dashboard/integrations/google-sheets/arquivo/1AbC_d-9" {
+		t.Fatalf("FileDashboardLink = %s", got)
+	}
+	if got := s.DashboardLink(); got != "/dashboard/integrations/google-sheets/arquivo/1AbC_d-9?aba=7b1c2f9e-0a51-4c1e-9b0e-2f1d6f5d1a11" {
+		t.Fatalf("DashboardLink = %s", got)
+	}
+}

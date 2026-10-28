@@ -135,6 +135,8 @@ func parseSchemaParams(raw []interface{}) []SchemaParameter {
 			Description: getString(m, "description"),
 			Required:    getBool(m, "required"),
 			Example:     getString(m, "example"),
+			Enum:        getStrings(m, "enum"),
+			Format:      getString(m, "format"),
 		}
 		if props, ok := m["properties"].([]interface{}); ok && len(props) > 0 {
 			param.Properties = parseSchemaParams(props)
@@ -165,6 +167,27 @@ func getString(m map[string]interface{}, key string) string {
 	return ""
 }
 
+func getStrings(m map[string]interface{}, key string) []string {
+	raw, _ := m[key].([]interface{})
+	var out []string
+	for _, item := range raw {
+		if s, ok := item.(string); ok && s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func (p SchemaParameter) shape() string {
+	switch {
+	case len(p.Enum) > 0:
+		return "one of " + strings.Join(p.Enum, ", ")
+	case p.Format == "time":
+		return "HH:MM"
+	}
+	return ""
+}
+
 func getBool(m map[string]interface{}, key string) bool {
 	if v, ok := m[key].(bool); ok {
 		return v
@@ -185,7 +208,11 @@ func buildParamDescription(base string, params []SchemaParameter) string {
 		if p.Required {
 			req = " (required)"
 		}
-		desc += fmt.Sprintf("%s: %s%s", p.Name, p.Type, req)
+		shape := ""
+		if s := p.shape(); s != "" {
+			shape = " (" + s + ")"
+		}
+		desc += fmt.Sprintf("%s: %s%s%s", p.Name, p.Type, shape, req)
 	}
 	return desc
 }
@@ -216,7 +243,11 @@ func buildParamLine(p SchemaParameter, indent int) string {
 		example = fmt.Sprintf(" (e.g., %s)", p.Example)
 	}
 
-	line := fmt.Sprintf("\n%s- %s (%s)%s: %s%s", indentStr, p.Name, p.Type, req, p.Description, example)
+	kind := p.Type
+	if s := p.shape(); s != "" {
+		kind += ", " + s
+	}
+	line := fmt.Sprintf("\n%s- %s (%s)%s: %s%s", indentStr, p.Name, kind, req, p.Description, example)
 
 	if len(p.Properties) > 0 {
 		for _, nested := range p.Properties {
@@ -333,6 +364,8 @@ type SchemaParameter struct {
 	Description string            `json:"description"`
 	Required    bool              `json:"required"`
 	Example     string            `json:"example,omitempty"`
+	Enum        []string          `json:"enum,omitempty"`
+	Format      string            `json:"format,omitempty"`
 	Properties  []SchemaParameter `json:"properties,omitempty"`
 	Items       *SchemaParameter  `json:"items,omitempty"`
 }

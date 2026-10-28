@@ -13,6 +13,7 @@ import (
 	"vozko/domain/shared"
 	wcdomain "vozko/domain/webchat"
 	webchat_repository "vozko/infra/repositories/webchat"
+	"vozko/infra/siteruntime"
 	wcinfra "vozko/infra/webchat"
 	conversation_usecase "vozko/usecases/conversation"
 	wcuc "vozko/usecases/webchat"
@@ -93,10 +94,15 @@ func (c *Container) initWebchatRuntime(history conversation_domain.MessageHistor
 		Assignments:   c.services.assignmentService,
 		Automation: conversation_usecase.NewInboundAutomation(
 			c.useCases.triggerEvaluator, c.mustChannelAIReply(), c.services.analysisScheduler, c.repositories.conversation, c.services.automationGate),
-		Events:    bundle.Broker,
-		Operators: c.services.conversationHub,
+		Events:      bundle.Broker,
+		Operators:   c.services.conversationHub,
+		SiteOrigins: c.siteEmbedOrigins(),
 	})
-	bundle.Public = webchathttp.NewPublicHandler(visitors, bundle.Broker, bundle.PublicBase)
+	public, err := webchathttp.NewPublicHandler(visitors, bundle.Broker, bundle.PublicBase, []byte(siteRuntimeFiles()[siteruntime.PowFile]))
+	if err != nil {
+		log.Fatalf("[webchat] %v", err)
+	}
+	bundle.Public = public
 	bundle.Broker.Start(context.Background())
 	log.Printf("[webchat] website chat served from %s%s", bundle.PublicBase, webchathttp.PublicPrefix)
 }

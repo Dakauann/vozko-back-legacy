@@ -57,6 +57,7 @@ const (
 	LintReasoningUnsupported     LintIssueCode = "NODE_REASONING_UNSUPPORTED"
 	LintPinInvalid               LintIssueCode = "NODE_PIN_INVALID"
 	LintSheetMappingInvalid      LintIssueCode = "NODE_SHEET_MAPPING_INVALID"
+	LintSheetVariableInvalid     LintIssueCode = "NODE_SHEET_VARIABLE_INVALID"
 	LintVoiceTrunkInvalid        LintIssueCode = "WORKFLOW_VOICE_TRUNK_INVALID"
 	LintWorkflowInvalid          LintIssueCode = "WORKFLOW_INVALID"
 	LintValidationUnavailable    LintIssueCode = "WORKFLOW_VALIDATION_UNAVAILABLE"
@@ -271,6 +272,9 @@ func LintGraph(g *Graph, wfType WorkflowType, catalog []NodeDefinition, exempt m
 	lintPinnedOutputs(g, add)
 	lintConversationNodesOnLeadRuns(g, defs, add)
 	lintSendsOutsideWindow(g, add)
+	for _, issue := range append(VariableUseIssues(g), ScheduleIssues(g)...) {
+		add(issue)
+	}
 
 	return report
 }

@@ -307,6 +307,9 @@ func agentCycleNodes(g *workflow.Graph) map[string]bool {
 				relaxed[id] = true
 			}
 		}
+		for id := range workflow.ToolPathNodes(g, n.ID) {
+			relaxed[id] = true
+		}
 		relaxed[n.ID] = true
 	}
 	return relaxed
@@ -472,6 +475,8 @@ func (e *RunEngine) execute(run *workflow.WorkflowRun, w *workflow.Workflow, run
 		var err error
 		if served != nil {
 			result = served.Result
+		} else if refused, off := workflow.OffChannelStep(&w.Graph, node, run.EntryType); off {
+			result = refused
 		} else {
 			result, err = safeExecute(executor, ctx)
 		}
@@ -508,6 +513,12 @@ func (e *RunEngine) execute(run *workflow.WorkflowRun, w *workflow.Workflow, run
 				e.writeStep(run, ran)
 				return e.save(run)
 			}
+			if agentID, back := workflow.ToolReturnWhenStepFails(&w.Graph, &run.State, node); back {
+				if err := e.returnFailureToAgent(run, node, ran, agentID); err != nil {
+					return err
+				}
+				continue
+			}
 			slog.Error("workflow.engine.node_failed", append(runLogAttrs(run, node.ID),
 				slog.Int("retry", run.RetryCount), slog.Bool("in_call", workflow.InCall(runtime)), slog.Bool("permanent", permanent),
 				slog.String("error", outbound.String(err.Error())))...)
@@ -525,6 +536,12 @@ func (e *RunEngine) execute(run *workflow.WorkflowRun, w *workflow.Workflow, run
 		switch verdict {
 		case verdictReturnedError:
 			slog.Warn("workflow.engine.node_returned_error", append(runLogAttrs(run, node.ID), slog.String("error", outbound.String(result.Error)))...)
+			if agentID, back := workflow.ToolReturnWhenStepFails(&w.Graph, &run.State, node); back {
+				if err := e.returnFailureToAgent(run, node, ran, agentID); err != nil {
+					return err
+				}
+				continue
+			}
 			run.SetError(result.Error)
 			e.writeStep(run, ran)
 			return e.save(run)
@@ -551,7 +568,7 @@ func (e *RunEngine) execute(run *workflow.WorkflowRun, w *workflow.Workflow, run
 			e.scheduleWake(run, node, result.Wait.WakeAt)
 			return nil
 		case verdictPathEnded:
-			if agentID, back := workflow.ExecuteToolReturn(&w.Graph, &run.State); back {
+			if agentID, back := workflow.ToolReturnWhenPathEnds(&w.Graph, &run.State, node); back {
 				nextNodeID = agentID
 				break
 			}
@@ -638,25 +655,46 @@ func judgeStep(ran *step, g *workflow.Graph, node *workflow.Node, result *workfl
 		ran.status = workflow.LogStatusWaiting
 		return verdictWaiting, ""
 	}
-	next := result.NextNodeID
-	if next == "" {
-		edges := g.OutgoingEdges(node.ID)
-		if len(edges) == 0 {
-			ran.status = workflow.LogStatusExecuted
-			return verdictPathEnded, ""
-		}
-		next = edges[0].Target
-	}
 	ran.status = workflow.LogStatusExecuted
 	if result.Skipped {
 		ran.status = workflow.LogStatusSkipped
 	}
-	ran.branch = g.BranchLabel(node.ID, next, resultBranchHint(result))
 	ran.message, ran.kind = routedFailure(result)
 	if ran.message != "" {
 		ran.status = workflow.LogStatusFailed
 	}
+	next := result.NextNodeID
+	if next == "" {
+		edges := g.OutgoingEdges(node.ID)
+		if len(edges) == 0 {
+			return verdictPathEnded, ""
+		}
+		next = edges[0].Target
+	}
+	ran.branch = g.BranchLabel(node.ID, next, resultBranchHint(result))
 	return verdictNext, next
+}
+
+func (e *RunEngine) returnFailureToAgent(run *workflow.WorkflowRun, node *workflow.Node, ran step, agentID string) error {
+	message, _, _ := ran.failure()
+	slog.Warn("workflow.engine.tool_step_failed_back_to_agent", append(runLogAttrs(run, node.ID),
+		slog.String("agent_node_id", agentID), slog.String("error", outbound.String(message)))...)
+	workflow.RecordNodeOutput(&run.State, node.ID, toolFailureOutput(ran.output, message))
+	e.writeStep(run, ran)
+	run.RetryCount = 0
+	run.State.Set("_prev_node_id", node.ID)
+	run.CurrentNodeID = agentID
+	run.UpdatedAt = time.Now().UTC()
+	return e.save(run)
+}
+
+func toolFailureOutput(output map[string]interface{}, message string) map[string]interface{} {
+	failure := make(map[string]interface{}, len(output)+1)
+	for k, v := range output {
+		failure[k] = v
+	}
+	failure["error"] = message
+	return failure
 }
 
 func safeExecute(executor workflow.NodeExecutor, ctx *workflow.NodeContext) (result *workflow.NodeResult, err error) {

@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"vozko/domain/dnsrecord"
 	"vozko/domain/emailaddress"
 	es "vozko/domain/emailsending"
 )
@@ -221,17 +222,9 @@ func (c *core) lookupRecords(ctx context.Context, records []es.DNSRecord) es.DNS
 }
 
 func (c *core) lookupAll(ctx context.Context, names []string, lookup func(context.Context, string) ([]string, error)) map[string]es.DNSAnswer {
-	out := make(map[string]es.DNSAnswer, len(names))
-	for _, name := range names {
-		values, err := lookup(ctx, name)
-		if err != nil {
-			log.Printf("[emailsending] dns lookup of %s failed: %v", name, err)
-			out[name] = es.DNSAnswer{Failed: true}
-			continue
-		}
-		out[name] = es.DNSAnswer{Values: values}
-	}
-	return out
+	return dnsrecord.Lookup(ctx, lookup, names, func(name string, err error) {
+		log.Printf("[emailsending] dns lookup of %s failed: %v", name, err)
+	})
 }
 
 func (c *core) onVerified(ctx context.Context, sd *es.SendingDomain) error {

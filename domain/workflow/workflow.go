@@ -232,6 +232,15 @@ func (n NodeType) AwaitsContact() bool {
 	return n.ParksForReply() || n.IsFormPrompt()
 }
 
+var ownershipEndingNodeTypes = []NodeType{
+	NodeTypeEnd, NodeTypeActionFinishConversation, NodeTypeActionTransferDepartment,
+	NodeTypeActionAssignMember, NodeTypeTransferToQueue, NodeTypeActionReplyToAgent,
+}
+
+func (n NodeType) EndsAutomationOwnership() bool {
+	return slices.Contains(ownershipEndingNodeTypes, n.Canonical())
+}
+
 const (
 	NodeTypeActionSendWhatsappButtonLegacy NodeType = "action_send_whatsapp_button"
 	NodeTypeActionScheduleMeetingLegacy    NodeType = "action_schedule_meeting"
@@ -348,8 +357,9 @@ type Edge struct {
 }
 
 type Graph struct {
-	Nodes []Node `json:"nodes"`
-	Edges []Edge `json:"edges"`
+	Nodes     []Node        `json:"nodes"`
+	Edges     []Edge        `json:"edges"`
+	Variables []VariableUse `json:"variables,omitempty"`
 }
 
 type Workflow struct {
@@ -596,6 +606,32 @@ func (g *Graph) AncestorDistances(targetNodeID, avoidNodeID string) map[string]i
 			if avoidNodeID != "" && source == avoidNodeID {
 				continue
 			}
+			if _, seen := distance[source]; !seen {
+				distance[source] = distance[cur] + 1
+				queue = append(queue, source)
+			}
+		}
+	}
+	return distance
+}
+
+func (g *Graph) UpstreamDistances(targetNodeID string) map[string]int {
+	sources := make(map[string][]string, len(g.Nodes))
+	for _, e := range g.Edges {
+		sources[e.Target] = append(sources[e.Target], e.Source)
+	}
+	distance := map[string]int{}
+	queue := []string{}
+	for _, source := range sources[targetNodeID] {
+		if _, seen := distance[source]; !seen {
+			distance[source] = 1
+			queue = append(queue, source)
+		}
+	}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		for _, source := range sources[cur] {
 			if _, seen := distance[source]; !seen {
 				distance[source] = distance[cur] + 1
 				queue = append(queue, source)

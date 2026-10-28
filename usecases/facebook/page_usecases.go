@@ -72,7 +72,7 @@ func (uc *PageUseCases) UpdateConfig(ctx context.Context, in UpdatePageConfigInp
 	if uc.guard == nil {
 		return nil, automationneeds.ErrUnreadable
 	}
-	if err := uc.guard.Admit(page.WorkspaceID, page.Automation()); err != nil {
+	if err := uc.guard.Admit(page.WorkspaceID, automationneeds.SlotFacebook, page.Automation()); err != nil {
 		return nil, err
 	}
 	if err := uc.pages.UpdateConfig(ctx, page); err != nil {

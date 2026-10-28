@@ -40,6 +40,7 @@ const (
 	ScreenRead          ScreenCommandName = "read"
 	ScreenEdit          ScreenCommandName = "edit"
 	ScreenLook          ScreenCommandName = "look"
+	ScreenInspect       ScreenCommandName = "inspect"
 	ScreenResolveSource ScreenCommandName = "resolve_source"
 	ScreenFollowJob     ScreenCommandName = "follow_job"
 	ScreenExport        ScreenCommandName = "export"
@@ -47,12 +48,14 @@ const (
 	ScreenSavePreset    ScreenCommandName = "save_preset"
 	ScreenCreateProject ScreenCommandName = "create_project"
 	ScreenOpenDesign    ScreenCommandName = "open_design"
+	ScreenOpenSite      ScreenCommandName = "open_site"
 )
 
 var screenTimeouts = map[ScreenCommandName]time.Duration{
 	ScreenRead:          10 * time.Second,
 	ScreenEdit:          30 * time.Second,
 	ScreenLook:          45 * time.Second,
+	ScreenInspect:       30 * time.Second,
 	ScreenResolveSource: 10 * time.Second,
 	ScreenFollowJob:     10 * time.Second,
 	ScreenExport:        60 * time.Second,
@@ -60,10 +63,11 @@ var screenTimeouts = map[ScreenCommandName]time.Duration{
 	ScreenSavePreset:    20 * time.Second,
 	ScreenCreateProject: 45 * time.Second,
 	ScreenOpenDesign:    30 * time.Second,
+	ScreenOpenSite:      30 * time.Second,
 }
 
 func ScreenCommandNames() []ScreenCommandName {
-	return []ScreenCommandName{ScreenRead, ScreenEdit, ScreenLook, ScreenResolveSource, ScreenFollowJob, ScreenExport, ScreenListen, ScreenSavePreset, ScreenCreateProject, ScreenOpenDesign}
+	return []ScreenCommandName{ScreenRead, ScreenEdit, ScreenLook, ScreenInspect, ScreenResolveSource, ScreenFollowJob, ScreenExport, ScreenListen, ScreenSavePreset, ScreenCreateProject, ScreenOpenDesign, ScreenOpenSite}
 }
 
 func (n ScreenCommandName) Known() bool {
@@ -72,7 +76,7 @@ func (n ScreenCommandName) Known() bool {
 }
 
 func (n ScreenCommandName) NeedsProject() bool {
-	return n != ScreenCreateProject && n != ScreenOpenDesign
+	return n != ScreenCreateProject && n != ScreenOpenDesign && n != ScreenOpenSite
 }
 
 func (n ScreenCommandName) Timeout() time.Duration {
@@ -80,7 +84,7 @@ func (n ScreenCommandName) Timeout() time.Duration {
 }
 
 func (n ScreenCommandName) Commits() bool {
-	return n == ScreenEdit || n == ScreenSavePreset || n == ScreenCreateProject || n == ScreenOpenDesign
+	return n == ScreenEdit || n == ScreenSavePreset || n == ScreenCreateProject || n == ScreenOpenDesign || n == ScreenOpenSite
 }
 
 type ScreenGo struct {

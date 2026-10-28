@@ -5,11 +5,13 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"vozko/domain/wcag"
 )
 
 const (
-	NormalTextContrast        = 4.5
-	LargeTextContrast         = 3.0
+	NormalTextContrast        = wcag.NormalTextMinimum
+	LargeTextContrast         = wcag.LargeTextMinimum
 	RecommendedMaxWidth       = 640
 	RecommendedButtonRunes    = 30
 	RecommendedParagraphRunes = 500
@@ -39,28 +41,20 @@ func Review(doc Document, subject string) DesignReview {
 	return review
 }
 
-func channel(value int64) float64 {
-	c := float64(value) / 255
-	if c <= 0.03928 {
-		return c / 12.92
-	}
-	return math.Pow((c+0.055)/1.055, 2.4)
-}
-
 func luminance(color string) (float64, bool) {
 	if !validColor(color) {
 		return 0, false
 	}
 	hex := normalizeColor(color)
-	parts := [3]int64{}
+	parts := [3]uint8{}
 	for i := range parts {
-		value, err := strconv.ParseInt(hex[1+2*i:3+2*i], 16, 64)
+		value, err := strconv.ParseUint(hex[1+2*i:3+2*i], 16, 8)
 		if err != nil {
 			return 0, false
 		}
-		parts[i] = value
+		parts[i] = uint8(value)
 	}
-	return 0.2126*channel(parts[0]) + 0.7152*channel(parts[1]) + 0.0722*channel(parts[2]), true
+	return wcag.RelativeLuminance(parts[0], parts[1], parts[2]), true
 }
 
 func ContrastRatio(foreground, background string) float64 {
@@ -69,8 +63,7 @@ func ContrastRatio(foreground, background string) float64 {
 	if !okA || !okB {
 		return 0
 	}
-	light, dark := math.Max(a, b), math.Min(a, b)
-	return (light + 0.05) / (dark + 0.05)
+	return wcag.Ratio(a, b)
 }
 
 type checker struct {

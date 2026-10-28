@@ -144,6 +144,7 @@ move_conversation_funnel
 move_conversation_stage
 move_deal
 new_email_design
+new_site
 new_studio_project
 number_automation
 offer_action
@@ -183,6 +184,14 @@ send_whatsapp_form
 set_ad_rule_status
 set_ad_spend_cap
 set_initial_stage
+site_capture_reference
+site_edit
+site_generate_image
+site_grep
+site_look
+site_publish
+site_read
+site_settings
 start_campaign
 start_lead_send
 start_unofficial_campaign

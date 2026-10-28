@@ -93,6 +93,16 @@ func (s *Service) Subscribe(ctx context.Context, workspaceID string, in Subscrib
 	return s.deps.Subscriptions.Save(ctx, renewed)
 }
 
+func (s *Service) Record(ctx context.Context, workspaceID string, in SubscribeInput) (emailconsent.Subscription, error) {
+	if !in.Source.Valid() {
+		return emailconsent.Subscription{}, emailconsent.ErrSourceInvalid
+	}
+	if !in.Source.RecordedByPeople() {
+		return emailconsent.Subscription{}, emailconsent.ErrSourceReserved
+	}
+	return s.Subscribe(ctx, workspaceID, in)
+}
+
 func (s *Service) leadFor(workspaceID string, address emailaddress.Address) (string, error) {
 	found, err := s.deps.Leads.FindByEmail(workspaceID, address.String())
 	if errors.Is(err, lead.ErrLeadNotFound) || errors.Is(err, lead.ErrLeadInvalid) {

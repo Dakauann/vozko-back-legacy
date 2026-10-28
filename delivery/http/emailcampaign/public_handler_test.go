@@ -19,7 +19,7 @@ type fakeConsent struct {
 	sources []emailconsent.UnsubscribeSource
 }
 
-func (f *fakeConsent) Subscribe(context.Context, string, emailconsent_usecase.SubscribeInput) (emailconsent.Subscription, error) {
+func (f *fakeConsent) Record(context.Context, string, emailconsent_usecase.SubscribeInput) (emailconsent.Subscription, error) {
 	return emailconsent.Subscription{}, nil
 }
 func (f *fakeConsent) ImportConsent(context.Context, string, []emailconsent_usecase.ImportRow) (emailconsent_usecase.ImportResult, error) {

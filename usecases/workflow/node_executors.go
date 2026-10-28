@@ -96,6 +96,7 @@ type ExecutorDeps struct {
 	Adapters           conversation.AdapterRegistry
 	ConversationEvents ce.Logger
 	ChoiceStats        choicestats.Recorder
+	VariableRules      node_executors.ValueRules
 }
 
 var ErrConversationEventsRequired = errors.New("workflow executors: the conversation event logger is required to record refused sends")
@@ -109,6 +110,8 @@ var ErrMediaURLsRequired = errors.New("workflow executors: the media URL resolve
 var ErrAIAttendanceRequired = errors.New("workflow executors: the AI attendance recorder is required to count agent replies")
 
 var ErrFollowUpsRequired = errors.New("workflow executors: the follow-up scheduler is required to schedule and cancel messages")
+
+var ErrVariableRulesRequired = errors.New("workflow executors: the variable type rules are required to check conversation data writes")
 
 var ErrWorkspaceZonesRequired = errors.New("workflow executors: the workspace time zone reader is required to tell agents the local time")
 
@@ -139,6 +142,9 @@ func RegisterProductionExecutors(registry *NodeExecutorRegistry, deps ExecutorDe
 	}
 	if deps.WorkspaceZones == nil {
 		return ErrWorkspaceZonesRequired
+	}
+	if deps.VariableRules == nil {
+		return ErrVariableRulesRequired
 	}
 	RegisterDefaultExecutors(registry, deps)
 	return nil
@@ -179,7 +185,7 @@ func RegisterDefaultExecutors(registry *NodeExecutorRegistry, deps ExecutorDeps)
 	}
 	registry.Register(workflow.NodeTypeActionSendPlatformEmail, node_executors.NewSendPlatformEmailExecutor(node_executors.PlatformEmailNodeDeps{Sender: deps.PlatformEmail, EntryLeads: deps.EntryLeads}))
 	registry.Register(workflow.NodeTypeActionSendMedia, node_executors.NewSendMediaExecutor(waDeps))
-	registry.Register(workflow.NodeTypeActionSetVariable, node_executors.NewSetVariableExecutor())
+	registry.Register(workflow.NodeTypeActionSetVariable, node_executors.NewSetVariableExecutor(deps.VariableRules))
 	registry.Register(workflow.NodeTypeActionHTTPRequest, node_executors.NewHTTPRequestExecutor(deps.HTTPEgress, deps.Secrets))
 	registry.Register(workflow.NodeTypeActionSendInteractive, node_executors.NewInteractivePromptExecutor(waDeps))
 	registry.Register(workflow.NodeTypeActionSendForm, node_executors.NewSendFormExecutor(deps.Forms, waDeps))

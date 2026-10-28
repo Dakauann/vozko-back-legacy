@@ -28,6 +28,9 @@ type fakeQueries struct {
 	formOf []*conversation.Automation
 	open   *automationneeds_usecase.OpenSwitchOff
 	saved  []automationneeds_usecase.SaveValues
+	flow   []automationneeds_usecase.FlowVariable
+	data   []automationneeds_usecase.DataRow
+	set    []string
 	err    error
 }
 
@@ -135,9 +138,10 @@ func TestConversationBindingsReachTheUseCaseAndRefusalsNameTheRows(t *testing.T)
 		status int
 		code   string
 	}{
-		{&conversationvars.VariablesError{Cause: conversationvars.ErrValueEmpty, Names: []string{"matricula"}}, http.StatusUnprocessableEntity, "conversation_variable_empty"},
-		{&conversationvars.VariablesError{Cause: conversationvars.ErrSourceInvalid, Names: []string{"matricula"}}, http.StatusBadRequest, "conversation_variable_source_invalid"},
-		{&conversationvars.VariablesError{Cause: conversationvars.ErrNotNeeded, Names: []string{"matricula"}}, http.StatusBadRequest, "conversation_variable_not_needed"},
+		{&conversationvars.VariablesError{Cause: conversationvars.ErrValueEmpty, Names: []string{"matricula"}, Labels: map[string]string{"matricula": "Matrícula"}}, http.StatusUnprocessableEntity, "conversation_variable_empty"},
+		{&conversationvars.VariablesError{Cause: conversationvars.ErrSourceInvalid, Names: []string{"matricula"}, Labels: map[string]string{"matricula": "Matrícula"}}, http.StatusBadRequest, "conversation_variable_source_invalid"},
+		{&conversationvars.VariablesError{Cause: conversationvars.ErrNotNeeded, Names: []string{"matricula"}, Labels: map[string]string{"matricula": "Matrícula"}}, http.StatusBadRequest, "conversation_variable_not_needed"},
+		{&conversationvars.VariablesError{Cause: conversationvars.ErrTypeInvalid, Names: []string{"matricula"}, Labels: map[string]string{"matricula": "Matrícula"}}, http.StatusUnprocessableEntity, "conversation_variable_type_invalid"},
 	}
 	for _, tc := range cases {
 		q.err = tc.err
@@ -145,11 +149,11 @@ func TestConversationBindingsReachTheUseCaseAndRefusalsNameTheRows(t *testing.T)
 		var got struct {
 			Code    string `json:"code"`
 			Details struct {
-				Variables []string `json:"variables"`
+				Variables []VariableRefResponse `json:"variables"`
 			} `json:"details"`
 		}
 		_ = json.Unmarshal(rec.Body.Bytes(), &got)
-		if rec.Code != tc.status || got.Code != tc.code || !reflect.DeepEqual(got.Details.Variables, []string{"matricula"}) {
+		if rec.Code != tc.status || got.Code != tc.code || !reflect.DeepEqual(got.Details.Variables, []VariableRefResponse{{Name: "matricula", Label: "Matrícula"}}) {
 			t.Fatalf("code = %d body = %s", rec.Code, rec.Body.String())
 		}
 	}
@@ -189,5 +193,27 @@ func TestTheFormOfAConversationListsRowsAndLeadFields(t *testing.T) {
 	q.err = automationneeds_usecase.ErrForbidden
 	if rec := serve(t, q, http.MethodGet, "/conversations/whatsapp/e1/variables?kind=workflow&id=w1", ""); rec.Code != http.StatusForbidden {
 		t.Fatalf("no access = %d", rec.Code)
+	}
+}
+
+func (f *fakeQueries) FlowVariables(context.Context, string, string) ([]automationneeds_usecase.FlowVariable, error) {
+	return f.flow, f.err
+}
+
+func TestTheFlowPanelAnswersLabelsUsesAndFillers(t *testing.T) {
+	q := &fakeQueries{flow: []automationneeds_usecase.FlowVariable{{
+		Need:   domain.Need{Name: "turno", Label: "Turno", Default: "Manhã", Declared: true},
+		InFlow: true, Used: true,
+		Nodes:    []automationneeds_usecase.NodeRef{{ID: "n1", Name: "Boas-vindas"}},
+		FilledBy: []automationneeds_usecase.Filler{{Kind: automationneeds_usecase.FilledByDefault, Value: "Manhã"}},
+	}}}
+	rec := serve(t, q, http.MethodGet, "/workflows/wf-1/conversation-variables", "")
+	var got FlowVariablesResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	row := got.Variables[0]
+	if row.Label != "Turno" || row.Required || !row.InFlow || row.Default != "Manhã" || row.Nodes[0].Name != "Boas-vindas" || row.FilledBy[0].Kind != "default" || row.Type.Kind != "text" {
+		t.Fatalf("row = %+v", row)
 	}
 }

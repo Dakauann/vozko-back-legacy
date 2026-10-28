@@ -50,6 +50,7 @@ var (
 	ErrChallengeExpired        = errors.New("webchat: challenge has expired")
 	ErrChallengeUnsolved       = errors.New("webchat: challenge solution is wrong")
 	ErrChallengeReused         = errors.New("webchat: challenge was already used")
+	ErrChallengeUnavailable    = errors.New("webchat: the challenge check is unavailable, try again shortly")
 	ErrSigningKeyMissing       = errors.New("webchat: signing key is not configured")
 	ErrRateLimited             = errors.New("webchat: too many requests, try again shortly")
 	ErrReferenceNotInWorkspace = errors.New("webchat: the selected agent, workflow, funnel or department is not in this workspace")

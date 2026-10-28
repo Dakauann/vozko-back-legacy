@@ -6,37 +6,68 @@ import (
 	"log/slog"
 	"strings"
 
+	"vozko/domain/variabledecl"
 	"vozko/domain/workflow"
 )
 
+type DeclarationLister interface {
+	Described(ctx context.Context, workspaceID string) ([]variabledecl.Declaration, error)
+}
+
 type VariableCatalogReader struct {
-	Readers TriggerInputReaders
-	Secrets workflow.SecretNameReader
-	Catalog func() []workflow.NodeDefinition
+	Readers      TriggerInputReaders
+	Secrets      workflow.SecretNameReader
+	Catalog      func() []workflow.NodeDefinition
+	Declarations DeclarationLister
 }
 
 func (r VariableCatalogReader) At(ctx context.Context, wf *workflow.Workflow, nodeID string) (workflow.VariableCatalog, error) {
 	if wf.Graph.FindNode(nodeID) == nil {
 		return workflow.VariableCatalog{}, fmt.Errorf("%w: %s", workflow.ErrNodeNotFound, nodeID)
 	}
+	sources, catalog, err := r.sources(ctx, wf, nodeID)
+	if err != nil {
+		return workflow.VariableCatalog{}, err
+	}
+	return workflow.VariableCatalogAt(&wf.Graph, catalog, sources, nodeID), nil
+}
+
+func (r VariableCatalogReader) Labels(ctx context.Context, wf *workflow.Workflow) (map[string]map[string]workflow.RefLabel, error) {
+	sources, catalog, err := r.sources(ctx, wf, "")
+	if err != nil {
+		return nil, err
+	}
+	return workflow.ReferenceLabels(&wf.Graph, catalog, sources), nil
+}
+
+func (r VariableCatalogReader) sources(ctx context.Context, wf *workflow.Workflow, nodeID string) (workflow.VariableSources, []workflow.NodeDefinition, error) {
 	if r.Secrets == nil {
-		return workflow.VariableCatalog{}, fmt.Errorf("%w: no secret reader is wired", workflow.ErrVariablesUnavailable)
+		return workflow.VariableSources{}, nil, fmt.Errorf("%w: no secret reader is wired", workflow.ErrVariablesUnavailable)
 	}
 	secrets, err := r.Secrets.SecretNames(ctx, wf.WorkspaceID)
 	if err != nil {
 		slog.Error("workflow.variables.secrets_unreadable", slog.String("workspace_id", wf.WorkspaceID), slog.String("workflow_id", wf.ID), slog.String("node_id", nodeID), slog.String("error", err.Error()))
-		return workflow.VariableCatalog{}, fmt.Errorf("%w: %v", workflow.ErrVariablesUnavailable, err)
+		return workflow.VariableSources{}, nil, fmt.Errorf("%w: %v", workflow.ErrVariablesUnavailable, err)
+	}
+	if r.Declarations == nil {
+		return workflow.VariableSources{}, nil, fmt.Errorf("%w: no declaration reader is wired", workflow.ErrVariablesUnavailable)
+	}
+	declarations, err := r.Declarations.Described(ctx, wf.WorkspaceID)
+	if err != nil {
+		slog.Error("workflow.variables.declarations_unreadable", slog.String("workspace_id", wf.WorkspaceID), slog.String("workflow_id", wf.ID), slog.String("node_id", nodeID), slog.String("error", err.Error()))
+		return workflow.VariableSources{}, nil, fmt.Errorf("%w: %v", workflow.ErrVariablesUnavailable, err)
 	}
 	var catalog []workflow.NodeDefinition
 	if r.Catalog != nil {
 		catalog = r.Catalog()
 	}
 	sources := workflow.VariableSources{
-		Specs:   r.Readers.Specs(wf.WorkspaceID, &wf.Graph),
-		Forms:   r.formPrompts(wf, nodeID),
-		Secrets: secrets,
+		Specs:        r.Readers.Specs(wf.WorkspaceID, &wf.Graph),
+		Forms:        r.formPrompts(wf, nodeID),
+		Secrets:      secrets,
+		Declarations: declarations,
 	}
-	return workflow.VariableCatalogAt(&wf.Graph, catalog, sources, nodeID), nil
+	return sources, catalog, nil
 }
 
 func (r VariableCatalogReader) formPrompts(wf *workflow.Workflow, nodeID string) map[string]workflow.TriggerForm {

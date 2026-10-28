@@ -190,3 +190,66 @@ func TestFollowUpNodesDeclareWhatTheyDo(t *testing.T) {
 		}
 	}
 }
+
+func TestScheduleMessageNodeReadsEverySchedulingFieldFromVariables(t *testing.T) {
+	book := &followUpBook{}
+	ctx := followUpNodeContext(workflow.NodeTypeActionScheduleMessage, map[string]interface{}{
+		"text": "oi", "when_mode": "in", "delay_amount": "{{var.args.amount}}", "delay_unit": "{{var.args.unit}}",
+	})
+	ctx.State.Set("args", map[string]interface{}{"amount": "4", "unit": "minutes"})
+	result, err := NewScheduleMessageExecutor(book).Execute(ctx)
+	if err != nil || result.NextNodeID != "ok" || book.scheduled[0].When.InMinutes != 4 {
+		t.Fatalf("result = %+v, %v, scheduled = %+v", result, err, book.scheduled)
+	}
+
+	book = &followUpBook{}
+	ctx = followUpNodeContext(workflow.NodeTypeActionScheduleMessage, map[string]interface{}{"text": "oi", "when_mode": "day", "days_from_today": "{{var.dias}}", "time": "{{var.hora}}"})
+	ctx.State.Set("dias", float64(1))
+	ctx.State.Set("hora", "17:00")
+	result, err = NewScheduleMessageExecutor(book).Execute(ctx)
+	if err != nil || result.NextNodeID != "ok" || *book.scheduled[0].When.DaysFromToday != 1 || book.scheduled[0].When.Time != "17:00" {
+		t.Fatalf("result = %+v, %v, scheduled = %+v", result, err, book.scheduled)
+	}
+}
+
+func TestScheduleMessageNodeRoutesEveryBadSchedulingValueToErroNeverToNow(t *testing.T) {
+	cases := []struct {
+		name   string
+		config map[string]interface{}
+		code   string
+		field  string
+	}{
+		{"unresolved amount", map[string]interface{}{"when_mode": "in", "delay_amount": "{{var.sumiu}}", "delay_unit": "hours"}, "follow_up_variable_missing", "delay_amount"},
+		{"text amount", map[string]interface{}{"when_mode": "in", "delay_amount": "{{var.nome}}", "delay_unit": "hours"}, "follow_up_field_invalid", "delay_amount"},
+		{"zero amount", map[string]interface{}{"when_mode": "in", "delay_amount": float64(0), "delay_unit": "hours"}, "follow_up_field_invalid", "delay_amount"},
+		{"fraction amount", map[string]interface{}{"when_mode": "in", "delay_amount": 1.5, "delay_unit": "hours"}, "follow_up_field_invalid", "delay_amount"},
+		{"missing amount", map[string]interface{}{"when_mode": "in", "delay_unit": "hours"}, "follow_up_field_invalid", "delay_amount"},
+		{"unknown unit", map[string]interface{}{"when_mode": "in", "delay_amount": float64(4), "delay_unit": "weeks"}, "follow_up_field_invalid", "delay_unit"},
+		{"missing unit", map[string]interface{}{"when_mode": "in", "delay_amount": float64(4)}, "follow_up_field_invalid", "delay_unit"},
+		{"unresolved days", map[string]interface{}{"when_mode": "day", "days_from_today": "{{var.sumiu}}", "time": "10:00"}, "follow_up_variable_missing", "days_from_today"},
+		{"text days", map[string]interface{}{"when_mode": "day", "days_from_today": "amanhã", "time": "10:00"}, "follow_up_field_invalid", "days_from_today"},
+		{"missing days", map[string]interface{}{"when_mode": "day", "time": "10:00"}, "follow_up_field_invalid", "days_from_today"},
+		{"bad time", map[string]interface{}{"when_mode": "day", "days_from_today": float64(1), "time": "25:00"}, "follow_up_field_invalid", "time"},
+		{"bad date", map[string]interface{}{"when_mode": "date", "date": "{{var.nome}}", "time": "10:00"}, "follow_up_field_invalid", "date"},
+		{"unknown mode", map[string]interface{}{"when_mode": "logo"}, "follow_up_field_invalid", "when_mode"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			book := &followUpBook{}
+			tc.config["text"] = "oi"
+			result, err := NewScheduleMessageExecutor(book).Execute(followUpNodeContext(workflow.NodeTypeActionScheduleMessage, tc.config))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(book.scheduled) != 0 {
+				t.Fatalf("scheduled = %+v", book.scheduled)
+			}
+			if result.NextNodeID != "bad" || result.Output["error_code"] != tc.code || result.Output["error_field"] != tc.field {
+				t.Fatalf("result = %+v", result)
+			}
+			if label, _ := result.Output["error_field_label"].(string); label == "" || label == tc.field {
+				t.Fatalf("label = %v", result.Output["error_field_label"])
+			}
+		})
+	}
+}

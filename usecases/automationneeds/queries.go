@@ -44,6 +44,8 @@ type QueriesDeps struct {
 	Definitions   LeadFieldDefinitions
 	Subjects      LeadSubjects
 	Profiles      conversation.EntryAutomationReader
+	StoredDetails StoredDetails
+	Timeline      Timeline
 }
 
 type Queries struct {
@@ -54,7 +56,7 @@ func NewQueries(d QueriesDeps) (*Queries, error) {
 	if err := deps.Require("automation needs queries", map[string]any{
 		"service": d.Service, "publish guard": d.Guard, "agents": d.Agents, "workflows": d.Workflows, "switch-off records": d.Records,
 		"stored values": d.Store, "access check": d.Access, "conversation values": d.Conversations, "lead fields": d.Definitions,
-		"lead subjects": d.Subjects, "automation profiles": d.Profiles,
+		"lead subjects": d.Subjects, "automation profiles": d.Profiles, "stored details": d.StoredDetails, "timeline": d.Timeline,
 	}); err != nil {
 		return nil, err
 	}
@@ -76,8 +78,10 @@ func (q *Queries) Eligibility(workspaceID string, asked []conversation.Automatio
 		return nil, ErrTooMany
 	}
 	out := make([]Eligibility, 0, len(asked))
+	labels := q.d.Service.Catalog(context.Background(), workspaceID)
 	for _, a := range asked {
 		needs, err := q.d.Service.Needs(workspaceID, a)
+		needs = labels.Apply(needs)
 		item := Eligibility{Automation: rootOf(a, needs), Needs: needs, Readable: err == nil}
 		if err == nil && item.Automation.Name == "" {
 			item.Automation.Name = q.nameOf(workspaceID, a)
@@ -122,6 +126,7 @@ func (q *Queries) PublishImpact(ctx context.Context, workspaceID string, a conve
 
 type OpenSwitchOff struct {
 	Record      domain.SwitchOffRecord
+	Recorded    domain.Needs
 	Needs       domain.Needs
 	EligibleNow bool
 }
@@ -135,5 +140,10 @@ func (q *Queries) OpenSwitchOff(ctx context.Context, workspaceID string, kind do
 		return nil, err
 	}
 	needs, err := q.d.Service.Needs(workspaceID, record.Automation.Automation)
-	return &OpenSwitchOff{Record: *record, Needs: needs, EligibleNow: err == nil && len(needs) == 0}, nil
+	needs = q.d.Service.Label(ctx, workspaceID, needs)
+	recorded := make(domain.Needs, 0, len(record.Variables))
+	for _, name := range record.Variables {
+		recorded = append(recorded, domain.Need{Name: name})
+	}
+	return &OpenSwitchOff{Record: *record, Recorded: q.d.Service.Label(ctx, workspaceID, recorded), Needs: needs, EligibleNow: err == nil && len(needs) == 0}, nil
 }

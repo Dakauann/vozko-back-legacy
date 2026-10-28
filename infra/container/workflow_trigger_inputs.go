@@ -5,12 +5,17 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/google/uuid"
+
+	"vozko/domain/siteform"
+	"vozko/domain/sitesubmission"
 	"vozko/domain/stage"
 	wf "vozko/domain/whatsappform"
 	workflow_domain "vozko/domain/workflow"
 	"vozko/domain/workspacesecret"
 	whatsappform_repository "vozko/infra/repositories/whatsappform"
 	workflow_repository "vozko/infra/repositories/workflow"
+	"vozko/usecases/siteforms"
 	workflow_usecase "vozko/usecases/workflow"
 )
 
@@ -22,13 +27,41 @@ type triggerFormVersions interface {
 	Get(ctx context.Context, workspaceID, versionID string) (*wf.Version, error)
 }
 
+type triggerPageForms interface {
+	LiveForm(ctx context.Context, workspaceID, formKey string) (siteforms.ActiveForm, error)
+}
+
 type triggerFormCatalog struct {
 	forms    triggerFormReads
 	versions triggerFormVersions
+	pages    triggerPageForms
+}
+
+func (c triggerFormCatalog) pageForm(ctx context.Context, workspaceID, formKey string) (workflow_domain.TriggerForm, error) {
+	form, err := c.pages.LiveForm(ctx, workspaceID, formKey)
+	if err != nil {
+		return workflow_domain.TriggerForm{}, err
+	}
+	out := workflow_domain.TriggerForm{ID: form.FormKey, Name: form.FormID}
+	for _, field := range form.Manifest.Fields {
+		prompt := field.Label
+		if prompt == "" {
+			prompt = field.Name
+		}
+		question := workflow_domain.TriggerFormQuestion{Key: field.Name, Prompt: prompt, Required: field.Required}
+		if field.Kind == siteform.KindSelect || field.Kind == siteform.KindRadio {
+			question.Choices = append(question.Choices, field.Options...)
+		}
+		out.Questions = append(out.Questions, question)
+	}
+	return out, nil
 }
 
 func (c triggerFormCatalog) TriggerForm(workspaceID, formID string) (workflow_domain.TriggerForm, error) {
 	ctx := context.Background()
+	if _, err := uuid.Parse(formID); err != nil && c.pages != nil && sitesubmission.ValidFormKey(formID) {
+		return c.pageForm(ctx, workspaceID, formID)
+	}
 	form, err := c.forms.Get(ctx, workspaceID, formID)
 	if err != nil {
 		return workflow_domain.TriggerForm{}, err
@@ -60,6 +93,14 @@ func (c triggerFormCatalog) TriggerForm(workspaceID, formID string) (workflow_do
 	return out, nil
 }
 
+type lazyPageForms struct {
+	c *Container
+}
+
+func (p lazyPageForms) LiveForm(ctx context.Context, workspaceID, formKey string) (siteforms.ActiveForm, error) {
+	return p.c.siteForms().LiveForm(ctx, workspaceID, formKey)
+}
+
 type triggerStageCatalog struct {
 	stages interface {
 		ListByWorkspace(workspaceID string) ([]*stage.Stage, error)
@@ -82,7 +123,7 @@ func (c triggerStageCatalog) TriggerStages(workspaceID string) ([]workflow_domai
 
 func (c *Container) workflowTriggerInputs() workflow_usecase.TriggerInputReaders {
 	return workflow_usecase.TriggerInputReaders{
-		Forms:  triggerFormCatalog{forms: whatsappform_repository.NewFormStore(c.db), versions: whatsappform_repository.NewVersionStore(c.db)},
+		Forms:  triggerFormCatalog{forms: whatsappform_repository.NewFormStore(c.db), versions: whatsappform_repository.NewVersionStore(c.db), pages: lazyPageForms{c: c}},
 		Stages: triggerStageCatalog{stages: c.repositories.stage},
 	}
 }
@@ -112,14 +153,15 @@ func (s workflowSecretNames) SecretNames(ctx context.Context, workspaceID string
 
 func (c *Container) workflowVariables() *workflow_usecase.VariableCatalogReader {
 	return &workflow_usecase.VariableCatalogReader{
-		Readers: c.workflowTriggerInputs(),
-		Secrets: workflowSecretNames{secrets: c.useCases.workspaceSecrets},
-		Catalog: c.useCases.nodeCatalogFn,
+		Readers:      c.workflowTriggerInputs(),
+		Secrets:      workflowSecretNames{secrets: c.useCases.workspaceSecrets},
+		Catalog:      c.useCases.nodeCatalogFn,
+		Declarations: c.variableDeclarations(),
 	}
 }
 
 func (c *Container) workflowTestValues() *workflow_usecase.TestValuesUseCase {
-	uc, err := workflow_usecase.NewTestValuesUseCase(workflow_repository.NewTestValuesRepository(c.db), c.automationNeeds().service.Source())
+	uc, err := workflow_usecase.NewTestValuesUseCase(workflow_repository.NewTestValuesRepository(c.db), c.automationNeeds().service.Source(), c.automationNeeds().service)
 	if err != nil {
 		log.Fatalf("[workflows] %v", err)
 	}

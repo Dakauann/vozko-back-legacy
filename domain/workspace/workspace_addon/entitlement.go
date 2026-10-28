@@ -7,16 +7,25 @@ const (
 	EntitlementWhatsAppBusinessPhones      EntitlementKind = "whatsapp_business_phones"
 	EntitlementBranches                    EntitlementKind = "branches"
 	EntitlementUnofficialWhatsAppInstances EntitlementKind = "unofficial_whatsapp_instances"
+	EntitlementSiteDomains                 EntitlementKind = "site_domains"
 )
 
 func (k EntitlementKind) IsValid() bool {
 	switch k {
 	case EntitlementCallChannels, EntitlementWhatsAppBusinessPhones, EntitlementBranches,
-		EntitlementUnofficialWhatsAppInstances:
+		EntitlementUnofficialWhatsAppInstances, EntitlementSiteDomains:
 		return true
 	default:
 		return false
 	}
+}
+
+func (k EntitlementKind) RequiresUnitCap() bool {
+	return k == EntitlementSiteDomains
+}
+
+func (k EntitlementKind) MonthlyOnly() bool {
+	return k.RequiresUnitCap()
 }
 
 func AllEntitlementKinds() []EntitlementKind {
@@ -25,6 +34,7 @@ func AllEntitlementKinds() []EntitlementKind {
 		EntitlementWhatsAppBusinessPhones,
 		EntitlementBranches,
 		EntitlementUnofficialWhatsAppInstances,
+		EntitlementSiteDomains,
 	}
 }
 

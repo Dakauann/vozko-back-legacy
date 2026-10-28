@@ -95,7 +95,7 @@ func ownerSchedulingWorkflow(t *testing.T) *workflow.Workflow {
 func productionCatalog(t *testing.T) []workflow.NodeDefinition {
 	t.Helper()
 	registry := NewNodeExecutorRegistry()
-	if err := RegisterProductionExecutors(registry, ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}, MediaURLs: externalMediaURLs(), AIAttendance: sandboxRuntime{}, FollowUps: simFollowUps{effects: newSimEffects()}, WorkspaceZones: utcZones{}}); err != nil {
+	if err := RegisterProductionExecutors(registry, ExecutorDeps{ConversationEvents: silentLines{}, Forms: node_executors.NewFormSenderRelay(), ChoiceStats: &spyChoiceRecorder{}, MediaURLs: externalMediaURLs(), AIAttendance: sandboxRuntime{}, FollowUps: simFollowUps{effects: newSimEffects()}, WorkspaceZones: utcZones{}, VariableRules: acceptingRules{}}); err != nil {
 		t.Fatal(err)
 	}
 	return registry.Catalog()

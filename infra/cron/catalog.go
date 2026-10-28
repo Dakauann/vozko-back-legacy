@@ -108,4 +108,8 @@ var Catalog = []Job{
 	{Name: "google_token_refresh", Period: 30 * time.Minute},
 	{Name: "google_sheets_dispatch", Period: time.Minute},
 	{Name: "google_sheets_retention", Period: day},
+	{Name: "google_sheets_edit_expiry", Period: time.Minute},
+	{Name: "site_hostname_sweep", Period: 5 * time.Minute},
+	{Name: "site_analytics_rollup", Period: time.Hour},
+	{Name: "site_form_effects_sweep", Period: time.Minute},
 }

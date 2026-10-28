@@ -10,8 +10,12 @@ import (
 	leadexit_usecase "vozko/usecases/leadexit"
 	mpuc "vozko/usecases/metaplatform"
 	personalinbox_usecase "vozko/usecases/personalinbox"
+	"vozko/usecases/sheetvariable"
+	"vozko/usecases/siteforms"
+	"vozko/usecases/sitethumbnail"
 	teamchat_usecase "vozko/usecases/teamchat"
 	"vozko/usecases/transactionalemail"
+	variabledecl_usecase "vozko/usecases/variabledecl"
 	whatsapp_template_usecase "vozko/usecases/whatsapp/template"
 
 	"gorm.io/gorm"
@@ -314,6 +318,13 @@ type Container struct {
 	conversationRuns *workflow_usecase.ConversationRunStarter
 
 	automationNeedsWiring *automationNeedsWiring
+	variableDeclarationsSvc *variabledecl_usecase.Service
+	sheetVariablesSvc       *sheetvariable.Service
+
+	sitePublishWiring   *sitePublishModule
+	siteFormsWiring     *siteforms.Service
+	siteThumbnailWiring *sitethumbnail.Service
+	siteShared          siteSharedWiring
 }
 
 type repositories struct {
@@ -835,6 +846,7 @@ type useCases struct {
 	purchaseAddon                      workspace_addon_domain.PurchaseAddonUseCase
 	previewAddonPurchase               workspace_addon_domain.PreviewAddonPurchaseUseCase
 	cancelAddonSubscription            workspace_addon_domain.CancelAddonSubscriptionUseCase
+	scheduleAddonQuantity              workspace_addon_domain.ScheduleAddonQuantityUseCase
 	listWorkspaceAddons                workspace_addon_domain.ListWorkspaceAddonsUseCase
 	getWorkspaceEntitlements           workspace_addon_domain.GetWorkspaceEntitlementsUseCase
 	entitlementResolver                workspace_addon_domain.EntitlementResolver

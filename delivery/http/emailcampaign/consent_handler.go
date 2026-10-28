@@ -10,7 +10,7 @@ import (
 )
 
 type Consent interface {
-	Subscribe(ctx context.Context, workspaceID string, in emailconsent_usecase.SubscribeInput) (emailconsent.Subscription, error)
+	Record(ctx context.Context, workspaceID string, in emailconsent_usecase.SubscribeInput) (emailconsent.Subscription, error)
 	ImportConsent(ctx context.Context, workspaceID string, rows []emailconsent_usecase.ImportRow) (emailconsent_usecase.ImportResult, error)
 	UnsubscribeAddress(ctx context.Context, workspaceID, address string) (emailconsent.Subscription, error)
 	CheckToken(token string) error
@@ -33,7 +33,7 @@ func NewConsentHandler(consent Consent) *ConsentHandler {
 // @Produce		json
 // @Param			body	body		emailcampaignhttp.SubscribeRequest	true	"Consentimento"
 // @Success		200		{object}	emailcampaignhttp.SubscriptionResponse
-// @Failure		400		{object}	response.ErrorResponse	"email_address_invalid, email_source_invalid, email_consent_ip_required, email_consent_ip_invalid, email_consent_date_in_future"
+// @Failure		400		{object}	response.ErrorResponse	"email_address_invalid, email_source_invalid, email_source_reserved, email_consent_ip_required, email_consent_ip_invalid, email_consent_date_in_future"
 // @Security		BearerAuth
 // @Router			/email/subscriptions [post]
 func (h *ConsentHandler) Subscribe(w http.ResponseWriter, r *http.Request) {
@@ -45,11 +45,7 @@ func (h *ConsentHandler) Subscribe(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	if req.Source == string(emailconsent.SourceImport) {
-		writeError(w, emailconsent.ErrSourceInvalid)
-		return
-	}
-	sub, err := h.consent.Subscribe(r.Context(), a.WorkspaceID, emailconsent_usecase.SubscribeInput{
+	sub, err := h.consent.Record(r.Context(), a.WorkspaceID, emailconsent_usecase.SubscribeInput{
 		Address: req.Address, LeadID: req.LeadID, Source: emailconsent.Source(req.Source), IP: req.IP, ConsentedAt: req.ConsentedAt,
 	})
 	if err != nil {

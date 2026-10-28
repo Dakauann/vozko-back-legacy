@@ -106,7 +106,9 @@ func TestBillingFlow_InvariantNoUncollectedChannelBilled(t *testing.T) {
 			wsMap := map[string]*workspace.Workspace{}
 			var subList []*workspace_plan.WorkspaceSubscription
 			for _, ws := range workspaces {
-				subList = append(subList, activeSub(ws, "plan-1"))
+				due := activeSub(ws, "plan-1")
+				due.CurrentPeriodEnd = time.Date(year, time.February, 23, 0, 0, 0, 0, time.UTC)
+				subList = append(subList, due)
 				addons.byWS[ws] = []*workspace_addon.AddonSubscription{channelAddonFor(ws)}
 				wsMap[ws] = owner(ws, "user-"+ws)
 			}

@@ -15,7 +15,7 @@ type LeadTimelineResponse struct {
 
 type TimelineItemResponse struct {
 	ID        string                  `json:"id" example:"call:3b8c7e1a-5b1d-4c84-9d0a-2f3b8c7e1a01"`
-	Kind      string                  `json:"kind" enums:"conversation,campaign_sent,campaign_delivered,campaign_read,campaign_failed,call,deal,deal_event,memory,record" example:"call"`
+	Kind      string                  `json:"kind" enums:"conversation,campaign_sent,campaign_delivered,campaign_read,campaign_failed,call,deal,deal_event,memory,record,site_submission" example:"call"`
 	At        string                  `json:"at" example:"2026-10-08T14:03:00Z"`
 	Actor     string                  `json:"actor,omitempty" example:"ai:7d0a2f3b-8c7e-4c84-9d0a-2f3b8c7e1a01"`
 	ActorName string                  `json:"actorName,omitempty" example:"Sara"`
@@ -24,7 +24,7 @@ type TimelineItemResponse struct {
 }
 
 type TimelineRefResponse struct {
-	Type      string `json:"type" enums:"entry,call,deal,memory,lead_event" example:"entry"`
+	Type      string `json:"type" enums:"entry,call,deal,memory,lead_event,site_submission" example:"entry"`
 	ID        string `json:"id" example:"9d0a2f3b-8c7e-4c84-9d0a-2f3b8c7e1a01"`
 	EntryType string `json:"entryType,omitempty" example:"whatsapp"`
 }
@@ -53,6 +53,7 @@ type TimelineSummaryResponse struct {
 	Disposition   string   `json:"disposition,omitempty" example:"interessado"`
 	CallbackAt    string   `json:"callbackAt,omitempty" example:"2026-10-09T09:00:00Z"`
 	CallListID    string   `json:"callListId,omitempty"`
+	ProjectID     string   `json:"projectId,omitempty"`
 }
 
 type LeadDealsResponse struct {
@@ -73,7 +74,7 @@ func timelineResponse(leadID string, page leaddomain.TimelinePage) LeadTimelineR
 			Channel: string(s.Channel), Line: s.Line, Status: s.Status, Title: s.Title, CampaignID: s.CampaignID, Event: s.Event, Fields: s.Fields,
 			Direction: s.Direction, Source: s.Source, DurationSec: s.DurationSec, ValueCents: s.ValueCents, Currency: s.Currency,
 			PipelineID: s.PipelineID, StageID: s.StageID, Category: s.Category, Text: s.Text, FromStageID: s.FromStageID, StageName: s.StageName,
-			FromStageName: s.FromStageName, Disposition: s.Disposition, CallListID: s.CallListID,
+			FromStageName: s.FromStageName, Disposition: s.Disposition, CallListID: s.CallListID, ProjectID: s.ProjectID,
 		}
 		if s.AnsweredAt != nil {
 			summary.AnsweredAt = timelineTime(*s.AnsweredAt)

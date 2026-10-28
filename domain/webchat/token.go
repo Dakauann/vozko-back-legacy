@@ -118,7 +118,3 @@ func HashIP(keys Keys, ip string) string {
 	}
 	return sign(keys.IPHash, ip)
 }
-
-func hmacEqualString(a, b string) bool {
-	return hmac.Equal([]byte(a), []byte(b))
-}

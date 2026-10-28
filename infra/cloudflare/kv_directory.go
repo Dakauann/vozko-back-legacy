@@ -1,19 +1,15 @@
 package cloudflare
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"time"
 )
 
 const (
 	publishInterval = 10 * time.Second
-	publishTTL      = 30
+	publishTTL      = 60
 	httpTimeout     = 5 * time.Second
 )
 
@@ -26,7 +22,7 @@ type Publisher struct {
 	PublicURL   string
 	Region      string
 
-	httpClient *http.Client
+	kv *KVClient
 }
 
 func New(accountID, namespaceID, apiToken, keyPrefix, replicaID, publicURL, region string) *Publisher {
@@ -44,7 +40,7 @@ func New(accountID, namespaceID, apiToken, keyPrefix, replicaID, publicURL, regi
 		ReplicaID:   replicaID,
 		PublicURL:   publicURL,
 		Region:      region,
-		httpClient:  &http.Client{Timeout: httpTimeout},
+		kv:          NewKVClient(accountID, namespaceID, apiToken),
 	}
 }
 
@@ -90,49 +86,15 @@ func (p *Publisher) publish(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	url := fmt.Sprintf(
-		"https://api.cloudflare.com/client/v4/accounts/%s/storage/kv/namespaces/%s/values/%s%s?expiration_ttl=60",
-		p.AccountID, p.NamespaceID, p.KeyPrefix, p.ReplicaID,
-	)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+p.APIToken)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 300 {
-		raw, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("KV PUT %d: %s", resp.StatusCode, string(raw))
-	}
-	return nil
+	return p.kv.Put(ctx, p.KeyPrefix+p.ReplicaID, body, publishTTL)
 }
 
 func (p *Publisher) delete() {
-	url := fmt.Sprintf(
-		"https://api.cloudflare.com/client/v4/accounts/%s/storage/kv/namespaces/%s/values/%s%s",
-		p.AccountID, p.NamespaceID, p.KeyPrefix, p.ReplicaID,
-	)
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
-	if err != nil {
-		return
-	}
-	req.Header.Set("Authorization", "Bearer "+p.APIToken)
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
+	if err := p.kv.Delete(ctx, p.KeyPrefix+p.ReplicaID); err != nil {
 		log.Printf("[cf-kv] graceful delete failed: %v", err)
 		return
 	}
-	resp.Body.Close()
 	log.Printf("[cf-kv] entry deleted on shutdown")
 }

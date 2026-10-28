@@ -47,9 +47,10 @@ func (e *addSheetRowExecutor) Definition() workflow.NodeDefinition {
 			Behavior: "A linha é validada pelos tipos das colunas e entra na fila de gravação; a saída 'sucesso' significa que ela foi aceita e será gravada em instantes, na ordem. " +
 				"Colunas preenchidas pelo sistema (telefone do lead, data, link da conversa) não entram no mapeamento. Uma variável sem valor leva à saída 'erro', nunca a uma célula com {{...}}. " +
 				"Quando a aba tem linha única (por conversa, na aba ou no mês da aba, ou pelos valores de colunas escolhidas) e o registro já existe, nada é gravado de novo: o passo segue pela saída opcional 'ja_registrada' se ela estiver ligada, senão pela 'sucesso', com already_recorded=true e existing_row_id apontando a linha que já existia. " +
-				"Numa aba com linha única por conversa, um fluxo sem conversa (iniciado por um lead) segue pela 'erro' com o código google_sheet_unique_needs_conversation.",
+				"Numa aba com linha única por conversa, um fluxo sem conversa (iniciado por um lead) segue pela 'erro' com o código google_sheet_unique_needs_conversation." + sheetVariableGuidance,
 			Examples: []string{
 				"config: {\"sheet_id\":\"<id>\",\"values\":{\"produto\":\"{{var.produto}}\",\"quantidade\":\"{{var.quantidade}}\"}}",
+				"config: {\"sheet_id\":\"<id da aba modelo>\",\"sheet_variable\":\"{{campvars.planilha_franquia}}\",\"values\":{\"valor\":\"{{var.valor}}\"}}",
 			},
 		},
 		Outputs: []workflow.HandleDefinition{
@@ -65,12 +66,13 @@ func (e *addSheetRowExecutor) Definition() workflow.NodeDefinition {
 			{Key: "duplicate", Description: "true quando este passo já tinha registrado a linha e ela não foi repetida", Label: "Linha já registrada", Type: workflow.VariableTypeBoolean},
 			{Key: "already_recorded", Description: "true quando a aba tem linha única e este registro já existia; nada foi gravado de novo", Label: "Registro já existia", Type: workflow.VariableTypeBoolean},
 			{Key: "existing_row_id", Description: "ID da linha que já registrava este registro, quando already_recorded é true", Label: "ID da linha existente", Type: workflow.VariableTypeText},
-			{Key: "error", Description: "Descrição da recusa", Label: "Recusa", Type: workflow.VariableTypeText},
+			{Key: "error", Description: "Descrição da recusa", Label: "Recusa", LabelKey: "output_error_refusal", Type: workflow.VariableTypeText},
 			{Key: "error_code", Description: "Código da recusa", Label: "Código da recusa", Type: workflow.VariableTypeText},
 		},
 		DefaultConfig: map[string]interface{}{AddSheetRowSheetKey: "", AddSheetRowValuesKey: map[string]interface{}{}},
 		ConfigSchema: []workflow.ConfigField{
 			{Key: AddSheetRowSheetKey, Label: "Planilha", Type: "select", OptionsSource: "google_sheets", Required: true},
+			sheetVariableField(),
 			{Key: AddSheetRowValuesKey, Label: "Colunas", Type: "sheet_columns", Required: true,
 				Description: "O valor de cada coluna. Aceita variáveis do fluxo {{...}}."},
 		},
@@ -88,7 +90,10 @@ func (e *addSheetRowExecutor) Execute(ctx *workflow.NodeContext) (*workflow.Node
 	if len(missing) > 0 {
 		return sheetRowRefused(ctx, googlesheet.CodeUnresolvedVariable, "variáveis sem valor: "+strings.Join(missing, ", ")), nil
 	}
-	sheetID, _ := ctx.Node.Config[AddSheetRowSheetKey].(string)
+	sheetID, err := workflow.SheetStepTarget(ctx.Node, ctx.State)
+	if err != nil {
+		return sheetRowRefused(ctx, workflow.CodeSheetVariableUnresolved, err.Error()), nil
+	}
 	origin := workflowSheetOrigin(ctx.Run)
 	callCtx, release := ctx.CallContext()
 	defer release()
@@ -164,4 +169,13 @@ func sheetRowCode(err error) string {
 func sheetRowRefused(ctx *workflow.NodeContext, code, message string) *workflow.NodeResult {
 	output := map[string]interface{}{"error": message, "error_code": code}
 	return routeFailure(&workflow.NodeResult{Output: output}, outgoingEdges(ctx), addSheetRowRefused)
+}
+
+const sheetVariableGuidance = " Para gravar numa planilha diferente por conversa (por exemplo, uma por franquia), preencha sheet_variable com um dado da conversa do tipo Planilha, como {{campvars.planilha_franquia}}; sheet_id passa a ser a aba da planilha modelo desse dado, usada só para mapear as colunas. A planilha da conversa é escolhida quando a execução começa e fica a mesma até o fim; sem ela a execução nem começa, e o passo nunca grava na planilha modelo."
+
+func sheetVariableField() workflow.ConfigField {
+	return workflow.ConfigField{
+		Key: workflow.SheetStepVariableKey, Label: "Muda por conversa", Type: "sheet_variable",
+		Description: "Um dado da conversa do tipo Planilha, como {{campvars.planilha_franquia}}. Vazio grava sempre na mesma planilha.",
+	}
 }

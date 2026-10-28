@@ -191,6 +191,9 @@ type router struct {
 	agentRoutes                    AgentRoutes
 	planDuplicateHandler           *handlers.WorkspacePlanDuplicateHandler
 	inboxPreferencesHandler        *personalinboxhttp.Handler
+	sites                          SiteRoutes
+	sitePublish                    SitePublishRoutes
+	siteForms                      SiteFormRoutes
 	google                         GoogleRoutes
 	apiKeys                        APIKeyRoutes
 	choiceStatsHandler             *choicestatshttp.Handler
@@ -375,10 +378,16 @@ func NewRouter(
 	agentRoutes AgentRoutes,
 	planDuplicateHandler *handlers.WorkspacePlanDuplicateHandler,
 	inboxPreferencesHandler *personalinboxhttp.Handler,
+	sites SiteRoutes,
+	sitePublish SitePublishRoutes,
+	siteForms SiteFormRoutes,
 ) Router {
 	r := &router{
 		planDuplicateHandler:           planDuplicateHandler,
 		inboxPreferencesHandler:        inboxPreferencesHandler,
+		sites:                          sites,
+		sitePublish:                    sitePublish,
+		siteForms:                      siteForms,
 		campaignDrafts:                 campaignDrafts,
 		agentRoutes:                    agentRoutes,
 		workflowRunExportHandler:       workflowRunExportHandler,
@@ -571,8 +580,13 @@ func (r *router) setupRoutes() {
 	googleaccounthttp.RegisterProtectedRoutes(protected, r.google.Accounts, r.ac)
 	googlesheethttp.RegisterProtectedRoutes(protected, r.google.Sheets, r.ac)
 	googlesheethttp.RegisterRowRemovalRoutes(protected, r.google.SheetRemovals, r.ac)
+	googlesheethttp.RegisterEditSessionRoutes(protected, r.google.SheetEdits, r.ac)
+	googlesheethttp.RegisterModelFitRoutes(protected, r.google.SheetFits, r.ac)
 	r.setupEmailProtectedRoutes(protected)
 	apikeyshttp.RegisterProtectedRoutes(protected, r.apiKeys.Handler, r.ac)
+	r.setupSiteRoutes(protected)
+	r.setupSitePublishRoutes(protected)
+	r.setupSiteFormRoutes(protected)
 	r.setupCarrierProtectedRoutes(protected)
 	r.setupCampaignDraftRoutes(protected)
 	r.setupAgentToolRoutes(protected)
@@ -631,6 +645,7 @@ func (r *router) setupRoutes() {
 	r.setupAdminIssueRoutes(adminRoutes)
 	livedecisionhttp.RegisterAdminRoutes(adminRoutes, r.liveDecisionHandler)
 	r.setupAdminAffiliateRoutes(adminRoutes)
+	r.setupSitePublishAdminRoutes(adminRoutes)
 
 	r.setupConversationRoutes(protected)
 	r.setupEntryConversationRoutes(protected)
@@ -783,6 +798,8 @@ func (r *router) setupWebhookRoutes() {
 	r.setupCarrierPublicRoutes()
 	unofficialwahttp.RegisterPublicRoutes(r.mux, r.unofficialWhatsAppWebhook)
 	webchathttp.RegisterPublicRoutes(r.mux, r.webchat.Public)
+	r.setupSiteFormPublicRoutes()
+	r.setupSitePublicRoutes()
 	r.mux.HandleFunc("/webhooks/360dialog/messages", r.webhookHandler.HandleDialog360MessageWebhook).Methods(http.MethodGet, http.MethodPost)
 	workflowwebhookhttp.RegisterPublicRoutes(r.mux, r.workflowWebhookHandler, r.workflowWebhookRateLimiter)
 }
@@ -1148,6 +1165,7 @@ func (r *router) setupWorkflowRoutes(protected *mux.Router) {
 	protected.HandleFunc("/workflows/{id}/runs", r.ac(wf, workspace_domain.ActionCreate, r.workflowHandler.StartRun)).Methods(http.MethodPost)
 	protected.HandleFunc("/workflows/{id}/nodes/{nodeId}/analyze", r.ac(wf, workspace_domain.ActionRead, r.workflowHandler.AnalyzeNode)).Methods(http.MethodGet)
 	protected.HandleFunc("/workflows/{id}/nodes/{nodeId}/variables", r.ac(wf, workspace_domain.ActionRead, r.workflowHandler.NodeVariables)).Methods(http.MethodGet)
+	protected.HandleFunc("/workflows/{id}/variable-labels", r.ac(wf, workspace_domain.ActionRead, r.workflowHandler.VariableLabels)).Methods(http.MethodGet)
 	protected.HandleFunc("/workflows/{id}/nodes/{nodeId}/test", r.ac(wf, workspace_domain.ActionUpdate, r.workflowHandler.TestNode)).Methods(http.MethodPost)
 	protected.HandleFunc("/workflows/{id}/test-values", r.ac(wf, workspace_domain.ActionUpdate, r.workflowHandler.TestValues)).Methods(http.MethodGet)
 	protected.HandleFunc("/workflows/{id}/test-values", r.ac(wf, workspace_domain.ActionUpdate, r.workflowHandler.SaveTestValues)).Methods(http.MethodPut)

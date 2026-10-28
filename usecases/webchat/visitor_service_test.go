@@ -8,10 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"crypto/sha256"
-	"math/bits"
-
 	"vozko/domain/conversation"
+	"vozko/domain/publicform"
 	"vozko/domain/shared"
 	wcdomain "vozko/domain/webchat"
 )
@@ -98,24 +96,10 @@ func (h *harness) solvedChallenge(t *testing.T) (string, string) {
 		t.Fatal(err)
 	}
 	for n := 0; ; n++ {
-		nonce := strconv.Itoa(n)
-		sum := sha256.Sum256([]byte(c.Token + ":" + nonce))
-		if zeroBits(sum[:]) >= c.Bits {
+		if nonce := strconv.Itoa(n); publicform.SolvesChallenge(c.Token, nonce, c.Bits) {
 			return c.Token, nonce
 		}
 	}
-}
-
-func zeroBits(digest []byte) int {
-	total := 0
-	for _, b := range digest {
-		if b == 0 {
-			total += 8
-			continue
-		}
-		return total + bits.LeadingZeros8(b)
-	}
-	return total
 }
 
 func (h *harness) session(t *testing.T) *Session {
@@ -174,8 +158,8 @@ func TestChallengeStoreFailureRefusesTheSession(t *testing.T) {
 	token, nonce := h.solvedChallenge(t)
 	h.oneShot.err = errors.New("redis down")
 	_, err := h.svc.StartSession(context.Background(), StartSessionInput{PublicKey: h.widget.PublicKey, ChallengeToken: token, Nonce: nonce, Client: Client{ParentOrigin: siteOrigin}})
-	if !errors.Is(err, wcdomain.ErrChallengeReused) {
-		t.Fatalf("store failure = %v, want a refusal", err)
+	if !errors.Is(err, wcdomain.ErrChallengeUnavailable) || errors.Is(err, wcdomain.ErrChallengeReused) {
+		t.Fatalf("store failure = %v, want a service unavailable refusal", err)
 	}
 }
 

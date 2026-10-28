@@ -14,6 +14,7 @@ import (
 	"vozko/infra/whatsapp/flows"
 	conversation_usecase "vozko/usecases/conversation"
 	"vozko/usecases/copilot/copilottools/formtools"
+	"vozko/usecases/formlead"
 	template_usecase "vozko/usecases/whatsapp/template"
 	whatsappform_usecase "vozko/usecases/whatsappform"
 	workflow_usecase "vozko/usecases/workflow"
@@ -55,11 +56,9 @@ func (c *Container) whatsappForms() *whatsappform_usecase.Service {
 		Access:        c.services.conversationAuthImpl,
 		Scopes:        formReadScopes{deals: c.useCases.personDeals},
 		History:       formHistory{sender: c.services.messageSender},
-		Profiles:      c.leadProfiles(),
-		Consents:      c.leadConsent(),
+		FormLeads:     c.formLeads(),
 		Media:         formFiles{store: conversation_usecase.NewFormFileStore(c.services.whatsappClientFactory, c.mediaStore(), nil)},
 		Runs:          c.formRunResumer(),
-		Triggers:      c.formTriggers(),
 		LeadNames:     formLeadNames{leads: c.repositories.lead},
 		Automations:   c.formAutomations(),
 		Notices:       c.notifications().Publisher,
@@ -68,6 +67,20 @@ func (c *Container) whatsappForms() *whatsappform_usecase.Service {
 		log.Fatalf("[whatsapp-forms] %v", err)
 	}
 	c.whatsappFormsService = service
+	return service
+}
+
+func (c *Container) formLeads() *formlead.Service {
+	service, err := formlead.New(formlead.Deps{
+		Phones:   c.repositories.lead,
+		Emails:   c.repositories.lead,
+		Profiles: c.leadProfiles(),
+		Consents: c.leadConsent(),
+		Triggers: c.formTriggers(),
+	})
+	if err != nil {
+		log.Fatalf("[form-leads] %v", err)
+	}
 	return service
 }
 

@@ -8,20 +8,22 @@ import (
 	workspace_plan "vozko/domain/workspace/workspace_plan"
 )
 
-func TestAddonSubscription_Extend_MonthlyConvergesToAnchor(t *testing.T) {
-	from := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	for _, day := range []int{5, 12, 27} {
+func TestAddonSubscription_RenewForInvoice_MonthlyConvergesToAnchor(t *testing.T) {
+	due := time.Date(2026, 3, 23, 0, 0, 0, 0, billing.LocationBRT())
+	paidAt := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	for _, day := range []int{5, 12} {
 		s := &AddonSubscription{
+			Quantity:         1,
 			BillingCycle:     workspace_plan.BillingCycleMonthly,
 			Status:           workspace_plan.SubscriptionStatusExpired,
 			CurrentPeriodEnd: time.Date(2026, 3, day, 0, 0, 0, 0, time.UTC),
 		}
-		s.Extend(from, billing.DefaultDueDay)
+		s.RenewForInvoice(due, paidAt, billing.DefaultDueDay)
 		if got := s.CurrentPeriodEnd.In(billing.LocationBRT()).Day(); got != billing.DefaultDueDay {
-			t.Fatalf("addon monthly Extend from day %d landed on day %d, want %d", day, got, billing.DefaultDueDay)
+			t.Fatalf("addon renewal from day %d landed on day %d, want %d", day, got, billing.DefaultDueDay)
 		}
 		if s.Status != workspace_plan.SubscriptionStatusActive {
-			t.Fatalf("Extend must revive the addon to active, got %s", s.Status)
+			t.Fatalf("renewal must revive the addon to active, got %s", s.Status)
 		}
 	}
 }
@@ -30,13 +32,14 @@ func TestActivation_NoGap_CoverageIsContinuous(t *testing.T) {
 	const emitDay, dueDay = 18, 23
 	for _, day := range []int{5, 20, 23, 25, 28} {
 		at := time.Date(2026, time.June, day, 12, 0, 0, 0, billing.LocationBRT())
-		_, firstAnchor := billing.ActivationPeriod(at, emitDay, dueDay, 1, true, 30_000_000)
+		_, firstAnchor := billing.ActivationPeriod(at, emitDay, dueDay, 1, 30_000_000)
 
 		sub := &AddonSubscription{
+			Quantity:         1,
 			BillingCycle:     workspace_plan.BillingCycleMonthly,
 			CurrentPeriodEnd: firstAnchor,
 		}
-		sub.Extend(firstAnchor, dueDay)
+		sub.RenewForInvoice(firstAnchor, firstAnchor, dueDay)
 
 		if !sub.CurrentPeriodStart.Equal(firstAnchor) {
 			t.Fatalf("day %d: recurring period starts %s, not the activation end %s -> COVERAGE GAP",
@@ -48,11 +51,11 @@ func TestActivation_NoGap_CoverageIsContinuous(t *testing.T) {
 	}
 }
 
-func TestAddonSubscription_Extend_AnnualRollsTwelveMonths(t *testing.T) {
-	from := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	s := &AddonSubscription{BillingCycle: workspace_plan.BillingCycleAnnual, CurrentPeriodEnd: from}
-	s.Extend(from, billing.DefaultDueDay)
-	if want := from.AddDate(0, 12, 0); !s.CurrentPeriodEnd.Equal(want) {
-		t.Fatalf("annual addon Extend = %s, want +12 months (%s)", s.CurrentPeriodEnd, want)
+func TestAddonSubscription_RenewForInvoice_AnnualRollsTwelveMonths(t *testing.T) {
+	due := time.Date(2026, 3, 23, 0, 0, 0, 0, billing.LocationBRT())
+	s := &AddonSubscription{Quantity: 1, BillingCycle: workspace_plan.BillingCycleAnnual, CurrentPeriodEnd: due}
+	s.RenewForInvoice(due, due.Add(-time.Hour), billing.DefaultDueDay)
+	if want := due.AddDate(0, 12, 0); !s.CurrentPeriodEnd.Equal(want) {
+		t.Fatalf("annual addon renewal = %s, want +12 months (%s)", s.CurrentPeriodEnd, want)
 	}
 }

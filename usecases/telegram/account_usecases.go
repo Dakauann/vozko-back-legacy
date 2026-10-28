@@ -119,7 +119,7 @@ func (uc *UpdateAccountConfigUseCase) Execute(ctx context.Context, workspaceID, 
 	if uc.guard == nil {
 		return nil, automationneeds.ErrUnreadable
 	}
-	if err := uc.guard.Admit(account.WorkspaceID, account.Automation()); err != nil {
+	if err := uc.guard.Admit(account.WorkspaceID, automationneeds.SlotTelegram, account.Automation()); err != nil {
 		return nil, err
 	}
 	if err := uc.accounts.Update(ctx, account); err != nil {

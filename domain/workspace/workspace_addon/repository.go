@@ -23,7 +23,9 @@ type AddonSubscriptionRepository interface {
 	ListReactivatableByWorkspace(workspaceID string, expiredSince time.Time) ([]*AddonSubscription, error)
 	ListDueForRenewal(at time.Time, batchSize int) ([]*AddonSubscription, error)
 	ListUpcomingRenewals(from, to time.Time, batchSize int) ([]*AddonSubscription, error)
-	SumActiveGrantedUnitsByWorkspaceIDs(workspaceIDs []string, kind EntitlementKind) (map[string]int, error)
+	SumActiveGrantedUnitsByWorkspaceIDs(workspaceIDs []string, kind EntitlementKind, at time.Time) (map[string]int, error)
+	ListWorkspaceIDsWithAddonsDue(through time.Time, afterWorkspaceID string, limit int) ([]string, error)
+	WithUnitsLock(workspaceID string, kind EntitlementKind, run func(locked AddonSubscriptionRepository) error) error
 }
 
 type AddonDefinitionReader interface {

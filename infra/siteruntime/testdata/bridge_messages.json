@@ -1,0 +1,1987 @@
+{
+  "fromFrame": {
+    "valid": [
+      {
+        "type": "vz:ready"
+      },
+      {
+        "type": "vz:hover",
+        "node": "pages/index.html#120",
+        "rect": {
+          "x": 10,
+          "y": 20.5,
+          "width": 300,
+          "height": 48
+        },
+        "rev": 3
+      },
+      {
+        "type": "vz:select",
+        "node": "src/components/Hero.tsx#348",
+        "rect": {
+          "x": 0,
+          "y": -12,
+          "width": 1280,
+          "height": 640
+        },
+        "tag": "h1",
+        "text": "Sorriso novo em 7 dias",
+        "attrs": {
+          "class": "text-5xl font-bold",
+          "id": "titulo",
+          "data-vz-node": "src/components/Hero.tsx#348"
+        },
+        "classes": [
+          "text-5xl",
+          "font-bold",
+          "md:text-7xl"
+        ],
+        "path": [
+          "main:0",
+          "section:1",
+          "h1:0"
+        ],
+        "rev": 7,
+        "item": 2
+      },
+      {
+        "type": "vz:select",
+        "node": "pages/index.html#9",
+        "rect": {
+          "x": 0,
+          "y": -12,
+          "width": 1280,
+          "height": 640
+        },
+        "tag": "h1",
+        "text": "Sorriso novo em 7 dias",
+        "attrs": {
+          "class": "text-5xl font-bold",
+          "id": "titulo",
+          "data-vz-node": "src/components/Hero.tsx#348"
+        },
+        "classes": [
+          "text-5xl",
+          "font-bold",
+          "md:text-7xl"
+        ],
+        "path": [],
+        "rev": null,
+        "item": null
+      },
+      {
+        "type": "vz:text-begin",
+        "node": "pages/index.html#120"
+      },
+      {
+        "type": "vz:text-cancel",
+        "node": "pages/index.html#120"
+      },
+      {
+        "type": "vz:text-commit",
+        "node": "pages/index.html#120",
+        "html": "Agende <strong>hoje</strong> e ganhe <a href=\"/obrigado\">avaliação</a>",
+        "text": "Agende hoje e ganhe avaliação",
+        "rev": 3,
+        "item": null
+      },
+      {
+        "type": "vz:scroll",
+        "y": 1240
+      },
+      {
+        "type": "vz:console",
+        "level": "warn",
+        "message": "imagem sem alt"
+      },
+      {
+        "type": "vz:error",
+        "message": "Uncaught TypeError: x is undefined",
+        "source": "scripts/hero.js",
+        "line": 14
+      },
+      {
+        "type": "vz:comment-pin",
+        "node": "partials/footer.html#0",
+        "rect": {
+          "x": 0,
+          "y": 900,
+          "width": 1280,
+          "height": 200
+        },
+        "point": {
+          "x": 0.25,
+          "y": 1
+        }
+      },
+      {
+        "type": "vz:captured",
+        "id": "cap-1",
+        "kind": "image",
+        "image": "data:image/jpeg;base64,/9j/4AAQ",
+        "width": 390,
+        "pageHeight": 2400,
+        "capturedHeight": 2400,
+        "scale": 1,
+        "truncated": false,
+        "boxes": [
+          {
+            "node": "pages/index.html#10",
+            "tag": "h1",
+            "x": 16,
+            "y": 120,
+            "w": 358,
+            "h": 48
+          }
+        ],
+        "focus": {
+          "top": 120,
+          "bottom": 168
+        },
+        "facts": {
+          "scrollWidth": 390,
+          "overflow": [
+            "pages/index.html#9"
+          ],
+          "texts": [
+            {
+              "node": "pages/index.html#10",
+              "fg": [
+                17,
+                24,
+                39
+              ],
+              "bg": [
+                255,
+                255,
+                255
+              ],
+              "px": 16,
+              "weight": 400
+            },
+            {
+              "node": "",
+              "fg": [
+                200,
+                200,
+                200
+              ],
+              "bg": [
+                255,
+                255,
+                255
+              ],
+              "px": 12.5,
+              "weight": 700
+            }
+          ],
+          "images": [
+            {
+              "node": "pages/index.html#30",
+              "naturalW": 800,
+              "naturalH": 600,
+              "shownW": 390,
+              "shownH": 292
+            }
+          ],
+          "metrics": {
+            "lcp": 1200,
+            "cls": 0.02,
+            "tbt": 40
+          },
+          "consoleErrors": [
+            "TypeError: x is undefined"
+          ],
+          "failedRequests": [
+            {
+              "url": "https://cdn.example/a.png",
+              "status": 404
+            }
+          ],
+          "transferBytes": 123456
+        }
+      },
+      {
+        "type": "vz:captured",
+        "id": "cap_2",
+        "kind": "image",
+        "image": "data:image/jpeg;base64,/9j/4AAQ",
+        "width": 390,
+        "pageHeight": 2400,
+        "capturedHeight": 2400,
+        "scale": 0.62,
+        "truncated": true,
+        "boxes": [],
+        "focus": null,
+        "facts": {
+          "scrollWidth": 390,
+          "overflow": [],
+          "texts": [],
+          "images": [],
+          "metrics": {
+            "lcp": 1200,
+            "cls": 0.02,
+            "tbt": 40
+          },
+          "consoleErrors": [],
+          "failedRequests": [],
+          "transferBytes": 123456
+        }
+      },
+      {
+        "type": "vz:captured",
+        "id": "A9",
+        "kind": "document",
+        "html": "<!doctype html><html><head></head><body><h1 data-vz-node=\"pages/index.html#10\">Oi</h1></body></html>"
+      },
+      {
+        "type": "vz:capture-failed",
+        "id": "cap-1",
+        "reason": "focus_missing"
+      },
+      {
+        "type": "vz:capture-failed",
+        "id": "cap-1",
+        "reason": "too_large"
+      },
+      {
+        "type": "vz:capture-failed",
+        "id": "cap-1",
+        "reason": "capture_failed"
+      }
+    ],
+    "invalid": [
+      {
+        "why": "not an object",
+        "message": "vz:ready"
+      },
+      {
+        "why": "array",
+        "message": [
+          {
+            "type": "vz:ready"
+          }
+        ]
+      },
+      {
+        "why": "null",
+        "message": null
+      },
+      {
+        "why": "unknown type",
+        "message": {
+          "type": "vz:explode"
+        }
+      },
+      {
+        "why": "editor message sent by the frame",
+        "message": {
+          "type": "vz:mode",
+          "mode": "select"
+        }
+      },
+      {
+        "why": "missing type",
+        "message": {
+          "node": "pages/index.html#1"
+        }
+      },
+      {
+        "why": "extra key",
+        "message": {
+          "type": "vz:ready",
+          "extra": true
+        }
+      },
+      {
+        "why": "missing rect",
+        "message": {
+          "type": "vz:hover",
+          "node": "pages/index.html#1"
+        }
+      },
+      {
+        "why": "node without offset",
+        "message": {
+          "type": "vz:text-begin",
+          "node": "pages/index.html"
+        }
+      },
+      {
+        "why": "node with negative offset",
+        "message": {
+          "type": "vz:text-begin",
+          "node": "pages/index.html#-1"
+        }
+      },
+      {
+        "why": "node with leading zero offset",
+        "message": {
+          "type": "vz:text-begin",
+          "node": "pages/index.html#01"
+        }
+      },
+      {
+        "why": "node escaping the project",
+        "message": {
+          "type": "vz:text-begin",
+          "node": "../secret.html#1"
+        }
+      },
+      {
+        "why": "absolute node path",
+        "message": {
+          "type": "vz:text-begin",
+          "node": "/pages/index.html#1"
+        }
+      },
+      {
+        "why": "node is not a string",
+        "message": {
+          "type": "vz:text-begin",
+          "node": 12
+        }
+      },
+      {
+        "why": "rect width is text",
+        "message": {
+          "type": "vz:hover",
+          "node": "pages/index.html#1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": "10",
+            "height": 1
+          },
+          "rev": 1
+        }
+      },
+      {
+        "why": "rect negative height",
+        "message": {
+          "type": "vz:hover",
+          "node": "pages/index.html#1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": -1
+          },
+          "rev": 1
+        }
+      },
+      {
+        "why": "rect extra key",
+        "message": {
+          "type": "vz:hover",
+          "node": "pages/index.html#1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1,
+            "z": 0
+          },
+          "rev": 1
+        }
+      },
+      {
+        "why": "tag with uppercase",
+        "message": {
+          "type": "vz:select",
+          "node": "pages/index.html#1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "tag": "H1",
+          "text": "",
+          "attrs": {},
+          "classes": [],
+          "path": [],
+          "rev": 1,
+          "item": null
+        }
+      },
+      {
+        "why": "class with a space",
+        "message": {
+          "type": "vz:select",
+          "node": "pages/index.html#1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "tag": "h1",
+          "text": "",
+          "attrs": {},
+          "classes": [
+            "a b"
+          ],
+          "path": [],
+          "rev": 1,
+          "item": null
+        }
+      },
+      {
+        "why": "attr value not text",
+        "message": {
+          "type": "vz:select",
+          "node": "pages/index.html#1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "tag": "h1",
+          "text": "",
+          "attrs": {
+            "id": 3
+          },
+          "classes": [],
+          "path": [],
+          "rev": 1,
+          "item": null
+        }
+      },
+      {
+        "why": "bad path segment",
+        "message": {
+          "type": "vz:select",
+          "node": "pages/index.html#1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "tag": "h1",
+          "text": "",
+          "attrs": {},
+          "classes": [],
+          "path": [
+            "main"
+          ],
+          "rev": 1,
+          "item": null
+        }
+      },
+      {
+        "why": "text commit without text",
+        "message": {
+          "type": "vz:text-commit",
+          "node": "pages/index.html#1",
+          "html": "x",
+          "rev": 1,
+          "item": null
+        }
+      },
+      {
+        "why": "scroll is text",
+        "message": {
+          "type": "vz:scroll",
+          "y": "10"
+        }
+      },
+      {
+        "why": "unknown console level",
+        "message": {
+          "type": "vz:console",
+          "level": "trace",
+          "message": "x"
+        }
+      },
+      {
+        "why": "negative error line",
+        "message": {
+          "type": "vz:error",
+          "message": "x",
+          "source": "",
+          "line": -1
+        }
+      },
+      {
+        "why": "fractional error line",
+        "message": {
+          "type": "vz:error",
+          "message": "x",
+          "source": "",
+          "line": 1.5
+        }
+      },
+      {
+        "why": "pin point outside the element",
+        "message": {
+          "type": "vz:comment-pin",
+          "node": "pages/index.html#1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "point": {
+            "x": 1.2,
+            "y": 0
+          }
+        }
+      },
+      {
+        "why": "hover without rev",
+        "message": {
+          "type": "vz:hover",
+          "node": "pages/index.html#1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          }
+        }
+      },
+      {
+        "why": "negative rev",
+        "message": {
+          "type": "vz:hover",
+          "node": "pages/index.html#1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "rev": -1
+        }
+      },
+      {
+        "why": "rev is text",
+        "message": {
+          "type": "vz:hover",
+          "node": "pages/index.html#1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "rev": "3"
+        }
+      },
+      {
+        "why": "select without item",
+        "message": {
+          "type": "vz:select",
+          "node": "pages/index.html#1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "tag": "h1",
+          "text": "",
+          "attrs": {},
+          "classes": [],
+          "path": [],
+          "rev": 1
+        }
+      },
+      {
+        "why": "fractional item",
+        "message": {
+          "type": "vz:text-commit",
+          "node": "pages/index.html#1",
+          "html": "x",
+          "text": "x",
+          "rev": 1,
+          "item": 0.5
+        }
+      },
+      {
+        "why": "negative item",
+        "message": {
+          "type": "vz:text-commit",
+          "node": "pages/index.html#1",
+          "html": "x",
+          "text": "x",
+          "rev": 1,
+          "item": -1
+        }
+      },
+      {
+        "why": "captured id with spaces",
+        "message": {
+          "type": "vz:captured",
+          "id": "a b",
+          "kind": "document",
+          "html": "<!doctype html><html><head></head><body><h1 data-vz-node=\"pages/index.html#10\">Oi</h1></body></html>"
+        }
+      },
+      {
+        "why": "captured id too long",
+        "message": {
+          "type": "vz:captured",
+          "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "kind": "document",
+          "html": "<!doctype html><html><head></head><body><h1 data-vz-node=\"pages/index.html#10\">Oi</h1></body></html>"
+        }
+      },
+      {
+        "why": "captured unknown kind",
+        "message": {
+          "type": "vz:captured",
+          "id": "A9",
+          "kind": "video",
+          "html": "<!doctype html><html><head></head><body><h1 data-vz-node=\"pages/index.html#10\">Oi</h1></body></html>"
+        }
+      },
+      {
+        "why": "document without html",
+        "message": {
+          "type": "vz:captured",
+          "id": "A9",
+          "kind": "document"
+        }
+      },
+      {
+        "why": "document with image fields",
+        "message": {
+          "type": "vz:captured",
+          "id": "A9",
+          "kind": "document",
+          "html": "<!doctype html><html><head></head><body><h1 data-vz-node=\"pages/index.html#10\">Oi</h1></body></html>",
+          "width": 390
+        }
+      },
+      {
+        "why": "image not a jpeg data url",
+        "message": {
+          "type": "vz:captured",
+          "id": "cap-1",
+          "kind": "image",
+          "image": "data:image/png;base64,iVBOR",
+          "width": 390,
+          "pageHeight": 2400,
+          "capturedHeight": 2400,
+          "scale": 1,
+          "truncated": false,
+          "boxes": [
+            {
+              "node": "pages/index.html#10",
+              "tag": "h1",
+              "x": 16,
+              "y": 120,
+              "w": 358,
+              "h": 48
+            }
+          ],
+          "focus": {
+            "top": 120,
+            "bottom": 168
+          },
+          "facts": {
+            "scrollWidth": 390,
+            "overflow": [
+              "pages/index.html#9"
+            ],
+            "texts": [
+              {
+                "node": "pages/index.html#10",
+                "fg": [
+                  17,
+                  24,
+                  39
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 16,
+                "weight": 400
+              },
+              {
+                "node": "",
+                "fg": [
+                  200,
+                  200,
+                  200
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 12.5,
+                "weight": 700
+              }
+            ],
+            "images": [
+              {
+                "node": "pages/index.html#30",
+                "naturalW": 800,
+                "naturalH": 600,
+                "shownW": 390,
+                "shownH": 292
+              }
+            ],
+            "metrics": {
+              "lcp": 1200,
+              "cls": 0.02,
+              "tbt": 40
+            },
+            "consoleErrors": [
+              "TypeError: x is undefined"
+            ],
+            "failedRequests": [
+              {
+                "url": "https://cdn.example/a.png",
+                "status": 404
+              }
+            ],
+            "transferBytes": 123456
+          }
+        }
+      },
+      {
+        "why": "image box extra key",
+        "message": {
+          "type": "vz:captured",
+          "id": "cap-1",
+          "kind": "image",
+          "image": "data:image/jpeg;base64,/9j/4AAQ",
+          "width": 390,
+          "pageHeight": 2400,
+          "capturedHeight": 2400,
+          "scale": 1,
+          "truncated": false,
+          "boxes": [
+            {
+              "node": "pages/index.html#10",
+              "tag": "h1",
+              "x": 1,
+              "y": 2,
+              "w": 3,
+              "h": 4,
+              "z": 1
+            }
+          ],
+          "focus": {
+            "top": 120,
+            "bottom": 168
+          },
+          "facts": {
+            "scrollWidth": 390,
+            "overflow": [
+              "pages/index.html#9"
+            ],
+            "texts": [
+              {
+                "node": "pages/index.html#10",
+                "fg": [
+                  17,
+                  24,
+                  39
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 16,
+                "weight": 400
+              },
+              {
+                "node": "",
+                "fg": [
+                  200,
+                  200,
+                  200
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 12.5,
+                "weight": 700
+              }
+            ],
+            "images": [
+              {
+                "node": "pages/index.html#30",
+                "naturalW": 800,
+                "naturalH": 600,
+                "shownW": 390,
+                "shownH": 292
+              }
+            ],
+            "metrics": {
+              "lcp": 1200,
+              "cls": 0.02,
+              "tbt": 40
+            },
+            "consoleErrors": [
+              "TypeError: x is undefined"
+            ],
+            "failedRequests": [
+              {
+                "url": "https://cdn.example/a.png",
+                "status": 404
+              }
+            ],
+            "transferBytes": 123456
+          }
+        }
+      },
+      {
+        "why": "image box bad node",
+        "message": {
+          "type": "vz:captured",
+          "id": "cap-1",
+          "kind": "image",
+          "image": "data:image/jpeg;base64,/9j/4AAQ",
+          "width": 390,
+          "pageHeight": 2400,
+          "capturedHeight": 2400,
+          "scale": 1,
+          "truncated": false,
+          "boxes": [
+            {
+              "node": "../x#1",
+              "tag": "h1",
+              "x": 1,
+              "y": 2,
+              "w": 3,
+              "h": 4
+            }
+          ],
+          "focus": {
+            "top": 120,
+            "bottom": 168
+          },
+          "facts": {
+            "scrollWidth": 390,
+            "overflow": [
+              "pages/index.html#9"
+            ],
+            "texts": [
+              {
+                "node": "pages/index.html#10",
+                "fg": [
+                  17,
+                  24,
+                  39
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 16,
+                "weight": 400
+              },
+              {
+                "node": "",
+                "fg": [
+                  200,
+                  200,
+                  200
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 12.5,
+                "weight": 700
+              }
+            ],
+            "images": [
+              {
+                "node": "pages/index.html#30",
+                "naturalW": 800,
+                "naturalH": 600,
+                "shownW": 390,
+                "shownH": 292
+              }
+            ],
+            "metrics": {
+              "lcp": 1200,
+              "cls": 0.02,
+              "tbt": 40
+            },
+            "consoleErrors": [
+              "TypeError: x is undefined"
+            ],
+            "failedRequests": [
+              {
+                "url": "https://cdn.example/a.png",
+                "status": 404
+              }
+            ],
+            "transferBytes": 123456
+          }
+        }
+      },
+      {
+        "why": "image fractional box",
+        "message": {
+          "type": "vz:captured",
+          "id": "cap-1",
+          "kind": "image",
+          "image": "data:image/jpeg;base64,/9j/4AAQ",
+          "width": 390,
+          "pageHeight": 2400,
+          "capturedHeight": 2400,
+          "scale": 1,
+          "truncated": false,
+          "boxes": [
+            {
+              "node": "pages/index.html#10",
+              "tag": "h1",
+              "x": 1.5,
+              "y": 2,
+              "w": 3,
+              "h": 4
+            }
+          ],
+          "focus": {
+            "top": 120,
+            "bottom": 168
+          },
+          "facts": {
+            "scrollWidth": 390,
+            "overflow": [
+              "pages/index.html#9"
+            ],
+            "texts": [
+              {
+                "node": "pages/index.html#10",
+                "fg": [
+                  17,
+                  24,
+                  39
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 16,
+                "weight": 400
+              },
+              {
+                "node": "",
+                "fg": [
+                  200,
+                  200,
+                  200
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 12.5,
+                "weight": 700
+              }
+            ],
+            "images": [
+              {
+                "node": "pages/index.html#30",
+                "naturalW": 800,
+                "naturalH": 600,
+                "shownW": 390,
+                "shownH": 292
+              }
+            ],
+            "metrics": {
+              "lcp": 1200,
+              "cls": 0.02,
+              "tbt": 40
+            },
+            "consoleErrors": [
+              "TypeError: x is undefined"
+            ],
+            "failedRequests": [
+              {
+                "url": "https://cdn.example/a.png",
+                "status": 404
+              }
+            ],
+            "transferBytes": 123456
+          }
+        }
+      },
+      {
+        "why": "image scale above one",
+        "message": {
+          "type": "vz:captured",
+          "id": "cap-1",
+          "kind": "image",
+          "image": "data:image/jpeg;base64,/9j/4AAQ",
+          "width": 390,
+          "pageHeight": 2400,
+          "capturedHeight": 2400,
+          "scale": 1.5,
+          "truncated": false,
+          "boxes": [
+            {
+              "node": "pages/index.html#10",
+              "tag": "h1",
+              "x": 16,
+              "y": 120,
+              "w": 358,
+              "h": 48
+            }
+          ],
+          "focus": {
+            "top": 120,
+            "bottom": 168
+          },
+          "facts": {
+            "scrollWidth": 390,
+            "overflow": [
+              "pages/index.html#9"
+            ],
+            "texts": [
+              {
+                "node": "pages/index.html#10",
+                "fg": [
+                  17,
+                  24,
+                  39
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 16,
+                "weight": 400
+              },
+              {
+                "node": "",
+                "fg": [
+                  200,
+                  200,
+                  200
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 12.5,
+                "weight": 700
+              }
+            ],
+            "images": [
+              {
+                "node": "pages/index.html#30",
+                "naturalW": 800,
+                "naturalH": 600,
+                "shownW": 390,
+                "shownH": 292
+              }
+            ],
+            "metrics": {
+              "lcp": 1200,
+              "cls": 0.02,
+              "tbt": 40
+            },
+            "consoleErrors": [
+              "TypeError: x is undefined"
+            ],
+            "failedRequests": [
+              {
+                "url": "https://cdn.example/a.png",
+                "status": 404
+              }
+            ],
+            "transferBytes": 123456
+          }
+        }
+      },
+      {
+        "why": "image without facts",
+        "message": {
+          "type": "vz:captured",
+          "id": "cap-1",
+          "kind": "image",
+          "image": "data:image/jpeg;base64,/9j/4AAQ",
+          "width": 390,
+          "pageHeight": 2400,
+          "capturedHeight": 2400,
+          "scale": 1,
+          "truncated": false,
+          "boxes": [
+            {
+              "node": "pages/index.html#10",
+              "tag": "h1",
+              "x": 16,
+              "y": 120,
+              "w": 358,
+              "h": 48
+            }
+          ],
+          "focus": {
+            "top": 120,
+            "bottom": 168
+          }
+        }
+      },
+      {
+        "why": "facts colour out of range",
+        "message": {
+          "type": "vz:captured",
+          "id": "cap-1",
+          "kind": "image",
+          "image": "data:image/jpeg;base64,/9j/4AAQ",
+          "width": 390,
+          "pageHeight": 2400,
+          "capturedHeight": 2400,
+          "scale": 1,
+          "truncated": false,
+          "boxes": [
+            {
+              "node": "pages/index.html#10",
+              "tag": "h1",
+              "x": 16,
+              "y": 120,
+              "w": 358,
+              "h": 48
+            }
+          ],
+          "focus": {
+            "top": 120,
+            "bottom": 168
+          },
+          "facts": {
+            "scrollWidth": 390,
+            "overflow": [
+              "pages/index.html#9"
+            ],
+            "texts": [
+              {
+                "node": "",
+                "fg": [
+                  256,
+                  0,
+                  0
+                ],
+                "bg": [
+                  0,
+                  0,
+                  0
+                ],
+                "px": 16,
+                "weight": 400
+              }
+            ],
+            "images": [
+              {
+                "node": "pages/index.html#30",
+                "naturalW": 800,
+                "naturalH": 600,
+                "shownW": 390,
+                "shownH": 292
+              }
+            ],
+            "metrics": {
+              "lcp": 1200,
+              "cls": 0.02,
+              "tbt": 40
+            },
+            "consoleErrors": [
+              "TypeError: x is undefined"
+            ],
+            "failedRequests": [
+              {
+                "url": "https://cdn.example/a.png",
+                "status": 404
+              }
+            ],
+            "transferBytes": 123456
+          }
+        }
+      },
+      {
+        "why": "facts colour of two channels",
+        "message": {
+          "type": "vz:captured",
+          "id": "cap-1",
+          "kind": "image",
+          "image": "data:image/jpeg;base64,/9j/4AAQ",
+          "width": 390,
+          "pageHeight": 2400,
+          "capturedHeight": 2400,
+          "scale": 1,
+          "truncated": false,
+          "boxes": [
+            {
+              "node": "pages/index.html#10",
+              "tag": "h1",
+              "x": 16,
+              "y": 120,
+              "w": 358,
+              "h": 48
+            }
+          ],
+          "focus": {
+            "top": 120,
+            "bottom": 168
+          },
+          "facts": {
+            "scrollWidth": 390,
+            "overflow": [
+              "pages/index.html#9"
+            ],
+            "texts": [
+              {
+                "node": "",
+                "fg": [
+                  1,
+                  2
+                ],
+                "bg": [
+                  0,
+                  0,
+                  0
+                ],
+                "px": 16,
+                "weight": 400
+              }
+            ],
+            "images": [
+              {
+                "node": "pages/index.html#30",
+                "naturalW": 800,
+                "naturalH": 600,
+                "shownW": 390,
+                "shownH": 292
+              }
+            ],
+            "metrics": {
+              "lcp": 1200,
+              "cls": 0.02,
+              "tbt": 40
+            },
+            "consoleErrors": [
+              "TypeError: x is undefined"
+            ],
+            "failedRequests": [
+              {
+                "url": "https://cdn.example/a.png",
+                "status": 404
+              }
+            ],
+            "transferBytes": 123456
+          }
+        }
+      },
+      {
+        "why": "facts too many console errors",
+        "message": {
+          "type": "vz:captured",
+          "id": "cap-1",
+          "kind": "image",
+          "image": "data:image/jpeg;base64,/9j/4AAQ",
+          "width": 390,
+          "pageHeight": 2400,
+          "capturedHeight": 2400,
+          "scale": 1,
+          "truncated": false,
+          "boxes": [
+            {
+              "node": "pages/index.html#10",
+              "tag": "h1",
+              "x": 16,
+              "y": 120,
+              "w": 358,
+              "h": 48
+            }
+          ],
+          "focus": {
+            "top": 120,
+            "bottom": 168
+          },
+          "facts": {
+            "scrollWidth": 390,
+            "overflow": [
+              "pages/index.html#9"
+            ],
+            "texts": [
+              {
+                "node": "pages/index.html#10",
+                "fg": [
+                  17,
+                  24,
+                  39
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 16,
+                "weight": 400
+              },
+              {
+                "node": "",
+                "fg": [
+                  200,
+                  200,
+                  200
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 12.5,
+                "weight": 700
+              }
+            ],
+            "images": [
+              {
+                "node": "pages/index.html#30",
+                "naturalW": 800,
+                "naturalH": 600,
+                "shownW": 390,
+                "shownH": 292
+              }
+            ],
+            "metrics": {
+              "lcp": 1200,
+              "cls": 0.02,
+              "tbt": 40
+            },
+            "consoleErrors": [
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e",
+              "e"
+            ],
+            "failedRequests": [
+              {
+                "url": "https://cdn.example/a.png",
+                "status": 404
+              }
+            ],
+            "transferBytes": 123456
+          }
+        }
+      },
+      {
+        "why": "facts console error too long",
+        "message": {
+          "type": "vz:captured",
+          "id": "cap-1",
+          "kind": "image",
+          "image": "data:image/jpeg;base64,/9j/4AAQ",
+          "width": 390,
+          "pageHeight": 2400,
+          "capturedHeight": 2400,
+          "scale": 1,
+          "truncated": false,
+          "boxes": [
+            {
+              "node": "pages/index.html#10",
+              "tag": "h1",
+              "x": 16,
+              "y": 120,
+              "w": 358,
+              "h": 48
+            }
+          ],
+          "focus": {
+            "top": 120,
+            "bottom": 168
+          },
+          "facts": {
+            "scrollWidth": 390,
+            "overflow": [
+              "pages/index.html#9"
+            ],
+            "texts": [
+              {
+                "node": "pages/index.html#10",
+                "fg": [
+                  17,
+                  24,
+                  39
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 16,
+                "weight": 400
+              },
+              {
+                "node": "",
+                "fg": [
+                  200,
+                  200,
+                  200
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 12.5,
+                "weight": 700
+              }
+            ],
+            "images": [
+              {
+                "node": "pages/index.html#30",
+                "naturalW": 800,
+                "naturalH": 600,
+                "shownW": 390,
+                "shownH": 292
+              }
+            ],
+            "metrics": {
+              "lcp": 1200,
+              "cls": 0.02,
+              "tbt": 40
+            },
+            "consoleErrors": [
+              "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+            ],
+            "failedRequests": [
+              {
+                "url": "https://cdn.example/a.png",
+                "status": 404
+              }
+            ],
+            "transferBytes": 123456
+          }
+        }
+      },
+      {
+        "why": "facts failed request bad status",
+        "message": {
+          "type": "vz:captured",
+          "id": "cap-1",
+          "kind": "image",
+          "image": "data:image/jpeg;base64,/9j/4AAQ",
+          "width": 390,
+          "pageHeight": 2400,
+          "capturedHeight": 2400,
+          "scale": 1,
+          "truncated": false,
+          "boxes": [
+            {
+              "node": "pages/index.html#10",
+              "tag": "h1",
+              "x": 16,
+              "y": 120,
+              "w": 358,
+              "h": 48
+            }
+          ],
+          "focus": {
+            "top": 120,
+            "bottom": 168
+          },
+          "facts": {
+            "scrollWidth": 390,
+            "overflow": [
+              "pages/index.html#9"
+            ],
+            "texts": [
+              {
+                "node": "pages/index.html#10",
+                "fg": [
+                  17,
+                  24,
+                  39
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 16,
+                "weight": 400
+              },
+              {
+                "node": "",
+                "fg": [
+                  200,
+                  200,
+                  200
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 12.5,
+                "weight": 700
+              }
+            ],
+            "images": [
+              {
+                "node": "pages/index.html#30",
+                "naturalW": 800,
+                "naturalH": 600,
+                "shownW": 390,
+                "shownH": 292
+              }
+            ],
+            "metrics": {
+              "lcp": 1200,
+              "cls": 0.02,
+              "tbt": 40
+            },
+            "consoleErrors": [
+              "TypeError: x is undefined"
+            ],
+            "failedRequests": [
+              {
+                "url": "x",
+                "status": 200
+              }
+            ],
+            "transferBytes": 123456
+          }
+        }
+      },
+      {
+        "why": "facts unknown key",
+        "message": {
+          "type": "vz:captured",
+          "id": "cap-1",
+          "kind": "image",
+          "image": "data:image/jpeg;base64,/9j/4AAQ",
+          "width": 390,
+          "pageHeight": 2400,
+          "capturedHeight": 2400,
+          "scale": 1,
+          "truncated": false,
+          "boxes": [
+            {
+              "node": "pages/index.html#10",
+              "tag": "h1",
+              "x": 16,
+              "y": 120,
+              "w": 358,
+              "h": 48
+            }
+          ],
+          "focus": {
+            "top": 120,
+            "bottom": 168
+          },
+          "facts": {
+            "scrollWidth": 390,
+            "overflow": [
+              "pages/index.html#9"
+            ],
+            "texts": [
+              {
+                "node": "pages/index.html#10",
+                "fg": [
+                  17,
+                  24,
+                  39
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 16,
+                "weight": 400
+              },
+              {
+                "node": "",
+                "fg": [
+                  200,
+                  200,
+                  200
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 12.5,
+                "weight": 700
+              }
+            ],
+            "images": [
+              {
+                "node": "pages/index.html#30",
+                "naturalW": 800,
+                "naturalH": 600,
+                "shownW": 390,
+                "shownH": 292
+              }
+            ],
+            "metrics": {
+              "lcp": 1200,
+              "cls": 0.02,
+              "tbt": 40
+            },
+            "consoleErrors": [
+              "TypeError: x is undefined"
+            ],
+            "failedRequests": [
+              {
+                "url": "https://cdn.example/a.png",
+                "status": 404
+              }
+            ],
+            "transferBytes": 123456,
+            "axe": []
+          }
+        }
+      },
+      {
+        "why": "focus span extra key",
+        "message": {
+          "type": "vz:captured",
+          "id": "cap-1",
+          "kind": "image",
+          "image": "data:image/jpeg;base64,/9j/4AAQ",
+          "width": 390,
+          "pageHeight": 2400,
+          "capturedHeight": 2400,
+          "scale": 1,
+          "truncated": false,
+          "boxes": [
+            {
+              "node": "pages/index.html#10",
+              "tag": "h1",
+              "x": 16,
+              "y": 120,
+              "w": 358,
+              "h": 48
+            }
+          ],
+          "focus": {
+            "top": 1,
+            "bottom": 2,
+            "left": 0
+          },
+          "facts": {
+            "scrollWidth": 390,
+            "overflow": [
+              "pages/index.html#9"
+            ],
+            "texts": [
+              {
+                "node": "pages/index.html#10",
+                "fg": [
+                  17,
+                  24,
+                  39
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 16,
+                "weight": 400
+              },
+              {
+                "node": "",
+                "fg": [
+                  200,
+                  200,
+                  200
+                ],
+                "bg": [
+                  255,
+                  255,
+                  255
+                ],
+                "px": 12.5,
+                "weight": 700
+              }
+            ],
+            "images": [
+              {
+                "node": "pages/index.html#30",
+                "naturalW": 800,
+                "naturalH": 600,
+                "shownW": 390,
+                "shownH": 292
+              }
+            ],
+            "metrics": {
+              "lcp": 1200,
+              "cls": 0.02,
+              "tbt": 40
+            },
+            "consoleErrors": [
+              "TypeError: x is undefined"
+            ],
+            "failedRequests": [
+              {
+                "url": "https://cdn.example/a.png",
+                "status": 404
+              }
+            ],
+            "transferBytes": 123456
+          }
+        }
+      },
+      {
+        "why": "capture failed unknown reason",
+        "message": {
+          "type": "vz:capture-failed",
+          "id": "cap-1",
+          "reason": "boom"
+        }
+      },
+      {
+        "why": "capture failed bad id",
+        "message": {
+          "type": "vz:capture-failed",
+          "id": "",
+          "reason": "too_large"
+        }
+      }
+    ]
+  },
+  "fromEditor": {
+    "valid": [
+      {
+        "type": "vz:highlight",
+        "nodes": [
+          {
+            "node": "pages/index.html#120",
+            "kind": "selection"
+          },
+          {
+            "node": "src/App.jsx#40",
+            "kind": "elo"
+          }
+        ]
+      },
+      {
+        "type": "vz:highlight",
+        "nodes": []
+      },
+      {
+        "type": "vz:select-node",
+        "node": "pages/index.html#120"
+      },
+      {
+        "type": "vz:begin-text-edit",
+        "node": "pages/index.html#120"
+      },
+      {
+        "type": "vz:scroll-to",
+        "node": "src/components/Hero.tsx#348"
+      },
+      {
+        "type": "vz:mode",
+        "mode": "comment"
+      },
+      {
+        "type": "vz:mode",
+        "mode": "select",
+        "locale": "en"
+      },
+      {
+        "type": "vz:mode",
+        "mode": "preview",
+        "locale": "de"
+      },
+      {
+        "type": "vz:capture",
+        "id": "cap-1",
+        "kind": "document"
+      },
+      {
+        "type": "vz:capture",
+        "id": "cap-2",
+        "kind": "image"
+      },
+      {
+        "type": "vz:capture",
+        "id": "cap-3",
+        "kind": "image",
+        "focus": "pages/index.html#10"
+      },
+      {
+        "type": "vz:capture",
+        "id": "cap-4",
+        "kind": "image",
+        "height": 900
+      }
+    ],
+    "invalid": [
+      {
+        "why": "frame message sent by the editor",
+        "message": {
+          "type": "vz:ready"
+        }
+      },
+      {
+        "why": "unknown mode",
+        "message": {
+          "type": "vz:mode",
+          "mode": "edit"
+        }
+      },
+      {
+        "why": "unknown highlight kind",
+        "message": {
+          "type": "vz:highlight",
+          "nodes": [
+            {
+              "node": "pages/index.html#1",
+              "kind": "focus"
+            }
+          ]
+        }
+      },
+      {
+        "why": "highlight nodes not a list",
+        "message": {
+          "type": "vz:highlight",
+          "nodes": {
+            "node": "pages/index.html#1",
+            "kind": "hover"
+          }
+        }
+      },
+      {
+        "why": "highlight entry extra key",
+        "message": {
+          "type": "vz:highlight",
+          "nodes": [
+            {
+              "node": "pages/index.html#1",
+              "kind": "hover",
+              "color": "red"
+            }
+          ]
+        }
+      },
+      {
+        "why": "select node missing",
+        "message": {
+          "type": "vz:select-node"
+        }
+      },
+      {
+        "why": "scroll to bad node",
+        "message": {
+          "type": "vz:scroll-to",
+          "node": "pages/../index.html#1"
+        }
+      },
+      {
+        "why": "unsupported locale",
+        "message": {
+          "type": "vz:mode",
+          "mode": "select",
+          "locale": "fr"
+        }
+      },
+      {
+        "why": "locale is not text",
+        "message": {
+          "type": "vz:mode",
+          "mode": "select",
+          "locale": 3
+        }
+      },
+      {
+        "why": "locale is null",
+        "message": {
+          "type": "vz:mode",
+          "mode": "select",
+          "locale": null
+        }
+      },
+      {
+        "why": "capture unknown kind",
+        "message": {
+          "type": "vz:capture",
+          "id": "c",
+          "kind": "video"
+        }
+      },
+      {
+        "why": "capture bad id",
+        "message": {
+          "type": "vz:capture",
+          "id": "c d",
+          "kind": "image"
+        }
+      },
+      {
+        "why": "capture bad focus node",
+        "message": {
+          "type": "vz:capture",
+          "id": "c",
+          "kind": "image",
+          "focus": "x"
+        }
+      },
+      {
+        "why": "capture zero height",
+        "message": {
+          "type": "vz:capture",
+          "id": "c",
+          "kind": "image",
+          "height": 0
+        }
+      },
+      {
+        "why": "capture fractional height",
+        "message": {
+          "type": "vz:capture",
+          "id": "c",
+          "kind": "image",
+          "height": 9.5
+        }
+      },
+      {
+        "why": "capture extra key",
+        "message": {
+          "type": "vz:capture",
+          "id": "c",
+          "kind": "image",
+          "scale": 2
+        }
+      }
+    ]
+  }
+}

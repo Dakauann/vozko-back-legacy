@@ -35,6 +35,20 @@ func RegisterProtectedRoutes(
 	protected.HandleFunc("/google-sheets/{id}/rows", ac(res, workspace_domain.ActionRead, h.ListRows)).Methods(http.MethodGet)
 }
 
+func RegisterEditSessionRoutes(
+	protected *mux.Router,
+	h *EditSessionHandler,
+	ac func(workspace_domain.Resource, workspace_domain.Action, http.HandlerFunc) http.HandlerFunc,
+) {
+	res := workspace_domain.ResourceGoogleSheets
+	protected.HandleFunc("/google-sheets/files/{spreadsheetId}/edit-session", ac(res, workspace_domain.ActionRead, h.Editor)).Methods(http.MethodGet)
+	protected.HandleFunc("/google-sheets/files/{spreadsheetId}/edit-session", ac(res, workspace_domain.ActionUpdate, h.Start)).Methods(http.MethodPost)
+	protected.HandleFunc("/google-sheets/files/{spreadsheetId}/edit-sessions", ac(res, workspace_domain.ActionRead, h.History)).Methods(http.MethodGet)
+	protected.HandleFunc("/google-sheets/edit-sessions/{sessionId}/heartbeat", ac(res, workspace_domain.ActionUpdate, h.Heartbeat)).Methods(http.MethodPost)
+	protected.HandleFunc("/google-sheets/edit-sessions/{sessionId}/end", ac(res, workspace_domain.ActionUpdate, h.End)).Methods(http.MethodPost)
+	protected.HandleFunc("/google-sheets/edit-sessions/{sessionId}/force-end", ac(res, workspace_domain.ActionDelete, h.ForceEnd)).Methods(http.MethodPost)
+}
+
 func RegisterRowRemovalRoutes(
 	protected *mux.Router,
 	h *RowRemovalHandler,
@@ -44,4 +58,14 @@ func RegisterRowRemovalRoutes(
 	protected.HandleFunc("/google-sheets/{id}/rows/{rowId}/cancel", ac(res, workspace_domain.ActionUpdate, h.Cancel)).Methods(http.MethodPost)
 	protected.HandleFunc("/google-sheets/{id}/rows/{rowId}/remove", ac(res, workspace_domain.ActionUpdate, h.Remove)).Methods(http.MethodPost)
 	protected.HandleFunc("/google-sheets/{id}/removals", ac(res, workspace_domain.ActionRead, h.List)).Methods(http.MethodGet)
+}
+
+func RegisterModelFitRoutes(
+	protected *mux.Router,
+	h *ModelFitHandler,
+	ac func(workspace_domain.Resource, workspace_domain.Action, http.HandlerFunc) http.HandlerFunc,
+) {
+	res := workspace_domain.ResourceGoogleSheets
+	protected.HandleFunc("/google-sheets/files/{spreadsheetId}/fit", ac(res, workspace_domain.ActionRead, h.Fit)).Methods(http.MethodPost)
+	protected.HandleFunc("/google-sheets/files/{spreadsheetId}/copies", ac(res, workspace_domain.ActionCreate, h.Copy)).Methods(http.MethodPost)
 }

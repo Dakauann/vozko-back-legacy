@@ -29,6 +29,11 @@ services:
       OLLAMA_URL: ${OLLAMA_URL:-http://localhost:11434}
       VOZKO_PII_KEK_V1: ${VOZKO_PII_KEK_V1}
       VOZKO_PII_BLIND_INDEX_KEY: ${VOZKO_PII_BLIND_INDEX_KEY}
+      SITES_BUILDER_TOKEN_FILE: /run/secrets/sites_builder_token
+      SITES_RENDERER_TOKEN_FILE: /run/secrets/sites_renderer_token
+    secrets:
+      - sites_builder_token
+      - sites_renderer_token
     network_mode: host
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -330,6 +335,96 @@ services:
     mem_limit: 3g
     restart: unless-stopped
 
+  siterender:
+    build:
+      context: .
+      dockerfile: Dockerfile.siterenderer
+      target: renderer
+    container_name: vozko-siterender
+    networks:
+      - siterender-internal
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+      - /home/renderer:size=64m,uid=10001,gid=10001
+    shm_size: 512m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./docker/siterender/chromium-seccomp.json
+    pids_limit: 1024
+    mem_limit: 2g
+    cpu_shares: 256
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9223"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  siterender-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.siterenderer
+      target: gateway
+    container_name: vozko-siterender-gateway
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - "-preview-domain=${SITES_PUBLIC_DOMAIN:?SITES_PUBLIC_DOMAIN is required}"
+      - "-preview-loopback=${SITES_PREVIEW_LOOPBACK:-}"
+      - "-devtools-upstream=siterender:9222"
+      - "-devtools-token-file=/run/secrets/sites_renderer_token"
+    secrets:
+      - sites_renderer_token
+    networks:
+      - siterender-internal
+      - siterender-egress
+    ports:
+      - "127.0.0.1:${HOST_SITERENDER_PORT:-17076}:9222"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    restart: unless-stopped
+    depends_on:
+      siterender:
+        condition: service_healthy
+
+  sitebuilder:
+    build:
+      context: .
+      dockerfile: Dockerfile.sitebuilder
+    container_name: vozko-sitebuilder
+    environment:
+      SITES_BUILDER_TOKEN_FILE: /run/secrets/sites_builder_token
+    secrets:
+      - sites_builder_token
+    networks:
+      sitebuilder-internal:
+        ipv4_address: 172.30.240.10
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 2g
+    cpu_shares: 512
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:8080/health',{headers:{authorization:'Bearer '+require('fs').readFileSync(process.env.SITES_BUILDER_TOKEN_FILE,'utf8').trim()}}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
   x-stt-common: &stt-common
     profiles: ["gpu"]
     build:
@@ -393,3 +488,22 @@ networks:
   stt-network:
     name: stt-network
     driver: bridge
+  sitebuilder-internal:
+    name: vozko-sitebuilder-internal
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.240.0/24
+  siterender-internal:
+    name: vozko-siterender-internal
+    internal: true
+  siterender-egress:
+    name: vozko-siterender-egress
+    driver: bridge
+
+secrets:
+  sites_builder_token:
+    file: ${SITES_BUILDER_TOKEN_FILE:?SITES_BUILDER_TOKEN_FILE is required}
+  sites_renderer_token:
+    file: ${SITES_RENDERER_TOKEN_FILE:?SITES_RENDERER_TOKEN_FILE is required}

@@ -40,8 +40,10 @@ func (c *Container) automationNeeds() *automationNeedsWiring {
 		log.Fatalf("[automation-needs] %v", err)
 	}
 	service, err := automationneeds_usecase.NewService(automationneeds_usecase.ServiceDeps{
-		Source: automationneeds_usecase.PublishedSource{Agents: c.publishedAgents(), Workflows: c.repositories.workflow},
-		Values: reader,
+		Source:       automationneeds_usecase.PublishedSource{Agents: c.publishedAgents(), Workflows: c.repositories.workflow},
+		Values:       reader,
+		Declarations: c.variableDeclarations(),
+		Sheets:       c.sheetVariables(),
 	})
 	if err != nil {
 		log.Fatalf("[automation-needs] %v", err)
@@ -115,6 +117,8 @@ func (c *Container) automationQueries() *automationneeds_usecase.Queries {
 		Definitions:   c.repositories.customField,
 		Subjects:      campaigncreate.SubjectSource{Leads: c.repositories.lead, Contacts: c.repositories.lead, Names: c.actorNames()},
 		Profiles:      conversation_repository.NewEntryAutomationReader(c.db),
+		StoredDetails: wiring.variables,
+		Timeline:      c.repositories.conversationEvent,
 	})
 	if err != nil {
 		log.Fatalf("[automation-needs] %v", err)

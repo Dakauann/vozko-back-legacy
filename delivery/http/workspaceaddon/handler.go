@@ -9,7 +9,6 @@ import (
 	"github.com/gorilla/mux"
 
 	"vozko/delivery/http/response"
-	balance_domain "vozko/domain/balance"
 	workspaceaddondomain "vozko/domain/workspace/workspace_addon"
 	"vozko/infra/http/middleware"
 )
@@ -26,6 +25,7 @@ type WorkspaceAddonHandler struct {
 	cancel            workspaceaddondomain.CancelAddonSubscriptionUseCase
 	listWorkspace     workspaceaddondomain.ListWorkspaceAddonsUseCase
 	getEntitlements   workspaceaddondomain.GetWorkspaceEntitlementsUseCase
+	changeQuantity    workspaceaddondomain.ScheduleAddonQuantityUseCase
 }
 
 func NewWorkspaceAddonHandler(
@@ -173,17 +173,18 @@ func (h *WorkspaceAddonHandler) GetEntitlements(w http.ResponseWriter, r *http.R
 }
 
 // @Summary		Contratar addon
-// @Description	Contrata um addon para o workspace, cobra o valor proporcional de ativação do saldo e cria a assinatura recorrente.
+// @Description	Contrata um addon para o workspace. Cobra agora, do saldo pré-pago, só os dias que faltam do ciclo atual (também ao somar unidades a um addon já contratado) e as unidades só passam a existir depois dessa cobrança; a partir do ciclo seguinte o addon entra na fatura mensal, no seu próprio vencimento mensal. Respeita o máximo por workspace do addon (maxUnits). Domínios próprios são só mensais: outro ciclo responde 400 addon_monthly_only. Saldo insuficiente responde 402 insufficient_balance; acima do máximo, 409 addon_unit_cap_reached.
 // @Tags			Addons
 // @Accept			json
 // @Produce		json
 // @Param			workspaceId	path		string								true	"ID do workspace"
 // @Param			request		body		workspace_addon.PurchaseAddonInput	true	"Dados da contratação do addon"
 // @Success		201	{object}	workspace_addon.AddonSubscription
-// @Failure		400	{object}	response.ErrorResponse
-// @Failure		402	{object}	response.ErrorResponse
-// @Failure		404	{object}	response.ErrorResponse
-// @Failure		409	{object}	response.ErrorResponse
+// @Failure		400	{object}	response.ErrorResponse	"addon_quantity_invalid ou addon_monthly_only"
+// @Failure		402	{object}	response.ErrorResponse	"insufficient_balance"
+// @Failure		404	{object}	response.ErrorResponse	"addon_not_found"
+// @Failure		409	{object}	response.ErrorResponse	"addon_unit_cap_reached ou addon_unavailable"
+// @Failure		503	{object}	response.ErrorResponse	"addon_changes_unavailable"
 // @Security		BearerAuth
 // @Router			/workspaces/{workspaceId}/addons [post]
 func (h *WorkspaceAddonHandler) Purchase(w http.ResponseWriter, r *http.Request) {
@@ -228,25 +229,22 @@ func (h *WorkspaceAddonHandler) Preview(w http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary		Cancelar assinatura de addon
-// @Description	Cancela uma assinatura de addon do workspace a partir do seu identificador.
+// @Description	Cancela uma assinatura de addon do workspace. As unidades continuam até o fim do período já pago e não são renovadas; nada é devolvido. Para domínios próprios, cancelar é reduzir a zero: com algum domínio conectado responde 409 addon_units_in_use, e depois do cancelamento nenhum domínio novo pode ser conectado. Responde com cancelledAt, scheduledQuantity 0 e scheduledFrom (quando as unidades acabam).
 // @Tags			Addons
 // @Produce		json
 // @Param			workspaceId			path	string	true	"ID do workspace"
 // @Param			addonSubscriptionId	path	string	true	"ID da assinatura do addon"
 // @Success		200	{object}	workspace_addon.AddonSubscription
-// @Failure		404	{object}	response.ErrorResponse
-// @Failure		500	{object}	response.ErrorResponse
+// @Failure		404	{object}	response.ErrorResponse	"addon_subscription_not_found"
+// @Failure		409	{object}	response.ErrorResponse	"addon_units_in_use ou addon_reduction_unsupported"
+// @Failure		503	{object}	response.ErrorResponse	"addon_changes_unavailable"
 // @Security		BearerAuth
 // @Router			/workspaces/{workspaceId}/addons/{addonSubscriptionId}/cancel [post]
 func (h *WorkspaceAddonHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 	subID := mux.Vars(r)["addonSubscriptionId"]
 	sub, err := h.cancel.Execute(h.workspaceID(r), subID)
 	if err != nil {
-		if errors.Is(err, workspaceaddondomain.ErrAddonSubscriptionNotFound) {
-			response.WriteError(w, http.StatusNotFound, "Addon subscription not found", nil)
-			return
-		}
-		response.WriteError(w, http.StatusInternalServerError, "Internal server error", nil)
+		h.writePurchaseError(w, err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, sub)
@@ -270,23 +268,10 @@ func (h *WorkspaceAddonHandler) writeDefinitionError(w http.ResponseWriter, err 
 		errors.Is(err, workspaceaddondomain.ErrInvalidAddonName),
 		errors.Is(err, workspaceaddondomain.ErrInvalidEntitlementKind),
 		errors.Is(err, workspaceaddondomain.ErrInvalidUnitsPerQuantity),
-		errors.Is(err, workspaceaddondomain.ErrInvalidAddonPrice):
-		response.WriteError(w, http.StatusBadRequest, err.Error(), nil)
-	default:
-		response.WriteError(w, http.StatusInternalServerError, "Internal server error", nil)
-	}
-}
-
-func (h *WorkspaceAddonHandler) writePurchaseError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, workspaceaddondomain.ErrAddonNotFound):
-		response.WriteError(w, http.StatusNotFound, "Addon not found", nil)
-	case errors.Is(err, workspaceaddondomain.ErrAddonInactive):
-		response.WriteError(w, http.StatusConflict, err.Error(), nil)
-	case errors.Is(err, balance_domain.ErrInsufficientBalance):
-		response.WriteError(w, http.StatusPaymentRequired, "insufficient_balance", nil)
-	case errors.Is(err, workspaceaddondomain.ErrInvalidQuantity),
-		errors.Is(err, workspaceaddondomain.ErrInvalidAddonSubscription):
+		errors.Is(err, workspaceaddondomain.ErrInvalidAddonPrice),
+		errors.Is(err, workspaceaddondomain.ErrInvalidMaxUnits),
+		errors.Is(err, workspaceaddondomain.ErrMaxUnitsRequired),
+		errors.Is(err, workspaceaddondomain.ErrMonthlyPriceRequired):
 		response.WriteError(w, http.StatusBadRequest, err.Error(), nil)
 	default:
 		response.WriteError(w, http.StatusInternalServerError, "Internal server error", nil)

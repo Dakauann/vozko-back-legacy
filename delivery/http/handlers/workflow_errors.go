@@ -128,6 +128,7 @@ var workflowOwnRefusals = []response.ErrorRefusal{
 	{Err: workflow.ErrVariablesUnavailable, Refusal: workflowRefusal(http.StatusServiceUnavailable, "variables_unavailable", "Não foi possível ler agora as variáveis deste nó. Tente de novo.")},
 	{Err: workflow.ErrTestValueNotNeeded, Refusal: workflowRefusal(http.StatusUnprocessableEntity, "test_value_not_needed", "O fluxo não usa essa variável. Recarregue os dados do teste.")},
 	{Err: workflow.ErrTestValueInvalid, Refusal: workflowRefusal(http.StatusBadRequest, "test_value_invalid", "Cada valor do teste tem até 2000 caracteres.")},
+	{Err: workflow.ErrTestValueTypeInvalid, Refusal: workflowRefusal(http.StatusUnprocessableEntity, "test_value_type_invalid", "Um valor do teste não está no formato desse dado.")},
 	{Err: workflow.ErrTestValuesUnavailable, Refusal: workflowRefusal(http.StatusServiceUnavailable, workflow_usecase.TestValuesUnavailableCode, "Não foi possível ler ou gravar agora os dados do teste. Tente de novo.")},
 }
 
@@ -160,10 +161,10 @@ var workflowValidationRefusals = []response.ErrorRefusal{
 	{Err: workflow.ErrNodeInvalidKnowledgeBaseID, Refusal: workflowInvalid("invalid_knowledge_base", "Uma base de conhecimento selecionada é inválida ou não foi encontrada")},
 	{Err: workflow.ErrNodeInvalidSheetID, Refusal: workflowInvalid("invalid_google_sheet", "A planilha selecionada não existe neste workspace")},
 	{Err: workflow.ErrNodeSheetMappingInvalid, Refusal: workflowInvalid("invalid_google_sheet_mapping", "O mapeamento das colunas não corresponde à planilha")},
+	{Err: workflow.ErrNodeSheetVariableInvalid, Refusal: workflowInvalid("invalid_sheet_variable", "A planilha que muda por conversa precisa de um dado do tipo Planilha cujo modelo tenha a aba do passo")},
 	{Err: workflow.ErrNodeInvalidModelID, Refusal: workflowInvalid("invalid_ai_model", "O modelo de IA selecionado é inválido ou não está disponível. Use um modelo da lista (find_resource ai_models).")},
 	{Err: workflow.ErrNodeReasoningLevelUnsupported, Refusal: workflowInvalid("reasoning_unsupported", "O modelo de IA de um nó não oferece o nível de raciocínio escolhido. Escolha um nível da lista do modelo ou deixe o padrão.")},
 	{Err: workflow.ErrNodeInvalidToolParamType, Refusal: workflowInvalid("invalid_tool_param_type", "Um parâmetro de ferramenta (custom_tools) tem um tipo inválido. Use um tipo suportado (string, number, integer, boolean, array, object, date, time, datetime, email, phone, enum).")},
-	{Err: workflow.ErrNodeInvalidToolMode, Refusal: workflowInvalid("invalid_tool_mode", "O modo de ferramentas do agente de IA é inválido. Use 'route' ou 'execute'.")},
 	{Err: workflow.ErrNodeInvalidResponseMode, Refusal: workflowInvalid("invalid_response_mode", "O modo de resposta do agente de IA é inválido. Use 'default' ou 'segmented'.")},
 	{Err: workflow.ErrNodeSegmentedSendConflict, Refusal: workflowInvalid("segmented_send_conflict", "Um agente de IA em modo segmentado já envia as mensagens. Remova o Enviar texto logo depois dele.")},
 	{Err: workflow.ErrNodeInvalidInteractiveConfig, Refusal: workflowInvalid("invalid_interactive_config", "As opções de botões ou lista de um nó não seguem os limites do WhatsApp")},

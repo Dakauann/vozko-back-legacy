@@ -218,6 +218,7 @@ type SheetResponse struct {
 	Description   string             `json:"description,omitempty"`
 	TimeZone      string             `json:"timeZone"`
 	URL           string             `json:"url" example:"https://docs.google.com/spreadsheets/d/abc/edit#gid=0"`
+	EmbedURL      string             `json:"embedUrl" example:"https://docs.google.com/spreadsheets/d/abc/edit?rm=minimal#gid=0"`
 	Status        string             `json:"status" example:"active" enums:"active,needs_attention"`
 	Reason        string             `json:"reason,omitempty" example:"header_mismatch"`
 	ReasonDetail  string             `json:"reasonDetail,omitempty"`
@@ -249,7 +250,7 @@ func toSheetResponse(s *googlesheet.Sheet) SheetResponse {
 	return SheetResponse{
 		ID: s.ID, SpreadsheetID: s.SpreadsheetID, Title: s.Title, TabName: s.TabName, TabPeriod: string(s.TabPeriod), TabPattern: s.TabPattern,
 		TabPeriodKey: s.TabPeriodKey, TabBaseName: s.TabBaseName(), Style: string(s.Style), TakesInput: s.TakesInput(),
-		Description: s.Description, TimeZone: s.TimeZone, URL: s.URL(),
+		Description: s.Description, TimeZone: s.TimeZone, URL: s.URL(), EmbedURL: s.EmbedURL(),
 		Status: string(s.Status), Reason: string(s.Reason), ReasonDetail: s.ReasonDetail, Repairable: s.Repairable(), Version: s.Version,
 		Columns: columns, Unique: toUniqueResponse(s.Unique), TakesMessages: s.HasMessageColumns(), CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, LastWrittenAt: s.LastWrittenAt,
 	}
@@ -331,6 +332,7 @@ type ProblemRowResponse struct {
 
 type HealthResponse struct {
 	Sheet           SheetResponse        `json:"sheet"`
+	Editing         *EditSessionResponse `json:"editing"`
 	Pending         int                  `json:"pending"`
 	InFlight        int                  `json:"inFlight"`
 	Held            int                  `json:"held"`
@@ -341,7 +343,7 @@ type HealthResponse struct {
 	Problems        []ProblemRowResponse `json:"problems"`
 }
 
-func toHealthResponse(view *gsuc.HealthView) HealthResponse {
+func toHealthResponse(view *gsuc.HealthView, userID string) HealthResponse {
 	h := view.Health
 	problems := make([]ProblemRowResponse, len(h.Problems))
 	for i, row := range h.Problems {
@@ -353,6 +355,7 @@ func toHealthResponse(view *gsuc.HealthView) HealthResponse {
 	return HealthResponse{
 		Sheet: toSheetResponse(view.Sheet), Pending: h.Pending, InFlight: h.InFlight, Held: h.Held, Failed: h.Failed,
 		Written: h.Written, WrittenCapped: h.Written >= googlesheet.HealthCountCap, OldestPendingAt: h.OldestPendingAt, Problems: problems,
+		Editing: toEditSessionPointer(view.Editing, userID),
 	}
 }
 

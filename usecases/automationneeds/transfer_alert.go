@@ -17,5 +17,5 @@ func (a *Alerts) TransferUnmet(ctx context.Context, workspaceID string, refusal 
 	return a.publishUnmet(ctx, workspaceID, link,
 		capitalized(noun)+" "+nameOf(link)+" não recebeu uma transferência: falta "+variablesText(refusal.Needs),
 		from+" tentou transferir uma conversa para "+noun+" "+nameOf(link)+", mas a conversa não tem valor para "+variablesText(refusal.Needs)+
-			". A conversa continuou com "+from+". Dê um valor padrão à variável ou preencha o valor na conversa.")
+			". A conversa continuou com "+from+". Dê um valor padrão a esse dado ou preencha o valor na conversa.")
 }

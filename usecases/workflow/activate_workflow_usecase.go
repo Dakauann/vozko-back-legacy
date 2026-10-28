@@ -19,6 +19,7 @@ import (
 	"vozko/domain/lead"
 	media_domain "vozko/domain/media"
 	rag_domain "vozko/domain/rag"
+	"vozko/domain/shared"
 	"vozko/domain/shared/deps"
 	stage_domain "vozko/domain/stage"
 	businessphone_domain "vozko/domain/whatsapp/business_phone"
@@ -71,6 +72,10 @@ type WorkflowPublishPlanner interface {
 	Done(ctx context.Context, plan automationneeds_usecase.Plan, containers []string)
 }
 
+type WorkflowChannels interface {
+	ChannelsOf(ctx context.Context, w *workflow.Workflow) ([]shared.EntryType, error)
+}
+
 type DealFunnels interface {
 	PipelineStages(workspaceID, pipelineID string) ([]*stage_domain.Stage, error)
 }
@@ -98,6 +103,8 @@ type ActivateWorkflowDeps struct {
 	CallQueues        CallQueueLookup
 	Switching         WorkflowSwitchingPublisher
 	Planner           WorkflowPublishPlanner
+	Variables         VariableRules
+	Channels          WorkflowChannels
 }
 
 type activateWorkflowUseCase struct {
@@ -126,6 +133,8 @@ type activateWorkflowUseCase struct {
 
 	switching WorkflowSwitchingPublisher
 	planner   WorkflowPublishPlanner
+	variables VariableRules
+	channels  WorkflowChannels
 }
 
 func NewActivateWorkflowUseCase(d ActivateWorkflowDeps) (workflow.ActivateWorkflowUseCase, error) {
@@ -152,6 +161,8 @@ func NewActivateWorkflowUseCase(d ActivateWorkflowDeps) (workflow.ActivateWorkfl
 		"call queues":        d.CallQueues,
 		"switching":          d.Switching,
 		"publish planner":    d.Planner,
+		"variable rules":     d.Variables,
+		"workflow channels":  d.Channels,
 	}); err != nil {
 		return nil, err
 	}
@@ -178,6 +189,8 @@ func NewActivateWorkflowUseCase(d ActivateWorkflowDeps) (workflow.ActivateWorkfl
 		callQueues:        d.CallQueues,
 		switching:         d.Switching,
 		planner:           d.Planner,
+		variables:         d.Variables,
+		channels:          d.Channels,
 	}, nil
 }
 
@@ -276,15 +289,40 @@ func (uc *activateWorkflowUseCase) graphProblems(ctx context.Context, w *workflo
 	if err := checkGraphReasoning(ctx, uc.modelCatalog, &w.Graph); err != nil {
 		problems = append(problems, err)
 	}
+	defaults, err := variableDefaultIssues(ctx, uc.variables, w)
+	if err != nil {
+		problems = append(problems, err)
+	}
+	report.Issues = append(report.Issues, defaults...)
+	if uc.variables != nil {
+		labelConversationRefs(ctx, uc.variables, w.WorkspaceID, report.Issues)
+	}
 	if len(catalog) > 0 {
-		sheets := &googleSheetValidator{sheets: uc.googleSheets, workspaceID: strings.TrimSpace(w.WorkspaceID)}
+		sheets := &googleSheetValidator{sheets: uc.googleSheets, workspaceID: strings.TrimSpace(w.WorkspaceID), declarations: uc.variables, voice: w.Type == workflow.WorkflowTypeVoice}
 		problems = append(problems, workflow.ReferenceProblems(&w.Graph, catalog, uc.referenceValidators(w, sheets)...)...)
+		problems = append(problems, workflow.SheetVariableLinkProblems(&w.Graph, sheets.links)...)
 		report.Issues = append(report.Issues, workflow.SheetLinkExportIssues(&w.Graph, catalog, sheets.links)...)
+		issues, err := uc.channelGapIssues(ctx, w, catalog, sheets.columns)
+		if err != nil {
+			problems = append(problems, err)
+		}
+		report.Issues = append(report.Issues, issues...)
 	}
 	if w.Type == workflow.WorkflowTypeVoice {
 		problems = append(problems, uc.callQueueProblems(w)...)
 	}
 	return report, problems
+}
+
+func (uc *activateWorkflowUseCase) channelGapIssues(ctx context.Context, w *workflow.Workflow, catalog []workflow.NodeDefinition, columns workflow.SheetChannelColumns) ([]workflow.LintIssue, error) {
+	if uc.channels == nil || w.Type == workflow.WorkflowTypeVoice {
+		return nil, nil
+	}
+	channels, err := uc.channels.ChannelsOf(ctx, w)
+	if err != nil {
+		return nil, fmt.Errorf("%w: os canais em que o fluxo roda não puderam ser lidos: %v", workflow.ErrValidationUnavailable, err)
+	}
+	return workflow.ChannelGapIssues(&w.Graph, catalog, channels, columns), nil
 }
 
 func validationOnly(problems []error) error {
@@ -341,46 +379,6 @@ func (uc *activateWorkflowUseCase) referenceValidators(w *workflow.Workflow, she
 		sheets,
 		&workflowReferenceValidator{repo: uc.repo, workspaceID: workflowWorkspaceID},
 	}
-}
-
-func collectExecuteModeLeafNodes(g *workflow.Graph) map[string]bool {
-
-	executeAgents := make(map[string]bool)
-	for i := range g.Nodes {
-		node := &g.Nodes[i]
-		if node.Type == workflow.NodeTypeActionAIAgent && workflow.ToolModeOf(node) == workflow.ToolModeExecute {
-			executeAgents[node.ID] = true
-		}
-	}
-	if len(executeAgents) == 0 {
-		return nil
-	}
-
-	type edgeInfo struct {
-		source string
-		label  string
-	}
-	incomingByTarget := make(map[string][]edgeInfo)
-	for _, e := range g.Edges {
-		incomingByTarget[e.Target] = append(incomingByTarget[e.Target], edgeInfo{source: e.Source, label: e.Label})
-	}
-
-	reserved := map[string]bool{"default": true, "erro": true, "": true}
-
-	leafNodes := make(map[string]bool)
-	for targetID, edges := range incomingByTarget {
-		allFromExecuteAgent := true
-		for _, e := range edges {
-			if !executeAgents[e.source] || reserved[e.label] {
-				allFromExecuteAgent = false
-				break
-			}
-		}
-		if allFromExecuteAgent {
-			leafNodes[targetID] = true
-		}
-	}
-	return leafNodes
 }
 
 type templateValidator struct {
@@ -444,15 +442,9 @@ func (v *agentValidator) Validate(n *workflow.Node) error {
 		}
 	}
 
-	if n.Type == workflow.NodeTypeActionAIAgent {
-		toolMode, _ := n.Config[workflow.ToolModeKey].(string)
-		if !workflow.ValidToolMode(toolMode) {
-			return fmt.Errorf("%w: node %q tool_mode %q", workflow.ErrNodeInvalidToolMode, n.ID, toolMode)
-		}
-		responseMode, _ := n.Config["response_mode"].(string)
-		if responseMode != "" && responseMode != "default" && responseMode != "segmented" {
-			return fmt.Errorf("%w: node %q response_mode %q", workflow.ErrNodeInvalidResponseMode, n.ID, responseMode)
-		}
+	responseMode, _ := n.Config["response_mode"].(string)
+	if responseMode != "" && responseMode != "default" && responseMode != "segmented" {
+		return fmt.Errorf("%w: node %q response_mode %q", workflow.ErrNodeInvalidResponseMode, n.ID, responseMode)
 	}
 	return nil
 }

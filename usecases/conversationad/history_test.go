@@ -21,7 +21,7 @@ func (h *recordedHistory) Record(_ context.Context, record conversation.MessageH
 
 func TestAContactMessageFromAnAdRecordsTheAdAfterTheMessage(t *testing.T) {
 	inner, book := &recordedHistory{}, &originBook{}
-	history := WithAdOrigins(inner, recorderWith(book, &mediaShelf{}, &fetcher{}, &broadcasts{}))
+	history := WithAdOrigins(inner, recorderWith(book, &mediaShelf{}, &fetcher{}, &broadcasts{}), nil)
 	err := history.Record(context.Background(), conversation.MessageHistoryRecord{
 		SentBy: conversation.SentByContact("5584"), EntryID: "e1", EntryType: shared.EntryTypeWhatsApp, Text: "Oi, vi o anúncio",
 		AdReferral: &conversation.AdReferral{AdID: "ad-1", Title: "Promoção"},
@@ -36,7 +36,7 @@ func TestAContactMessageFromAnAdRecordsTheAdAfterTheMessage(t *testing.T) {
 
 func TestAMessageThatFailedToSaveRecordsNoAd(t *testing.T) {
 	book := &originBook{}
-	history := WithAdOrigins(&recordedHistory{fail: errors.New("db down")}, recorderWith(book, &mediaShelf{}, &fetcher{}, &broadcasts{}))
+	history := WithAdOrigins(&recordedHistory{fail: errors.New("db down")}, recorderWith(book, &mediaShelf{}, &fetcher{}, &broadcasts{}), nil)
 	_ = history.Record(context.Background(), conversation.MessageHistoryRecord{
 		SentBy: conversation.SentByContact("5584"), EntryID: "e1", EntryType: shared.EntryTypeWhatsApp,
 		AdReferral: &conversation.AdReferral{AdID: "ad-1", Title: "Promoção"},

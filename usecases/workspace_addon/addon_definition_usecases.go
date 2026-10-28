@@ -40,6 +40,7 @@ func (uc *createAddonDefinitionUseCase) Execute(input workspace_addon.AddonDefin
 		AnnualPriceMicros:  input.AnnualPriceMicros,
 		MonthlyCostMicros:  input.MonthlyCostMicros,
 		AnnualCostMicros:   input.AnnualCostMicros,
+		MaxUnits:           input.MaxUnits,
 		IsActive:           true,
 		IsGloballyVisible:  true,
 	}
@@ -84,6 +85,7 @@ func (uc *updateAddonDefinitionUseCase) Execute(id string, input workspace_addon
 	def.AnnualPriceMicros = input.AnnualPriceMicros
 	def.MonthlyCostMicros = input.MonthlyCostMicros
 	def.AnnualCostMicros = input.AnnualCostMicros
+	def.MaxUnits = input.MaxUnits
 	if input.IsActive != nil {
 		def.IsActive = *input.IsActive
 	}

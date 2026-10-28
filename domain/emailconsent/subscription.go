@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ var (
 	ErrWorkspaceRequired        = errors.New("emailconsent: a workspace is required")
 	ErrAddressInvalid           = errors.New("emailconsent: invalid email address")
 	ErrSourceInvalid            = errors.New("emailconsent: unknown consent source")
+	ErrSourceReserved           = errors.New("emailconsent: only the system records this consent source")
 	ErrConsentIPRequired        = errors.New("emailconsent: a form consent needs the ip it came from")
 	ErrConsentIPInvalid         = errors.New("emailconsent: invalid consent ip")
 	ErrConsentDateRequired      = errors.New("emailconsent: the consent date is required")
@@ -39,11 +41,22 @@ const (
 	SourceForm     Source = "form"
 	SourceOperator Source = "operator"
 	SourceAPI      Source = "api"
+	SourceSiteForm Source = "site_form"
 )
+
+var hashedIP = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
 
 func (s Source) Valid() bool {
 	switch s {
-	case SourceImport, SourceForm, SourceOperator, SourceAPI:
+	case SourceImport, SourceForm, SourceOperator, SourceAPI, SourceSiteForm:
+		return true
+	}
+	return false
+}
+
+func (s Source) RecordedByPeople() bool {
+	switch s {
+	case SourceForm, SourceOperator, SourceAPI:
 		return true
 	}
 	return false
@@ -150,10 +163,16 @@ func NewUnsubscribed(workspaceID, rawAddress, leadID string, source UnsubscribeS
 func consentIP(source Source, raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		if source == SourceForm {
+		if source == SourceForm || source == SourceSiteForm {
 			return "", ErrConsentIPRequired
 		}
 		return "", nil
+	}
+	if source == SourceSiteForm {
+		if !hashedIP.MatchString(raw) {
+			return "", ErrConsentIPInvalid
+		}
+		return raw, nil
 	}
 	addr, err := netip.ParseAddr(raw)
 	if err != nil {

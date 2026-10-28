@@ -35,6 +35,8 @@ var entryTables = []keyedTable{
 	entry("conversation_delegations"),
 	entry("conversation_variables"),
 	entry("conversation_ad_origins"),
+	entry("conversation_page_origins"),
+	entry("site_submission_effects"),
 	entry("conversation_origins"),
 	entry("conversation_live_reads"),
 	entry("live_decision_records"),

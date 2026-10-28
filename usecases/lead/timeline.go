@@ -77,10 +77,11 @@ type callReader struct {
 }
 
 type timelineReader struct {
-	actor  Actor
-	fields lead.Viewer
-	calls  *callReader
-	deals  *opportunity.DealScope
+	actor       Actor
+	fields      lead.Viewer
+	calls       *callReader
+	deals       *opportunity.DealScope
+	submissions bool
 }
 
 func (t *Timeline) Page(ctx context.Context, a Actor, q lead.PageQuery) (lead.TimelinePage, error) {
@@ -102,6 +103,7 @@ func (t *Timeline) Page(ctx context.Context, a Actor, q lead.PageQuery) (lead.Ti
 		NumberForms: l.LegacyCallForms(),
 		Limit:       q.Limit + 1,
 		Calls:       reader.calls != nil,
+		Submissions: reader.submissions,
 		Deals:       reader.deals,
 	}
 	visible := make([]lead.TimelineItem, 0, q.Limit)
@@ -213,6 +215,7 @@ func (t *Timeline) reader(a Actor) (timelineReader, error) {
 			lists:        calllist.ViewerOf(t.deps.Permissions, a.WorkspaceID, a.UserID, a.IsAdmin),
 		}
 	}
+	reader.submissions = t.deps.CallAccess.Execute(a.UserID, a.WorkspaceID, workspace.ResourceSiteSubmissions, workspace.ActionRead) == nil
 	scope, err := t.deps.DealScopes.Scope(personOf(a), a.WorkspaceID)
 	switch {
 	case errors.Is(err, opportunity.ErrScopeDenied):
@@ -233,7 +236,7 @@ func (t *Timeline) grants(ctx context.Context, reader timelineReader, items []le
 	if err != nil {
 		return lead.TimelineGrants{}, err
 	}
-	return lead.TimelineGrants{Entries: entries, Calls: calls, CallLists: visibleCallLists(reader, items), Deals: reader.deals != nil, Fields: reader.fields}, nil
+	return lead.TimelineGrants{Entries: entries, Calls: calls, CallLists: visibleCallLists(reader, items), Deals: reader.deals != nil, Submissions: reader.submissions, Fields: reader.fields}, nil
 }
 
 func visibleCallLists(reader timelineReader, items []lead.TimelineItem) map[string]bool {

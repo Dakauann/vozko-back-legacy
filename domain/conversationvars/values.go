@@ -4,30 +4,30 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"time"
 
 	"vozko/domain/agent"
 	"vozko/domain/automationneeds"
 	"vozko/domain/shared"
+	"vozko/domain/variabledecl"
 	"vozko/domain/workflow"
 )
 
 const (
-	MaxNameRunes  = 64
-	MaxValueRunes = 2000
+	MaxNameRunes  = variabledecl.MaxNameRunes
+	MaxValueRunes = variabledecl.MaxValueRunes
 )
 
 var (
 	ErrNothingToSave = errors.New("conversation variables: send at least one value")
-	ErrNameInvalid   = errors.New("conversation variables: a name has only letters, digits and underscores, up to 64")
-	ErrNameReserved  = errors.New("conversation variables: lead_name, lead_number and campaign_name are filled by the platform")
+	ErrNameInvalid   = variabledecl.ErrNameInvalid
+	ErrNameReserved  = variabledecl.ErrNameReserved
+	ErrTypeInvalid   = errors.New("conversation variables: a value does not fit the declared type")
+	ErrNotEditable   = errors.New("conversation variables: only declared data or values already stored can be edited")
 	ErrValueInvalid  = errors.New("conversation variables: a value has 1 to 2000 characters")
 	ErrNotNeeded     = errors.New("conversation variables: no automation of this workspace needs this variable")
 	ErrUnavailable   = errors.New("conversation variables: the conversation values could not be read")
 )
-
-var namePattern = regexp.MustCompile(`^\w+$`)
 
 type Lead struct {
 	Name   string

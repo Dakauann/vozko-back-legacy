@@ -36,6 +36,7 @@ type WorkflowHandler struct {
 
 type NodeVariableReader interface {
 	At(ctx context.Context, wf *workflow.Workflow, nodeID string) (workflow.VariableCatalog, error)
+	Labels(ctx context.Context, wf *workflow.Workflow) (map[string]map[string]workflow.RefLabel, error)
 }
 
 type LastTriggerInputReader interface {

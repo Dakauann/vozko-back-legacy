@@ -34,6 +34,7 @@ func (c *Container) launchCheck() *wc_usecase.LaunchCheck {
 		Balances:       c.services.cachedBalanceChecker,
 		Caps:           caps,
 		Forms:          c.formPublications(),
+		Sheets:         campaignSheets{c: c},
 		Now:            time.Now,
 	})
 	return c.launchCheckService

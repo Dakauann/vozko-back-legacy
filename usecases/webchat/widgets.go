@@ -190,7 +190,7 @@ func (uc *Widgets) apply(ctx context.Context, w *wcdomain.Widget, in WidgetInput
 	if uc.guard == nil {
 		return automationneeds.ErrUnreadable
 	}
-	return uc.guard.Admit(w.WorkspaceID, w.Automation())
+	return uc.guard.Admit(w.WorkspaceID, automationneeds.SlotWebchat, w.Automation())
 }
 
 func setValue[T any](dst *T, src *T) {

@@ -55,7 +55,9 @@ func newPublishWorld(t *testing.T, slots fakeSlots, held []HeldConversation) pub
 				"outro":  {ID: "outro", WorkspaceID: "ws", Name: "Outro"},
 			},
 		},
-		Values: fakeValues{},
+		Values:       fakeValues{},
+		Declarations: declared,
+		Sheets:       &fakeSheetFiles{},
 	})
 	if err != nil {
 		t.Fatal(err)

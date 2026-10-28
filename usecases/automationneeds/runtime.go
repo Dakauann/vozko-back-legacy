@@ -49,13 +49,16 @@ func (r *Runtime) BeforeStep(run *workflow.WorkflowRun, node *workflow.Node) (*w
 		}
 		return nil, nil
 	}
-	values, err := r.service.ValuesFor(ctx, run.WorkspaceID, run.EntryID, shared.EntryType(run.EntryType), automation)
+	resolved, err := r.service.Resolve(ctx, run.WorkspaceID, run.EntryID, shared.EntryType(run.EntryType), automation)
 	if err != nil {
 		r.refused(ctx, run.WorkspaceID, run.EntryID, run.EntryType, automation, err)
 		return nil, err
 	}
-	if values != nil {
-		conversationvars.SeedRun(&run.State, values)
+	if resolved.Values != nil {
+		conversationvars.SeedRun(&run.State, resolved.Values)
+	}
+	if len(resolved.Sheets) > 0 {
+		workflow.PinSheetFiles(&run.State, resolved.Sheets)
 	}
 	return nil, nil
 }
@@ -66,7 +69,7 @@ func (r *Runtime) withoutConversation(workspaceID string, automation conversatio
 		return err
 	}
 	if len(needs) > 0 {
-		return &domain.Refusal{Cause: domain.ErrConversationMissing, Automation: rootOf(automation, needs), Needs: needs}
+		return r.service.labeledRefusal(workspaceID, &domain.Refusal{Cause: domain.ErrConversationMissing, Automation: rootOf(automation, needs), Needs: needs})
 	}
 	return nil
 }

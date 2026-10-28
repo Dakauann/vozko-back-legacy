@@ -2,6 +2,7 @@ package container
 
 import (
 	deliveryHttp "vozko/delivery/http"
+	"vozko/delivery/http/siteformhttp"
 	whatsappoutreachhttp "vozko/delivery/http/whatsappoutreach"
 	httpServerImpl "vozko/infra/http"
 	"vozko/infra/http/middleware"
@@ -134,12 +135,15 @@ func (c *Container) initRouter() {
 		agentRoutes(c),
 		c.planDuplicateHandler(),
 		c.inboxPreferencesHandler(),
+		siteRoutes(c),
+		sitePublishRoutes(c),
+		siteFormRoutes(c),
 	)
 
 }
 
 func (c *Container) initServer() {
-	cors := middleware.NewCORSMiddleware(c.cfg.CORSTrustedOrigins)
+	cors := middleware.NewCORSMiddleware(c.cfg.CORSTrustedOrigins).Delegating(siteformhttp.PublicPrefix)
 	csrf := middleware.NewCSRFMiddleware(c.cfg.CORSTrustedOrigins)
 	handler := c.router.GetHandler()
 	if c.services.metrics != nil {
@@ -149,7 +153,7 @@ func (c *Container) initServer() {
 		})
 		handler = metricsMW.Record(handler)
 	}
-	c.server = httpServerImpl.NewHTTPServer(cors.Handler(csrf.Handler(handler)))
+	c.server = httpServerImpl.NewHTTPServer(c.sitePageHost(c.sitePreviewHost(cors.Handler(csrf.Handler(handler)))))
 }
 
 func (c *Container) initMetricsServer() {
