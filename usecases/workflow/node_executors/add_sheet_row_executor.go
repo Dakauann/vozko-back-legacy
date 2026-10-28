@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	AddSheetRowSheetKey  = "sheet_id"
-	AddSheetRowValuesKey = "values"
-	addSheetRowWritten   = "sucesso"
-	addSheetRowRefused   = "erro"
+	AddSheetRowSheetKey  = workflow.SheetStepSheetKey
+	AddSheetRowValuesKey = workflow.SheetStepValuesKey
+	addSheetRowWritten   = workflow.SheetStepWritten
+	addSheetRowRefused   = workflow.SheetStepRefused
+	addSheetRowRepeated  = workflow.SheetStepAlreadyRecorded
 )
 
 type SheetRowSink interface {
@@ -44,7 +45,9 @@ func (e *addSheetRowExecutor) Definition() workflow.NodeDefinition {
 		Guidance: workflow.NodeGuidance{
 			When: "Para registrar pedidos, leads, agendamentos ou qualquer dado do fluxo em uma planilha do Google Planilhas.",
 			Behavior: "A linha é validada pelos tipos das colunas e entra na fila de gravação; a saída 'sucesso' significa que ela foi aceita e será gravada em instantes, na ordem. " +
-				"Colunas preenchidas pelo sistema (telefone do lead, data, link da conversa) não entram no mapeamento. Uma variável sem valor leva à saída 'erro', nunca a uma célula com {{...}}.",
+				"Colunas preenchidas pelo sistema (telefone do lead, data, link da conversa) não entram no mapeamento. Uma variável sem valor leva à saída 'erro', nunca a uma célula com {{...}}. " +
+				"Quando a aba tem linha única (por conversa, na aba ou no mês da aba, ou pelos valores de colunas escolhidas) e o registro já existe, nada é gravado de novo: o passo segue pela saída opcional 'ja_registrada' se ela estiver ligada, senão pela 'sucesso', com already_recorded=true e existing_row_id apontando a linha que já existia. " +
+				"Numa aba com linha única por conversa, um fluxo sem conversa (iniciado por um lead) segue pela 'erro' com o código google_sheet_unique_needs_conversation.",
 			Examples: []string{
 				"config: {\"sheet_id\":\"<id>\",\"values\":{\"produto\":\"{{var.produto}}\",\"quantidade\":\"{{var.quantidade}}\"}}",
 			},
@@ -52,6 +55,7 @@ func (e *addSheetRowExecutor) Definition() workflow.NodeDefinition {
 		Outputs: []workflow.HandleDefinition{
 			{ID: addSheetRowWritten, Label: "Sucesso"},
 			{ID: addSheetRowRefused, Label: "Erro", Optional: true},
+			{ID: addSheetRowRepeated, Label: "Já registrada", Optional: true},
 		},
 		OutputKeys: []workflow.OutputKeyDefinition{
 			{Key: "row_id", Description: "ID da linha na fila de gravação", Label: "ID da linha", Type: workflow.VariableTypeText},
@@ -59,6 +63,8 @@ func (e *addSheetRowExecutor) Definition() workflow.NodeDefinition {
 			{Key: "sheet_title", Description: "Título da planilha", Label: "Título da planilha", Type: workflow.VariableTypeText},
 			{Key: "sheet_url", Description: "Link da planilha no Google", Label: "Link da planilha", Type: workflow.VariableTypeText},
 			{Key: "duplicate", Description: "true quando este passo já tinha registrado a linha e ela não foi repetida", Label: "Linha já registrada", Type: workflow.VariableTypeBoolean},
+			{Key: "already_recorded", Description: "true quando a aba tem linha única e este registro já existia; nada foi gravado de novo", Label: "Registro já existia", Type: workflow.VariableTypeBoolean},
+			{Key: "existing_row_id", Description: "ID da linha que já registrava este registro, quando already_recorded é true", Label: "ID da linha existente", Type: workflow.VariableTypeText},
 			{Key: "error", Description: "Descrição da recusa", Label: "Recusa", Type: workflow.VariableTypeText},
 			{Key: "error_code", Description: "Código da recusa", Label: "Código da recusa", Type: workflow.VariableTypeText},
 		},
@@ -101,12 +107,21 @@ func (e *addSheetRowExecutor) Execute(ctx *workflow.NodeContext) (*workflow.Node
 		}
 		return sheetRowRefused(ctx, code, err.Error()), nil
 	}
+	existing := ""
+	if result.Repeat != nil {
+		existing = result.Repeat.RowID
+	}
 	output := map[string]interface{}{
-		"row_id":      result.RowID,
-		"sheet_id":    result.Sheet.ID,
-		"sheet_title": result.Sheet.Title,
-		"sheet_url":   result.Sheet.URL(),
-		"duplicate":   result.Duplicate,
+		"row_id":           result.RowID,
+		"sheet_id":         result.Sheet.ID,
+		"sheet_title":      result.Sheet.Title,
+		"sheet_url":        result.Sheet.URL(),
+		"duplicate":        result.Duplicate,
+		"already_recorded": result.Repeat != nil,
+		"existing_row_id":  existing,
+	}
+	if result.Repeat != nil {
+		return routeOutput(&workflow.NodeResult{Output: output}, outgoingEdges(ctx), addSheetRowRepeated, addSheetRowWritten), nil
 	}
 	return routeOutput(&workflow.NodeResult{Output: output}, outgoingEdges(ctx), addSheetRowWritten), nil
 }

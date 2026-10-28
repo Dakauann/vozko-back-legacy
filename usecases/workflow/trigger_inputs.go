@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"vozko/domain/automationneeds"
 	"vozko/domain/conversation"
 	"vozko/domain/redact"
 	"vozko/domain/shared"
@@ -17,6 +18,7 @@ const (
 	TriggerNotFoundCode         = "trigger_not_found"
 	TriggerInputUnavailableCode = "trigger_input_unavailable"
 	NoRecentTriggerInputCode    = "no_recent_input"
+	TestValuesUnavailableCode   = "test_values_unavailable"
 
 	simLeadName = "Contato de teste"
 )
@@ -84,10 +86,11 @@ func startFromTrigger(specs []workflow.TriggerInputSpec, nodeID string, input ma
 }
 
 type triggerStartRefusal struct {
-	Command string                       `json:"command"`
-	Error   string                       `json:"error"`
-	Code    string                       `json:"code,omitempty"`
-	Issues  []workflow.TriggerInputIssue `json:"issues,omitempty"`
+	Command   string                       `json:"command"`
+	Error     string                       `json:"error"`
+	Code      string                       `json:"code,omitempty"`
+	Issues    []workflow.TriggerInputIssue `json:"issues,omitempty"`
+	Variables []string                     `json:"variables,omitempty"`
 }
 
 func refusalOf(command string, err error) triggerStartRefusal {
@@ -95,12 +98,20 @@ func refusalOf(command string, err error) triggerStartRefusal {
 		return triggerStartRefusal{Command: command, Code: TriggerInputInvalidCode, Issues: issues,
 			Error: "Os dados de entrada não passam nas regras deste gatilho. Corrija os campos indicados."}
 	}
+	if refusal, unmet := automationneeds.RefusalOf(err); unmet {
+		return triggerStartRefusal{Command: command, Code: automationneeds.ErrorCode(err), Error: refusal.Sentence(), Variables: refusal.Needs.Names()}
+	}
+	if code := automationneeds.ErrorCode(err); code != "" {
+		return triggerStartRefusal{Command: command, Code: code, Error: "Não foi possível conferir agora as variáveis que o fluxo usa. Tente de novo."}
+	}
 	switch {
 	case errors.Is(err, workflow.ErrTriggerInputNotFound):
 		return triggerStartRefusal{Command: command, Code: TriggerNotFoundCode, Error: "Este gatilho não existe no rascunho."}
 	case errors.Is(err, workflow.ErrTriggerInputUnavailable):
 		return triggerStartRefusal{Command: command, Code: TriggerInputUnavailableCode,
 			Error: "Não foi possível ler agora o que este gatilho recebe (formulários ou etapas). Tente de novo."}
+	case errors.Is(err, workflow.ErrTestValuesUnavailable):
+		return triggerStartRefusal{Command: command, Code: TestValuesUnavailableCode, Error: "Não foi possível ler agora os dados do teste. Tente de novo."}
 	}
 	return triggerStartRefusal{Command: command, Error: err.Error()}
 }

@@ -19,6 +19,7 @@ type sheetRowsStub struct {
 	enqueued []gsuc.EnqueueInput
 	enqErr   error
 	previews int
+	repeat   *googlesheet.RepeatError
 }
 
 func (s *sheetRowsStub) Get(_ context.Context, workspaceID, id string) (*googlesheet.Sheet, error) {
@@ -36,7 +37,7 @@ func (s *sheetRowsStub) Enqueue(_ context.Context, in gsuc.EnqueueInput) (*gsuc.
 	if s.enqErr != nil {
 		return nil, s.enqErr
 	}
-	return &gsuc.EnqueueResult{RowID: "row-1", Sheet: s.sheet}, nil
+	return &gsuc.EnqueueResult{RowID: "row-1", Sheet: s.sheet, Repeat: s.repeat}, nil
 }
 
 func (s *sheetRowsStub) Preview(_ context.Context, _, _ string, values map[string]any, _ googlesheet.Origin) (*googlesheet.Sheet, googlesheet.Cells, error) {

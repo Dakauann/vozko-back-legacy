@@ -91,6 +91,9 @@ type nodeTest struct {
 	specs    []workflow.TriggerInputSpec
 	trigger  string
 	seeded   map[string]interface{}
+	plan     nodeTestPlan
+	mocked   map[string]interface{}
+	recorded bool
 
 	mu       sync.Mutex
 	upstream []*workflow.WorkflowRunLog

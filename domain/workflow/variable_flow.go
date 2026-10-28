@@ -253,7 +253,7 @@ func (f *variableFlow) matching(ref string) []int {
 	return seqs
 }
 
-var reservedVariableScopes = []string{"last.", "node.", "ai.", "sys.", SecretScope + "."}
+var reservedVariableScopes = []string{"last.", "node.", "ai.", "sys.", SecretScope + ".", sheetExportScope}
 
 func reservedScope(ref string) bool {
 	for _, scope := range reservedVariableScopes {

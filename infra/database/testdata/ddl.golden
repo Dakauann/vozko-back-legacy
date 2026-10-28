@@ -571,6 +571,24 @@ CREATE INDEX IF NOT EXISTS idx_google_sheet_rows_purge ON google_sheet_rows (wri
 -- idx_google_sheet_rows_lead
 CREATE INDEX IF NOT EXISTS idx_google_sheet_rows_lead ON google_sheet_rows (workspace_id, lead_id) WHERE lead_id IS NOT NULL;
 
+-- idx_google_sheet_unique_keys_lead
+CREATE INDEX IF NOT EXISTS idx_google_sheet_unique_keys_lead ON google_sheet_unique_keys (workspace_id, lead_id) WHERE lead_id IS NOT NULL;
+
+-- idx_google_sheet_unique_keys_entry
+CREATE INDEX IF NOT EXISTS idx_google_sheet_unique_keys_entry ON google_sheet_unique_keys (entry_type, entry_id) WHERE entry_id <> '';
+
+-- idx_google_sheet_unique_keys_row
+CREATE INDEX IF NOT EXISTS idx_google_sheet_unique_keys_row ON google_sheet_unique_keys (sheet_id, row_id);
+
+-- idx_google_sheet_row_removals_sheet
+CREATE INDEX IF NOT EXISTS idx_google_sheet_row_removals_sheet ON google_sheet_row_removals (sheet_id, removed_at DESC, id DESC);
+
+-- idx_google_sheet_row_removals_lead
+CREATE INDEX IF NOT EXISTS idx_google_sheet_row_removals_lead ON google_sheet_row_removals (workspace_id, lead_id) WHERE lead_id IS NOT NULL;
+
+-- idx_google_sheet_row_removals_entry
+CREATE INDEX IF NOT EXISTS idx_google_sheet_row_removals_entry ON google_sheet_row_removals (entry_type, entry_id) WHERE entry_id <> '';
+
 ## google constraints
 
 -- ux_google_account_workspace_email
@@ -581,6 +599,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_google_sheet_tab ON google_sheets (workspac
 
 -- ux_google_sheet_rows_key
 CREATE UNIQUE INDEX IF NOT EXISTS ux_google_sheet_rows_key ON google_sheet_rows (sheet_id, idempotency_key);
+
+-- ux_google_sheet_row_removals_row
+CREATE UNIQUE INDEX IF NOT EXISTS ux_google_sheet_row_removals_row ON google_sheet_row_removals (row_id);
 
 ## composite lead keys
 

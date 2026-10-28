@@ -30,6 +30,7 @@ func (v View) hasContext() bool {
 type PreviewColumns struct {
 	Contact   string                           `json:"contact,omitempty"`
 	Name      string                           `json:"name,omitempty"`
+	Headers   []string                         `json:"headers"`
 	Variables []campaign.VariableColumnMapping `json:"variables"`
 	Metadata  []campaign.MetadataColumn        `json:"metadata"`
 }
@@ -130,8 +131,11 @@ func (s *Service) preview(ctx context.Context, a Actor, list campaignaudience.Li
 	p := Preview{
 		ID: list.ID, Channel: list.Channel, Contact: list.Channel.Contact(), FileName: list.FileName, Lines: list.Lines,
 		Header: list.Layout.Header, VariableColumns: list.Layout.VariableColumns(), ExpiresAt: list.ExpiresAt,
-		Columns: PreviewColumns{Contact: list.Layout.ContactLabel(), Name: list.Layout.NameLabel(), Variables: mapping.Variables, Metadata: mapping.MetadataColumns},
+		Columns: PreviewColumns{Contact: list.Layout.ContactLabel(), Name: list.Layout.NameLabel(), Headers: list.Layout.Columns(), Variables: mapping.Variables, Metadata: mapping.MetadataColumns},
 		Skipped: Skipped{Total: list.SkippedTotal(), ByReason: list.IssueCounts, Lines: list.Issues},
+	}
+	if p.Columns.Headers == nil {
+		p.Columns.Headers = []string{}
 	}
 	if p.Columns.Variables == nil {
 		p.Columns.Variables = []campaign.VariableColumnMapping{}
@@ -142,28 +146,23 @@ func (s *Service) preview(ctx context.Context, a Actor, list campaignaudience.Li
 	if p.Skipped.Lines == nil {
 		p.Skipped.Lines = []campaign.ListIssue{}
 	}
-	gaps := campaignaudience.NewMetadataGaps(mapping.metadata)
 	err = s.eachRowBatch(ctx, list, func(rows []campaignaudience.Row, existing map[string]string) error {
 		p.Rows += len(rows)
 		p.Existing += len(existing)
-		for _, row := range rows {
-			gaps.Add(row.Line, mapping.Metadata(row.ListRow))
-		}
 		return nil
 	})
 	if err != nil {
 		return Preview{}, err
 	}
 	p.New = p.Rows - p.Existing
-	p.MetadataMissing = gaps.Gaps()
+	p.MetadataMissing = []campaignaudience.MetadataGap{}
 	return p, nil
 }
 
 type mapped struct {
 	campaign.ListMapping
-	required int
-	judge    Judge
-	metadata campaignaudience.MetadataRule
+	bound []campaignaudience.Bound
+	judge Judge
 }
 
 func (s *Service) mappingFor(ctx context.Context, a Actor, list campaignaudience.List, view View) (mapped, error) {
@@ -173,7 +172,7 @@ func (s *Service) mappingFor(ctx context.Context, a Actor, list campaignaudience
 		if kind == campaign.ContactPhone {
 			required = list.Layout.VariableColumns()
 		}
-		return mapped{ListMapping: campaign.MapList(list.Layout, kind, make([]campaign.BindingSource, required), nil), required: required}, nil
+		return mapped{ListMapping: campaign.MapList(list.Layout, kind, campaign.TemplateTargets(make([]campaign.BindingSource, required)), nil), bound: make([]campaignaudience.Bound, required)}, nil
 	}
 	ch, err := s.channel(list.Channel)
 	if err != nil {
@@ -183,7 +182,7 @@ func (s *Service) mappingFor(ctx context.Context, a Actor, list campaignaudience
 	if err != nil {
 		return mapped{}, err
 	}
-	bound, err := campaignaudience.Bind(prepared.Slots, view.Variables)
+	bound, err := s.bindAudience(a, campaignaudience.SourceList, &list, prepared, view.Variables)
 	if err != nil {
 		return mapped{}, err
 	}
@@ -191,7 +190,7 @@ func (s *Service) mappingFor(ctx context.Context, a Actor, list campaignaudience
 	if err != nil {
 		return mapped{}, err
 	}
-	out := mapped{ListMapping: campaign.MapList(list.Layout, kind, campaignaudience.Fields(bound), defs), required: len(bound), metadata: prepared.Metadata}
+	out := mapped{ListMapping: campaign.MapList(list.Layout, kind, campaignaudience.ListTargets(bound), defs), bound: bound}
 	if prepared.Open != nil {
 		if out.judge, err = prepared.Open(ctx, bound, campaignaudience.SourceList); err != nil {
 			return mapped{}, err
@@ -307,9 +306,10 @@ func (s *Service) rowViews(ctx context.Context, list campaignaudience.List, m ma
 	}
 	views := make([]RowView, 0, len(rows))
 	for i, c := range candidates {
+		split := campaignaudience.SplitRow(m.bound, c.Metadata, values[i])
 		v := RowView{
 			ID: c.Row.ID, Line: c.Row.Line, Contact: c.Row.Contact, Name: c.Row.Name,
-			Variables: values[i], Metadata: c.Metadata, Missing: campaign.MissingSlots(values[i]), Existing: c.LeadID != "",
+			Variables: split.Template, Metadata: split.Metadata, Missing: campaign.MissingSlots(split.Template), MetadataMissing: split.Unmet, Existing: c.LeadID != "",
 		}
 		if v.Variables == nil {
 			v.Variables = []string{}
@@ -320,9 +320,8 @@ func (s *Service) rowViews(ctx context.Context, list campaignaudience.List, m ma
 		if v.Metadata == nil {
 			v.Metadata = map[string]any{}
 		}
-		v.MetadataMissing = []string{}
-		if m.metadata != nil {
-			v.MetadataMissing = append(v.MetadataMissing, m.metadata(c.Metadata)...)
+		if v.MetadataMissing == nil {
+			v.MetadataMissing = []string{}
 		}
 		views = append(views, v)
 	}

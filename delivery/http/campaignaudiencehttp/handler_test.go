@@ -18,8 +18,8 @@ import (
 	"vozko/domain/campaign"
 	"vozko/domain/campaignaudience"
 	"vozko/domain/geo"
-	"vozko/domain/leadmap"
 	"vozko/domain/lead"
+	"vozko/domain/leadmap"
 	"vozko/domain/whatsapp/template"
 	"vozko/domain/workspace"
 	"vozko/infra/http/middleware"
@@ -185,12 +185,12 @@ func TestEveryChannelIsGuardedByItsOwnResource(t *testing.T) {
 func TestCountReadsTheSpecAndTheChannelFields(t *testing.T) {
 	api := &fakeAPI{}
 	router, _ := server(t, api)
-	body := `{"source":"list","listId":"list-1","variables":[{"key":"1","source":"lead.first_name","missing":"exclude"}],"templateId":" tpl-1 ","businessPhoneId":"phone-1","message":{"kind":"text","bodies":["Oi {{1}}"]},"subject":"Oi","document":{"version":1,"blocks":[]},"workflowId":" wf-1 ","agentId":"agent-1"}`
+	body := `{"source":"list","listId":"list-1","variables":[{"key":"1","source":"lead.first_name","missing":"exclude"},{"key":"matricula","column":" VAR3 "}],"templateId":" tpl-1 ","businessPhoneId":"phone-1","message":{"kind":"text","bodies":["Oi {{1}}"]},"subject":"Oi","document":{"version":1,"blocks":[]},"workflowId":" wf-1 ","agentId":"agent-1"}`
 	rec := call(router, http.MethodPost, "/campaign-audience/whatsapp/count", []byte(body), "application/json")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("count = %d %s", rec.Code, rec.Body)
 	}
-	if api.spec.Source != campaignaudience.SourceList || api.spec.ListID != "list-1" || api.spec.Variables[0].Missing != campaignaudience.MissingExclude {
+	if api.spec.Source != campaignaudience.SourceList || api.spec.ListID != "list-1" || api.spec.Variables[0].Missing != campaignaudience.MissingExclude || api.spec.Variables[1].Column != " VAR3 " {
 		t.Fatalf("spec = %+v", api.spec)
 	}
 	if api.params.TemplateID != "tpl-1" || api.params.BusinessPhoneID != "phone-1" || api.params.Message == nil || api.params.Document == nil || api.params.Subject != "Oi" || api.params.Automation != (campaign.Automation{WorkflowID: "wf-1", AgentID: "agent-1"}) {
@@ -303,11 +303,11 @@ func TestTheCodesTheFrontTranslatesStayInStep(t *testing.T) {
 	want := []string{
 		"audience_busy", "audience_channel_invalid", "audience_contact_column_missing", "audience_file_empty", "audience_file_required",
 		"audience_file_too_large", "audience_file_too_wide", "audience_file_unreadable", "audience_kind_required", "audience_lead_status_invalid", "audience_leads_metadata_unavailable", "audience_list_channel_mismatch",
-		"audience_list_expired", "audience_list_metadata_missing", "audience_list_not_found", "audience_list_required", "audience_list_too_large", "audience_list_variables_missing",
+		"audience_list_column_unknown", "audience_list_expired", "audience_list_metadata_missing", "audience_list_not_found", "audience_list_required", "audience_list_too_large", "audience_list_variables_missing",
 		"audience_message_required", "audience_missing_policy_invalid", "audience_page_invalid", "audience_request_invalid", "audience_row_contact_invalid",
 		"audience_row_duplicate", "audience_row_not_found", "audience_sample_format_invalid", "audience_selection_required", "audience_source_ambiguous",
 		"audience_source_invalid", "audience_source_unsupported", "audience_template_required", "audience_text_required", "audience_unavailable",
-		"audience_variable_choice_required", "audience_variable_duplicate", "audience_variable_source_required", "audience_variable_unknown",
+		"audience_variable_choice_required", "audience_variable_column_needs_list", "audience_variable_column_with_source", "audience_variable_default_unavailable", "audience_variable_duplicate", "audience_variable_source_required", "audience_variable_unknown",
 		"campaign_agent_not_found", "campaign_automation_unavailable", "campaign_lead_targets_unavailable", "campaign_workflow_forbidden", "campaign_workflow_not_found", "email_design_malformed", "forbidden", "invalid_filter",
 		"selection_ambiguous", "selection_changed", "selection_count_required", "selection_empty", "selection_everyone_unconfirmed",
 		"selection_filter_required", "selection_fingerprint_mismatch", "selection_invalid_count", "selection_invalid_ids", "selection_invalid_page",
@@ -336,6 +336,10 @@ func TestTheAutomationOfTheCountIsRefusedWithItsCampaignCode(t *testing.T) {
 		{err: campaign.ErrAutomationUnavailable, status: http.StatusServiceUnavailable, code: "campaign_automation_unavailable"},
 		{err: campaignaudience.ErrListMetadataMissing, status: http.StatusUnprocessableEntity, code: "audience_list_metadata_missing"},
 		{err: campaignaudience.ErrLeadsMetadataUnavailable, status: http.StatusUnprocessableEntity, code: "audience_leads_metadata_unavailable"},
+		{err: campaignaudience.ErrListColumnUnknown, status: http.StatusUnprocessableEntity, code: "audience_list_column_unknown"},
+		{err: campaignaudience.ErrColumnNeedsList, status: http.StatusBadRequest, code: "audience_variable_column_needs_list"},
+		{err: campaignaudience.ErrColumnWithSource, status: http.StatusBadRequest, code: "audience_variable_column_with_source"},
+		{err: campaignaudience.ErrDefaultUnavailable, status: http.StatusBadRequest, code: "audience_variable_default_unavailable"},
 	}
 	for _, tc := range cases {
 		api.err = tc.err

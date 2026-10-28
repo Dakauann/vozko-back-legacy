@@ -27,4 +27,4 @@ type Nudger interface {
 
 type NameLookup func(ctx context.Context, workspaceID, id string) (string, error)
 
-func headerMarkKey(sheetID string) string { return "gs:hdr:" + sheetID }
+func tabCheckKey(sheetID string) string { return "gs:tab:" + sheetID }

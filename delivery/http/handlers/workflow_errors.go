@@ -91,6 +91,7 @@ var workflowRequestRefusals = []response.Refusal{
 	refusalPinUnavailable,
 	refusalConversationRuns,
 	refusalTriggerInputInvalid,
+	refusalTestValuesUnwired,
 	httpx.RefusalWorkflowUnreadable,
 }
 
@@ -125,6 +126,9 @@ var workflowOwnRefusals = []response.ErrorRefusal{
 	{Err: workflow.ErrTriggerInputUnavailable, Refusal: workflowRefusal(http.StatusServiceUnavailable, workflow_usecase.TriggerInputUnavailableCode, "Não foi possível ler agora o que este gatilho recebe (formulários ou etapas). Tente de novo.")},
 	{Err: workflow.ErrNoRecentTriggerInput, Refusal: workflowRefusal(http.StatusNotFound, workflow_usecase.NoRecentTriggerInputCode, "Nenhuma execução recente deste gatilho que você possa ver guardou os dados de entrada")},
 	{Err: workflow.ErrVariablesUnavailable, Refusal: workflowRefusal(http.StatusServiceUnavailable, "variables_unavailable", "Não foi possível ler agora as variáveis deste nó. Tente de novo.")},
+	{Err: workflow.ErrTestValueNotNeeded, Refusal: workflowRefusal(http.StatusUnprocessableEntity, "test_value_not_needed", "O fluxo não usa essa variável. Recarregue os dados do teste.")},
+	{Err: workflow.ErrTestValueInvalid, Refusal: workflowRefusal(http.StatusBadRequest, "test_value_invalid", "Cada valor do teste tem até 2000 caracteres.")},
+	{Err: workflow.ErrTestValuesUnavailable, Refusal: workflowRefusal(http.StatusServiceUnavailable, workflow_usecase.TestValuesUnavailableCode, "Não foi possível ler ou gravar agora os dados do teste. Tente de novo.")},
 }
 
 var workflowValidationRefusals = []response.ErrorRefusal{

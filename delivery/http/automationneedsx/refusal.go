@@ -73,6 +73,7 @@ var statuses = map[string]int{
 	"automation_variables_missing":    http.StatusConflict,
 	"automation_publish_switches_off": http.StatusConflict,
 	"automation_voice_variables":      http.StatusUnprocessableEntity,
+	"automation_test_values_missing":  http.StatusUnprocessableEntity,
 	"automation_needs_not_found":      http.StatusUnprocessableEntity,
 	"automation_needs_unreadable":     http.StatusServiceUnavailable,
 }
@@ -82,6 +83,7 @@ var messages = map[string]string{
 	"automation_variables_missing":    "Esta conversa não tem valor para variáveis que a automação precisa.",
 	"automation_publish_switches_off": "Publicar desliga a automação em canais receptivos. Confirme para seguir.",
 	"automation_voice_variables":      "Ligações não trazem variáveis, então um fluxo de voz não pode precisar delas.",
+	"automation_test_values_missing":  "Preencha os dados do teste: o fluxo precisa dessas variáveis.",
 	"automation_needs_not_found":      "Um agente ou fluxo usado por esta automação não existe mais neste workspace.",
 	"automation_needs_unreadable":     "Não foi possível conferir as variáveis da automação agora. Tente de novo.",
 }

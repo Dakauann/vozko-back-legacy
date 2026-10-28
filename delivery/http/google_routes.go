@@ -6,6 +6,7 @@ import (
 )
 
 type GoogleRoutes struct {
-	Accounts *googleaccounthttp.Handler
-	Sheets   *googlesheethttp.Handler
+	Accounts      *googleaccounthttp.Handler
+	Sheets        *googlesheethttp.Handler
+	SheetRemovals *googlesheethttp.RowRemovalHandler
 }

@@ -50,6 +50,10 @@ const (
 
 	eraseGoogleSheetRowsSQL = "DELETE FROM google_sheet_rows WHERE workspace_id = ? AND lead_id = ?"
 
+	eraseGoogleSheetUniqueKeysSQL = "DELETE FROM google_sheet_unique_keys WHERE workspace_id = ? AND lead_id = ?"
+
+	eraseGoogleSheetRowRemovalsSQL = "DELETE FROM google_sheet_row_removals WHERE workspace_id = ? AND lead_id = ?"
+
 	eraseCampaignEntriesSQL = "UPDATE whatsapp_campaign_entries SET variables = NULL, metadata = '{}'::jsonb WHERE lead_id = ?"
 
 	anonymizeLeadSQL = "UPDATE leads SET " + recordColumnsSQL + ", whatsapp_consent_record = NULL, relatives_count = 0, referred_count = 0, company_id = NULL, updated_at = ?, deleted_at = ?, version = version + 1" +
@@ -92,6 +96,8 @@ var leadScopedErasures = []erasureStep{
 	{lead.ErasureCallListItems, eraseCallListItemsSQL},
 	{lead.ErasureCustomerPortfolio, eraseCustomerPortfolioSQL},
 	{lead.ErasureGoogleSheetRows, eraseGoogleSheetRowsSQL},
+	{lead.ErasureGoogleSheetUniqueKeys, eraseGoogleSheetUniqueKeysSQL},
+	{lead.ErasureGoogleSheetRowRemovals, eraseGoogleSheetRowRemovalsSQL},
 	{lead.ErasureSentiment, eraseSentimentSQL},
 }
 

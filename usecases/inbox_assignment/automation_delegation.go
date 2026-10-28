@@ -32,14 +32,18 @@ func (d AutomationDirectory) Usable(workspaceID string, a conversation.Automatio
 	switch a.Kind {
 	case conversation.AutomationAgent:
 		found, err := d.Agents.FindByID(a.ID)
-		if err == nil && found != nil && found.WorkspaceID == workspaceID && found.IsActive {
+		if err == nil && found.TakesConversationsIn(workspaceID) {
 			return nil
 		}
 	case conversation.AutomationWorkflow:
 		found, err := d.Workflows.FindByID(a.ID)
-		if err == nil && found.StartsConversationsIn(workspaceID) == nil {
-			return nil
+		if err != nil {
+			return conversation.ErrAutomationUnusable
 		}
+		if cause := found.StartsConversationsIn(workspaceID); cause != nil {
+			return fmt.Errorf("%w: %w", conversation.ErrAutomationUnusable, cause)
+		}
+		return nil
 	}
 	return conversation.ErrAutomationUnusable
 }
@@ -67,6 +71,7 @@ func (in DelegateInput) toggle() OperatorAutomationInput {
 
 type VariablesCheck interface {
 	ConversationMissing(ctx context.Context, workspaceID, entryID string, entryType shared.EntryType, target conversation.Automation) error
+	ConversationMissingWith(ctx context.Context, workspaceID, entryID string, entryType shared.EntryType, target conversation.Automation, pending map[string]string) error
 }
 
 type AutomationDelegation struct {
@@ -91,6 +96,7 @@ type SystemDelegation struct {
 	EntryID     string
 	EntryType   shared.EntryType
 	Automation  conversation.Automation
+	Pending     map[string]string
 }
 
 func (d *AutomationDelegation) Delegate(ctx context.Context, in DelegateInput) (OperatorAutomationResult, error) {
@@ -111,14 +117,21 @@ func (d *AutomationDelegation) DelegateAsSystem(ctx context.Context, in SystemDe
 	return err
 }
 
-func (d *AutomationDelegation) delegate(ctx context.Context, in DelegateInput) (OperatorAutomationResult, error) {
+func (d *AutomationDelegation) CheckDelegation(ctx context.Context, in SystemDelegation) error {
 	if err := d.directory.Usable(in.WorkspaceID, in.Automation); err != nil {
-		return OperatorAutomationResult{}, err
+		return err
 	}
 	if d.variables == nil {
-		return OperatorAutomationResult{}, automationneeds.ErrUnreadable
+		return automationneeds.ErrUnreadable
 	}
-	if err := d.variables.ConversationMissing(ctx, in.WorkspaceID, in.EntryID, in.EntryType, in.Automation); err != nil {
+	if len(in.Pending) > 0 {
+		return d.variables.ConversationMissingWith(ctx, in.WorkspaceID, in.EntryID, in.EntryType, in.Automation, in.Pending)
+	}
+	return d.variables.ConversationMissing(ctx, in.WorkspaceID, in.EntryID, in.EntryType, in.Automation)
+}
+
+func (d *AutomationDelegation) delegate(ctx context.Context, in DelegateInput) (OperatorAutomationResult, error) {
+	if err := d.CheckDelegation(ctx, SystemDelegation{WorkspaceID: in.WorkspaceID, EntryID: in.EntryID, EntryType: in.EntryType, Automation: in.Automation}); err != nil {
 		return OperatorAutomationResult{}, err
 	}
 	previous, err := d.delegations.Find(ctx, in.EntryID, in.EntryType)

@@ -43,8 +43,8 @@ func NewContextValues(d ContextValuesDeps) *ContextValues {
 func (c *ContextValues) Resolve(ctx context.Context, workspaceID string, origin googlesheet.Origin) (googlesheet.SystemValues, error) {
 	values := googlesheet.SystemValues{}
 	entry := shared.EntryRef{EntryID: origin.EntryID, EntryType: shared.EntryType(origin.EntryType)}
-	if entry.EntryID != "" && entry.EntryType != "" {
-		values[googlesheet.SourceConversationLink] = c.frontend + conversation.DashboardLink(entry)
+	if viewable, ok := origin.Conversation(); ok {
+		values[googlesheet.SourceConversationLink] = c.frontend + conversation.DashboardLink(viewable)
 	}
 	leadID := origin.LeadID
 	if leadID == "" && entry.EntryID != "" && entry.EntryType != "" {

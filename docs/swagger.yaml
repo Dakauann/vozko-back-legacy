@@ -5431,6 +5431,9 @@ definitions:
     type: object
   audiencex.VariableRequest:
     properties:
+      column:
+        example: VAR3
+        type: string
       key:
         example: "1"
         type: string
@@ -7920,6 +7923,7 @@ definitions:
     - variable_source_required
     - list_variables_missing
     - list_metadata_missing
+    - list_column_missing
     - leads_metadata_unavailable
     - template_required
     - message_required
@@ -7929,6 +7933,7 @@ definitions:
     - BlockerSourceRequired
     - BlockerListVariablesMissing
     - BlockerListMetadataMissing
+    - BlockerListColumnMissing
     - BlockerLeadsMetadataUnavailable
     - BlockerTemplateRequired
     - BlockerMessageRequired
@@ -8086,6 +8091,14 @@ definitions:
     properties:
       choiceRequired:
         type: boolean
+      column:
+        example: VAR3
+        type: string
+      columnMissing:
+        type: boolean
+      default:
+        example: cordial
+        type: string
       fallback:
         type: string
       header:
@@ -8104,6 +8117,8 @@ definitions:
         type: string
       neededBy:
         type: string
+      optional:
+        type: boolean
       policy:
         $ref: '#/definitions/campaignaudience.MissingPolicy'
       source:
@@ -8152,6 +8167,10 @@ definitions:
     properties:
       contact:
         type: string
+      headers:
+        items:
+          type: string
+        type: array
       metadata:
         items:
           $ref: '#/definitions/campaign.MetadataColumn'
@@ -10313,6 +10332,7 @@ definitions:
     - lead_send_refused
     - agent_reply_withheld
     - email_forward_skipped
+    - automation_transferred
     type: string
     x-enum-varnames:
     - EventAssigned
@@ -10351,6 +10371,7 @@ definitions:
     - EventLeadSendRefused
     - EventAgentReplyWithheld
     - EventEmailForwardSkipped
+    - EventAutomationTransferred
   conversation_usecase.ResponsibleWorkflow:
     properties:
       id:
@@ -10662,32 +10683,6 @@ definitions:
     - Or
   crmfilter.Field:
     enum:
-    - id
-    - phone_any
-    - email
-    - nickname
-    - birthday
-    - birth_date
-    - zip
-    - state
-    - city
-    - district
-    - geo_precision
-    - geo_status
-    - has_address
-    - has_identity
-    - opted_out
-    - whatsapp_opt_in
-    - relation_kind
-    - relatives_count
-    - referred_count
-    - referred_by
-    - geo_placement
-    - opt_out_source
-    - opted_out_at
-    - company
-    - sentiment
-    - area_approximate
     - owner
     - carteira
     - pipeline
@@ -10720,34 +10715,34 @@ definitions:
     - memory_updated_at
     - custom
     - area
+    - id
+    - phone_any
+    - email
+    - nickname
+    - birthday
+    - birth_date
+    - zip
+    - state
+    - city
+    - district
+    - geo_precision
+    - geo_status
+    - has_address
+    - has_identity
+    - opted_out
+    - whatsapp_opt_in
+    - relation_kind
+    - relatives_count
+    - referred_count
+    - referred_by
+    - geo_placement
+    - opt_out_source
+    - opted_out_at
+    - company
+    - sentiment
+    - area_approximate
     type: string
     x-enum-varnames:
-    - FieldID
-    - FieldPhoneAny
-    - FieldEmail
-    - FieldNickname
-    - FieldBirthday
-    - FieldBirthDate
-    - FieldZip
-    - FieldState
-    - FieldCity
-    - FieldDistrict
-    - FieldGeoPrecision
-    - FieldGeoStatus
-    - FieldHasAddress
-    - FieldHasIdentity
-    - FieldOptedOut
-    - FieldWhatsAppOptIn
-    - FieldRelationKind
-    - FieldRelativesCount
-    - FieldReferredCount
-    - FieldReferredBy
-    - FieldGeoPlacement
-    - FieldOptOutSource
-    - FieldOptedOutAt
-    - FieldCompany
-    - FieldSentiment
-    - FieldAreaApproximate
     - FieldOwner
     - FieldCarteira
     - FieldPipeline
@@ -10780,6 +10775,32 @@ definitions:
     - FieldMemoryUpdatedAt
     - FieldCustom
     - FieldArea
+    - FieldID
+    - FieldPhoneAny
+    - FieldEmail
+    - FieldNickname
+    - FieldBirthday
+    - FieldBirthDate
+    - FieldZip
+    - FieldState
+    - FieldCity
+    - FieldDistrict
+    - FieldGeoPrecision
+    - FieldGeoStatus
+    - FieldHasAddress
+    - FieldHasIdentity
+    - FieldOptedOut
+    - FieldWhatsAppOptIn
+    - FieldRelationKind
+    - FieldRelativesCount
+    - FieldReferredCount
+    - FieldReferredBy
+    - FieldGeoPlacement
+    - FieldOptOutSource
+    - FieldOptedOutAt
+    - FieldCompany
+    - FieldSentiment
+    - FieldAreaApproximate
   crmfilter.Filter:
     properties:
       groups:
@@ -11601,22 +11622,22 @@ definitions:
     type: object
   emailcampaign.HoldReason:
     enum:
+    - test_batch_bounces
+    - test_batch_complaints
     - ""
     - daily_cap
     - account_paused
     - sender_unavailable
     - balance_insufficient
-    - test_batch_bounces
-    - test_batch_complaints
     type: string
     x-enum-varnames:
+    - HoldTestBatchBounces
+    - HoldTestBatchComplaints
     - HoldNone
     - HoldDailyCap
     - HoldAccountPaused
     - HoldSenderUnavailable
     - HoldBalanceShort
-    - HoldTestBatchBounces
-    - HoldTestBatchComplaints
   emailcampaign.Issue:
     properties:
       addresses:
@@ -13509,6 +13530,8 @@ definitions:
         type: integer
       maxOption:
         type: integer
+      maxRemovalReason:
+        type: integer
       maxTabName:
         type: integer
       maxTitle:
@@ -13516,6 +13539,10 @@ definitions:
       optionColors:
         items:
           $ref: '#/definitions/googlesheet.OptionColorResponse'
+        type: array
+      repeatActions:
+        items:
+          type: string
         type: array
       rowErrorCodes:
         items:
@@ -13538,6 +13565,14 @@ definitions:
           type: string
         type: array
       types:
+        items:
+          type: string
+        type: array
+      uniqueModes:
+        items:
+          type: string
+        type: array
+      uniqueSources:
         items:
           type: string
         type: array
@@ -13671,6 +13706,9 @@ definitions:
       description:
         example: Pedidos registrados pelo agente de vendas
         type: string
+      fileTitle:
+        example: CDT Jabaquara
+        type: string
       spreadsheetId:
         example: 1AbC
         type: string
@@ -13701,6 +13739,8 @@ definitions:
       title:
         example: Pedidos do site
         type: string
+      unique:
+        $ref: '#/definitions/googlesheet.UniqueCreateRequest'
     type: object
   googlesheet.DeletedResponse:
     properties:
@@ -13775,6 +13815,24 @@ definitions:
         example: '#FFFFFF'
         type: string
     type: object
+  googlesheet.OriginConversationResponse:
+    properties:
+      entryId:
+        example: c7f1e2a0-9b3d-4a1e-8f2c-1d2e3f4a5b6c
+        type: string
+      entryType:
+        example: whatsapp
+        type: string
+    type: object
+  googlesheet.OriginNameResponse:
+    properties:
+      id:
+        example: 8f8e5f7a-3c1d-4a77-9a55-0d6f0f3b2a11
+        type: string
+      name:
+        example: Cobrança
+        type: string
+    type: object
   googlesheet.PresetColumnResponse:
     properties:
       colors:
@@ -13844,6 +13902,22 @@ definitions:
         - none
         - month
         type: string
+      unique:
+        $ref: '#/definitions/googlesheet.PresetUniqueResponse'
+    type: object
+  googlesheet.PresetUniqueResponse:
+    properties:
+      columns:
+        items:
+          type: string
+        type: array
+      mode:
+        enum:
+        - none
+        - conversation
+        - columns
+        example: conversation
+        type: string
     type: object
   googlesheet.ProblemRowResponse:
     properties:
@@ -13877,15 +13951,160 @@ definitions:
         example: true
         type: boolean
     type: object
+  googlesheet.RemoveRowRequest:
+    properties:
+      reason:
+        example: Registro duplicado pelo fluxo de cobrança
+        type: string
+    type: object
+  googlesheet.RenameFileRequest:
+    properties:
+      title:
+        example: CDT Jabaquara
+        type: string
+    type: object
   googlesheet.RetryResponse:
     properties:
       requeued:
         type: integer
     type: object
+  googlesheet.RowListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/googlesheet.RowResponse'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total_items:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  googlesheet.RowOriginResponse:
+    properties:
+      agent:
+        $ref: '#/definitions/googlesheet.OriginNameResponse'
+      conversation:
+        $ref: '#/definitions/googlesheet.OriginConversationResponse'
+      kind:
+        enum:
+        - agent
+        - workflow
+        - copilot
+        - manual
+        type: string
+      person:
+        $ref: '#/definitions/googlesheet.OriginNameResponse'
+      runId:
+        example: 5b1d7c9e-2f4a-4e8b-9c3d-7a6e5f4d3c2b
+        type: string
+      workflow:
+        $ref: '#/definitions/googlesheet.OriginNameResponse'
+    type: object
+  googlesheet.RowRemovalEnvelope:
+    properties:
+      removal:
+        $ref: '#/definitions/googlesheet.RowRemovalResponse'
+    type: object
+  googlesheet.RowRemovalListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/googlesheet.RowRemovalResponse'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total_items:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  googlesheet.RowRemovalResponse:
+    properties:
+      id:
+        example: 3b9f4c2e-1d7a-4e5b-9c8d-2a1f0e3d4c5b
+        type: string
+      kind:
+        enum:
+        - cancel
+        - remove
+        type: string
+      origin:
+        enum:
+        - agent
+        - workflow
+        - copilot
+        - manual
+        type: string
+      originDetail:
+        $ref: '#/definitions/googlesheet.RowOriginResponse'
+      reason:
+        example: Registro duplicado pelo fluxo de cobrança
+        type: string
+      removedAt:
+        type: string
+      removedBy:
+        $ref: '#/definitions/googlesheet.OriginNameResponse'
+      rowId:
+        example: 6f1c2d3e-4a5b-4c6d-8e7f-90a1b2c3d4e5
+        type: string
+      rowNumber:
+        example: 14
+        type: integer
+      values:
+        type: object
+    type: object
+  googlesheet.RowResponse:
+    properties:
+      createdAt:
+        type: string
+      errorCode:
+        type: string
+      id:
+        type: string
+      origin:
+        enum:
+        - agent
+        - workflow
+        - copilot
+        - manual
+        type: string
+      originDetail:
+        $ref: '#/definitions/googlesheet.RowOriginResponse'
+      removal:
+        enum:
+        - cancel
+        - remove
+        type: string
+      rowNumber:
+        type: integer
+      status:
+        enum:
+        - pending
+        - in_flight
+        - held
+        - failed
+        - written
+        type: string
+      values:
+        type: object
+      writtenAt:
+        type: string
+    type: object
   googlesheet.SheetEnvelope:
     properties:
       sheet:
         $ref: '#/definitions/googlesheet.SheetResponse'
+    type: object
+  googlesheet.SheetFileEnvelope:
+    properties:
+      file:
+        $ref: '#/definitions/googlesheet.SheetFileResponse'
     type: object
   googlesheet.SheetFileListResponse:
     properties:
@@ -13960,6 +14179,8 @@ definitions:
         type: string
       reasonDetail:
         type: string
+      repairable:
+        type: boolean
       spreadsheetId:
         type: string
       status:
@@ -13999,6 +14220,8 @@ definitions:
         type: string
       title:
         type: string
+      unique:
+        $ref: '#/definitions/googlesheet.UniqueRuleResponse'
       updatedAt:
         type: string
       url:
@@ -14105,18 +14328,84 @@ definitions:
         example: Pagamentos · novembro 2026
         type: string
     type: object
+  googlesheet.UniqueCreateRequest:
+    properties:
+      columnIndexes:
+        example:
+        - 2
+        items:
+          type: integer
+        type: array
+      mode:
+        enum:
+        - none
+        - conversation
+        - columns
+        example: columns
+        type: string
+      onRepeat:
+        enum:
+        - skip
+        example: skip
+        type: string
+    type: object
+  googlesheet.UniqueRuleRequest:
+    properties:
+      columns:
+        example:
+        - matricula
+        items:
+          type: string
+        type: array
+      mode:
+        enum:
+        - none
+        - conversation
+        - columns
+        example: columns
+        type: string
+      onRepeat:
+        enum:
+        - skip
+        example: skip
+        type: string
+    type: object
+  googlesheet.UniqueRuleResponse:
+    properties:
+      columns:
+        items:
+          type: string
+        type: array
+      mode:
+        enum:
+        - none
+        - conversation
+        - columns
+        example: conversation
+        type: string
+      onRepeat:
+        enum:
+        - skip
+        example: skip
+        type: string
+    type: object
   googlesheet.UpdateDetailsRequest:
     properties:
       description:
         type: string
       title:
         type: string
+      unique:
+        $ref: '#/definitions/googlesheet.UniqueRuleRequest'
       version:
         example: 3
         type: integer
     type: object
   googlesheet.WorkbookRequest:
     properties:
+      fileTitle:
+        example: Altiva
+        type: string
       sheets:
         items:
           $ref: '#/definitions/googlesheet.WorkbookSheetRequest'
@@ -14140,6 +14429,9 @@ definitions:
         type: array
       description:
         example: Pedidos registrados pelo agente de vendas
+        type: string
+      fileTitle:
+        example: CDT Jabaquara
         type: string
       ref:
         example: pagamentos
@@ -14174,6 +14466,8 @@ definitions:
       title:
         example: Pedidos do site
         type: string
+      unique:
+        $ref: '#/definitions/googlesheet.UniqueCreateRequest'
     type: object
   handlers.SimulateAgentHistoryMessage:
     properties:
@@ -14422,6 +14716,13 @@ definitions:
           type: array
         type: object
     type: object
+  handlers.saveTestValuesRequest:
+    properties:
+      values:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
   handlers.screenClaimRequest:
     properties:
       claimant:
@@ -14443,6 +14744,8 @@ definitions:
         type: boolean
       continueWaits:
         type: boolean
+      fromRun:
+        $ref: '#/definitions/workflow_usecase.TestFromRun'
       mockedState:
         additionalProperties: true
         type: object
@@ -14457,6 +14760,17 @@ definitions:
         additionalProperties:
           $ref: '#/definitions/workflow_usecase.TestWaitAnswer'
         type: object
+    type: object
+  handlers.testValuesResponse:
+    properties:
+      values:
+        additionalProperties:
+          type: string
+        type: object
+      variables:
+        items:
+          $ref: '#/definitions/automationneedsx.NeedResponse'
+        type: array
     type: object
   handlers.triggerInputIssuesDetails:
     properties:
@@ -19148,7 +19462,6 @@ definitions:
     type: object
   report.FailureCode:
     enum:
-    - forbidden
     - unknown_kind
     - unsupported_format
     - too_many_rows
@@ -19159,9 +19472,9 @@ definitions:
     - cancelled
     - workspace_required
     - empty_result
+    - forbidden
     type: string
     x-enum-varnames:
-    - FailureForbidden
     - FailureUnknownKind
     - FailureUnsupported
     - FailureTooManyRows
@@ -19172,6 +19485,7 @@ definitions:
     - FailureCancelled
     - FailureWorkspaceEmpty
     - FailureEmptyResult
+    - FailureForbidden
   report.Format:
     enum:
     - csv
@@ -19223,22 +19537,22 @@ definitions:
     type: object
   report.Kind:
     enum:
-    - leads
-    - whatsapp_dispatch
-    - whatsapp_form_responses
     - attendance_overview
     - conversation_entries
     - balance_transactions
     - opportunities
+    - leads
+    - whatsapp_dispatch
+    - whatsapp_form_responses
     type: string
     x-enum-varnames:
-    - KindLeads
-    - KindWhatsAppDispatch
-    - KindWhatsAppFormResponses
     - KindAttendanceOverview
     - KindConversationEntries
     - KindBalanceTransactions
     - KindOpportunities
+    - KindLeads
+    - KindWhatsAppDispatch
+    - KindWhatsAppFormResponses
   report.KindDescriptor:
     properties:
       formats:
@@ -25532,10 +25846,14 @@ definitions:
     type: object
   workflow.LintIssueCode:
     enum:
+    - NODE_HTTP_URL_NOT_HTTPS
+    - SEND_OUTSIDE_WINDOW_RISK
+    - NODE_STAGE_DESTINATION
     - NODE_CONSENT_GRANT_NEEDS_REPLY
+    - SHEET_LINK_EXPORT_MISSING
+    - SHEET_LINK_EXPORT_SOME_PATHS
     - DATA_REF_NEVER_SET
     - DATA_REF_SOME_PATHS
-    - SEND_OUTSIDE_WINDOW_RISK
     - GRAPH_EMPTY
     - GRAPH_TOO_MANY_NODES
     - GRAPH_TOO_MANY_EDGES
@@ -25586,15 +25904,17 @@ definitions:
     - NODE_PINNED_OUTPUT
     - NODE_AGENT_CALL_INPUTS_INVALID
     - NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER
-    - NODE_HTTP_URL_NOT_HTTPS
-    - NODE_STAGE_DESTINATION
     - NODE_INVALID_PLATFORM_EMAIL
     type: string
     x-enum-varnames:
+    - LintHTTPURLNotHTTPS
+    - LintSendOutsideWindowRisk
+    - LintStageDestination
     - LintConsentGrantNeedsReply
+    - LintSheetLinkExportMissing
+    - LintSheetLinkExportSomePaths
     - LintDataRefNeverSet
     - LintDataRefSomePaths
-    - LintSendOutsideWindowRisk
     - LintGraphEmpty
     - LintGraphTooManyNodes
     - LintGraphTooManyEdges
@@ -25645,8 +25965,6 @@ definitions:
     - LintPinnedOutput
     - LintAgentCallInputsInvalid
     - LintReplyToAgentWithoutTrigger
-    - LintHTTPURLNotHTTPS
-    - LintStageDestination
     - LintInvalidPlatformEmail
   workflow.LintSeverity:
     enum:
@@ -26604,12 +26922,15 @@ definitions:
         type: string
       key:
         type: string
+      needed_by:
+        type: string
       optional:
         type: boolean
       source:
         type: string
       source_node:
         type: string
+      value: {}
     type: object
   workflow_usecase.NodeTestFix:
     properties:
@@ -26654,6 +26975,13 @@ definitions:
         type: string
       wait:
         $ref: '#/definitions/workflow.WaitPreview'
+    type: object
+  workflow_usecase.TestFromRun:
+    properties:
+      runId:
+        type: string
+      stepId:
+        type: string
     type: object
   workflow_usecase.TestMode:
     enum:
@@ -32961,7 +33289,7 @@ paths:
       consumes:
       - application/json
       description: |-
-        Conclui a redefinição de senha usando o código enviado por email. A nova senha segue as regras de `GET /auth/password-policy` e é usada exatamente como digitada.
+        Conclui a redefinição de senha usando o código enviado por email. A nova senha segue as regras de `GET /auth/password-policy` e é usada exatamente como digitada. Recusas por campo ausente ou por regra de senha não contam no limite de tentativas; o limite (429) vale para as tentativas que chegam à conferência do código.
 
         Toda recusa traz um `code` estável e, em `details`, o campo envolvido (`field`) e, quando a senha é fraca, todas as regras não atendidas (`unmetRules`).
 
@@ -34515,12 +34843,24 @@ paths:
         traz uma variável por parâmetro na ordem do envio: a do texto do cabeçalho
         primeiro (`header: true`), depois as do corpo; `name` é o nome da variável
         (`nome` nas nomeadas, `1`, `2` nas numeradas) e `key` é a posição. No WhatsApp,
-        `workflowId` e `agentId` são o fluxo e o agente da campanha: cada destinatário
-        precisa ter, nos metadados, as chaves que eles pedem (a mesma regra da criação).
-        `metadataMissing` lista cada chave faltando com quantos destinatários não
-        a têm e, numa lista, as linhas (até 50 por chave); numa lista o bloqueio é
-        `list_metadata_missing`, e com leads, que não têm metadados, é `leads_metadata_unavailable`.
-        Exige a ação `create` do recurso do canal e, para leads, `leads:read`.'
+        `workflowId` e `agentId` são o fluxo e o agente da campanha: cada variável
+        que eles pedem (a regra da criação, que segue agentes de nós de IA, subfluxos
+        e ferramentas) vem em `variables` com `kind: automation` e `neededBy`; a variável
+        de agente com valor padrão vem com `optional: true` e `default` e nunca bloqueia.
+        Cada uma tem a escolha de origem das variáveis do modelo: um campo do lead
+        em `source`, um texto fixo (`source: literal` com `value`) ou, numa lista,
+        a coluna pelo nome do cabeçalho em `column` (nunca pela posição; a mesma coluna
+        pode alimentar uma posição do modelo e uma variável); `source: default` mantém
+        o padrão do agente. Numa lista, a coluna com o nome da variável vem sugerida
+        (`suggested: true`). A linha sem valor segue `missing` (`text` ou `exclude`)
+        e, sem a escolha, o bloqueio é `variable_choice_required`. Uma coluna que
+        a lista não tem marca `columnMissing` e bloqueia com `list_column_missing`
+        (422 `audience_list_column_unknown` na criação); `column` numa seleção de
+        leads é 400 `audience_variable_column_needs_list`, `column` junto de `source`
+        é 400 `audience_variable_column_with_source` e `default` numa variável sem
+        padrão é 400 `audience_variable_default_unavailable`. Os valores resolvidos
+        vão para os metadados de cada entrada, onde o fluxo (`campvars`) e o agente
+        os leem. Exige a ação `create` do recurso do canal e, para leads, `leads:read`.'
       parameters:
       - description: Canal
         enum:
@@ -34761,10 +35101,11 @@ paths:
       - application/json
       description: 'Refaz a prévia de uma lista do próprio membro: linhas, já leads
         e leads novos, linhas puladas com o motivo e qual coluna preenche cada variável
-        do modelo ou da mensagem do `context`. Com `workflowId` ou `agentId` no `context`,
-        `metadataMissing` lista cada chave de metadados que o fluxo ou o agente pede
-        e que falta, com quantas linhas e quais (até 50 por chave), pela mesma regra
-        da criação. Exige a ação `create` do recurso do canal.'
+        do modelo ou da mensagem do `context`. `columns.headers` lista cada cabeçalho
+        uma vez, para escolher a coluna de uma variável do fluxo ou do agente. Com
+        `workflowId` ou `agentId` e as `variables` no `context`, `columns.metadata`
+        traz também cada variável do fluxo ou do agente (a chave que a linha leva
+        nos metadados). Exige a ação `create` do recurso do canal.'
       parameters:
       - description: Canal
         enum:
@@ -34978,10 +35319,11 @@ paths:
       description: Página das linhas, na ordem da planilha (as incluídas à mão vêm
         antes), com as variáveis já preenchidas pelo servidor (coluna, nome da linha
         ou campo do lead) e, em `missing`, os números das variáveis que ainda faltam;
-        com `workflowId` ou `agentId`, `metadataMissing` traz as chaves de metadados
-        que o fluxo ou o agente pede e a linha não tem. `missingOnly` mantém só as
-        linhas com variável ou chave faltando. `limit` vai de 1 a 200. Exige a ação
-        `create` do recurso do canal.
+        com `workflowId` ou `agentId`, `metadata` traz o valor de cada variável do
+        fluxo ou do agente, lido pela coluna escolhida em `variables` do `context`
+        (ou pela chave digitada na linha), e `metadataMissing` as variáveis obrigatórias
+        que a linha não tem. `missingOnly` mantém só as linhas com variável ou chave
+        faltando. `limit` vai de 1 a 200. Exige a ação `create` do recurso do canal.
       parameters:
       - description: Canal
         enum:
@@ -41926,12 +42268,17 @@ paths:
     post:
       consumes:
       - application/json
-      description: Cria a planilha no Google Drive da conta conectada ao Google Planilhas,
+      description: 'Cria a planilha no Google Drive da conta conectada ao Google Planilhas,
         com o cabeçalho, os formatos, as validações, o estilo e as cores das opções,
         e a registra no workspace. Com spreadsheetId, cria uma aba nova num arquivo
         que já tem planilhas deste workspace. Com tabPeriod=month, cada mês ganha
-        a sua aba, nomeada pelo tabPattern. Definições recusadas devolvem um código
-        próprio com field, column, header, option e limit em details.
+        a sua aba, nomeada pelo tabPattern. unique escolhe a linha única: none (padrão,
+        cada registro vira uma linha), conversation (uma linha por conversa, dentro
+        da aba do mês quando a aba é mensal) ou columns (columnIndexes são as posições,
+        neste pedido, das colunas cujos valores não podem se repetir; colunas de link,
+        de data de gravação e por mensagem não valem). Se repetir, onRepeat=skip não
+        grava de novo. Definições recusadas devolvem um código próprio com field,
+        column, header, option e limit em details.'
       parameters:
       - description: Planilha
         in: body
@@ -42019,8 +42366,12 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Muda o nome e a descrição da planilha no painel. O arquivo no Google
-        Drive mantém o nome que tem lá.
+      description: 'Muda o nome e a descrição da planilha no painel. O arquivo no
+        Google Drive mantém o nome que tem lá. Com unique, troca a linha única da
+        aba (mode none, conversation ou columns, com columns pelas chaves das colunas):
+        vale para as próximas gravações, e as linhas que o painel ainda guarda (gravadas
+        nos últimos 30 dias ou ainda na fila) passam a contar; linhas mais antigas
+        não. Recusas da regra trazem details.field=unique.'
       parameters:
       - description: Planilha
         in: path
@@ -42040,13 +42391,17 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/googlesheet.SheetEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
         "409":
           description: Conflict
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Editar título e descrição
+      summary: Editar título, descrição e linha única
       tags:
       - Google Planilhas
   /google-sheets/{id}/columns:
@@ -42165,8 +42520,15 @@ paths:
     post:
       consumes:
       - application/json
-      description: Confere o acesso, a aba e o cabeçalho no Google e volta a gravar.
-        Com repairHeader=true reescreve o cabeçalho a partir das colunas do painel.
+      description: 'Confere o acesso, as abas e o cabeçalho no Google e volta a gravar.
+        Sem repairHeader, um cabeçalho fora do lugar deixa a planilha pausada com
+        o motivo (header_mismatch ou header_not_first_row) e responde 409. Com repairHeader=true
+        repara a aba sem apagar linhas: se o cabeçalho desceu, ele volta para a linha
+        1 e as linhas que estavam acima ficam logo abaixo, na mesma ordem; se a linha
+        1 tem dados, um cabeçalho novo entra acima dela; se só os nomes mudaram, o
+        cabeçalho é reescrito. Depois reaplica o formato e confere de novo. Quando
+        a planilha está pausada por um motivo que o reparo resolve, repairable vem
+        true.'
       parameters:
       - description: Planilha
         in: path
@@ -42199,6 +42561,43 @@ paths:
       summary: Reativar planilha
       tags:
       - Google Planilhas
+  /google-sheets/{id}/removals:
+    get:
+      description: 'Registro das gravações canceladas e das linhas removidas da planilha,
+        da mais recente para a mais antiga: quem removeu, quando, o motivo, os valores
+        que a linha tinha e de onde ela veio (originDetail, como na lista de linhas).
+        kind é cancel para uma gravação cancelada antes de chegar ao Google e remove
+        para uma linha apagada da planilha, com rowNumber, a linha em que estava.'
+      parameters:
+      - description: Planilha
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Página
+        in: query
+        name: page
+        type: integer
+      - description: Tamanho da página
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.RowRemovalListResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Linhas removidas da planilha
+      tags:
+      - Google Planilhas
   /google-sheets/{id}/retry:
     post:
       description: Devolve à fila as linhas retidas e recusadas da planilha. A planilha
@@ -42226,12 +42625,55 @@ paths:
       tags:
       - Google Planilhas
   /google-sheets/{id}/rows:
+    get:
+      description: |-
+        Linhas da mais recente para a mais antiga, com a situação de gravação e os valores como aparecem na tela (colunas de link trazem o rótulo). origin é o tipo de quem gravou, e originDetail diz de onde a linha veio:
+
+        | Campo | Quando vem |
+        | --- | --- |
+        | conversation | A linha nasceu numa conversa (agente ou fluxo numa conversa). Abrir a conversa passa pela verificação de acesso normal, inclusive departamentos. |
+        | agent | Agente que gravou, com o nome. |
+        | workflow e runId | Fluxo e execução que gravaram, com o nome do fluxo. |
+        | person | Pessoa que adicionou à mão ou pediu à IA. |
+
+        Só vêm nomes de agentes, fluxos e membros deste workspace; quando o nome não pode ser mostrado, o campo não vem.
+      parameters:
+      - description: Planilha
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Página
+        in: query
+        name: page
+        type: integer
+      - description: Tamanho da página
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.RowListResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar as linhas registradas de uma planilha
+      tags:
+      - Google Planilhas
     post:
       consumes:
       - application/json
       description: Valida os valores com as mesmas regras de agentes e fluxos e põe
         a linha na fila de gravação. O cabeçalho Idempotency-Key é obrigatório; repetir
-        a chave devolve a mesma linha.
+        a chave devolve a mesma linha. Numa aba com linha única, um registro que já
+        existe é recusado com 409 e um dos códigos google_sheet_already_recorded_conversation,
+        google_sheet_already_recorded_conversation_month, google_sheet_already_recorded_columns
+        ou google_sheet_already_recorded_columns_month, com details.rowId da linha
+        existente e details.header das colunas comparadas; nada é gravado. Numa aba
+        com linha única por conversa, a adição manual é recusada com google_sheet_unique_needs_conversation.
       parameters:
       - description: Planilha
         in: path
@@ -42260,6 +42702,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
         "422":
           description: Unprocessable Entity
           schema:
@@ -42267,6 +42713,124 @@ paths:
       security:
       - BearerAuth: []
       summary: Adicionar linha
+      tags:
+      - Google Planilhas
+  /google-sheets/{id}/rows/{rowId}/cancel:
+    post:
+      consumes:
+      - application/json
+      description: Tira da fila uma linha que ainda não chegou ao Google (aguardando,
+        retida ou recusada), com o motivo obrigatório (até 500 caracteres). O Google
+        não é chamado. Uma linha que já está sendo gravada responde google_sheet_row_being_written,
+        e uma que já foi gravada responde google_sheet_row_status_changed; nesse caso
+        use remover da planilha. A remoção fica registrada com quem, quando, o motivo
+        e os valores da linha, e libera a chave de linha única para o registro poder
+        ser gravado de novo.
+      parameters:
+      - description: Planilha
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Linha
+        in: path
+        name: rowId
+        required: true
+        type: string
+      - description: Motivo
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/googlesheet.RemoveRowRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.RowRemovalEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cancelar a gravação de uma linha na fila
+      tags:
+      - Google Planilhas
+  /google-sheets/{id}/rows/{rowId}/remove:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Apaga no Google exatamente a linha gravada, achada pela referência na coluna A oculta, onde quer que ela esteja depois de ordenações ou movimentos. O motivo é obrigatório (até 500 caracteres). Nada é apagado e a resposta traz o código quando:
+
+        | Código | Quando |
+        | --- | --- |
+        | google_sheet_not_active | A planilha está pausada ou precisa de atenção, ou a linha 1 não é o cabeçalho esperado (a planilha fica pausada com o motivo). |
+        | google_sheet_row_not_in_sheet | A referência não está mais na coluna A da aba. |
+        | google_sheet_row_ref_repeated | A referência aparece mais de uma vez na coluna A. |
+        | google_sheet_busy | Uma gravação está em andamento na planilha; tente de novo em instantes. |
+        | google_sheet_google_busy | A cota do Google deste minuto acabou. |
+        | google_sheet_row_status_changed | A linha ainda não foi gravada; use cancelar a gravação. |
+
+        A remoção fica registrada com quem, quando, o motivo e os valores da linha, e libera a chave de linha única para o registro poder ser gravado de novo.
+      parameters:
+      - description: Planilha
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Linha
+        in: path
+        name: rowId
+        required: true
+        type: string
+      - description: Motivo
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/googlesheet.RemoveRowRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.RowRemovalEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Remover uma linha gravada da planilha
       tags:
       - Google Planilhas
   /google-sheets/catalog:
@@ -42330,6 +42894,58 @@ paths:
       security:
       - BearerAuth: []
       summary: Listar arquivos com as suas abas
+      tags:
+      - Google Planilhas
+  /google-sheets/files/{spreadsheetId}:
+    patch:
+      consumes:
+      - application/json
+      description: Troca o nome do arquivo no Google e no painel. O nome é aparado
+        e não pode ficar vazio, passar de 200 caracteres nem ter quebras de linha;
+        recusas trazem details.field=fileTitle. A conta conectada precisa ser a que
+        criou o arquivo.
+      parameters:
+      - description: Arquivo do Google
+        in: path
+        name: spreadsheetId
+        required: true
+        type: string
+      - description: Novo nome
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/googlesheet.RenameFileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/googlesheet.SheetFileEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Renomear o arquivo
       tags:
       - Google Planilhas
   /google-sheets/presets:
@@ -54414,16 +55030,19 @@ paths:
         ou `source: leads` com a seleção (com `expectedCount` e `fingerprint` da contagem)
         e cada variável ligada a um campo do lead; o lead sem o valor precisa de `missing:
         text` ou `missing: exclude` (entra pulado com `missing_variable`), senão 422
-        `audience_variable_choice_required`. Com `workflowId` ou `agentId`, cada linha
-        da lista precisa ter nos metadados as chaves que o fluxo ou o agente pede
-        (422 `audience_list_metadata_missing`), e a seleção de leads, que não têm
-        metadados, é recusada com 422 `audience_leads_metadata_unavailable`. `recipients`
-        com `targets` responde 400 `audience_source_ambiguous` e, numa campanha para
-        grupos, 422 `audience_source_unsupported`. Com `scheduledStart`, a criação
-        passa antes pela mesma verificação do Iniciar: um bloqueio responde 409 `campaign_launch_blocked`
-        com os motivos e nada é criado; Se no horário o início falhar, a campanha
-        fica parada com `scheduleFailure` e quem a criou recebe uma notificação. Agendar
-        exige a permissão de iniciar campanhas (403 `start_permission_required`).'
+        `audience_variable_choice_required`. Com `workflowId` ou `agentId`, cada variável
+        que o fluxo ou o agente pede vem do público como as da mensagem (`variables[]`
+        com `key` igual ao nome: um campo do lead, um texto fixo ou, numa lista, a
+        coluna pelo cabeçalho em `column`), com a mesma escolha de `missing`; sem
+        valor e sem escolha, 422 `audience_variable_choice_required`, e uma coluna
+        que a lista não tem, 422 `audience_list_column_unknown`. A variável de agente
+        com padrão é opcional. `recipients` com `targets` responde 400 `audience_source_ambiguous`
+        e, numa campanha para grupos, 422 `audience_source_unsupported`. Com `scheduledStart`,
+        a criação passa antes pela mesma verificação do Iniciar: um bloqueio responde
+        409 `campaign_launch_blocked` com os motivos e nada é criado; Se no horário
+        o início falhar, a campanha fica parada com `scheduleFailure` e quem a criou
+        recebe uma notificação. Agendar exige a permissão de iniciar campanhas (403
+        `start_permission_required`).'
       parameters:
       - description: Campos da campanha e números
         in: body
@@ -58242,15 +58861,18 @@ paths:
         ligadas a campos do lead, em que cada lead sem o valor precisa de `missing:
         text` (texto padrão) ou `missing: exclude` (entra como pulado com `missing_variable`),
         senão 422 `audience_variable_choice_required`. Com `workflowId` ou `agentId`,
-        cada linha precisa ter nos metadados as chaves que o fluxo ou o agente pede,
-        senão 422 `audience_list_metadata_missing`; leads não têm metadados, então
-        a seleção de leads com essas chaves é recusada com 422 `audience_leads_metadata_unavailable`.
-        Leads bloqueados, sem número, com opt-out, no intervalo entre disparos ou
-        em outra campanha em andamento entram pulados com o motivo. As variáveis seguem
-        a ordem do envio, nas duas formas: a variável do texto do cabeçalho primeiro,
-        depois as do corpo (nomeadas ou numeradas); no envio a do cabeçalho vai no
-        cabeçalho e as do corpo no corpo, com o nome quando o modelo usa variáveis
-        nomeadas. As ondas de `smartPolicy` valem para as duas formas. Com `scheduledStart`,
+        cada variável que o fluxo ou o agente pede vem do público como as do modelo
+        (`variables[]` com `key` igual ao nome: um campo do lead, um texto fixo ou,
+        numa lista, a coluna pelo cabeçalho em `column`), com a mesma escolha de `missing`;
+        sem valor e sem escolha, 422 `audience_variable_choice_required`, e uma coluna
+        que a lista não tem, 422 `audience_list_column_unknown`. A variável de agente
+        com padrão é opcional. Os valores vão para os metadados da entrada. Leads
+        bloqueados, sem número, com opt-out, no intervalo entre disparos ou em outra
+        campanha em andamento entram pulados com o motivo. As variáveis seguem a ordem
+        do envio, nas duas formas: a variável do texto do cabeçalho primeiro, depois
+        as do corpo (nomeadas ou numeradas); no envio a do cabeçalho vai no cabeçalho
+        e as do corpo no corpo, com o nome quando o modelo usa variáveis nomeadas.
+        As ondas de `smartPolicy` valem para as duas formas. Com `scheduledStart`,
         a criação passa antes pela mesma verificação do Iniciar: um bloqueio responde
         409 `campaign_launch_blocked` e riscos pedem confirmação com 409 `campaign_launch_unconfirmed`
         (reenvie com o `confirmedFingerprint` dos detalhes); em ambos nada é criado.
@@ -58296,7 +58918,7 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
         "422":
           description: audience_variable_choice_required, audience_list_variables_missing,
-            audience_list_metadata_missing, audience_leads_metadata_unavailable, audience_list_channel_mismatch
+            audience_list_column_unknown, audience_list_channel_mismatch
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "503":
@@ -61517,7 +62139,13 @@ paths:
         ele leva até o nó, senão no primeiro gatilho do rascunho que leva. trigger
         é omitido quando o caminho não começa num gatilho com entrada (gatilhos de
         mensagem, ligação recebida ou nenhum gatilho no caminho). Envie a entrada
-        em POST /workflows/{id}/nodes/{nodeId}/test no campo trigger.'
+        em POST /workflows/{id}/nodes/{nodeId}/test no campo trigger. mock_fields
+        também lista cada campvars que o nó lê e as variáveis do agente ou do subfluxo
+        que ele chama (source automation_variable, com hint e needed_by, pela mesma
+        regra de GET /workflows/{id}/test-values), sempre obrigatórias. value traz
+        o valor de partida de cada campo: com runId e stepId, o que a execução registrou
+        antes dessa etapa (o estado da execução e as saídas das etapas anteriores,
+        já mascarados); sem eles, os dados do teste salvos por quem pede para as automation_variable.'
       parameters:
       - description: ID do workflow
         in: path
@@ -61529,6 +62157,14 @@ paths:
         name: nodeId
         required: true
         type: string
+      - description: Execução de onde vêm os valores de partida
+        in: query
+        name: runId
+        type: string
+      - description: Etapa deste nó na execução (obrigatória com runId)
+        in: query
+        name: stepId
+        type: string
       produces:
       - application/json
       responses:
@@ -61537,11 +62173,18 @@ paths:
           schema:
             $ref: '#/definitions/workflow_usecase.UIAnalysis'
         "404":
-          description: Workflow ou nó não encontrado
+          description: Workflow ou nó não encontrado; run_not_found quando a execução
+            não é deste fluxo, não está visível para quem pede ou não tem essa etapa
+            deste nó
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "501":
           description: Teste de nó não configurado
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: 'test_values_unavailable: não foi possível ler os dados do
+            teste'
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       summary: Analisar um nó antes do teste
@@ -61634,7 +62277,14 @@ paths:
         de mensagem ou sem entrada) e é validado como em produção; dados inválidos
         respondem 422 trigger_input_invalid com details.issues ({code, key}). O caminho
         do execute_until começa nesse gatilho; se ele não leva até o nó, path_stop
-        vem com reason no_path.'
+        vem com reason no_path. Com fromRun {runId, stepId} o teste parte do que a
+        execução registrou antes dessa etapa do nó: o estado dela (campvars, dados
+        do gatilho, variáveis) e as saídas das etapas anteriores, já mascarados, sem
+        rodar os nós anteriores; mockedState substitui valores, e um valor que a execução
+        não tinha continua faltando (error_kind missing_mocks), nunca vai em branco.
+        A conversa e o lead continuam os do teste, então nada é lido nem gravado na
+        conversa real. Uma execução de outro fluxo, invisível para quem pede ou sem
+        essa etapa responde 404 run_not_found.'
       parameters:
       - description: ID do workflow
         in: path
@@ -61669,7 +62319,8 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Workflow ou nó não encontrado; trigger_not_found quando trigger.nodeId
-            não é um gatilho do rascunho
+            não é um gatilho do rascunho; run_not_found quando fromRun não pode ser
+            usada
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "422":
@@ -62048,6 +62699,130 @@ paths:
       security:
       - BearerAuth: []
       summary: Exportar as execuções de um workflow em NDJSON
+      tags:
+      - workflows
+  /workflows/{id}/test-values:
+    delete:
+      description: Apaga todos os valores que quem pede guardou para os testes deste
+        fluxo. Os de outras pessoas ficam.
+      parameters:
+      - description: ID do workflow
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Valores apagados
+        "403":
+          description: Workflow de outro departamento
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Workflow não encontrado
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: 'test_values_unavailable: não foi possível apagar agora'
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Limpar os dados do teste de um fluxo
+      tags:
+      - workflows
+    get:
+      description: 'Lista as variáveis que o fluxo usa e que um teste precisa receber,
+        pela mesma regra das campanhas e das passagens de conversa: as campvars que
+        os passos leem, mais as variáveis dos agentes e dos subfluxos que o fluxo
+        chama (o rascunho, com agentes e subfluxos publicados). Cada variável vem
+        com a descrição e o caminho via (o último item é quem a usa). values são os
+        valores que quem pede salvou para este fluxo; cada pessoa tem os seus, e eles
+        só valem nos testes (Testar e teste de nó), nunca em execuções de produção
+        nem nas variáveis das conversas. Valores de variáveis que o fluxo não usa
+        mais ficam de fora.'
+      parameters:
+      - description: ID do workflow
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.testValuesResponse'
+        "403":
+          description: Workflow de outro departamento
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Workflow não encontrado
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: 'automation_needs_not_found: um agente ou subfluxo que o fluxo
+            chama não existe mais'
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: 'test_values_unavailable ou automation_needs_unreadable: não
+            foi possível ler agora'
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Dados do teste de um fluxo
+      tags:
+      - workflows
+    put:
+      consumes:
+      - application/json
+      description: Substitui os valores que quem pede guardou para os testes deste
+        fluxo. values vai por nome de variável; um valor vazio apaga o valor salvo.
+        Só aceita variáveis que o fluxo usa (test_value_not_needed, inclusive lead_name,
+        lead_number e campaign_name, que o teste preenche sozinho) e valores de até
+        2000 caracteres (test_value_invalid). O Testar começa só quando todas as variáveis
+        têm valor salvo; o teste de nó usa estes valores como ponto de partida.
+      parameters:
+      - description: ID do workflow
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Valores por nome de variável
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.saveTestValuesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.testValuesResponse'
+        "400":
+          description: Corpo inválido (invalid_body) ou valor longo demais (test_value_invalid)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Workflow de outro departamento
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Workflow não encontrado
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: 'test_value_not_needed: o fluxo não usa essa variável'
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: 'test_values_unavailable ou automation_needs_unreadable: não
+            foi possível gravar agora'
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Salvar os dados do teste de um fluxo
       tags:
       - workflows
   /workflows/{id}/triggers/{nodeId}/last-input:
@@ -64642,122 +65417,132 @@ paths:
         aceito em `event`.\n- `message`: `input` é ignorado; chega `waiting_trigger`
         e o primeiro `reply` começa a execução.\n- `none`: `input` é ignorado e a
         execução começa direto.\n\nA entrada é validada como em produção e a execução
-        é semeada pelo mesmo construtor de dados do gatilho. Códigos em `issues`:
-        `required` (campo obrigatório vazio; o agente também não consegue chamar sem
-        ele), `wrong_type`, `unknown_field`, `event_not_accepted` (o webhook filtra
-        eventos), `unknown_option`, `too_large` (mais de 64 KB). Em `triggers[].issues`,
-        `read_not_declared` aponta uma chave lida pelo fluxo que o gatilho não declara
-        (sempre vazia em produção); ela nunca bloqueia o início. `trigger_input_unavailable`
-        aparece quando os formulários ou as etapas do gatilho não puderam ser lidos.\n\n##
-        Mensagens que você envia\n\nFormato: `{\"type\": \"...\", \"data\": {...}}`.\n\n###
-        Fluxos de mensagens\n\n| type | data | O que faz |\n|---|---|---|\n| `reply`
-        | `{\"text\": string}` (obrigatório) | Mensagem de texto do contato. Dispara
-        o fluxo depois de `waiting_trigger` ou responde um `waiting_reply`. Em mensagens
-        interativas, o texto ainda é usado como o id da opção escolhida (compatibilidade);
-        prefira `reply_selection`. |\n| `reply_selection` | `{\"kind\": \"button\"
-        \\| \"list\", \"id\": string, \"title\": string}` (todos obrigatórios) | O
-        contato tocou um botão ou uma linha de lista, como o webhook entrega: `message`
-        = `title`, `message_type: \"text\"`, `selected_option_id`, `selected_option_title`
-        e `selected_option_type` (`button` ou `list`). O ramo segue a saída com o
-        id da opção, senão `no_match`. |\n| `reply_location` | `{\"latitude\": number,
-        \"longitude\": number, \"name\"?: string, \"address\"?: string}` | O contato
-        enviou uma localização: `message` = \"\U0001F4CD nome, endereço (lat, lng)\"
-        e `message_type: \"text\"`, como no webhook. |\n| `reply_media` | `{\"kind\":
-        \"image\" \\| \"video\" \\| \"audio\" \\| \"document\" \\| \"sticker\", \"url\":
-        string, \"mime\"?: string, \"filename\"?: string, \"caption\"?: string}` |
-        O contato enviou uma mídia: `message_type: \"media\"` e `media_type` (áudio:
-        `message_type: \"audio\"`). `message` é a legenda (imagem, vídeo), o nome
-        do arquivo (documento), vazio (figurinha) ou a legenda como transcrição (áudio).
-        |\n| `set_variable` | `{\"key\": string, \"value\": any}` | Grava uma variável
-        no estado da execução antes do próximo passo. |\n| `form_reply` | `{\"answers\":
-        {chave_do_campo: valor}}` ou `{\"outcome\": \"no_reply\"}` | Responde um `waiting_form`:
-        as respostas ficam nas variáveis `form.<chave>`; `no_reply` segue a saída
-        Sem resposta. Um `reply` de texto não conclui o formulário. |\n| `cancel`
-        | sem `data` | Cancela a execução. O servidor responde `run_cancelled`. |\n\n###
-        Depuração (mensagens e voz)\n\n| type | data | O que faz |\n|---|---|---|\n|
-        `start` | sem `data` ou `{\"triggerNodeId\"?: string, \"input\"?: object,
-        \"windowOpen\"?: boolean}` | Com `await_start=1` (ou depois da recusa do início
-        automático sem ele): começa o teste depois do `sim_ready`, pelo gatilho `triggerNodeId`
-        (sem ele, o `defaultTriggerNodeId`) com a entrada `input`, validada pelas
-        regras de produção do gatilho (veja Entrada do gatilho). `windowOpen` escolhe
-        a janela de atendimento com que o teste começa quando o gatilho tem `windowEditable:
-        true`; sem ele vale o `window` do gatilho, e com `windowEditable: false` ele
-        é ignorado (a mensagem do cliente decide). Com a janela fechada, todo envio
-        livre (texto, mídia, botões, formulário, resposta do agente de IA) falha como
-        em produção, com `errorKind: \"window_closed\"` na etapa, sem novas tentativas
-        (recusa permanente, como contato bloqueado, descadastrado ou número inválido);
-        só templates saem. Se for recusado, chega `command_refused` com `code` e a
-        sessão continua esperando. |\n| `reproduce_run` | `{\"runId\": string}` |
-        Com `await_start=1` (ou durante `waiting_trigger`): começa o teste reproduzindo
-        a execução. Se for recusado, chega `command_refused` e a sessão continua esperando.
-        |\n| `set_breakpoints` | `{\"nodeIds\": [string]}` | Troca os pontos de parada
-        da sessão. A execução pausa antes de cada um desses nós. |\n| `run_until`
-        | `{\"nodeId\": string}` | Para uma vez antes desse nó. Se estiver pausado,
-        continua até ele. |\n| `step` | sem `data` | Pausado: executa um nó e pausa
-        antes do próximo. |\n| `continue` | sem `data` | Pausado: segue até o próximo
-        ponto de parada. |\n| `confirm_real_calls` | sem `data` | Libera as chamadas
-        reais pelo resto da sessão. Pode ser enviado a qualquer momento, inclusive
-        antes do `start`. |\n\n### Fluxos de voz\n\n| type | data | O que faz |\n|---|---|---|\n|
-        `key` | `{\"key\": string}` | Tecla do telefone: um caractere entre `0-9`,
-        `*` e `#`. |\n| `cancel` | sem `data` | Desliga a ligação simulada. O servidor
-        responde `run_cancelled`. |\n\nFechar a conexão tem o mesmo efeito de `cancel`.\n\n##
-        Mensagens que você recebe\n\nFormato: `{\"type\": \"...\", \"payload\": {...}}`.\n\n|
-        type | payload | Quando |\n|---|---|---|\n| `sim_ready` | `{\"workflowId\":
-        string, \"triggerType\": string, \"realCallNodes\": [string], \"triggers\":
-        [TriggerInputSpec], \"defaultTriggerNodeId\": string}` | Só com `await_start=1`:
-        a sessão espera `start` ou `reproduce_run`. `triggers` descreve cada gatilho
-        do rascunho (o principal primeiro) e o que ele recebe. |\n| `waiting_trigger`
-        | `{\"triggerType\": string, \"nodeId\": string}` | O gatilho escolhido é
-        de mensagem (`shape: \"message\"`): envie um `reply` para começar. |\n| `sim_started`
-        | `{\"runId\": string, \"workflowId\": string, \"realCallNodes\": [string],
-        \"trigger\": {\"nodeId\": string, \"triggerType\": string}, \"reproducing\"?:
-        {\"runId\": string, \"workflowVersion\"?: number, \"pinnedNodes\": [string]}}`
-        | A execução começou pelo gatilho `trigger` (ao reproduzir, o gatilho da execução
-        quando ele ainda existe no rascunho). `realCallNodes` lista os nós que fariam
-        chamadas reais; `reproducing` aparece ao reproduzir uma execução, com os nós
-        fixados nesta sessão. |\n| `state_update` | `{\"vars\": object}` | Antes e
-        depois de cada passo, com todas as variáveis. |\n| `node_executed` | Registro
-        da etapa, o mesmo de `GET /workflow-runs/{runId}` (`id`, `runId`, `nodeId`,
-        `nodeType`, `status`, `input`?, `output`?, `error`?, `executedAt`, `attempt`,
-        `startedAt`?, `finishedAt`?, `durationMs`, `branch`?, `errorKind`?, `errorChain`?,
-        `stack`?, `scriptLogs`?, `http`?), com valores sensíveis mascarados, mais
-        `stepIndex` (número da etapa na sessão, a partir de 0), `pinned`? (`true`
-        quando veio de uma saída fixada), `simulated`? (`true` quando um nó de CRM
-        só descreveu o que faria, em `output.would_do`), `notice`? (por exemplo a
-        saída fixada indisponível) e, quando o nó enviou mensagens, `output.sent_messages`
-        | Um nó terminou. |\n| `paused` | `{\"nodeId\": string, \"nodeType\": string,
-        \"stepIndex\": number, \"reason\": \"breakpoint\" \\| \"run_until\" \\| \"step\",
-        \"state\": object}` | A execução parou antes desse nó. `stepIndex` é o número
-        que a próxima etapa terá; `state` são as variáveis naquele momento, mascaradas.
-        Responda `step`, `continue`, `run_until` ou `cancel`. |\n| `command_refused`
-        | `{\"command\": string, \"error\": string, \"code\"?: \"trigger_input_invalid\"
-        | \"trigger_not_found\" | \"trigger_input_unavailable\", \"issues\"?: [{\"code\":
-        string, \"key\": string}]}` | Um comando foi recusado (por exemplo `reproduce_run`
-        sem permissão, execução invisível, de outro fluxo ou sem dados do gatilho,
-        ou um `start` com entrada inválida). `issues` vem com `trigger_input_invalid`.
-        A sessão continua. |\n| `message_sent` | `{\"direction\": \"outbound\", \"text\":
-        string, \"msgType\": string, \"nodeId\"?: string, \"nodeName\"?: string, \"messageId\":
-        string, \"audioBase64\"?: string, \"audioMime\"?: string, \"audioUrl\"?: string,
-        \"message\"?: object}` | O fluxo enviou uma mensagem ou, em voz, tocou um
-        áudio (`msgType: \"audio\"` com `audioUrl`). Em fluxos de mensagens, `nodeId`
-        e `nodeName` (o nome dado ao nó, senão o nome do tipo no catálogo) são do
-        nó que enviou, e a mensagem chega antes do `node_executed` desse nó. Em fluxos
-        de mensagens, `message` é a mensagem como a conversa do CRM a guardaria (formato
-        abaixo); `text` continua com o resumo antigo. |\n| `message_received` | `{\"direction\":
-        \"inbound\", \"message\": object}` | Uma resposta sua (`reply`, `reply_selection`,
-        `reply_location`, `reply_media`) como a conversa do CRM a guardaria. |\n|
-        `reply_ignored` | `{\"nodeId\": string, \"reason\": \"interactive_reply_unhandled\"}`
-        | A mensagem interativa não tem saída para essa resposta (nem `no_match`,
-        nem saída padrão). Como em produção, o fluxo continua esperando. |\n| `waiting_reply`
-        | `{\"nodeId\": string, \"timeoutSeconds\": number}` | O fluxo espera uma
-        resposta do contato. |\n| `waiting_form` | `{\"nodeId\": string, \"formId\":
-        string, \"timeoutSeconds\": number}` | O fluxo enviou um formulário do WhatsApp
-        e espera as respostas: envie um `form_reply`. |\n| `wait_skipped` | `{\"nodeId\":
-        string, \"reason\": \"duration\" \\| \"event\"}` | Uma espera por tempo ou
-        evento foi pulada para agilizar o teste. |\n| `waiting_key` | `{\"timeoutSeconds\":
-        number}` | Voz: o fluxo espera uma tecla. |\n| `call_transferred` | `{\"queueId\":
-        string, \"queueName\": string, \"notes\"?: string}` | Voz: a ligação foi para
-        a fila. Na simulação ela é considerada atendida e o fluxo termina. |\n| `run_completed`
+        é semeada pelo mesmo construtor de dados do gatilho. Antes do gatilho, o teste
+        recebe em `campvars` os dados do teste salvos por quem testa (`PUT /workflows/{id}/test-values`),
+        no mesmo lugar em que a produção põe os valores da campanha e da conversa,
+        mais `lead_name`, `lead_number` e `campaign_name` do contato de teste; o `start`
+        é recusado com `automation_test_values_missing` enquanto alguma variável que
+        o fluxo usa não tem valor. Códigos em `issues`: `required` (campo obrigatório
+        vazio; o agente também não consegue chamar sem ele), `wrong_type`, `unknown_field`,
+        `event_not_accepted` (o webhook filtra eventos), `unknown_option`, `too_large`
+        (mais de 64 KB). Em `triggers[].issues`, `read_not_declared` aponta uma chave
+        lida pelo fluxo que o gatilho não declara (sempre vazia em produção); ela
+        nunca bloqueia o início. `trigger_input_unavailable` aparece quando os formulários
+        ou as etapas do gatilho não puderam ser lidos.\n\n## Mensagens que você envia\n\nFormato:
+        `{\"type\": \"...\", \"data\": {...}}`.\n\n### Fluxos de mensagens\n\n| type
+        | data | O que faz |\n|---|---|---|\n| `reply` | `{\"text\": string}` (obrigatório)
+        | Mensagem de texto do contato. Dispara o fluxo depois de `waiting_trigger`
+        ou responde um `waiting_reply`. Em mensagens interativas, o texto ainda é
+        usado como o id da opção escolhida (compatibilidade); prefira `reply_selection`.
+        |\n| `reply_selection` | `{\"kind\": \"button\" \\| \"list\", \"id\": string,
+        \"title\": string}` (todos obrigatórios) | O contato tocou um botão ou uma
+        linha de lista, como o webhook entrega: `message` = `title`, `message_type:
+        \"text\"`, `selected_option_id`, `selected_option_title` e `selected_option_type`
+        (`button` ou `list`). O ramo segue a saída com o id da opção, senão `no_match`.
+        |\n| `reply_location` | `{\"latitude\": number, \"longitude\": number, \"name\"?:
+        string, \"address\"?: string}` | O contato enviou uma localização: `message`
+        = \"\U0001F4CD nome, endereço (lat, lng)\" e `message_type: \"text\"`, como
+        no webhook. |\n| `reply_media` | `{\"kind\": \"image\" \\| \"video\" \\| \"audio\"
+        \\| \"document\" \\| \"sticker\", \"url\": string, \"mime\"?: string, \"filename\"?:
+        string, \"caption\"?: string}` | O contato enviou uma mídia: `message_type:
+        \"media\"` e `media_type` (áudio: `message_type: \"audio\"`). `message` é
+        a legenda (imagem, vídeo), o nome do arquivo (documento), vazio (figurinha)
+        ou a legenda como transcrição (áudio). |\n| `set_variable` | `{\"key\": string,
+        \"value\": any}` | Grava uma variável no estado da execução antes do próximo
+        passo. |\n| `form_reply` | `{\"answers\": {chave_do_campo: valor}}` ou `{\"outcome\":
+        \"no_reply\"}` | Responde um `waiting_form`: as respostas ficam nas variáveis
+        `form.<chave>`; `no_reply` segue a saída Sem resposta. Um `reply` de texto
+        não conclui o formulário. |\n| `cancel` | sem `data` | Cancela a execução.
+        O servidor responde `run_cancelled`. |\n\n### Depuração (mensagens e voz)\n\n|
+        type | data | O que faz |\n|---|---|---|\n| `start` | sem `data` ou `{\"triggerNodeId\"?:
+        string, \"input\"?: object, \"windowOpen\"?: boolean}` | Com `await_start=1`
+        (ou depois da recusa do início automático sem ele): começa o teste depois
+        do `sim_ready`, pelo gatilho `triggerNodeId` (sem ele, o `defaultTriggerNodeId`)
+        com a entrada `input`, validada pelas regras de produção do gatilho (veja
+        Entrada do gatilho). `windowOpen` escolhe a janela de atendimento com que
+        o teste começa quando o gatilho tem `windowEditable: true`; sem ele vale o
+        `window` do gatilho, e com `windowEditable: false` ele é ignorado (a mensagem
+        do cliente decide). Com a janela fechada, todo envio livre (texto, mídia,
+        botões, formulário, resposta do agente de IA) falha como em produção, com
+        `errorKind: \"window_closed\"` na etapa, sem novas tentativas (recusa permanente,
+        como contato bloqueado, descadastrado ou número inválido); só templates saem.
+        Se for recusado, chega `command_refused` com `code` e a sessão continua esperando.
+        |\n| `reproduce_run` | `{\"runId\": string}` | Com `await_start=1` (ou durante
+        `waiting_trigger`): começa o teste reproduzindo a execução. Se for recusado,
+        chega `command_refused` e a sessão continua esperando. |\n| `set_breakpoints`
+        | `{\"nodeIds\": [string]}` | Troca os pontos de parada da sessão. A execução
+        pausa antes de cada um desses nós. |\n| `run_until` | `{\"nodeId\": string}`
+        | Para uma vez antes desse nó. Se estiver pausado, continua até ele. |\n|
+        `step` | sem `data` | Pausado: executa um nó e pausa antes do próximo. |\n|
+        `continue` | sem `data` | Pausado: segue até o próximo ponto de parada. |\n|
+        `confirm_real_calls` | sem `data` | Libera as chamadas reais pelo resto da
+        sessão. Pode ser enviado a qualquer momento, inclusive antes do `start`. |\n\n###
+        Fluxos de voz\n\n| type | data | O que faz |\n|---|---|---|\n| `key` | `{\"key\":
+        string}` | Tecla do telefone: um caractere entre `0-9`, `*` e `#`. |\n| `cancel`
+        | sem `data` | Desliga a ligação simulada. O servidor responde `run_cancelled`.
+        |\n\nFechar a conexão tem o mesmo efeito de `cancel`.\n\n## Mensagens que
+        você recebe\n\nFormato: `{\"type\": \"...\", \"payload\": {...}}`.\n\n| type
+        | payload | Quando |\n|---|---|---|\n| `sim_ready` | `{\"workflowId\": string,
+        \"triggerType\": string, \"realCallNodes\": [string], \"triggers\": [TriggerInputSpec],
+        \"defaultTriggerNodeId\": string}` | Só com `await_start=1`: a sessão espera
+        `start` ou `reproduce_run`. `triggers` descreve cada gatilho do rascunho (o
+        principal primeiro) e o que ele recebe. |\n| `waiting_trigger` | `{\"triggerType\":
+        string, \"nodeId\": string}` | O gatilho escolhido é de mensagem (`shape:
+        \"message\"`): envie um `reply` para começar. |\n| `sim_started` | `{\"runId\":
+        string, \"workflowId\": string, \"realCallNodes\": [string], \"trigger\":
+        {\"nodeId\": string, \"triggerType\": string}, \"reproducing\"?: {\"runId\":
+        string, \"workflowVersion\"?: number, \"pinnedNodes\": [string]}}` | A execução
+        começou pelo gatilho `trigger` (ao reproduzir, o gatilho da execução quando
+        ele ainda existe no rascunho). `realCallNodes` lista os nós que fariam chamadas
+        reais; `reproducing` aparece ao reproduzir uma execução, com os nós fixados
+        nesta sessão. |\n| `state_update` | `{\"vars\": object}` | Antes e depois
+        de cada passo, com todas as variáveis. |\n| `node_executed` | Registro da
+        etapa, o mesmo de `GET /workflow-runs/{runId}` (`id`, `runId`, `nodeId`, `nodeType`,
+        `status`, `input`?, `output`?, `error`?, `executedAt`, `attempt`, `startedAt`?,
+        `finishedAt`?, `durationMs`, `branch`?, `errorKind`?, `errorChain`?, `stack`?,
+        `scriptLogs`?, `http`?), com valores sensíveis mascarados, mais `stepIndex`
+        (número da etapa na sessão, a partir de 0), `pinned`? (`true` quando veio
+        de uma saída fixada), `simulated`? (`true` quando um nó de CRM só descreveu
+        o que faria, em `output.would_do`), `notice`? (por exemplo a saída fixada
+        indisponível) e, quando o nó enviou mensagens, `output.sent_messages` | Um
+        nó terminou. |\n| `paused` | `{\"nodeId\": string, \"nodeType\": string, \"stepIndex\":
+        number, \"reason\": \"breakpoint\" \\| \"run_until\" \\| \"step\", \"state\":
+        object}` | A execução parou antes desse nó. `stepIndex` é o número que a próxima
+        etapa terá; `state` são as variáveis naquele momento, mascaradas. Responda
+        `step`, `continue`, `run_until` ou `cancel`. |\n| `command_refused` | `{\"command\":
+        string, \"error\": string, \"code\"?: \"trigger_input_invalid\" | \"trigger_not_found\"
+        | \"trigger_input_unavailable\" | \"automation_test_values_missing\" | \"test_values_unavailable\"
+        | \"automation_needs_unreadable\" | \"automation_needs_not_found\", \"issues\"?:
+        [{\"code\": string, \"key\": string}], \"variables\"?: [string]}` | Um comando
+        foi recusado (por exemplo `reproduce_run` sem permissão, execução invisível,
+        de outro fluxo ou sem dados do gatilho, ou um `start` com entrada inválida).
+        `issues` vem com `trigger_input_invalid`. `automation_test_values_missing`
+        recusa o `start` enquanto faltam dados do teste: `variables` lista as variáveis
+        do fluxo (as mesmas de `GET /workflows/{id}/test-values`) sem valor salvo
+        por quem testa. A sessão continua. |\n| `message_sent` | `{\"direction\":
+        \"outbound\", \"text\": string, \"msgType\": string, \"nodeId\"?: string,
+        \"nodeName\"?: string, \"messageId\": string, \"audioBase64\"?: string, \"audioMime\"?:
+        string, \"audioUrl\"?: string, \"message\"?: object}` | O fluxo enviou uma
+        mensagem ou, em voz, tocou um áudio (`msgType: \"audio\"` com `audioUrl`).
+        Em fluxos de mensagens, `nodeId` e `nodeName` (o nome dado ao nó, senão o
+        nome do tipo no catálogo) são do nó que enviou, e a mensagem chega antes do
+        `node_executed` desse nó. Em fluxos de mensagens, `message` é a mensagem como
+        a conversa do CRM a guardaria (formato abaixo); `text` continua com o resumo
+        antigo. |\n| `message_received` | `{\"direction\": \"inbound\", \"message\":
+        object}` | Uma resposta sua (`reply`, `reply_selection`, `reply_location`,
+        `reply_media`) como a conversa do CRM a guardaria. |\n| `reply_ignored` |
+        `{\"nodeId\": string, \"reason\": \"interactive_reply_unhandled\"}` | A mensagem
+        interativa não tem saída para essa resposta (nem `no_match`, nem saída padrão).
+        Como em produção, o fluxo continua esperando. |\n| `waiting_reply` | `{\"nodeId\":
+        string, \"timeoutSeconds\": number}` | O fluxo espera uma resposta do contato.
+        |\n| `waiting_form` | `{\"nodeId\": string, \"formId\": string, \"timeoutSeconds\":
+        number}` | O fluxo enviou um formulário do WhatsApp e espera as respostas:
+        envie um `form_reply`. |\n| `wait_skipped` | `{\"nodeId\": string, \"reason\":
+        \"duration\" \\| \"event\"}` | Uma espera por tempo ou evento foi pulada para
+        agilizar o teste. |\n| `waiting_key` | `{\"timeoutSeconds\": number}` | Voz:
+        o fluxo espera uma tecla. |\n| `call_transferred` | `{\"queueId\": string,
+        \"queueName\": string, \"notes\"?: string}` | Voz: a ligação foi para a fila.
+        Na simulação ela é considerada atendida e o fluxo termina. |\n| `run_completed`
         | `{\"vars\": object}` | A execução terminou. |\n| `run_cancelled` | `{\"reason\":
         \"cancelled\" \\| \"paused_timeout\"}` | A execução foi cancelada: pelo `cancel`
         (ou pela conexão fechada) ou por uma pausa abandonada por 10 minutos. |\n|

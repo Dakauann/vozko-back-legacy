@@ -20,7 +20,7 @@ func startSandboxSimulation(t *testing.T, wf *workflow.Workflow, mutate func(*WS
 	t.Helper()
 	repo := NewMockWorkflowRepository()
 	_ = repo.Create(wf)
-	deps := WSWorkflowSimulationDeps{WorkflowRepo: repo, HTTPEgress: node_executors.HTTPEgress{Client: &http.Client{}}}
+	deps := WSWorkflowSimulationDeps{WorkflowRepo: repo, HTTPEgress: node_executors.HTTPEgress{Client: &http.Client{}}, TestValues: mustTestValues(t, newMemoryTestValues())}
 	if mutate != nil {
 		mutate(&deps)
 	}

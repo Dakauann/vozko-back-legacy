@@ -55,7 +55,7 @@ func (r *Runtime) BeforeStep(run *workflow.WorkflowRun, node *workflow.Node) (*w
 		return nil, err
 	}
 	if values != nil {
-		run.State.Set(workflow.DataKeyCampaignVars, conversationvars.CampaignVars(values))
+		conversationvars.SeedRun(&run.State, values)
 	}
 	return nil, nil
 }

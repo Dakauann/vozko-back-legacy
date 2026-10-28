@@ -21,7 +21,7 @@ func TestAutomationSlotsListWhatTheAutomationNeedsBesideTheTemplate(t *testing.T
 		}
 		return ""
 	}
-	got := AutomationSlots(needs, []Slot{{Key: "1"}}, suggest)
+	got := AutomationSlots(needs, nil, []Slot{{Key: "1"}}, NeedSuggest{Field: suggest})
 	want := []Slot{
 		{Key: "nome_cliente", Name: "nome_cliente", Kind: SlotAutomation, NeededBy: "Cobrança"},
 		{Key: "cpf", Name: "cpf", Kind: SlotAutomation, NeededBy: "Cobrança", Suggested: campaign.CustomBinding("cpf")},

@@ -31,6 +31,7 @@ const (
 	addSheetRowNoGoogle    = "O Google Planilhas não está conectado. Não prometa o registro; diga que a equipe vai verificar."
 	addSheetRowFailed      = "Não foi possível registrar agora. Não prometa o registro; diga que a equipe vai verificar."
 	addSheetRowNoInputs    = "Esta planilha não tem campos para o agente preencher. Não chame esta ferramenta."
+	addSheetRowRepeated    = "Esta linha já estava registrada; não registre de novo."
 )
 
 var columnParamTypes = map[googlesheet.ColumnType]string{
@@ -163,6 +164,9 @@ func (t *addSheetRowTool) ExecuteWithConfig(ctx context.Context, config map[stri
 	if err != nil {
 		return sheetRowRefusal(err), nil
 	}
+	if result.Repeat != nil {
+		return tools.ExecutionResult{Result: addSheetRowRepeated}, nil
+	}
 	return tools.ExecutionResult{
 		Result:            fmt.Sprintf("Linha registrada na planilha %q.", result.Sheet.Title),
 		ContextUpdateText: "Registro feito na planilha " + result.Sheet.Title,
@@ -239,6 +243,7 @@ func refusalReason(err *googlesheet.ValueError) string {
 		googlesheet.ErrRequiredColumnMissing: "é obrigatório",
 		googlesheet.ErrValueNotInOptions:     "valor fora das opções",
 		googlesheet.ErrValueTooLong:          "texto longo demais",
+		googlesheet.ErrUniqueValueMissing:    "é usado para não registrar a mesma linha duas vezes e precisa de valor",
 	}
 	reason := "valor inválido"
 	for sentinel, text := range reasons {

@@ -59,6 +59,8 @@ const (
 	EventAgentReplyWithheld EventType = "agent_reply_withheld"
 
 	EventEmailForwardSkipped EventType = "email_forward_skipped"
+
+	EventAutomationTransferred EventType = "automation_transferred"
 )
 
 func (t EventType) Valid() bool {
@@ -74,7 +76,8 @@ func (t EventType) Valid() bool {
 		EventQueueEnqueued, EventQueueConnected, EventQueueAbandoned,
 		EventQueueOverflow, EventCallLinked,
 		EventLeadExitAction, EventLeadSendRefused,
-		EventAgentReplyWithheld, EventEmailForwardSkipped:
+		EventAgentReplyWithheld, EventEmailForwardSkipped,
+		EventAutomationTransferred:
 		return true
 	}
 	return false

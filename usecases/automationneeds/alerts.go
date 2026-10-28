@@ -53,13 +53,20 @@ func variablesText(needs domain.Needs) string {
 func (a *Alerts) Unmet(ctx context.Context, workspaceID string, refusal *domain.Refusal) error {
 	link := refusal.Automation
 	noun := domain.AutomationNoun(link.Automation)
+	return a.publishUnmet(ctx, workspaceID, link,
+		capitalized(noun)+" "+nameOf(link)+" deixou de responder: falta "+variablesText(refusal.Needs),
+		"Uma conversa não tem valor para "+variablesText(refusal.Needs)+", então "+noun+" "+nameOf(link)+
+			" não respondeu, em vez de mandar um texto incompleto. Dê um valor padrão à variável ou preencha o valor na conversa.")
+}
+
+func (a *Alerts) publishUnmet(ctx context.Context, workspaceID string, link domain.Link, title, body string) error {
+	noun := domain.AutomationNoun(link.Automation)
 	_, err := a.publisher.Publish(ctx, notification.Draft{
 		WorkspaceID: workspaceID,
 		Category:    notification.CategoryAutomations,
 		Severity:    notification.SeverityWarning,
-		Title:       notification.ClipTitle(capitalized(noun) + " " + nameOf(link) + " deixou de responder: falta " + variablesText(refusal.Needs)),
-		Body: "Uma conversa não tem valor para " + variablesText(refusal.Needs) + ", então " + noun + " " + nameOf(link) +
-			" não respondeu, em vez de mandar um texto incompleto. Dê um valor padrão à variável ou preencha o valor na conversa.",
+		Title:       notification.ClipTitle(title),
+		Body:        body,
 		ActionURL:   domain.AutomationPath(link.Automation),
 		ActionLabel: "Abrir " + strings.TrimPrefix(strings.TrimPrefix(noun, "o "), "a "),
 		Audience:    audienceOf(link.Automation),

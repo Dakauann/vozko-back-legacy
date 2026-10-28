@@ -23,6 +23,7 @@ type Assembler struct {
 	memories  leadmemory.ListUseCase
 	citable   tools_usecase.RecentMessages
 	agentRuns AgentRunContext
+	handOffs  HandOffContext
 	zones     shared_usecase.WorkspaceZones
 }
 
@@ -30,10 +31,21 @@ type AgentRunContext interface {
 	ContextLine(workspaceID, entryID, entryType string) string
 }
 
-const agentRunHeading = "FLUXO QUE VOCÊ EXECUTOU NESTA CONVERSA:"
+type HandOffContext interface {
+	HandOffLine(workspaceID, entryID, entryType, agentID string) string
+}
+
+const (
+	agentRunHeading = "FLUXO QUE VOCÊ EXECUTOU NESTA CONVERSA:"
+	handOffHeading  = "TRANSFERÊNCIA PARA VOCÊ:"
+)
 
 func (a *Assembler) TrackAgentRuns(runs AgentRunContext) {
 	a.agentRuns = runs
+}
+
+func (a *Assembler) TrackHandOffs(handOffs HandOffContext) {
+	a.handOffs = handOffs
 }
 
 func New(toolRegistry tools.Service, ragService rag.RAGService, memories leadmemory.ListUseCase, zones shared_usecase.WorkspaceZones) *Assembler {
@@ -134,7 +146,7 @@ func (a *Assembler) Assemble(ctx context.Context, req Request) Assembled {
 		}
 	}
 
-	messages, volatileTail := a.conversation(ctx, req, a.citations(req, toolNames), a.agentRunSection(req, toolDefs))
+	messages, volatileTail := a.conversation(ctx, req, a.citations(req, toolNames), a.agentRunSection(req, toolDefs), a.handOffSection(req))
 
 	workspaceID := ""
 	if req.Agent != nil {
@@ -252,7 +264,7 @@ func offersWorkflowRuns(defs []tools.Definition) bool {
 	return false
 }
 
-func (a *Assembler) conversation(ctx context.Context, req Request, citations, agentRun string) ([]ai.Message, int) {
+func (a *Assembler) conversation(ctx context.Context, req Request, citations, agentRun, handOff string) ([]ai.Message, int) {
 	messages := append([]ai.Message(nil), req.History...)
 	if strings.TrimSpace(req.UserMessage) != "" {
 		messages = append(messages, ai.Message{Role: ai.RoleUser, Content: req.UserMessage})
@@ -266,7 +278,7 @@ func (a *Assembler) conversation(ctx context.Context, req Request, citations, ag
 		KnowledgeBaseIDs: req.KnowledgeBaseIDs,
 		Query:            req.RAGQuery,
 	})
-	return append(messages, ai.ContextNote(grounding, citations, agentRun, req.TriggerNote)), contextNoteTail
+	return append(messages, ai.ContextNote(grounding, citations, agentRun, handOff, req.TriggerNote)), contextNoteTail
 }
 
 func containsToolName(names []string, want string) bool {
@@ -286,4 +298,16 @@ func copyConfigsInto(dst map[string]map[string]interface{}, src map[string]map[s
 		}
 		dst[strings.ToLower(name)] = copied
 	}
+}
+
+func (a *Assembler) handOffSection(req Request) string {
+	if a.handOffs == nil || req.Agent == nil {
+		return ""
+	}
+	entryID, entryType := req.conversationEntry()
+	line := a.handOffs.HandOffLine(req.Agent.WorkspaceID, entryID, entryType, req.Agent.ID)
+	if line == "" {
+		return ""
+	}
+	return handOffHeading + "\n" + line
 }

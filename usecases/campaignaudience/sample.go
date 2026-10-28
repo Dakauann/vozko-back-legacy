@@ -87,7 +87,7 @@ func (s *Service) phoneSample(ctx context.Context, a Actor, ch campaignaudience.
 	if err != nil {
 		return nil, nil, err
 	}
-	bound, err := campaignaudience.Bind(prepared.Slots, vars)
+	bound, err := s.bindAudience(a, campaignaudience.SourceList, nil, prepared, vars)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -99,6 +99,12 @@ func (s *Service) phoneSample(ctx context.Context, a Actor, ch campaignaudience.
 	example := []string{samplePhone, sampleName}
 	for i, b := range bound {
 		n := i + 1
+		if b.Automation() {
+			if !b.Optional {
+				header, example = append(header, b.Key), append(example, sampleValue(b, campaignaudience.Slot{}, n))
+			}
+			continue
+		}
 		column := campaign.FieldColumn(b.Source, defs)
 		if column == "" {
 			column = "var" + strconv.Itoa(n)

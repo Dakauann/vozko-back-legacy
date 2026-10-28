@@ -1,6 +1,8 @@
 package googlesheet
 
 import (
+	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -76,5 +78,39 @@ func TestASpreadsheetWasLastWrittenWhenItsLatestSheetWas(t *testing.T) {
 	unwritten := Spreadsheet{ID: "sp-2", Sheets: []*Sheet{fileSheet("d", "sp-2", "Novo", day, StatusActive, nil)}}
 	if got := unwritten.LastWrittenAt(); got != nil {
 		t.Fatalf("a file never written has a last write: %v", got)
+	}
+}
+
+func TestASpreadsheetIsNamedByItsStoredNameWhenItHasOne(t *testing.T) {
+	day := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	file := Spreadsheet{ID: "sp-1", Name: "Altiva", Sheets: []*Sheet{fileSheet("a", "sp-1", "Negociações", day, StatusActive, nil)}}
+	if file.Title() != "Altiva" {
+		t.Fatalf("title = %q", file.Title())
+	}
+}
+
+func TestAFileTitleIsTrimmedAndRefusedWhenBlankOrTooLong(t *testing.T) {
+	title, err := CheckFileTitle("  CDT Jabaquara  ")
+	if err != nil || title != "CDT Jabaquara" {
+		t.Fatalf("CheckFileTitle = %q, %v", title, err)
+	}
+	cases := []struct {
+		name  string
+		title string
+		code  string
+		limit int
+	}{
+		{"blank", "   ", CodeFileTitleRequired, 0},
+		{"too long", strings.Repeat("a", MaxFileTitleRunes+1), CodeFileTitleTooLong, MaxFileTitleRunes},
+		{"a line break", "Altiva\nCobrança", CodeFileTitleInvalid, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := CheckFileTitle(tc.title)
+			var def *DefinitionError
+			if !errors.As(err, &def) || def.Code != tc.code || def.Field != FieldFileTitle || def.Limit != tc.limit || !errors.Is(err, ErrInvalidSheet) {
+				t.Fatalf("CheckFileTitle(%q) = %v", tc.title, err)
+			}
+		})
 	}
 }

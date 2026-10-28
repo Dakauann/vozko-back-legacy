@@ -252,6 +252,8 @@ func (f *variableFlow) nodeProvisions(np nodeProvisions, n *Node, forms map[stri
 		messageEventProvisions(np.on(exceptEdges(InteractiveHandleNoReply, InteractiveHandleSendFailed)), label(name, "resposta"), VariableGroupNodes, VariableKindNode, true)
 	case NodeTypeActionSendForm:
 		formAnswerProvisions(np.on(onlyEdge(FormHandleCompleted)), n, name, forms)
+	case NodeTypeActionExportMessagesSheet:
+		sheetExportProvisions(np, n)
 	}
 }
 

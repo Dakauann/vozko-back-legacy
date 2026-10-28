@@ -10,6 +10,7 @@ import (
 
 type StepPick struct {
 	StepID        string
+	UpTo          bool
 	LatestOfNodes []string
 	Trigger       bool
 }
@@ -27,6 +28,10 @@ func PinPick(nodeID, stepID string) StepPick {
 		return StepPick{StepID: stepID}
 	}
 	return StepPick{LatestOfNodes: []string{nodeID}}
+}
+
+func TestSeedPick(stepID string) StepPick {
+	return StepPick{StepID: strings.TrimSpace(stepID), UpTo: true}
 }
 
 func ReproductionPick(draft *Graph, behaviors TestBehaviors) StepPick {

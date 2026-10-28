@@ -95,3 +95,12 @@ func (r *ConversationVariables) CampaignOf(ctx context.Context, entryID string, 
 	}
 	return conversationvars.Campaign{Name: rows[0].Name, Values: conversationvars.CampaignValuesOf(metadata, rows[0].Variables)}, nil
 }
+
+func (r *ConversationVariables) Forget(ctx context.Context, ref conversationvars.Ref, names []string) error {
+	if len(names) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).
+		Where("entry_id = ? AND entry_type = ? AND name IN ?", ref.EntryID, string(ref.EntryType), names).
+		Delete(&schema.ConversationVariable{}).Error
+}

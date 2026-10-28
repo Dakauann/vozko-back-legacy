@@ -25,8 +25,8 @@ func readPhones(t *testing.T, text string) ContactList {
 	return list
 }
 
-func freeVariables(n int) []BindingSource {
-	return make([]BindingSource, n)
+func freeVariables(n int) []ListTarget {
+	return TemplateTargets(make([]BindingSource, n))
 }
 
 func TestReadContactListReadsTheHeadersOfEverySpreadsheetWeAccept(t *testing.T) {
@@ -141,7 +141,7 @@ func TestMapListNamesSuggestedVariablesAfterTheirLeadField(t *testing.T) {
 	defs := []*customfield.Definition{{Key: "serie_interesse", Label: "Série de interesse", ObjectType: customfield.ObjectLead, Type: customfield.TypeText}}
 	list := readPhones(t, "telefone;nome;primeiro_nome;Bairro;var3;Série de interesse;Turma\n5511900010142;Maria Souza;Mari;Centro;manhã;1º ano;A\n")
 	fields := []BindingSource{BindFirstName, BindDistrict, "", CustomBinding("serie_interesse")}
-	mapping := MapList(list.Layout, ContactPhone, fields, defs)
+	mapping := MapList(list.Layout, ContactPhone, TemplateTargets(fields), defs)
 	want := []VariableColumnMapping{
 		{Slot: 1, Column: "primeiro_nome", Field: BindFirstName, Fill: FillColumn},
 		{Slot: 2, Column: "Bairro", Field: BindDistrict, Fill: FillColumn},
@@ -161,7 +161,7 @@ func TestMapListNamesSuggestedVariablesAfterTheirLeadField(t *testing.T) {
 
 func TestMapListStillAcceptsVarNForASuggestedVariable(t *testing.T) {
 	list := readPhones(t, "telefone;var1\n5511900010142;Mari\n")
-	mapping := MapList(list.Layout, ContactPhone, []BindingSource{BindFirstName}, nil)
+	mapping := MapList(list.Layout, ContactPhone, TemplateTargets([]BindingSource{BindFirstName}), nil)
 	if mapping.Variables[0].Column != "var1" || mapping.Variables[0].Fill != FillColumn {
 		t.Fatalf("mapping = %+v", mapping.Variables)
 	}
@@ -173,7 +173,7 @@ func TestMapListStillAcceptsVarNForASuggestedVariable(t *testing.T) {
 func TestMapListSaysHowAVariableWithoutColumnIsFilled(t *testing.T) {
 	list := readPhones(t, "telefone;nome\n5511900010142;Maria\n")
 	fields := []BindingSource{BindFirstName, BindCity, BindLiteral, ""}
-	mapping := MapList(list.Layout, ContactPhone, fields, nil)
+	mapping := MapList(list.Layout, ContactPhone, TemplateTargets(fields), nil)
 	fills := []FillKind{}
 	for _, v := range mapping.Variables {
 		fills = append(fills, v.Fill)
@@ -185,7 +185,7 @@ func TestMapListSaysHowAVariableWithoutColumnIsFilled(t *testing.T) {
 		t.Fatalf("cells = %q, filling from the lead happens when the lead is known", got)
 	}
 	headerless := readPhones(t, "5511900010142\n")
-	if got := MapList(headerless.Layout, ContactPhone, []BindingSource{BindFirstName}, nil).Variables[0].Fill; got != FillLead {
+	if got := MapList(headerless.Layout, ContactPhone, TemplateTargets([]BindingSource{BindFirstName}), nil).Variables[0].Fill; got != FillLead {
 		t.Fatalf("without a name column the first name comes from the lead: %s", got)
 	}
 }
@@ -336,5 +336,81 @@ func TestMissingVariableSlotsNamesTheEmptyRequiredValues(t *testing.T) {
 	}
 	if got := MissingSlots(nil); got != nil {
 		t.Fatalf("missing without variables = %v", got)
+	}
+}
+
+const ownerList = "NOME;TELEFONE;VAR1;VAR2;VAR3;NOME_CLIENTE\nMaria;5511900010142;Maria;R$ 10;00123;Maria Souza\n"
+
+func TestOneColumnFeedsATemplatePositionAndAnAutomationVariable(t *testing.T) {
+	list := readPhones(t, ownerList)
+	targets := append(freeVariables(3), ListTarget{Key: "matricula", Column: "VAR3"}, ListTarget{Key: "nome_cliente", Column: "NOME_CLIENTE"})
+	mapping := MapList(list.Layout, ContactPhone, targets, nil)
+	row := list.Rows[0]
+	if got := mapping.Cells(row); !reflect.DeepEqual(got, []string{"Maria", "R$ 10", "00123", "00123", "Maria Souza"}) {
+		t.Fatalf("cells = %q", got)
+	}
+	want := map[string]any{"matricula": "00123", "nome_cliente": "Maria Souza"}
+	if got := mapping.Metadata(row); !reflect.DeepEqual(got, want) {
+		t.Fatalf("metadata = %#v, want the bound text kept as typed", got)
+	}
+	wantColumns := []MetadataColumn{{Key: "nome_cliente", Label: "NOME_CLIENTE"}, {Key: "matricula", Label: "matricula"}}
+	if !reflect.DeepEqual(mapping.MetadataColumns, wantColumns) {
+		t.Fatalf("metadata columns = %+v", mapping.MetadataColumns)
+	}
+}
+
+func TestAnAutomationColumnIsFoundByItsHeaderNotItsPosition(t *testing.T) {
+	first := readPhones(t, "TELEFONE;VAR3;CURSO\n5511900010142;00123;Direito\n")
+	moved := readPhones(t, "CURSO;EXTRA;TELEFONE;VAR3\nDireito;x;5511900010142;00123\n")
+	for name, list := range map[string]ContactList{"first": first, "moved": moved} {
+		mapping := MapList(list.Layout, ContactPhone, []ListTarget{{Key: "matricula", Column: "VAR3"}, {Key: "curso", Column: "CURSO"}}, nil)
+		if got := mapping.Cells(list.Rows[0]); !reflect.DeepEqual(got, []string{"00123", "Direito"}) {
+			t.Fatalf("%s cells = %q", name, got)
+		}
+	}
+}
+
+func TestAnAutomationColumnTheListLacksReadsEmpty(t *testing.T) {
+	list := readPhones(t, "TELEFONE;VAR1\n5511900010142;Maria\n")
+	if list.Layout.HasColumn("VAR3") || !list.Layout.HasColumn(" VAR1 ") {
+		t.Fatalf("columns = %v", list.Layout.Columns())
+	}
+	mapping := MapList(list.Layout, ContactPhone, []ListTarget{{Key: "matricula", Column: "VAR3"}}, nil)
+	if got := mapping.Cells(list.Rows[0]); !reflect.DeepEqual(got, []string{""}) {
+		t.Fatalf("cells = %q", got)
+	}
+	headerless := readPhones(t, "5511900010142;Maria;00123\n")
+	if headerless.Layout.HasColumn("VAR3") || len(headerless.Layout.Columns()) != 0 {
+		t.Fatal("a list without header has no column to bind by name")
+	}
+}
+
+func TestColumnsListsEachHeaderOnceAndColumnNamedFindsTheSameKey(t *testing.T) {
+	list := readPhones(t, "TELEFONE;Matrícula;;matricula;NOME\n5511900010142;1;;2;Ana\n")
+	if got := list.Layout.Columns(); !reflect.DeepEqual(got, []string{"TELEFONE", "Matrícula", "matricula", "NOME"}) {
+		t.Fatalf("columns = %q", got)
+	}
+	if got := list.Layout.ColumnNamed("matricula"); got != "Matrícula" {
+		t.Fatalf("column named = %q, want the first header with the key", got)
+	}
+	if got := list.Layout.ColumnNamed("valor_pendencia"); got != "" {
+		t.Fatalf("column named = %q", got)
+	}
+}
+
+func TestAHandTypedRowFeedsTheAutomationFromItsOwnValues(t *testing.T) {
+	list := readPhones(t, ownerList)
+	mapping := MapList(list.Layout, ContactPhone, append(freeVariables(3), ListTarget{Key: "matricula", Column: "VAR3"}, ListTarget{Key: "curso", Column: "NOME_CLIENTE"}), nil)
+	typed := list.Rows[0]
+	typed.Variables = []string{"Maria", "R$ 10", "00999"}
+	typed.Metadata = map[string]any{"curso": "Direito"}
+	if got := mapping.Cells(typed); !reflect.DeepEqual(got, []string{"Maria", "R$ 10", "00999", "00999", "Direito"}) {
+		t.Fatalf("cells = %q, want the typed position and the typed key", got)
+	}
+	if typed.Metadata["matricula"] != nil {
+		t.Fatal("reading a row never writes into it")
+	}
+	if got := mapping.Metadata(typed); !reflect.DeepEqual(got, map[string]any{"curso": "Direito", "matricula": "00999"}) {
+		t.Fatalf("metadata = %v", got)
 	}
 }

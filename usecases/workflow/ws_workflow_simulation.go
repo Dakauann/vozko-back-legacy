@@ -125,7 +125,12 @@ type WSWorkflowSimulationDeps struct {
 	Permissions      workspace.PermissionChecker
 	PinSources       PinSources
 	TriggerInputs    TriggerInputReaders
+	TestValues       SimTestValues
 	PauseIdleTimeout time.Duration
+}
+
+type SimTestValues interface {
+	RunValues(wf *workflow.Workflow, userID string) (map[string]string, error)
 }
 
 type SimulationSession struct {

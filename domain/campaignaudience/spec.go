@@ -2,6 +2,7 @@ package campaignaudience
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"vozko/domain/campaign"
@@ -67,6 +68,7 @@ type Variable struct {
 	Key     string                 `json:"key"`
 	Source  campaign.BindingSource `json:"source,omitempty"`
 	Value   string                 `json:"value,omitempty"`
+	Column  string                 `json:"column,omitempty"`
 	Missing MissingPolicy          `json:"missing,omitempty"`
 	Text    string                 `json:"text,omitempty"`
 }
@@ -75,6 +77,7 @@ func (v Variable) normalized() Variable {
 	v.Key = strings.TrimSpace(v.Key)
 	v.Source = campaign.BindingSource(strings.TrimSpace(string(v.Source)))
 	v.Value = strings.TrimSpace(v.Value)
+	v.Column = strings.TrimSpace(v.Column)
 	v.Missing = MissingPolicy(strings.TrimSpace(string(v.Missing)))
 	v.Text = strings.TrimSpace(v.Text)
 	return v
@@ -108,6 +111,9 @@ func (s Spec) Validate() error {
 	case SourceLeads:
 		if s.ListID != "" {
 			return ErrSourceAmbiguous
+		}
+		if slices.ContainsFunc(s.Variables, func(v Variable) bool { return v.Column != "" }) {
+			return ErrColumnNeedsList
 		}
 		if s.Selection == nil {
 			return ErrSelectionRequired
@@ -187,16 +193,22 @@ type Slot struct {
 	Example   string
 	Kind      SlotKind
 	NeededBy  string
+	Column    string
+	Optional  bool
+	Default   string
 }
 
 type Bound struct {
 	Variable
-	Name      string
-	Header    bool
-	Suggested bool
-	Fallback  string
-	Kind      SlotKind
-	NeededBy  string
+	Name          string
+	Header        bool
+	Suggested     bool
+	Fallback      string
+	Kind          SlotKind
+	NeededBy      string
+	Optional      bool
+	Default       string
+	ColumnMissing bool
 }
 
 func (b Bound) Automation() bool {
@@ -217,8 +229,15 @@ func Bind(slots []Slot, vars []Variable) ([]Bound, error) {
 		if !given {
 			v = Variable{Key: slot.Key}
 		}
-		b := Bound{Variable: v, Name: slot.Name, Header: slot.Header, Fallback: slot.Fallback, Kind: slot.Kind, NeededBy: slot.NeededBy}
-		if b.Source == "" && slot.Suggested != "" {
+		if err := slot.accepts(v); err != nil {
+			return nil, err
+		}
+		b := Bound{Variable: v, Name: slot.Name, Header: slot.Header, Fallback: slot.Fallback, Kind: slot.Kind, NeededBy: slot.NeededBy, Optional: slot.Optional, Default: slot.Default}
+		switch {
+		case b.Source != "" || b.Column != "":
+		case slot.Column != "":
+			b.Column, b.Suggested = slot.Column, true
+		case slot.Suggested != "":
 			b.Source, b.Suggested = slot.Suggested, true
 		}
 		bound = append(bound, b)
@@ -233,8 +252,24 @@ func Bind(slots []Slot, vars []Variable) ([]Bound, error) {
 
 const unboundPlaceholder = "-"
 
+const SourceDefault campaign.BindingSource = "default"
+
+func (s Slot) accepts(v Variable) error {
+	if v.Column != "" && v.Source != "" {
+		return fmt.Errorf("%w: %q", ErrColumnWithSource, s.Key)
+	}
+	if v.Source == SourceDefault && !s.Optional {
+		return fmt.Errorf("%w: %q", ErrDefaultUnavailable, s.Key)
+	}
+	return nil
+}
+
 func Unbound(b Bound) bool {
-	return b.Source == "" || b.Source == campaign.BindLiteral && strings.TrimSpace(b.Value) == ""
+	return b.Source == "" || b.Source == SourceDefault || b.Source == campaign.BindLiteral && strings.TrimSpace(b.Value) == ""
+}
+
+func (b Bound) fed() bool {
+	return b.Column != "" || !Unbound(b)
 }
 
 func Bindings(bound []Bound) []campaign.VariableBinding {
@@ -245,14 +280,6 @@ func Bindings(bound []Bound) []campaign.VariableBinding {
 			continue
 		}
 		out = append(out, campaign.VariableBinding{Source: b.Source, Value: b.Value})
-	}
-	return out
-}
-
-func Fields(bound []Bound) []campaign.BindingSource {
-	out := make([]campaign.BindingSource, 0, len(bound))
-	for _, b := range bound {
-		out = append(out, b.Source)
 	}
 	return out
 }

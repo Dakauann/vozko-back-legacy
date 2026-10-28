@@ -26,6 +26,7 @@ type GoogleSheet struct {
 	TimeZone      string         `gorm:"size:64;not null"`
 	Locale        string         `gorm:"size:16;not null"`
 	Columns       datatypes.JSON `gorm:"type:jsonb;not null"`
+	UniqueRule    datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	Status        string         `gorm:"size:24;not null;default:'active'"`
 	Reason        string         `gorm:"size:32;not null;default:''"`
 	ReasonDetail  string         `gorm:"size:500;not null;default:''"`
@@ -108,6 +109,30 @@ type GoogleSheetTab struct {
 
 func (GoogleSheetTab) TableName() string { return "google_sheet_tabs" }
 
+type GoogleSheetFile struct {
+	WorkspaceID   string    `gorm:"primaryKey;type:uuid"`
+	SpreadsheetID string    `gorm:"primaryKey;size:128"`
+	Title         string    `gorm:"size:200;not null"`
+	CreatedAt     time.Time `gorm:"type:timestamptz;not null"`
+	UpdatedAt     time.Time `gorm:"type:timestamptz;not null"`
+}
+
+func (GoogleSheetFile) TableName() string { return "google_sheet_files" }
+
+type GoogleSheetUniqueKey struct {
+	SheetID     string    `gorm:"primaryKey;type:uuid"`
+	PeriodKey   string    `gorm:"primaryKey;size:16"`
+	KeyHash     string    `gorm:"primaryKey;size:64"`
+	WorkspaceID string    `gorm:"type:uuid;not null"`
+	RowID       string    `gorm:"type:uuid;not null"`
+	LeadID      *string   `gorm:"size:64"`
+	EntryID     string    `gorm:"size:64;not null;default:''"`
+	EntryType   string    `gorm:"size:32;not null;default:''"`
+	CreatedAt   time.Time `gorm:"type:timestamptz;not null"`
+}
+
+func (GoogleSheetUniqueKey) TableName() string { return "google_sheet_unique_keys" }
+
 func GoogleSheetModels() []any {
-	return []any{&GoogleSheet{}, &GoogleSheetRow{}, &GoogleSheetExportCursor{}, &GoogleSheetTab{}}
+	return []any{&GoogleSheet{}, &GoogleSheetRow{}, &GoogleSheetExportCursor{}, &GoogleSheetTab{}, &GoogleSheetFile{}, &GoogleSheetUniqueKey{}, &GoogleSheetRowRemoval{}}
 }

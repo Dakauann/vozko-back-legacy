@@ -15,6 +15,7 @@ func TestRefusalsCarryTheirCauseAndCode(t *testing.T) {
 		{fmt.Errorf("wrapped: %w", &Refusal{Cause: ErrConversationMissing}), "automation_variables_missing"},
 		{&Refusal{Cause: ErrPublishSwitchesOff}, "automation_publish_switches_off"},
 		{&Refusal{Cause: ErrVoiceVariables}, "automation_voice_variables"},
+		{&Refusal{Cause: ErrTestValuesMissing}, "automation_test_values_missing"},
 		{fmt.Errorf("%w: agent x", ErrUnreadable), "automation_needs_unreadable"},
 		{fmt.Errorf("%w: agent x", ErrNotFound), "automation_needs_not_found"},
 		{errors.New("other"), ""},
@@ -51,7 +52,7 @@ func TestEveryCodeIsListedOnce(t *testing.T) {
 		}
 		seen[code] = true
 	}
-	if len(seen) != 6 {
+	if len(seen) != 7 {
 		t.Fatalf("codes = %v", ErrorCodes())
 	}
 }
@@ -59,6 +60,13 @@ func TestEveryCodeIsListedOnce(t *testing.T) {
 func TestTheSentenceNamesTheAutomationAndTheVariables(t *testing.T) {
 	r := &Refusal{Cause: ErrReceptiveUnmet, Automation: Link{Automation: agentRef("a1"), Name: "Escola"}, Needs: Needs{{Name: "turma"}}}
 	if got := r.Sentence(); got != "O agente Escola precisa das variáveis turma, que conversas receptivas não trazem. Dê um valor padrão a elas ou escolha outra automação." {
+		t.Fatalf("sentence = %q", got)
+	}
+}
+
+func TestTheTestRefusalAsksForTheTestData(t *testing.T) {
+	r := &Refusal{Cause: ErrTestValuesMissing, Automation: Link{Automation: workflowRef("w1"), Name: "Cobrança"}, Needs: Needs{{Name: "matricula"}, {Name: "valor_pendencia"}}}
+	if got := r.Sentence(); got != "O fluxo Cobrança precisa das variáveis matricula, valor_pendencia. Preencha os dados do teste antes de iniciar." {
 		t.Fatalf("sentence = %q", got)
 	}
 }

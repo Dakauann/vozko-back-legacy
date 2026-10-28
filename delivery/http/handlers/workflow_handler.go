@@ -31,6 +31,7 @@ type WorkflowHandler struct {
 	linter             workflow.WorkflowLinter
 	lastTriggerInput   LastTriggerInputReader
 	variables          NodeVariableReader
+	testValues         TestValuesEditor
 }
 
 type NodeVariableReader interface {
@@ -63,6 +64,7 @@ func NewWorkflowHandler(
 	linter workflow.WorkflowLinter,
 	lastTriggerInput LastTriggerInputReader,
 	variables NodeVariableReader,
+	testValues TestValuesEditor,
 ) *WorkflowHandler {
 	return &WorkflowHandler{
 		workflows:          workflows,
@@ -78,6 +80,7 @@ func NewWorkflowHandler(
 		linter:             linter,
 		lastTriggerInput:   lastTriggerInput,
 		variables:          variables,
+		testValues:         testValues,
 	}
 }
 

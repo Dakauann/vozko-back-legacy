@@ -21,7 +21,7 @@ func TestEveryErasureTargetIsNamedOnce(t *testing.T) {
 	}
 	for _, required := range []ErasureTarget{
 		ErasureRecord, ErasurePhones, ErasureAddresses, ErasureRelations, ErasureEvents, ErasureMemories,
-		ErasureCampaignEntries, ErasureUnofficialCampaignEntries, ErasureCallNumbers, ErasureTemplateSendNumbers, ErasureCallListItems, ErasureCustomerPortfolio, ErasureGoogleSheetRows, ErasureSentiment,
+		ErasureCampaignEntries, ErasureUnofficialCampaignEntries, ErasureCallNumbers, ErasureTemplateSendNumbers, ErasureCallListItems, ErasureCustomerPortfolio, ErasureGoogleSheetRows, ErasureGoogleSheetUniqueKeys, ErasureGoogleSheetRowRemovals, ErasureSentiment,
 	} {
 		if !seen[required] {
 			t.Errorf("%q is not erased", required)

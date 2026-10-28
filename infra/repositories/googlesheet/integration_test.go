@@ -66,6 +66,7 @@ func integrationDB(t *testing.T) *gorm.DB {
 		"ux_google_sheet_tab", "ux_google_sheet_rows_key", "idx_google_sheet_ws_created", "idx_google_sheet_spreadsheet", "idx_google_sheet_rows_claim",
 		"idx_google_sheet_rows_ready", "idx_google_sheet_rows_in_flight", "idx_google_sheet_rows_problems",
 		"idx_google_sheet_rows_written", "idx_google_sheet_rows_purge", "idx_google_sheet_rows_lead",
+		"idx_google_sheet_unique_keys_lead", "idx_google_sheet_unique_keys_entry",
 	} {
 		stmt, ok := database.PerformanceIndexSQL(name)
 		if !ok {

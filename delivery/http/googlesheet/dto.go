@@ -55,29 +55,33 @@ func inputs(columns []ColumnRequest) []googlesheet.ColumnInput {
 }
 
 type CreateSheetRequest struct {
-	SpreadsheetID string          `json:"spreadsheetId,omitempty" example:"1AbC"`
-	Title         string          `json:"title" example:"Pedidos do site"`
-	TabName       string          `json:"tabName,omitempty" example:"Pedidos"`
-	TabPeriod     string          `json:"tabPeriod,omitempty" example:"none" enums:"none,month"`
-	TabPattern    string          `json:"tabPattern,omitempty" example:"Pagamentos · {mes} {ano}"`
-	Style         string          `json:"style,omitempty" example:"graphite" enums:"plain,graphite,blue,green,purple"`
-	Description   string          `json:"description,omitempty" example:"Pedidos registrados pelo agente de vendas"`
-	TimeZone      string          `json:"timeZone,omitempty" example:"America/Sao_Paulo"`
-	Columns       []ColumnRequest `json:"columns"`
+	SpreadsheetID string               `json:"spreadsheetId,omitempty" example:"1AbC"`
+	FileTitle     string               `json:"fileTitle,omitempty" example:"CDT Jabaquara"`
+	Title         string               `json:"title" example:"Pedidos do site"`
+	TabName       string               `json:"tabName,omitempty" example:"Pedidos"`
+	TabPeriod     string               `json:"tabPeriod,omitempty" example:"none" enums:"none,month"`
+	TabPattern    string               `json:"tabPattern,omitempty" example:"Pagamentos · {mes} {ano}"`
+	Style         string               `json:"style,omitempty" example:"graphite" enums:"plain,graphite,blue,green,purple"`
+	Description   string               `json:"description,omitempty" example:"Pedidos registrados pelo agente de vendas"`
+	TimeZone      string               `json:"timeZone,omitempty" example:"America/Sao_Paulo"`
+	Columns       []ColumnRequest      `json:"columns"`
+	Unique        *UniqueCreateRequest `json:"unique,omitempty"`
 }
 
 func (r CreateSheetRequest) input(workspaceID, userID, spreadsheetID string) gsuc.CreateInput {
 	return gsuc.CreateInput{
-		WorkspaceID: workspaceID, UserID: userID, SpreadsheetID: spreadsheetID, Title: r.Title, TabName: r.TabName,
+		WorkspaceID: workspaceID, UserID: userID, SpreadsheetID: spreadsheetID, FileTitle: r.FileTitle, Title: r.Title, TabName: r.TabName,
 		TabPeriod: googlesheet.TabPeriod(r.TabPeriod), TabPattern: r.TabPattern, Style: googlesheet.StylePreset(r.Style),
 		Description: r.Description, TimeZone: r.TimeZone, Columns: inputs(r.Columns),
+		Unique: r.Unique.input(),
 	}
 }
 
 type UpdateDetailsRequest struct {
-	Version     int     `json:"version" example:"3"`
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
+	Version     int                `json:"version" example:"3"`
+	Title       *string            `json:"title,omitempty"`
+	Description *string            `json:"description,omitempty"`
+	Unique      *UniqueRuleRequest `json:"unique,omitempty"`
 }
 
 type ColumnUpdateRequest struct {
@@ -117,14 +121,73 @@ type AddRowRequest struct {
 }
 
 type RowResponse struct {
-	ID        string            `json:"id"`
-	Values    googlesheet.Cells `json:"values"`
-	Status    string            `json:"status"`
-	RowNumber int               `json:"rowNumber,omitempty"`
-	Origin    string            `json:"origin"`
-	CreatedAt time.Time         `json:"createdAt"`
-	WrittenAt *time.Time        `json:"writtenAt,omitempty"`
-	ErrorCode string            `json:"errorCode,omitempty"`
+	ID           string            `json:"id"`
+	Values       googlesheet.Cells `json:"values" swaggertype:"object"`
+	Status       string            `json:"status" enums:"pending,in_flight,held,failed,written"`
+	RowNumber    int               `json:"rowNumber,omitempty"`
+	Origin       string            `json:"origin" enums:"agent,workflow,copilot,manual"`
+	OriginDetail RowOriginResponse `json:"originDetail"`
+	CreatedAt    time.Time         `json:"createdAt"`
+	WrittenAt    *time.Time        `json:"writtenAt,omitempty"`
+	ErrorCode    string            `json:"errorCode,omitempty"`
+	Removal      string            `json:"removal,omitempty" enums:"cancel,remove"`
+}
+
+type OriginConversationResponse struct {
+	EntryID   string `json:"entryId" example:"c7f1e2a0-9b3d-4a1e-8f2c-1d2e3f4a5b6c"`
+	EntryType string `json:"entryType" example:"whatsapp"`
+}
+
+type OriginNameResponse struct {
+	ID   string `json:"id" example:"8f8e5f7a-3c1d-4a77-9a55-0d6f0f3b2a11"`
+	Name string `json:"name" example:"Cobrança"`
+}
+
+type RowOriginResponse struct {
+	Kind         string                      `json:"kind" enums:"agent,workflow,copilot,manual"`
+	Conversation *OriginConversationResponse `json:"conversation,omitempty"`
+	Agent        *OriginNameResponse         `json:"agent,omitempty"`
+	Workflow     *OriginNameResponse         `json:"workflow,omitempty"`
+	RunID        string                      `json:"runId,omitempty" example:"5b1d7c9e-2f4a-4e8b-9c3d-7a6e5f4d3c2b"`
+	Person       *OriginNameResponse         `json:"person,omitempty"`
+}
+
+type RowListResponse struct {
+	Items      []RowResponse `json:"items"`
+	Page       int           `json:"page"`
+	PageSize   int           `json:"page_size"`
+	TotalItems int64         `json:"total_items"`
+	TotalPages int           `json:"total_pages"`
+}
+
+func nameOf(ref *gsuc.NamedRef) *OriginNameResponse {
+	if ref == nil {
+		return nil
+	}
+	return &OriginNameResponse{ID: ref.ID, Name: ref.Name}
+}
+
+func toRowOriginResponse(view gsuc.OriginView) RowOriginResponse {
+	out := RowOriginResponse{
+		Kind: string(view.Kind), Agent: nameOf(view.Agent), Workflow: nameOf(view.Workflow), RunID: view.RunID, Person: nameOf(view.Person),
+	}
+	if view.Conversation != nil {
+		out.Conversation = &OriginConversationResponse{EntryID: view.Conversation.EntryID, EntryType: string(view.Conversation.EntryType)}
+	}
+	return out
+}
+
+func toRowListResponse(page *shared.PaginatedResult[gsuc.RowView]) RowListResponse {
+	items := make([]RowResponse, len(page.Items))
+	for i, item := range page.Items {
+		row := item.Row
+		items[i] = RowResponse{
+			ID: row.ID, Values: row.Cells, Status: string(row.Status), RowNumber: row.RowNumber, Origin: string(row.Origin.Kind),
+			OriginDetail: toRowOriginResponse(item.Origin), CreatedAt: row.CreatedAt, WrittenAt: row.WrittenAt, ErrorCode: row.ErrorCode,
+			Removal: removalOf(row),
+		}
+	}
+	return RowListResponse{Items: items, Page: page.Page, PageSize: page.PageSize, TotalItems: page.TotalItems, TotalPages: page.TotalPages}
 }
 
 type ColumnResponse struct {
@@ -142,28 +205,30 @@ type ColumnResponse struct {
 }
 
 type SheetResponse struct {
-	ID            string           `json:"id"`
-	SpreadsheetID string           `json:"spreadsheetId"`
-	Title         string           `json:"title"`
-	TabName       string           `json:"tabName"`
-	TabPeriod     string           `json:"tabPeriod" enums:"none,month"`
-	TabPattern    string           `json:"tabPattern,omitempty"`
-	TabPeriodKey  string           `json:"tabPeriodKey,omitempty" example:"2026-11"`
-	TabBaseName   string           `json:"tabBaseName" example:"Pagamentos"`
-	Style         string           `json:"style" enums:"plain,graphite,blue,green,purple"`
-	TakesInput    bool             `json:"takesInput"`
-	Description   string           `json:"description,omitempty"`
-	TimeZone      string           `json:"timeZone"`
-	URL           string           `json:"url" example:"https://docs.google.com/spreadsheets/d/abc/edit#gid=0"`
-	Status        string           `json:"status" example:"active" enums:"active,needs_attention"`
-	Reason        string           `json:"reason,omitempty" example:"header_mismatch"`
-	ReasonDetail  string           `json:"reasonDetail,omitempty"`
-	Version       int              `json:"version"`
-	Columns       []ColumnResponse `json:"columns"`
-	TakesMessages bool             `json:"takesMessages"`
-	CreatedAt     time.Time        `json:"createdAt"`
-	UpdatedAt     time.Time        `json:"updatedAt"`
-	LastWrittenAt *time.Time       `json:"lastWrittenAt,omitempty"`
+	ID            string             `json:"id"`
+	SpreadsheetID string             `json:"spreadsheetId"`
+	Title         string             `json:"title"`
+	TabName       string             `json:"tabName"`
+	TabPeriod     string             `json:"tabPeriod" enums:"none,month"`
+	TabPattern    string             `json:"tabPattern,omitempty"`
+	TabPeriodKey  string             `json:"tabPeriodKey,omitempty" example:"2026-11"`
+	TabBaseName   string             `json:"tabBaseName" example:"Pagamentos"`
+	Style         string             `json:"style" enums:"plain,graphite,blue,green,purple"`
+	TakesInput    bool               `json:"takesInput"`
+	Description   string             `json:"description,omitempty"`
+	TimeZone      string             `json:"timeZone"`
+	URL           string             `json:"url" example:"https://docs.google.com/spreadsheets/d/abc/edit#gid=0"`
+	Status        string             `json:"status" example:"active" enums:"active,needs_attention"`
+	Reason        string             `json:"reason,omitempty" example:"header_mismatch"`
+	ReasonDetail  string             `json:"reasonDetail,omitempty"`
+	Repairable    bool               `json:"repairable"`
+	Version       int                `json:"version"`
+	Columns       []ColumnResponse   `json:"columns"`
+	Unique        UniqueRuleResponse `json:"unique"`
+	TakesMessages bool               `json:"takesMessages"`
+	CreatedAt     time.Time          `json:"createdAt"`
+	UpdatedAt     time.Time          `json:"updatedAt"`
+	LastWrittenAt *time.Time         `json:"lastWrittenAt,omitempty"`
 }
 
 func toSheetResponse(s *googlesheet.Sheet) SheetResponse {
@@ -185,8 +250,8 @@ func toSheetResponse(s *googlesheet.Sheet) SheetResponse {
 		ID: s.ID, SpreadsheetID: s.SpreadsheetID, Title: s.Title, TabName: s.TabName, TabPeriod: string(s.TabPeriod), TabPattern: s.TabPattern,
 		TabPeriodKey: s.TabPeriodKey, TabBaseName: s.TabBaseName(), Style: string(s.Style), TakesInput: s.TakesInput(),
 		Description: s.Description, TimeZone: s.TimeZone, URL: s.URL(),
-		Status: string(s.Status), Reason: string(s.Reason), ReasonDetail: s.ReasonDetail, Version: s.Version,
-		Columns: columns, TakesMessages: s.HasMessageColumns(), CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, LastWrittenAt: s.LastWrittenAt,
+		Status: string(s.Status), Reason: string(s.Reason), ReasonDetail: s.ReasonDetail, Repairable: s.Repairable(), Version: s.Version,
+		Columns: columns, Unique: toUniqueResponse(s.Unique), TakesMessages: s.HasMessageColumns(), CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, LastWrittenAt: s.LastWrittenAt,
 	}
 }
 
@@ -227,17 +292,29 @@ type SheetFileListResponse struct {
 	TotalPages int                 `json:"totalPages"`
 }
 
+type SheetFileEnvelope struct {
+	File SheetFileResponse `json:"file"`
+}
+
+type RenameFileRequest struct {
+	Title string `json:"title" example:"CDT Jabaquara"`
+}
+
+func toFileResponse(file googlesheet.Spreadsheet) SheetFileResponse {
+	sheets := make([]SheetResponse, len(file.Sheets))
+	for i, s := range file.Sheets {
+		sheets[i] = toSheetResponse(s)
+	}
+	return SheetFileResponse{
+		SpreadsheetID: file.ID, Title: file.Title(), URL: file.URL(), Status: string(file.Status()),
+		LastWrittenAt: file.LastWrittenAt(), Sheets: sheets,
+	}
+}
+
 func toFileListResponse(page *shared.PaginatedResult[googlesheet.Spreadsheet]) SheetFileListResponse {
 	items := make([]SheetFileResponse, len(page.Items))
 	for i, file := range page.Items {
-		sheets := make([]SheetResponse, len(file.Sheets))
-		for j, s := range file.Sheets {
-			sheets[j] = toSheetResponse(s)
-		}
-		items[i] = SheetFileResponse{
-			SpreadsheetID: file.ID, Title: file.Title(), URL: file.URL(), Status: string(file.Status()),
-			LastWrittenAt: file.LastWrittenAt(), Sheets: sheets,
-		}
+		items[i] = toFileResponse(file)
 	}
 	return SheetFileListResponse{Items: items, Page: page.Page, PageSize: page.PageSize, TotalItems: page.TotalItems, TotalPages: page.TotalPages}
 }
@@ -326,9 +403,13 @@ type CatalogResponse struct {
 	MaxTitle          int                   `json:"maxTitle"`
 	MaxTabName        int                   `json:"maxTabName"`
 	MaxLinkLabel      int                   `json:"maxLinkLabel"`
+	MaxRemovalReason  int                   `json:"maxRemovalReason"`
 	RowErrorCodes     []string              `json:"rowErrorCodes"`
 	AttentionReasons  []string              `json:"attentionReasons"`
 	WrittenRetainDays int                   `json:"writtenRetainDays"`
+	UniqueModes       []string              `json:"uniqueModes"`
+	RepeatActions     []string              `json:"repeatActions"`
+	UniqueSources     []string              `json:"uniqueSources"`
 }
 
 func catalog() CatalogResponse {
@@ -336,7 +417,7 @@ func catalog() CatalogResponse {
 		DefaultTimeZone: googlesheet.DefaultTimeZone, MaxHeader: googlesheet.MaxHeaderRunes,
 		MaxInstruction: googlesheet.MaxInstructionRunes, MaxOption: googlesheet.MaxOptionRunes,
 		MaxTitle: googlesheet.MaxTitleRunes, MaxTabName: googlesheet.MaxTabRunes, MaxLinkLabel: googlesheet.MaxLinkLabelRunes,
-		DefaultStyle: string(googlesheet.DefaultStyle), DefaultLinkLabel: googlesheet.DefaultLinkLabel,
+		MaxRemovalReason: googlesheet.MaxRemovalReasonRunes, DefaultStyle: string(googlesheet.DefaultStyle), DefaultLinkLabel: googlesheet.DefaultLinkLabel,
 		TabTokens:         googlesheet.TabTokens(),
 		RowErrorCodes:     googlesheet.RowErrorCodes(),
 		WrittenRetainDays: int(gsuc.WrittenRowRetention.Hours() / 24),
@@ -362,5 +443,11 @@ func catalog() CatalogResponse {
 	for _, r := range googlesheet.AttentionReasons() {
 		out.AttentionReasons = append(out.AttentionReasons, string(r))
 	}
+	uniqueCatalog(&out)
 	return out
+}
+
+func removalOf(row *googlesheet.Row) string {
+	kind, _ := row.Removal()
+	return string(kind)
 }

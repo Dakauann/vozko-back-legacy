@@ -16,7 +16,7 @@ func listPathVariables(t *testing.T, csv string, slots int) []string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapping := campaign.MapList(list.Layout, campaign.ContactPhone, make([]campaign.BindingSource, slots), nil)
+	mapping := campaign.MapList(list.Layout, campaign.ContactPhone, campaign.TemplateTargets(make([]campaign.BindingSource, slots)), nil)
 	return mapping.Cells(list.Rows[0])
 }
 

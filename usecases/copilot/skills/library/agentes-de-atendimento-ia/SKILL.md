@@ -38,6 +38,13 @@ Comece com um escopo pequeno (por exemplo, dúvidas frequentes e agendamento) e 
 - Credenciais de API nunca passam por você: use {{secret.<nome>}} quando o segredo já existe, ou deixe o valor do cabeçalho vazio para o usuário digitar no cartão de aprovação.
 - Para o agente atender um canal, configure o atendimento do canal (no WhatsApp oficial, configure_number_automation).
 
+## Passar a conversa para outra automação
+Quando um agente atende vários públicos e outro agente ou fluxo cuida melhor de parte deles (por exemplo, o agente de prospecção percebe que quem escreveu já é aluno e o agente acadêmico do polo certo deve continuar), ligue a ferramenta transfer_to_automation.
+- Config: {"destinations": [{"kind": "agent" ou "workflow", "automation_id": "<id>", "stage_id": "<etapa opcional, pode ser de outro funil de conversas>", "description": "<quando usar este destino>"}]}. Sem description, vale a descrição do próprio agente ou fluxo.
+- O mesmo agente pode aparecer em mais de um destino com etapas diferentes (um por polo, por exemplo). O agente nunca aponta para si mesmo; fluxos precisam estar publicados e ativos, e fluxos de voz não servem.
+- Diga nas instruções do agente quando transferir. Quem recebe lê a nota com o motivo e o resumo; um agente responde na próxima mensagem do cliente, um fluxo começa na hora.
+- Se o destino precisa de variáveis que a conversa não tem, a transferência é recusada e a conversa continua com o agente.
+
 ## Retomar a conversa depois (follow-up)
 Quando o agente espera algo que o cliente vai mandar mais tarde (um comprovante de pagamento, um documento, uma resposta), ele pode agendar uma mensagem para cobrar sozinho.
 - Ligue as ferramentas schedule_follow_up e cancel_follow_up no agente e diga nas instruções quando lembrar e depois de quanto tempo. Exemplo: "Se o cliente disser que manda o comprovante depois, agende um lembrete para daqui a 4 horas; se ele mandar, cancele os lembretes."

@@ -8,8 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -61,6 +59,7 @@ type sheetBody struct {
 	Properties         sheetProperties        `json:"properties"`
 	ConditionalFormats []conditionalRuleState `json:"conditionalFormats,omitempty"`
 	BandedRanges       []bandedRangeState     `json:"bandedRanges,omitempty"`
+	ProtectedRanges    []protectedRangeState  `json:"protectedRanges,omitempty"`
 }
 
 type spreadsheetBody struct {
@@ -98,8 +97,7 @@ func (c *Client) CreateSpreadsheet(ctx context.Context, token string, spec googl
 		return googlesheet.CreatedSpreadsheet{}, fmt.Errorf("googlesheets: create returned no spreadsheet")
 	}
 	out := googlesheet.CreatedSpreadsheet{SpreadsheetID: created.SpreadsheetID, TabID: created.Sheets[0].Properties.SheetID}
-	requests := append(layoutRequests(freshTab(out.TabID, spec.Layout), spec.Layout), protectHeader(out.TabID))
-	if err := c.batchUpdate(ctx, token, out.SpreadsheetID, requests); err != nil {
+	if err := c.batchUpdate(ctx, token, out.SpreadsheetID, layoutRequests(freshTab(out.TabID, spec.Layout), spec.Layout)); err != nil {
 		return out, err
 	}
 	return out, nil
@@ -112,7 +110,11 @@ func (c *Client) TrashSpreadsheet(ctx context.Context, token, spreadsheetID stri
 func (c *Client) AddTab(ctx context.Context, token, spreadsheetID string, tab googlesheet.TabSpec) error {
 	requests := []map[string]any{{"addSheet": map[string]any{"properties": newTabProperties(tab.ID, tab.Title, tab.Layout)}}}
 	requests = append(requests, layoutRequests(freshTab(tab.ID, tab.Layout), tab.Layout)...)
-	return c.batchUpdate(ctx, token, spreadsheetID, append(requests, protectHeader(tab.ID)))
+	return c.batchUpdate(ctx, token, spreadsheetID, requests)
+}
+
+func (c *Client) RenameSpreadsheet(ctx context.Context, token, spreadsheetID, title string) error {
+	return c.batchUpdate(ctx, token, spreadsheetID, []map[string]any{{"updateSpreadsheetProperties": map[string]any{"properties": map[string]any{"title": title}, "fields": "title"}}})
 }
 
 func (c *Client) DeleteTab(ctx context.Context, token, spreadsheetID string, tabID int64) error {
@@ -120,7 +122,11 @@ func (c *Client) DeleteTab(ctx context.Context, token, spreadsheetID string, tab
 }
 
 func (c *Client) ApplyLayout(ctx context.Context, token string, target googlesheet.Target, layout googlesheet.Layout) error {
-	sheets, err := c.sheets(ctx, token, target.SpreadsheetID, "sheets(properties(sheetId,title,gridProperties),conditionalFormats,bandedRanges)")
+	return c.relayout(ctx, token, target, layout, nil)
+}
+
+func (c *Client) relayout(ctx context.Context, token string, target googlesheet.Target, layout googlesheet.Layout, before func(tabState) ([]map[string]any, tabState)) error {
+	sheets, err := c.sheets(ctx, token, target.SpreadsheetID, layoutStateFields)
 	if err != nil {
 		return err
 	}
@@ -130,9 +136,13 @@ func (c *Client) ApplyLayout(ctx context.Context, token string, target googleshe
 		}
 		state := tabState{
 			tabID: target.TabID, rows: sheet.Properties.GridProperties.RowCount, columns: sheet.Properties.GridProperties.ColumnCount,
-			rules: sheet.ConditionalFormats, bandings: sheet.BandedRanges,
+			rules: sheet.ConditionalFormats, bandings: sheet.BandedRanges, protections: sheet.ProtectedRanges,
 		}
-		return c.batchUpdate(ctx, token, target.SpreadsheetID, layoutRequests(state, layout))
+		var requests []map[string]any
+		if before != nil {
+			requests, state = before(state)
+		}
+		return c.batchUpdate(ctx, token, target.SpreadsheetID, append(requests, layoutRequests(state, layout)...))
 	}
 	return tabMissing()
 }
@@ -163,68 +173,12 @@ func tabMissing() error {
 	return &APIError{Status: http.StatusNotFound, Reason: "tab_missing", Message: "a aba da planilha foi removida"}
 }
 
-type appendResponse struct {
-	Updates struct {
-		UpdatedRange string `json:"updatedRange"`
-		UpdatedRows  int    `json:"updatedRows"`
-	} `json:"updates"`
-}
-
-var firstRowPattern = regexp.MustCompile(`![A-Z]+(\d+)`)
-
-func enteredValues(rows [][]any) [][]any {
-	out := make([][]any, len(rows))
-	for i, row := range rows {
-		cells := make([]any, len(row))
-		for j, cell := range row {
-			switch v := cell.(type) {
-			case googlesheet.Formula:
-				cells[j] = string(v)
-			case string:
-				if v == "" {
-					cells[j] = ""
-					continue
-				}
-				cells[j] = "'" + v
-			default:
-				cells[j] = v
-			}
-		}
-		out[i] = cells
-	}
-	return out
-}
-
-func (c *Client) AppendRows(ctx context.Context, token string, target googlesheet.Target, rows [][]any) (googlesheet.AppendResult, error) {
-	a1 := quotedTab(target.TabName) + "!A1"
-	query := url.Values{
-		"valueInputOption":        {"USER_ENTERED"},
-		"insertDataOption":        {"INSERT_ROWS"},
-		"includeValuesInResponse": {"false"},
-	}
-	endpoint := c.endpoints.Sheets + "/" + url.PathEscape(target.SpreadsheetID) + "/values/" + url.PathEscape(a1) + ":append?" + query.Encode()
-	var out appendResponse
-	if err := c.do(ctx, http.MethodPost, endpoint, token, map[string]any{"range": a1, "majorDimension": "ROWS", "values": enteredValues(rows)}, &out); err != nil {
-		return googlesheet.AppendResult{}, err
-	}
-	match := firstRowPattern.FindStringSubmatch(out.Updates.UpdatedRange)
-	if match == nil {
-		return googlesheet.AppendResult{}, fmt.Errorf("googlesheets: append returned the range %q", out.Updates.UpdatedRange)
-	}
-	first, _ := strconv.Atoi(match[1])
-	return googlesheet.AppendResult{FirstRow: first, Rows: out.Updates.UpdatedRows}, nil
-}
-
 func (c *Client) ReadRange(ctx context.Context, token string, target googlesheet.Target, a1 string) ([][]any, error) {
-	query := url.Values{"majorDimension": {"ROWS"}, "valueRenderOption": {"UNFORMATTED_VALUE"}}
-	endpoint := c.endpoints.Sheets + "/" + url.PathEscape(target.SpreadsheetID) + "/values/" + url.PathEscape(quotedTab(target.TabName)+"!"+a1) + "?" + query.Encode()
-	var out struct {
-		Values [][]any `json:"values"`
-	}
-	if err := c.do(ctx, http.MethodGet, endpoint, token, nil, &out); err != nil {
+	read, err := c.ReadRanges(ctx, token, target, []string{a1})
+	if err != nil {
 		return nil, err
 	}
-	return out.Values, nil
+	return read[0], nil
 }
 
 func (c *Client) batchUpdate(ctx context.Context, token, spreadsheetID string, requests []map[string]any) error {

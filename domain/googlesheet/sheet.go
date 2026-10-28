@@ -37,6 +37,7 @@ const (
 	ReasonSheetFull         AttentionReason = "sheet_full"
 	ReasonGoogleUnavailable AttentionReason = "google_unavailable"
 	ReasonAccountChanged    AttentionReason = "account_changed"
+	ReasonHeaderNotFirstRow AttentionReason = "header_not_first_row"
 )
 
 type Sheet struct {
@@ -55,6 +56,7 @@ type Sheet struct {
 	TimeZone      string
 	Locale        string
 	Columns       []Column
+	Unique        UniqueRule
 	Status        Status
 	Reason        AttentionReason
 	ReasonDetail  string
@@ -78,6 +80,7 @@ type NewSheetInput struct {
 	Locale      string
 	CreatedBy   string
 	Columns     []ColumnInput
+	Unique      UniqueInput
 }
 
 func NewSheet(in NewSheetInput) (*Sheet, error) {
@@ -139,6 +142,14 @@ func buildSheet(in NewSheetInput, owned bool) (*Sheet, error) {
 		s.Columns = append(s.Columns, col)
 	}
 	if err := s.validateColumns(FieldColumns, 0); err != nil {
+		return nil, err
+	}
+	unique, err := s.resolveUnique(in.Unique)
+	if err != nil {
+		return nil, err
+	}
+	s.Unique = unique
+	if err := s.validateUnique(FieldUnique); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -322,6 +333,9 @@ func (s *Sheet) EditColumns(edit ColumnsEdit) error {
 		draft.Columns = append(draft.Columns, col)
 	}
 	if err := draft.validateColumns(FieldAdd, existing); err != nil {
+		return err
+	}
+	if err := draft.validateUnique(FieldUpdate); err != nil {
 		return err
 	}
 	s.Columns = draft.Columns

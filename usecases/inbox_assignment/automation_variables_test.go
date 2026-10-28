@@ -15,6 +15,16 @@ import (
 type scriptedVariablesCheck struct {
 	refuse  map[string]bool
 	checked []string
+	pending []map[string]string
+}
+
+func (s *scriptedVariablesCheck) ConversationMissingWith(ctx context.Context, workspaceID, entryID string, entryType shared.EntryType, target conversation.Automation, pending map[string]string) error {
+	s.pending = append(s.pending, pending)
+	if s.refuse[target.ID] && pending["turma"] != "" {
+		s.checked = append(s.checked, entryID+"/"+target.ID)
+		return nil
+	}
+	return s.ConversationMissing(ctx, workspaceID, entryID, entryType, target)
 }
 
 func (s *scriptedVariablesCheck) ConversationMissing(_ context.Context, _, entryID string, _ shared.EntryType, target conversation.Automation) error {

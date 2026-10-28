@@ -1,5 +1,7 @@
 package googlesheet
 
+import "slices"
+
 type PresetColumn struct {
 	Key         string
 	Type        ColumnType
@@ -16,6 +18,16 @@ type PresetSheet struct {
 	TabPeriod TabPeriod
 	Style     StylePreset
 	Columns   []PresetColumn
+	Unique    UniqueRule
+}
+
+func (s PresetSheet) UniqueInput() UniqueInput {
+	rule := s.Unique.Normalized()
+	in := UniqueInput{Mode: rule.Mode, OnRepeat: rule.OnRepeat}
+	for _, key := range rule.Columns {
+		in.Columns = append(in.Columns, slices.IndexFunc(s.Columns, func(col PresetColumn) bool { return col.Key == key }))
+	}
+	return in
 }
 
 type Preset struct {
@@ -76,7 +88,7 @@ var presets = []Preset{
 				inputColumn("observacoes", TypeLongText),
 				{Key: "negociacao", Type: TypeLink, Source: SourceExportLink, LinkRef: "negociacoes"},
 				systemColumn("registrado_em", SourceWrittenAt),
-			}},
+			}, Unique: UniqueRule{Mode: UniqueConversation}},
 		},
 	},
 	{

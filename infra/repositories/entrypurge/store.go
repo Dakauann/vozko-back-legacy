@@ -53,6 +53,8 @@ var entryTables = []keyedTable{
 	entry("whatsapp_form_responses"),
 	entry("google_sheet_rows"),
 	entry("google_sheet_export_cursors"),
+	entry("google_sheet_unique_keys"),
+	entry("google_sheet_row_removals"),
 	{table: "lead_memories", idColumn: "source_entry_id", typeColumn: "source_entry_type"},
 	{
 		table: "workflow_runs", idColumn: "entry_id", typeColumn: "entry_type",

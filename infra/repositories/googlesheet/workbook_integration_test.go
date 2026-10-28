@@ -322,3 +322,35 @@ func TestSpreadsheetsCanBeNarrowedToFilesWithAMessageTab(t *testing.T) {
 		t.Fatalf("files with a message tab = %+v, %v", page, err)
 	}
 }
+
+func TestAFileKeepsTheNameItWasGivenAndOlderFilesFallBackToTheirOldestTab(t *testing.T) {
+	db := integrationDB(t)
+	repo := NewSheetRepository(db)
+	ctx := context.Background()
+	ws := uuid.NewString()
+	day := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	tabOfFile(t, db, ws, "file-1", "Negociações", 0, day)
+	tabOfFile(t, db, ws, "file-1", "Pagamentos", 7, day.Add(time.Hour))
+	tabOfFile(t, db, ws, "file-2", "Pedidos", 0, day.Add(2*time.Hour))
+	if err := repo.SaveFileTitle(ctx, ws, "file-1", "Cobrança"); err != nil {
+		t.Fatalf("SaveFileTitle: %v", err)
+	}
+	if err := repo.SaveFileTitle(ctx, ws, "file-1", "Altiva"); err != nil {
+		t.Fatalf("SaveFileTitle again: %v", err)
+	}
+	if err := repo.SaveFileTitle(ctx, uuid.NewString(), "file-2", "De outro workspace"); err != nil {
+		t.Fatal(err)
+	}
+
+	titles, err := repo.FileTitles(ctx, ws, []string{"file-1", "file-2"})
+	if err != nil || len(titles) != 1 || titles["file-1"] != "Altiva" {
+		t.Fatalf("FileTitles = %v, %v", titles, err)
+	}
+	page, err := repo.ListSpreadsheets(ctx, googlesheet.ListInput{WorkspaceID: ws, Pagination: shared.Pagination{Page: 1, PageSize: 10}})
+	if err != nil || len(page.Items) != 2 {
+		t.Fatalf("ListSpreadsheets = %+v, %v", page, err)
+	}
+	if page.Items[0].ID != "file-2" || page.Items[0].Title() != "Pedidos" || page.Items[1].Title() != "Altiva" {
+		t.Fatalf("titles = %q, %q", page.Items[0].Title(), page.Items[1].Title())
+	}
+}

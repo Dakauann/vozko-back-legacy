@@ -38,6 +38,10 @@ var (
 	ErrSuggestionSlot           = errors.New("campaign audience: the template has no variable with this number")
 	ErrSuggestionLiteral        = errors.New("campaign audience: a suggestion names a lead field; a free variable has no suggestion")
 	ErrSuggestionDuplicate      = errors.New("campaign audience: the same template variable was suggested twice")
+	ErrListColumnUnknown        = errors.New("campaign audience: the list has no column with the header a variable reads")
+	ErrColumnNeedsList          = errors.New("campaign audience: only a list audience has columns to feed a variable")
+	ErrColumnWithSource         = errors.New("campaign audience: a variable reads a list column, a lead field or a fixed text, never two of them")
+	ErrDefaultUnavailable       = errors.New("campaign audience: only an agent variable with a default can use it")
 )
 
 var errorCodes = []struct {
@@ -76,6 +80,10 @@ var errorCodes = []struct {
 	{ErrSuggestionSlot, "template_suggestion_slot_invalid"},
 	{ErrSuggestionLiteral, "template_suggestion_literal"},
 	{ErrSuggestionDuplicate, "template_suggestion_duplicate"},
+	{ErrListColumnUnknown, "audience_list_column_unknown"},
+	{ErrColumnNeedsList, "audience_variable_column_needs_list"},
+	{ErrColumnWithSource, "audience_variable_column_with_source"},
+	{ErrDefaultUnavailable, "audience_variable_default_unavailable"},
 	{campaign.ErrListEmpty, "audience_file_empty"},
 	{campaign.ErrListContactColumn, "audience_contact_column_missing"},
 	{campaign.ErrListTooWide, "audience_file_too_wide"},

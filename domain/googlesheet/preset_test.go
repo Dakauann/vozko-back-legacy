@@ -38,6 +38,7 @@ func TestEveryPresetBuildsValidSheets(t *testing.T) {
 				}
 				in.Columns = append(in.Columns, input)
 			}
+			in.Unique = sheet.UniqueInput()
 			if _, err := NewSheet(in); err != nil {
 				t.Fatalf("preset %s sheet %s: %v", preset.Key, sheet.Ref, err)
 			}
@@ -97,5 +98,30 @@ func TestPresetCopyKeysCoverEveryTextTheFrontShows(t *testing.T) {
 		if !seen[want] {
 			t.Fatalf("copy key %s missing", want)
 		}
+	}
+}
+
+func TestOnlyThePaymentsTabKeepsOneRowPerConversationByDefault(t *testing.T) {
+	for _, preset := range Presets() {
+		for _, sheet := range preset.Sheets {
+			want := UniqueNone
+			if preset.Key == "cobranca" && sheet.Ref == "pagamentos" {
+				want = UniqueConversation
+			}
+			if got := sheet.Unique.Normalized().Mode; got != want {
+				t.Fatalf("%s/%s unique = %s, want %s", preset.Key, sheet.Ref, got, want)
+			}
+		}
+	}
+}
+
+func TestAPresetUniqueRuleNamesItsColumnsByPosition(t *testing.T) {
+	sheet := PresetSheet{
+		Columns: []PresetColumn{inputColumn("data", TypeDate), inputColumn("matricula", TypeText)},
+		Unique:  UniqueRule{Mode: UniqueColumns, Columns: []string{"matricula", "ausente"}},
+	}
+	got := sheet.UniqueInput()
+	if got.Mode != UniqueColumns || len(got.Columns) != 2 || got.Columns[0] != 1 || got.Columns[1] != -1 {
+		t.Fatalf("unique input = %+v", got)
 	}
 }

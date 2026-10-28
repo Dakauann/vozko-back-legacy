@@ -315,3 +315,22 @@ func TestTheRuleCarriesTheNeedsForTheAudienceStep(t *testing.T) {
 		t.Fatalf("needs = %+v, want escola owned by the workflow", needs)
 	}
 }
+
+func TestTheRuleCarriesTheAgentVariablesWithADefaultAsOptional(t *testing.T) {
+	cobranca := &agent.Agent{ID: "agent-1", WorkspaceID: "ws-1", Name: "Cobrança", Variables: []agent.AgentVariable{{Name: "matricula"}, {Name: "tom", DefaultValue: "cordial"}}}
+	step := newStep(t, fakeWorkflows{}, fakeAgents{byID: map[string]*agent.Agent{"agent-1": cobranca}})
+	rule, err := step.Rule("ws-1", campaign.Automation{AgentID: "agent-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(rule.Needs().Names(), []string{"matricula"}) {
+		t.Fatalf("needs = %v", rule.Needs().Names())
+	}
+	optional := rule.Optional()
+	if len(optional) != 1 || optional[0].Name != "tom" || optional[0].Default != "cordial" {
+		t.Fatalf("optional = %+v", optional)
+	}
+	if err := rule.Check([]campaign.EntryMetadata{{Label: "lead 1", Metadata: map[string]any{"matricula": "123"}}}); err != nil {
+		t.Fatalf("an optional variable never blocks: %v", err)
+	}
+}

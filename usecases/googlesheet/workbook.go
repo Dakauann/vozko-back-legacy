@@ -19,6 +19,7 @@ type WorkbookInput struct {
 	WorkspaceID   string
 	UserID        string
 	SpreadsheetID string
+	FileTitle     string
 	Sheets        []WorkbookSheet
 }
 
@@ -37,6 +38,11 @@ func (m *Manager) CreateWorkbook(ctx context.Context, in WorkbookInput) ([]*goog
 	if len(in.Sheets) == 0 {
 		return nil, &WorkbookError{Sheet: 0, Err: &googlesheet.DefinitionError{Code: googlesheet.CodeNoColumns, Field: googlesheet.FieldColumns, Column: -1}}
 	}
+	if in.SpreadsheetID == "" {
+		if _, err := googlesheet.CheckFileTitle(in.FileTitle); err != nil {
+			return nil, err
+		}
+	}
 	access, err := m.access.Access(ctx, in.WorkspaceID, googleaccount.ProductSheets)
 	if err != nil {
 		return nil, err
@@ -52,7 +58,7 @@ func (m *Manager) CreateWorkbook(ctx context.Context, in WorkbookInput) ([]*goog
 	}
 	for i, item := range in.Sheets {
 		input := item.Input
-		input.WorkspaceID, input.UserID, input.SpreadsheetID = in.WorkspaceID, in.UserID, spreadsheetID
+		input.WorkspaceID, input.UserID, input.SpreadsheetID, input.FileTitle = in.WorkspaceID, in.UserID, spreadsheetID, in.FileTitle
 		columns, err := resolveLinkRefs(input.Columns, item.LinkRefs, made)
 		if err != nil {
 			rollback()
@@ -117,8 +123,12 @@ func (m *Manager) Workbooks(ctx context.Context, workspaceID string) ([]Workbook
 	case !errors.Is(err, googleaccount.ErrNotConnected):
 		return nil, err
 	}
+	files := googlesheet.GroupBySpreadsheet(sheets)
+	if err := m.nameFiles(ctx, workspaceID, files); err != nil {
+		return nil, err
+	}
 	var out []WorkbookView
-	for _, file := range googlesheet.GroupBySpreadsheet(sheets) {
+	for _, file := range files {
 		view := WorkbookView{
 			SpreadsheetID: file.ID,
 			Title:         file.Title(),
@@ -135,6 +145,60 @@ func (m *Manager) Workbooks(ctx context.Context, workspaceID string) ([]Workbook
 		out = append(out, view)
 	}
 	return out, nil
+}
+
+func (m *Manager) nameFiles(ctx context.Context, workspaceID string, files []googlesheet.Spreadsheet) error {
+	ids := make([]string, len(files))
+	for i, file := range files {
+		ids[i] = file.ID
+	}
+	titles, err := m.sheets.FileTitles(ctx, workspaceID, ids)
+	if err != nil {
+		return err
+	}
+	for i := range files {
+		files[i].Name = titles[files[i].ID]
+	}
+	return nil
+}
+
+type RenameFileInput struct {
+	WorkspaceID   string
+	SpreadsheetID string
+	Title         string
+}
+
+func (m *Manager) RenameFile(ctx context.Context, in RenameFileInput) (*googlesheet.Spreadsheet, error) {
+	title, err := googlesheet.CheckFileTitle(in.Title)
+	if err != nil {
+		return nil, err
+	}
+	hosts, err := m.sheets.InSpreadsheet(ctx, in.WorkspaceID, in.SpreadsheetID)
+	if err != nil {
+		return nil, err
+	}
+	if len(hosts) == 0 {
+		return nil, googlesheet.ErrSpreadsheetNotFound
+	}
+	access, err := m.access.Access(ctx, in.WorkspaceID, googleaccount.ProductSheets)
+	if err != nil {
+		return nil, err
+	}
+	file := googlesheet.GroupBySpreadsheet(hosts)[0]
+	if file.Oldest().AccountID != access.AccountID {
+		return nil, googlesheet.ErrAccountChanged
+	}
+	if err := m.takeWrite(ctx, access); err != nil {
+		return nil, err
+	}
+	if err := m.api.RenameSpreadsheet(ctx, access.Token, in.SpreadsheetID, title); err != nil {
+		return nil, m.googleRefusal(err)
+	}
+	if err := m.sheets.SaveFileTitle(ctx, in.WorkspaceID, in.SpreadsheetID, title); err != nil {
+		return nil, err
+	}
+	file.Name = title
+	return &file, nil
 }
 
 func (m *Manager) PreviewTabName(pattern, timeZone string) (string, string, error) {

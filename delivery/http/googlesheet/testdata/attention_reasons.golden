@@ -2,5 +2,6 @@ access_lost
 account_changed
 google_unavailable
 header_mismatch
+header_not_first_row
 sheet_full
 spreadsheet_missing

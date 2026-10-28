@@ -1,11 +1,32 @@
 package campaignaudience
 
 import (
+	"maps"
+
 	"vozko/domain/automationneeds"
 	"vozko/domain/campaign"
 )
 
-func AutomationSlots(needs automationneeds.Needs, template []Slot, suggest func(name string) campaign.BindingSource) []Slot {
+type NeedSuggest struct {
+	Field  func(name string) campaign.BindingSource
+	Column func(name string) string
+}
+
+func (s NeedSuggest) field(name string) campaign.BindingSource {
+	if s.Field == nil {
+		return ""
+	}
+	return s.Field(name)
+}
+
+func (s NeedSuggest) column(name string) string {
+	if s.Column == nil {
+		return ""
+	}
+	return s.Column(name)
+}
+
+func AutomationSlots(needs, optional automationneeds.Needs, template []Slot, suggest NeedSuggest) []Slot {
 	taken := make(map[string]bool, len(template))
 	for _, s := range template {
 		taken[s.Key] = true
@@ -15,11 +36,15 @@ func AutomationSlots(needs automationneeds.Needs, template []Slot, suggest func(
 		if taken[need.Name] {
 			continue
 		}
-		slot := Slot{Key: need.Name, Name: need.Name, Kind: SlotAutomation, NeededBy: need.Owner().Name}
-		if suggest != nil {
-			slot.Suggested = suggest(need.Name)
+		taken[need.Name] = true
+		out = append(out, Slot{Key: need.Name, Name: need.Name, Kind: SlotAutomation, NeededBy: need.Owner().Name, Suggested: suggest.field(need.Name), Column: suggest.column(need.Name)})
+	}
+	for _, need := range optional {
+		if taken[need.Name] {
+			continue
 		}
-		out = append(out, slot)
+		taken[need.Name] = true
+		out = append(out, Slot{Key: need.Name, Name: need.Name, Kind: SlotAutomation, NeededBy: need.Owner().Name, Optional: true, Default: need.Default, Column: suggest.column(need.Name)})
 	}
 	return out
 }
@@ -39,46 +64,69 @@ func KnownVariables(vars []Variable, slots []Slot, needs automationneeds.Needs) 
 	return out
 }
 
-func WithoutTemplateKeys(rule MetadataRule, template []Slot) MetadataRule {
-	if rule == nil {
-		return nil
+func MarkColumns(bound []Bound, layout campaign.ListLayout) []Bound {
+	out := make([]Bound, len(bound))
+	for i, b := range bound {
+		b.ColumnMissing = b.Column != "" && !layout.HasColumn(b.Column)
+		out[i] = b
 	}
-	taken := make(map[string]bool, len(template))
-	for _, s := range template {
-		taken[s.Key] = true
-	}
-	return func(metadata map[string]any) []string {
-		var out []string
-		for _, key := range rule(metadata) {
-			if !taken[key] {
-				out = append(out, key)
-			}
+	return out
+}
+
+func ListTargets(bound []Bound) []campaign.ListTarget {
+	out := make([]campaign.ListTarget, 0, len(bound))
+	for _, b := range bound {
+		if b.Automation() {
+			out = append(out, campaign.ListTarget{Key: b.Key, Column: b.Column})
+			continue
 		}
-		return out
+		out = append(out, campaign.ListTarget{Field: b.Source})
 	}
+	return out
 }
 
 func (t *Tally) Split(values []string) ([]string, map[string]any) {
-	template := make([]string, 0, len(values))
-	var metadata map[string]any
-	for i, b := range t.bound {
+	return t.EntryMetadata(nil, values)
+}
+
+func (t *Tally) EntryMetadata(base map[string]any, values []string) ([]string, map[string]any) {
+	split := SplitRow(t.bound, base, values)
+	return split.Template, split.Metadata
+}
+
+type RowSplit struct {
+	Template []string
+	Metadata map[string]any
+	Unmet    []string
+}
+
+func SplitRow(bound []Bound, base map[string]any, values []string) RowSplit {
+	split := RowSplit{Template: make([]string, 0, len(values)), Metadata: maps.Clone(base)}
+	for i, b := range bound {
 		value := ""
 		if i < len(values) {
 			value = values[i]
 		}
 		if !b.Automation() {
-			template = append(template, value)
+			split.Template = append(split.Template, value)
 			continue
 		}
+		delete(split.Metadata, b.Key)
 		if value == "" {
+			if !b.Optional {
+				split.Unmet = append(split.Unmet, b.Key)
+			}
 			continue
 		}
-		if metadata == nil {
-			metadata = map[string]any{}
+		if split.Metadata == nil {
+			split.Metadata = map[string]any{}
 		}
-		metadata[b.Key] = value
+		split.Metadata[b.Key] = value
 	}
-	return template, metadata
+	if len(split.Metadata) == 0 {
+		split.Metadata = nil
+	}
+	return split
 }
 
 func (t *Tally) templateSlots() int {

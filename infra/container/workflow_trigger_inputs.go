@@ -3,6 +3,7 @@ package container
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"vozko/domain/stage"
 	wf "vozko/domain/whatsappform"
@@ -115,4 +116,12 @@ func (c *Container) workflowVariables() *workflow_usecase.VariableCatalogReader 
 		Secrets: workflowSecretNames{secrets: c.useCases.workspaceSecrets},
 		Catalog: c.useCases.nodeCatalogFn,
 	}
+}
+
+func (c *Container) workflowTestValues() *workflow_usecase.TestValuesUseCase {
+	uc, err := workflow_usecase.NewTestValuesUseCase(workflow_repository.NewTestValuesRepository(c.db), c.automationNeeds().service.Source())
+	if err != nil {
+		log.Fatalf("[workflows] %v", err)
+	}
+	return uc
 }

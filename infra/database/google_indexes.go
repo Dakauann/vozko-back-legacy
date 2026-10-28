@@ -1,11 +1,13 @@
 package database
 
+import "slices"
+
 func googlePerformanceIndexes() []ddl {
-	return append(googleAccountPerformanceIndexes(), googleSheetPerformanceIndexes()...)
+	return slices.Concat(googleAccountPerformanceIndexes(), googleSheetPerformanceIndexes(), googleSheetRemovalIndexes())
 }
 
 func googleSchemaConstraints() []ddl {
-	return append(googleAccountSchemaConstraints(), googleSheetSchemaConstraints()...)
+	return slices.Concat(googleAccountSchemaConstraints(), googleSheetSchemaConstraints(), googleSheetRemovalConstraints())
 }
 
 func googleAccountPerformanceIndexes() []ddl {
@@ -90,6 +92,18 @@ func googleSheetPerformanceIndexes() []ddl {
 			sql: `CREATE INDEX IF NOT EXISTS idx_google_sheet_rows_lead
 				ON google_sheet_rows (workspace_id, lead_id)
 				WHERE lead_id IS NOT NULL`,
+		},
+		{
+			name: "idx_google_sheet_unique_keys_lead",
+			sql: `CREATE INDEX IF NOT EXISTS idx_google_sheet_unique_keys_lead
+				ON google_sheet_unique_keys (workspace_id, lead_id)
+				WHERE lead_id IS NOT NULL`,
+		},
+		{
+			name: "idx_google_sheet_unique_keys_entry",
+			sql: `CREATE INDEX IF NOT EXISTS idx_google_sheet_unique_keys_entry
+				ON google_sheet_unique_keys (entry_type, entry_id)
+				WHERE entry_id <> ''`,
 		},
 	}
 }

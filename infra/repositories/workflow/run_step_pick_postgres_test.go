@@ -96,6 +96,8 @@ func TestAPickReadsOnlyTheStepsItNamesFromItsOwnRunOnPostgres(t *testing.T) {
 		{"a step id that is not a uuid", workflow.StepPick{StepID: "nope"}, ""},
 		{"the first trigger step with output", workflow.StepPick{Trigger: true}, "trigger"},
 		{"everything a reproduction needs", workflow.StepPick{LatestOfNodes: []string{"login"}, Trigger: true}, "login-2,trigger"},
+		{"a step and every step that ran before it", workflow.TestSeedPick(f.steps["login-3"]), "login-1,login-2,login-3,trigger"},
+		{"a seed from a step of another run", workflow.TestSeedPick(f.steps["other-login"]), ""},
 		{"nothing asked", workflow.StepPick{}, ""},
 	}
 	for _, tc := range cases {
@@ -112,5 +114,21 @@ func TestTheLatestStepOfANodeIsReadThroughItsIndex(t *testing.T) {
 	plan := strings.Join(explain(latestPinnableStepsSQL, `["login"]`, f.run, workflow.PinnableStepStatuses()), "\n")
 	if !strings.Contains(plan, database.WorkflowRunLogNodeIndex) {
 		t.Fatalf("plan does not use %s:\n%s", database.WorkflowRunLogNodeIndex, plan)
+	}
+}
+
+func TestATestSeedPickKeepsTheOrderTheStepsRanInOnPostgres(t *testing.T) {
+	f, _ := seedPickedSteps(t)
+	steps, err := f.repo.PickSteps(f.run, workflow.TestSeedPick(f.steps["login-2"]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make([]string, 0, len(steps))
+	for _, s := range steps {
+		got = append(got, s.ID)
+	}
+	want := []string{f.steps["trigger"], f.steps["login-1"], f.steps["login-2"]}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("order = %v, want %v", got, want)
 	}
 }

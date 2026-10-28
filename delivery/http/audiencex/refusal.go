@@ -43,6 +43,7 @@ var audienceStatuses = map[string]int{
 	"audience_variable_source_required":   http.StatusUnprocessableEntity,
 	"audience_list_variables_missing":     http.StatusUnprocessableEntity,
 	"audience_list_metadata_missing":      http.StatusUnprocessableEntity,
+	"audience_list_column_unknown":        http.StatusUnprocessableEntity,
 	"audience_leads_metadata_unavailable": http.StatusUnprocessableEntity,
 	"audience_lead_status_invalid":        http.StatusBadRequest,
 	"template_suggestion_slot_invalid":    http.StatusUnprocessableEntity,

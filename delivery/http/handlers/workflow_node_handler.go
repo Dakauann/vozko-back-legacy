@@ -29,6 +29,7 @@ type testNodeRequest struct {
 	ContinueWaits    bool                                       `json:"continueWaits"`
 	WaitAnswers      map[string]workflow_usecase.TestWaitAnswer `json:"waitAnswers"`
 	Trigger          *workflow_usecase.TestTrigger              `json:"trigger,omitempty"`
+	FromRun          *workflow_usecase.TestFromRun              `json:"fromRun,omitempty"`
 }
 
 // @Summary Fixar a saída de um nó a partir de uma execução
@@ -147,13 +148,16 @@ func (h *WorkflowHandler) ValidateGraph(w http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Analisar um nó antes do teste
-// @Description Diz como o teste do nó vai rodar: modo (direct, mock ou execute_until), as dependências que precisam de valor simulado (mock_fields) e, em trigger, a entrada do gatilho de onde o caminho até o nó começa (o mesmo formato de sim_ready.triggers do Testar). O caminho começa no gatilho principal quando ele leva até o nó, senão no primeiro gatilho do rascunho que leva. trigger é omitido quando o caminho não começa num gatilho com entrada (gatilhos de mensagem, ligação recebida ou nenhum gatilho no caminho). Envie a entrada em POST /workflows/{id}/nodes/{nodeId}/test no campo trigger.
+// @Description Diz como o teste do nó vai rodar: modo (direct, mock ou execute_until), as dependências que precisam de valor simulado (mock_fields) e, em trigger, a entrada do gatilho de onde o caminho até o nó começa (o mesmo formato de sim_ready.triggers do Testar). O caminho começa no gatilho principal quando ele leva até o nó, senão no primeiro gatilho do rascunho que leva. trigger é omitido quando o caminho não começa num gatilho com entrada (gatilhos de mensagem, ligação recebida ou nenhum gatilho no caminho). Envie a entrada em POST /workflows/{id}/nodes/{nodeId}/test no campo trigger. mock_fields também lista cada campvars que o nó lê e as variáveis do agente ou do subfluxo que ele chama (source automation_variable, com hint e needed_by, pela mesma regra de GET /workflows/{id}/test-values), sempre obrigatórias. value traz o valor de partida de cada campo: com runId e stepId, o que a execução registrou antes dessa etapa (o estado da execução e as saídas das etapas anteriores, já mascarados); sem eles, os dados do teste salvos por quem pede para as automation_variable.
 // @Tags workflows
 // @Produce json
 // @Param id path string true "ID do workflow"
 // @Param nodeId path string true "ID do nó"
+// @Param runId query string false "Execução de onde vêm os valores de partida"
+// @Param stepId query string false "Etapa deste nó na execução (obrigatória com runId)"
 // @Success 200 {object} workflow_usecase.UIAnalysis
-// @Failure 404 {object} response.ErrorResponse "Workflow ou nó não encontrado"
+// @Failure 404 {object} response.ErrorResponse "Workflow ou nó não encontrado; run_not_found quando a execução não é deste fluxo, não está visível para quem pede ou não tem essa etapa deste nó"
+// @Failure 503 {object} response.ErrorResponse "test_values_unavailable: não foi possível ler os dados do teste"
 // @Failure 501 {object} response.ErrorResponse "Teste de nó não configurado"
 // @Router /workflows/{id}/nodes/{nodeId}/analyze [get]
 func (h *WorkflowHandler) AnalyzeNode(w http.ResponseWriter, r *http.Request) {
@@ -173,6 +177,7 @@ func (h *WorkflowHandler) AnalyzeNode(w http.ResponseWriter, r *http.Request) {
 		WorkflowID:  wfID,
 		WorkspaceID: middleware.GetWorkspaceID(r),
 		NodeID:      nodeID,
+		FromRun:     testFromRunQuery(r),
 	})
 	if err != nil {
 		h.handleDomainError(w, err)
@@ -182,8 +187,16 @@ func (h *WorkflowHandler) AnalyzeNode(w http.ResponseWriter, r *http.Request) {
 	response.WriteSuccess(w, http.StatusOK, result.ToUIAnalysis())
 }
 
+func testFromRunQuery(r *http.Request) *workflow_usecase.TestFromRun {
+	query := r.URL.Query()
+	if query.Get("runId") == "" && query.Get("stepId") == "" {
+		return nil
+	}
+	return &workflow_usecase.TestFromRun{RunID: query.Get("runId"), StepID: query.Get("stepId")}
+}
+
 // @Summary Testar um nó do workflow
-// @Description Executa um único nó no ambiente de teste (nunca no registro de produção) com um estado simulado (mockedState e triggerVars). Devolve o mesmo registro de etapa da produção e da simulação em step (parâmetros usados, saída, tipo e cadeia do erro, pilha, HTTP, logs do script, tempos em ms, saída seguida e se veio de uma saída fixada), e em execute_until também upstream_steps, cada etapa anterior que rodou, em ordem. Mensagens são sempre simuladas; HTTP, código com fetch, e-mail e agenda só fazem chamadas reais com confirmRealCalls, caso contrário falham com error_kind real_call_not_confirmed. Nós de espera descrevem a espera em wait sem esperar. Quando o caminho não chega ao nó, path_stop explica onde parou, onde divergiu e quais correções aplicar; com continueWaits e waitAnswers o teste segue por esperas no caminho (timer pulado, resposta ou formulário informados). O teste inteiro tem limite de 60 s (error_kind timeout); saídas grandes são cortadas e valores sensíveis mascarados. Com skipExecution, só resolve a configuração sem executar efeitos. Com trigger {nodeId, input} o teste começa pelo gatilho escolhido, com a mesma entrada e as mesmas regras do Testar (sim_ready.triggers): input segue o formato do gatilho (campos planos por chave, o corpo JSON do webhook, ignorado em gatilhos de mensagem ou sem entrada) e é validado como em produção; dados inválidos respondem 422 trigger_input_invalid com details.issues ({code, key}). O caminho do execute_until começa nesse gatilho; se ele não leva até o nó, path_stop vem com reason no_path.
+// @Description Executa um único nó no ambiente de teste (nunca no registro de produção) com um estado simulado (mockedState e triggerVars). Devolve o mesmo registro de etapa da produção e da simulação em step (parâmetros usados, saída, tipo e cadeia do erro, pilha, HTTP, logs do script, tempos em ms, saída seguida e se veio de uma saída fixada), e em execute_until também upstream_steps, cada etapa anterior que rodou, em ordem. Mensagens são sempre simuladas; HTTP, código com fetch, e-mail e agenda só fazem chamadas reais com confirmRealCalls, caso contrário falham com error_kind real_call_not_confirmed. Nós de espera descrevem a espera em wait sem esperar. Quando o caminho não chega ao nó, path_stop explica onde parou, onde divergiu e quais correções aplicar; com continueWaits e waitAnswers o teste segue por esperas no caminho (timer pulado, resposta ou formulário informados). O teste inteiro tem limite de 60 s (error_kind timeout); saídas grandes são cortadas e valores sensíveis mascarados. Com skipExecution, só resolve a configuração sem executar efeitos. Com trigger {nodeId, input} o teste começa pelo gatilho escolhido, com a mesma entrada e as mesmas regras do Testar (sim_ready.triggers): input segue o formato do gatilho (campos planos por chave, o corpo JSON do webhook, ignorado em gatilhos de mensagem ou sem entrada) e é validado como em produção; dados inválidos respondem 422 trigger_input_invalid com details.issues ({code, key}). O caminho do execute_until começa nesse gatilho; se ele não leva até o nó, path_stop vem com reason no_path. Com fromRun {runId, stepId} o teste parte do que a execução registrou antes dessa etapa do nó: o estado dela (campvars, dados do gatilho, variáveis) e as saídas das etapas anteriores, já mascarados, sem rodar os nós anteriores; mockedState substitui valores, e um valor que a execução não tinha continua faltando (error_kind missing_mocks), nunca vai em branco. A conversa e o lead continuam os do teste, então nada é lido nem gravado na conversa real. Uma execução de outro fluxo, invisível para quem pede ou sem essa etapa responde 404 run_not_found.
 // @Tags workflows
 // @Accept json
 // @Produce json
@@ -193,7 +206,7 @@ func (h *WorkflowHandler) AnalyzeNode(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} workflow_usecase.TestNodeOutput
 // @Failure 400 {object} response.ErrorResponse "Corpo inválido"
 // @Failure 403 {object} response.ErrorResponse "Workflow de outro departamento"
-// @Failure 404 {object} response.ErrorResponse "Workflow ou nó não encontrado; trigger_not_found quando trigger.nodeId não é um gatilho do rascunho"
+// @Failure 404 {object} response.ErrorResponse "Workflow ou nó não encontrado; trigger_not_found quando trigger.nodeId não é um gatilho do rascunho; run_not_found quando fromRun não pode ser usada"
 // @Failure 422 {object} response.ErrorResponse{details=triggerInputIssuesDetails} "trigger_input_invalid: a entrada do gatilho não passa nas regras dele"
 // @Failure 501 {object} response.ErrorResponse "Teste de nó não configurado"
 // @Router /workflows/{id}/nodes/{nodeId}/test [post]
@@ -221,6 +234,7 @@ func (h *WorkflowHandler) TestNode(w http.ResponseWriter, r *http.Request) {
 			"continueWaits":    "boolean (optional)",
 			"waitAnswers":      "object by node id (optional)",
 			"trigger":          "{nodeId: string, input: object} (optional)",
+			"fromRun":          "{runId: string, stepId: string} (optional)",
 		}))
 		return
 	}
@@ -236,6 +250,7 @@ func (h *WorkflowHandler) TestNode(w http.ResponseWriter, r *http.Request) {
 		ContinueWaits:    req.ContinueWaits,
 		WaitAnswers:      req.WaitAnswers,
 		Trigger:          req.Trigger,
+		FromRun:          req.FromRun,
 	})
 	if err != nil {
 		h.handleDomainError(w, err)

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
+	"vozko/domain/conversationvars"
 	"vozko/domain/workflow"
 )
 
@@ -135,6 +136,10 @@ func (m *messagingSim) chooseTrigger(req simStart) error {
 	if req.malformed {
 		return errSimStartMalformed
 	}
+	values, err := m.testValues()
+	if err != nil {
+		return err
+	}
 	nodeID := req.triggerNodeID
 	if nodeID == "" {
 		nodeID = m.trigger.ID
@@ -152,9 +157,19 @@ func (m *messagingSim) chooseTrigger(req simStart) error {
 	for k, v := range data {
 		m.run.State.Set(k, v)
 	}
+	conversationvars.SeedRun(&m.run.State, values)
 	slog.Info("workflow.simulation.trigger_chosen",
 		slog.String("run_id", m.run.ID), slog.String("node_id", spec.NodeID), slog.String("workspace_id", m.wf.WorkspaceID))
 	return nil
+}
+
+var errSimTestValuesUnwired = errors.New("workflow: the simulation has no reader for the saved test values")
+
+func (m *messagingSim) testValues() (map[string]string, error) {
+	if m.s.deps.TestValues == nil {
+		return nil, errSimTestValuesUnwired
+	}
+	return m.s.deps.TestValues.RunValues(m.wf, m.session.Viewer.UserID)
 }
 
 func (m *messagingSim) write(msgType string, payload interface{}) {
@@ -342,7 +357,13 @@ func (m *messagingSim) awaitStart() (*simReproduction, bool, error) {
 		return m.waitForStart()
 	}
 	if m.needsInitialMessage() {
-		return nil, false, nil
+		values, err := m.testValues()
+		if err == nil {
+			conversationvars.SeedRun(&m.run.State, values)
+			return nil, false, nil
+		}
+		m.s.refuseCommand(m.conn, m.writeMu, "start", err)
+		return m.waitForStart()
 	}
 	err := m.chooseTrigger(simStart{})
 	if err == nil {

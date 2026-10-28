@@ -14,6 +14,7 @@ import (
 	"vozko/domain/lint"
 	"vozko/domain/tools"
 	"vozko/domain/workspacesecret"
+	"vozko/usecases/agentctx"
 	tools_usecase "vozko/usecases/tools"
 )
 
@@ -191,6 +192,7 @@ func literalHost(raw string) string {
 
 func (v *Validator) checkBindings(ctx context.Context, a *agent.Agent, _ map[string]tools.Definition, _ int) (agenttool.Report, error) {
 	var report agenttool.Report
+	ctx = agentctx.WithAgent(ctx, a)
 	for _, b := range a.InternalTools {
 		handler, ok := v.deps.Registry.Handler(strings.ToLower(b.Name))
 		if !ok {

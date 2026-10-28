@@ -11,6 +11,7 @@ var (
 	ErrConversationMissing = errors.New("automation needs: this conversation has no value for variables the automation needs")
 	ErrPublishSwitchesOff  = errors.New("automation needs: publishing switches receptive channels off; confirm to go on")
 	ErrVoiceVariables      = errors.New("automation needs: a call carries no variables, so a voice workflow cannot need them")
+	ErrTestValuesMissing   = errors.New("automation needs: the test has no value for variables the automation needs")
 )
 
 type Refusal struct {
@@ -47,6 +48,7 @@ var errorCodes = []struct {
 	{ErrConversationMissing, "automation_variables_missing"},
 	{ErrPublishSwitchesOff, "automation_publish_switches_off"},
 	{ErrVoiceVariables, "automation_voice_variables"},
+	{ErrTestValuesMissing, "automation_test_values_missing"},
 	{ErrUnreadable, "automation_needs_unreadable"},
 	{ErrNotFound, "automation_needs_not_found"},
 }
@@ -83,6 +85,8 @@ func (r *Refusal) Sentence() string {
 		return fmt.Sprintf("Publicar desliga a automação em %d canal(is) receptivo(s), porque ela passa a precisar de %s. A publicação precisa ser confirmada no editor.", len(r.Impact), names)
 	case errors.Is(r.Cause, ErrVoiceVariables):
 		return who + " precisa das variáveis " + names + ", mas ligações não trazem variáveis. Dê um valor padrão a elas."
+	case errors.Is(r.Cause, ErrTestValuesMissing):
+		return who + " precisa das variáveis " + names + ". Preencha os dados do teste antes de iniciar."
 	}
 	return r.Error()
 }

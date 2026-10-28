@@ -111,6 +111,15 @@ CROSS JOIN LATERAL (
 
 const stepOfRunSQL = `SELECT * FROM workflow_run_logs WHERE id = ? AND run_id = ?`
 
+const stepsUpToSQL = `SELECT s.* FROM (
+	SELECT l.* FROM workflow_run_logs t
+	JOIN workflow_run_logs l ON l.run_id = t.run_id AND (l.executed_at, l.id) <= (t.executed_at, t.id)
+	WHERE t.id = ? AND t.run_id = ?
+	ORDER BY l.executed_at DESC, l.id DESC
+	LIMIT ?
+) s
+ORDER BY s.executed_at, s.id`
+
 const firstTriggerStepSQL = `SELECT * FROM workflow_run_logs
 WHERE run_id = ? AND node_type IN ? AND output IS NOT NULL
 ORDER BY executed_at, id
@@ -129,7 +138,11 @@ func (r *logRepository) PickSteps(runID string, pick workflow.StepPick) ([]*work
 		return nil
 	}
 	if stepIDs := uuidsOf([]string{pick.StepID}); len(stepIDs) == 1 {
-		if err := read(stepOfRunSQL, stepIDs[0], runID); err != nil {
+		query, args := stepOfRunSQL, []interface{}{stepIDs[0], runID}
+		if pick.UpTo {
+			query, args = stepsUpToSQL, []interface{}{stepIDs[0], runID, workflow.MaxRunStepsPage}
+		}
+		if err := read(query, args...); err != nil {
 			return nil, err
 		}
 	}

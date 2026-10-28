@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"vozko/domain/googlesheet"
 	"vozko/domain/workflow"
@@ -18,17 +17,18 @@ type GoogleSheetLookup interface {
 type googleSheetValidator struct {
 	sheets      GoogleSheetLookup
 	workspaceID string
+	links       workflow.SheetLinks
 }
 
 func (v *googleSheetValidator) Validate(n *workflow.Node) error {
 	if n.Type != workflow.NodeTypeActionAddSheetRow && n.Type != workflow.NodeTypeActionExportMessagesSheet {
 		return nil
 	}
-	sheetID, _ := n.Config[node_executors.AddSheetRowSheetKey].(string)
-	if strings.TrimSpace(sheetID) == "" {
+	sheetID := workflow.SheetStepTab(n)
+	if sheetID == "" {
 		return nil
 	}
-	sheet, err := v.sheets.Get(context.Background(), v.workspaceID, strings.TrimSpace(sheetID))
+	sheet, err := v.sheets.Get(context.Background(), v.workspaceID, sheetID)
 	if errors.Is(err, googlesheet.ErrSheetNotFound) {
 		return fmt.Errorf("%w: node %q sheet_id %q", workflow.ErrNodeInvalidSheetID, n.ID, sheetID)
 	}
@@ -41,6 +41,32 @@ func (v *googleSheetValidator) Validate(n *workflow.Node) error {
 	if n.Type == workflow.NodeTypeActionExportMessagesSheet && !sheet.HasMessageColumns() {
 		return fmt.Errorf("%w: node %q: %w", workflow.ErrNodeSheetMappingInvalid, n.ID, googlesheet.ErrNoMessageColumns)
 	}
+	if n.Type == workflow.NodeTypeActionAddSheetRow {
+		return v.recordLinks(n.ID, sheetID, sheet)
+	}
+	return nil
+}
+
+func (v *googleSheetValidator) recordLinks(nodeID, sheetID string, sheet *googlesheet.Sheet) error {
+	columns := sheet.LinkColumns()
+	links := make([]workflow.SheetLink, 0, len(columns))
+	for _, col := range columns {
+		target, err := v.sheets.Get(context.Background(), v.workspaceID, col.LinkSheetID)
+		if errors.Is(err, googlesheet.ErrSheetNotFound) {
+			return fmt.Errorf("%w: node %q: coluna %q: %w", workflow.ErrNodeSheetMappingInvalid, nodeID, col.Header, googlesheet.ErrLinkTargetInvalid)
+		}
+		if err != nil {
+			return err
+		}
+		links = append(links, workflow.SheetLink{Column: col.Key, Header: col.Header, TargetID: target.ID, TargetTitle: target.TabBaseName()})
+	}
+	if len(links) == 0 {
+		return nil
+	}
+	if v.links == nil {
+		v.links = workflow.SheetLinks{}
+	}
+	v.links[sheetID] = links
 	return nil
 }
 

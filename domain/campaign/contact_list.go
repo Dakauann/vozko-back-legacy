@@ -3,10 +3,13 @@ package campaign
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
+	"vozko/domain/agent"
 	"vozko/domain/customfield"
 	"vozko/domain/emailaddress"
 	"vozko/domain/shared"
@@ -307,6 +310,20 @@ type VariableColumnMapping struct {
 	Fill   FillKind      `json:"fill"`
 }
 
+type ListTarget struct {
+	Field  BindingSource
+	Key    string
+	Column string
+}
+
+func TemplateTargets(fields []BindingSource) []ListTarget {
+	out := make([]ListTarget, 0, len(fields))
+	for _, field := range fields {
+		out = append(out, ListTarget{Field: field})
+	}
+	return out
+}
+
 type MetadataColumn struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
@@ -317,34 +334,110 @@ type metadataCell struct {
 	key   string
 }
 
+type listCell struct {
+	index int
+	slot  int
+	key   string
+}
+
 type ListMapping struct {
 	Variables       []VariableColumnMapping
 	MetadataColumns []MetadataColumn
-	columns         []int
+	cells           []listCell
 	metadata        []metadataCell
 }
 
-func MapList(layout ListLayout, kind ContactKind, fields []BindingSource, defs []*customfield.Definition) ListMapping {
+func MapList(layout ListLayout, kind ContactKind, targets []ListTarget, defs []*customfield.Definition) ListMapping {
 	if kind != ContactPhone {
 		return ListMapping{}
 	}
 	mapping := ListMapping{}
 	used := map[int]bool{}
-	for i, field := range fields {
-		slot := i + 1
-		index := layout.variableIndex(slot, field, defs)
-		v := VariableColumnMapping{Slot: slot, Field: field, Fill: fillOf(index, field, layout)}
+	slotOfColumn := map[int]int{}
+	var templateIndex []int
+	for _, target := range targets {
+		if target.Key != "" {
+			continue
+		}
+		slot := len(mapping.Variables) + 1
+		index := layout.variableIndex(slot, target.Field, defs)
+		v := VariableColumnMapping{Slot: slot, Field: target.Field, Fill: fillOf(index, target.Field, layout)}
 		if index >= 0 {
 			v.Column = columnLabel(layout, index, slot)
 			used[index] = true
+			slotOfColumn[index] = slot
 		}
 		mapping.Variables = append(mapping.Variables, v)
-		mapping.columns = append(mapping.columns, index)
+		templateIndex = append(templateIndex, index)
+	}
+	slot := 0
+	for _, target := range targets {
+		if target.Key == "" {
+			mapping.cells = append(mapping.cells, listCell{index: templateIndex[slot], slot: slot + 1})
+			slot++
+			continue
+		}
+		index := layout.columnIndex(target.Column)
+		mapping.cells = append(mapping.cells, listCell{index: index, slot: slotOfColumn[index], key: target.Key})
 	}
 	if layout.Header {
 		mapping.metadata, mapping.MetadataColumns = metadataCellsOf(layout, used)
 	}
+	mapping.MetadataColumns = mapping.withKeyColumns()
 	return mapping
+}
+
+func (m ListMapping) withKeyColumns() []MetadataColumn {
+	columns := m.MetadataColumns
+	for _, c := range m.cells {
+		if c.key == "" || slices.ContainsFunc(columns, func(known MetadataColumn) bool { return known.Key == c.key }) {
+			continue
+		}
+		columns = append(columns, MetadataColumn{Key: c.key, Label: c.key})
+	}
+	return columns
+}
+
+func (l ListLayout) Columns() []string {
+	if !l.Header {
+		return nil
+	}
+	out := make([]string, 0, len(l.Headers))
+	for _, h := range l.Headers {
+		if label := strings.TrimSpace(h); label != "" && !slices.Contains(out, label) {
+			out = append(out, label)
+		}
+	}
+	return out
+}
+
+func (l ListLayout) HasColumn(header string) bool {
+	return l.columnIndex(header) >= 0
+}
+
+func (l ListLayout) columnIndex(header string) int {
+	header = strings.TrimSpace(header)
+	if !l.Header || header == "" {
+		return -1
+	}
+	for i, h := range l.Headers {
+		if strings.TrimSpace(h) == header {
+			return i
+		}
+	}
+	return -1
+}
+
+func (l ListLayout) ColumnNamed(key string) string {
+	if key == "" {
+		return ""
+	}
+	for _, h := range l.Columns() {
+		if MetadataKey(h) == key {
+			return h
+		}
+	}
+	return ""
 }
 
 func (l ListLayout) variableIndex(slot int, field BindingSource, defs []*customfield.Definition) int {
@@ -415,22 +508,47 @@ func metadataCellsOf(layout ListLayout, used map[int]bool) ([]metadataCell, []Me
 }
 
 func (m ListMapping) Cells(row ListRow) []string {
-	out := make([]string, len(m.columns))
-	if row.Variables != nil {
-		for i := range out {
-			out[i] = cellAt(row.Variables, i)
-		}
-		return out
-	}
-	for i, index := range m.columns {
-		out[i] = cellAt(row.Cells, index)
+	out := make([]string, len(m.cells))
+	for i, c := range m.cells {
+		out[i] = c.read(row)
 	}
 	return out
 }
 
+func (c listCell) read(row ListRow) string {
+	if c.key != "" {
+		if value, typed := row.Metadata[c.key]; typed {
+			return strings.TrimSpace(agent.MetadataToVars(map[string]any{c.key: value})[c.key])
+		}
+	}
+	if c.slot > 0 && row.Variables != nil {
+		return cellAt(row.Variables, c.slot-1)
+	}
+	return cellAt(row.Cells, c.index)
+}
+
 func (m ListMapping) Metadata(row ListRow) map[string]any {
+	out := m.baseMetadata(row)
+	for _, c := range m.cells {
+		if c.key == "" {
+			continue
+		}
+		value := c.read(row)
+		if value == "" {
+			delete(out, c.key)
+			continue
+		}
+		if out == nil {
+			out = map[string]any{}
+		}
+		out[c.key] = value
+	}
+	return out
+}
+
+func (m ListMapping) baseMetadata(row ListRow) map[string]any {
 	if row.Metadata != nil {
-		return row.Metadata
+		return maps.Clone(row.Metadata)
 	}
 	var out map[string]any
 	for _, c := range m.metadata {

@@ -526,7 +526,7 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Redefinir a senha com um código
-// @Description	Conclui a redefinição de senha usando o código enviado por email. A nova senha segue as regras de `GET /auth/password-policy` e é usada exatamente como digitada.
+// @Description	Conclui a redefinição de senha usando o código enviado por email. A nova senha segue as regras de `GET /auth/password-policy` e é usada exatamente como digitada. Recusas por campo ausente ou por regra de senha não contam no limite de tentativas; o limite (429) vale para as tentativas que chegam à conferência do código.
 // @Description
 // @Description	Toda recusa traz um `code` estável e, em `details`, o campo envolvido (`field`) e, quando a senha é fraca, todas as regras não atendidas (`unmetRules`).
 // @Description
@@ -555,14 +555,8 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 // @Failure		500		{object}	response.ErrorResponse{details=PasswordRefusalDetails}
 // @Router			/auth/reset-password [post]
 func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
-	var req ResetPasswordRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writePasswordFlowRefusal(w, refusalPasswordInvalidBody, nil)
-		return
-	}
-
-	if refusal, ok := req.Validate(); !ok {
+	req, refusal, ok := readResetPasswordRequest(r.Body)
+	if !ok {
 		writePasswordFlowRefusal(w, refusal, nil)
 		return
 	}

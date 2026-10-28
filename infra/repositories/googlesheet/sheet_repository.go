@@ -122,6 +122,10 @@ func (r *sheetRepository) Update(ctx context.Context, s *googlesheet.Sheet, expe
 	if err != nil {
 		return err
 	}
+	unique, err := json.Marshal(s.Unique.Normalized())
+	if err != nil {
+		return err
+	}
 	result := r.db.WithContext(ctx).Model(&schema.GoogleSheet{}).
 		Where("id = ? AND workspace_id = ? AND version = ?", s.ID, s.WorkspaceID, expectedVersion).
 		Updates(map[string]any{
@@ -130,6 +134,7 @@ func (r *sheetRepository) Update(ctx context.Context, s *googlesheet.Sheet, expe
 			"style":         string(s.Style),
 			"tab_pattern":   s.TabPattern,
 			"columns":       columns,
+			"unique_rule":   unique,
 			"status":        string(s.Status),
 			"reason":        string(s.Reason),
 			"reason_detail": clip(s.ReasonDetail, 500),
@@ -231,8 +236,13 @@ func (r *sheetRepository) ListSpreadsheets(ctx context.Context, in googlesheet.L
 		if err != nil {
 			return nil, err
 		}
+		titles, err := r.FileTitles(ctx, in.WorkspaceID, ids)
+		if err != nil {
+			return nil, err
+		}
 		grouped := map[string]googlesheet.Spreadsheet{}
 		for _, file := range googlesheet.GroupBySpreadsheet(sheets) {
+			file.Name = titles[file.ID]
 			grouped[file.ID] = file
 		}
 		for _, id := range ids {
@@ -242,6 +252,29 @@ func (r *sheetRepository) ListSpreadsheets(ctx context.Context, in googlesheet.L
 		}
 	}
 	return shared.NewPaginatedResult(files, pagination, total), nil
+}
+
+func (r *sheetRepository) SaveFileTitle(ctx context.Context, workspaceID, spreadsheetID, title string) error {
+	now := time.Now().UTC()
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "workspace_id"}, {Name: "spreadsheet_id"}},
+		DoUpdates: clause.Assignments(map[string]any{"title": title, "updated_at": now}),
+	}).Create(&schema.GoogleSheetFile{WorkspaceID: workspaceID, SpreadsheetID: spreadsheetID, Title: title, CreatedAt: now, UpdatedAt: now}).Error
+}
+
+func (r *sheetRepository) FileTitles(ctx context.Context, workspaceID string, spreadsheetIDs []string) (map[string]string, error) {
+	titles := map[string]string{}
+	if len(spreadsheetIDs) == 0 {
+		return titles, nil
+	}
+	var records []schema.GoogleSheetFile
+	if err := r.db.WithContext(ctx).Where("workspace_id = ? AND spreadsheet_id IN ?", workspaceID, spreadsheetIDs).Find(&records).Error; err != nil {
+		return nil, err
+	}
+	for _, record := range records {
+		titles[record.SpreadsheetID] = record.Title
+	}
+	return titles, nil
 }
 
 func (r *sheetRepository) List(ctx context.Context, in googlesheet.ListInput) (*shared.PaginatedResult[*googlesheet.Sheet], error) {
@@ -287,6 +320,10 @@ func toSheetSchema(s *googlesheet.Sheet) (*schema.GoogleSheet, error) {
 	if err != nil {
 		return nil, err
 	}
+	unique, err := json.Marshal(s.Unique.Normalized())
+	if err != nil {
+		return nil, err
+	}
 	record := &schema.GoogleSheet{
 		ID:            s.ID,
 		WorkspaceID:   s.WorkspaceID,
@@ -303,6 +340,7 @@ func toSheetSchema(s *googlesheet.Sheet) (*schema.GoogleSheet, error) {
 		TimeZone:      s.TimeZone,
 		Locale:        s.Locale,
 		Columns:       columns,
+		UniqueRule:    unique,
 		Status:        string(s.Status),
 		Reason:        string(s.Reason),
 		ReasonDetail:  clip(s.ReasonDetail, 500),
@@ -318,6 +356,12 @@ func toSheetDomain(record *schema.GoogleSheet) (*googlesheet.Sheet, error) {
 	var columns []googlesheet.Column
 	if err := json.Unmarshal(record.Columns, &columns); err != nil {
 		return nil, err
+	}
+	var unique googlesheet.UniqueRule
+	if len(record.UniqueRule) > 0 {
+		if err := json.Unmarshal(record.UniqueRule, &unique); err != nil {
+			return nil, err
+		}
 	}
 	s := &googlesheet.Sheet{
 		ID:            record.ID,
@@ -335,6 +379,7 @@ func toSheetDomain(record *schema.GoogleSheet) (*googlesheet.Sheet, error) {
 		TimeZone:      record.TimeZone,
 		Locale:        record.Locale,
 		Columns:       columns,
+		Unique:        unique.Normalized(),
 		Status:        googlesheet.Status(record.Status),
 		Reason:        googlesheet.AttentionReason(record.Reason),
 		ReasonDetail:  record.ReasonDetail,

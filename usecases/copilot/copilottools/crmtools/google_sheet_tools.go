@@ -83,6 +83,7 @@ func (t *listGoogleSheetsTool) Execute(ctx context.Context, cc copilot.Context, 
 		sheets = append(sheets, map[string]interface{}{
 			"id": s.ID, "title": s.Title, "status": s.Status, "reason": s.Reason, "url": s.URL(), "columns": columns,
 			"spreadsheet_id": s.SpreadsheetID, "tab_name": s.TabName, "tab_period": s.TabPeriod, "style": s.Style, "takes_input": s.TakesInput(),
+			"unique": map[string]interface{}{"mode": s.Unique.Mode, "columns": s.Unique.Columns, "on_repeat": s.Unique.OnRepeat},
 		})
 	}
 	return copilot.Result{Status: copilot.StatusOK, Data: map[string]interface{}{"sheets": sheets, "total": page.TotalItems}}
@@ -157,7 +158,7 @@ func (t *createGoogleSheetTool) Execute(ctx context.Context, cc copilot.Context,
 		return copilot.Result{Status: copilot.StatusError, Message: err.Error()}
 	}
 	sheet, err := t.sheets.Create(ctx, gsuc.CreateInput{
-		WorkspaceID: cc.WorkspaceID, UserID: cc.UserID, Title: a.Title, Description: a.Description, Columns: a.inputs(),
+		WorkspaceID: cc.WorkspaceID, UserID: cc.UserID, FileTitle: a.Title, Title: a.Title, Description: a.Description, Columns: a.inputs(),
 	})
 	if err != nil {
 		return sheetToolFailure("create_google_sheet", err)
@@ -238,12 +239,18 @@ func (t *addGoogleSheetRowTool) Execute(ctx context.Context, cc copilot.Context,
 	if err != nil {
 		return sheetToolFailure("add_google_sheet_row", err)
 	}
+	if result.Repeat != nil {
+		return sheetToolFailure("add_google_sheet_row", result.Repeat)
+	}
 	return copilot.Result{Status: copilot.StatusOK, Data: map[string]interface{}{"queued": true, "row_id": result.RowID, "sheet": result.Sheet.Title, "repeated": result.Duplicate}}
 }
 
 func sheetToolFailure(tool string, err error) copilot.Result {
 	var valueErr *googlesheet.ValueError
+	var repeat *googlesheet.RepeatError
 	switch {
+	case errors.As(err, &repeat):
+		return copilot.Result{Status: copilot.StatusError, Message: repeat.Code + ": " + repeat.Message() + " Nada foi gravado de novo."}
 	case errors.As(err, &valueErr):
 		return copilot.Result{Status: copilot.StatusError, Message: fmt.Sprintf("coluna %q recusada (%s): %s", valueErr.Header, googlesheet.ErrorCode(err), valueErr.Detail)}
 	case errors.Is(err, googleaccount.ErrNotConnected):

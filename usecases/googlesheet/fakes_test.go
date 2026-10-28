@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -19,12 +21,32 @@ type memorySheets struct {
 	mu      sync.Mutex
 	sheets  map[string]*googlesheet.Sheet
 	tabs    map[string]map[string]googlesheet.Tab
+	titles  map[string]string
 	deleted []string
 	fail    error
 }
 
 func newMemorySheets() *memorySheets {
-	return &memorySheets{sheets: map[string]*googlesheet.Sheet{}, tabs: map[string]map[string]googlesheet.Tab{}}
+	return &memorySheets{sheets: map[string]*googlesheet.Sheet{}, tabs: map[string]map[string]googlesheet.Tab{}, titles: map[string]string{}}
+}
+
+func (m *memorySheets) SaveFileTitle(_ context.Context, workspaceID, spreadsheetID, title string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.titles[workspaceID+"/"+spreadsheetID] = title
+	return nil
+}
+
+func (m *memorySheets) FileTitles(_ context.Context, workspaceID string, spreadsheetIDs []string) (map[string]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := map[string]string{}
+	for _, id := range spreadsheetIDs {
+		if title, ok := m.titles[workspaceID+"/"+id]; ok {
+			out[id] = title
+		}
+	}
+	return out, nil
 }
 
 func (m *memorySheets) saveTab(id string, tab googlesheet.Tab) {
@@ -190,28 +212,82 @@ func (m *memorySheets) TouchWritten(_ context.Context, id string, at time.Time) 
 }
 
 type memoryRows struct {
-	mu   sync.Mutex
-	rows map[string]*googlesheet.Row
-	seq  int
+	mu     sync.Mutex
+	rows   map[string]*googlesheet.Row
+	claims map[string]string
+	seq    int
 }
 
-func newMemoryRows() *memoryRows { return &memoryRows{rows: map[string]*googlesheet.Row{}} }
+func newMemoryRows() *memoryRows {
+	return &memoryRows{rows: map[string]*googlesheet.Row{}, claims: map[string]string{}}
+}
 
-func (m *memoryRows) Insert(_ context.Context, row *googlesheet.Row) (*googlesheet.Row, bool, error) {
+func claimSlot(sheetID string, key googlesheet.UniqueKey) string {
+	return sheetID + "|" + key.Period + "|" + key.Hash
+}
+
+func (m *memoryRows) Insert(ctx context.Context, row *googlesheet.Row) (*googlesheet.Row, bool, error) {
+	inserted, err := m.InsertUnique(ctx, row, googlesheet.UniqueKey{})
+	return inserted.Row, inserted.Duplicate, err
+}
+
+func (m *memoryRows) InsertUnique(_ context.Context, row *googlesheet.Row, unique googlesheet.UniqueKey) (googlesheet.Inserted, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, existing := range m.rows {
 		if existing.SheetID == row.SheetID && existing.IdempotencyKey == row.IdempotencyKey {
 			c := *existing
-			return &c, true, nil
+			return googlesheet.Inserted{Row: &c, Duplicate: true}, nil
 		}
 	}
+	if holder, taken := m.claims[claimSlot(row.SheetID, unique)]; taken && !unique.Empty() {
+		return googlesheet.Inserted{RepeatOf: holder}, nil
+	}
 	m.seq++
-	row.ID = fmt.Sprintf("row-%03d", m.seq)
+	row.ID = fmt.Sprintf("00000000-0000-4000-8000-%012d", m.seq)
 	row.CreatedAt = row.CreatedAt.Add(time.Duration(m.seq) * time.Microsecond)
 	c := *row
 	m.rows[row.ID] = &c
-	return row, false, nil
+	if !unique.Empty() {
+		m.claims[claimSlot(row.SheetID, unique)] = row.ID
+	}
+	return googlesheet.Inserted{Row: row}, nil
+}
+
+func (m *memoryRows) LedgerPage(_ context.Context, sheetID string, after googlesheet.LedgerCursor, limit int) ([]*googlesheet.Row, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var page []*googlesheet.Row
+	for _, r := range m.rows {
+		if r.SheetID == sheetID {
+			c := *r
+			page = append(page, &c)
+		}
+	}
+	sort.Slice(page, func(i, j int) bool { return page[i].CreatedAt.Before(page[j].CreatedAt) })
+	start := 0
+	for start < len(page) && after.ID != "" && !page[start].CreatedAt.After(after.CreatedAt) {
+		start++
+	}
+	page = page[start:]
+	if len(page) > limit {
+		page = page[:limit]
+	}
+	return page, nil
+}
+
+func (m *memoryRows) ClaimUnique(_ context.Context, claims []googlesheet.UniqueClaim) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	claimed := 0
+	for _, claim := range claims {
+		slot := claimSlot(claim.Row.SheetID, claim.Key)
+		if _, taken := m.claims[slot]; !taken {
+			m.claims[slot] = claim.Row.ID
+			claimed++
+		}
+	}
+	return claimed, nil
 }
 
 func (m *memoryRows) ordered(sheetID string, statuses ...googlesheet.RowStatus) []*googlesheet.Row {
@@ -349,6 +425,11 @@ func (m *memoryRows) DeleteUnwritten(_ context.Context, sheetID string) error {
 	for id, r := range m.rows {
 		if r.SheetID == sheetID && r.Status != googlesheet.RowWritten {
 			delete(m.rows, id)
+			for slot, holder := range m.claims {
+				if holder == id {
+					delete(m.claims, slot)
+				}
+			}
 		}
 	}
 	return nil
@@ -386,6 +467,7 @@ func (m *memoryRows) byStatus(sheetID string, status googlesheet.RowStatus) []*g
 
 type appendCall struct {
 	tab  int64
+	at   int
 	refs []string
 	rows [][]any
 }
@@ -396,36 +478,77 @@ type appliedLayout struct {
 }
 
 type fakeAPI struct {
-	mu         sync.Mutex
-	header     []any
-	refs       [][]any
-	nextRow    int
-	appends    []appendCall
-	appendErrs []error
-	rejectRef  map[string]bool
-	workbook   googlesheet.Workbook
-	headers    map[int64][]any
-	layouts    []appliedLayout
-	added      []googlesheet.TabSpec
-	addErr     error
-	deleted    []int64
-	readErr    error
-	createErr  error
-	created    googlesheet.CreatedSpreadsheet
-	trashed    []string
-	applied    int
-	readCalls  int
+	mu            sync.Mutex
+	header        []any
+	headers       map[int64][]any
+	body          map[int64][][]any
+	appends       []appendCall
+	appendErrs    []error
+	rejectRef     map[string]bool
+	repairs       []googlesheet.HeaderRepair
+	repairIgnored bool
+	workbook      googlesheet.Workbook
+	layouts       []appliedLayout
+	added         []googlesheet.TabSpec
+	addErr        error
+	deleted       []int64
+	deletedRows   []int
+	deleteErr     error
+	readErr       error
+	createErr     error
+	created       googlesheet.CreatedSpreadsheet
+	specs         []googlesheet.SpreadsheetSpec
+	renamed       []string
+	renameErr     error
+	trashed       []string
+	applied       int
+	readCalls     int
+	workbookCalls int
 }
 
 func newFakeAPI() *fakeAPI {
 	return &fakeAPI{
-		nextRow: 2, rejectRef: map[string]bool{}, headers: map[int64][]any{},
+		rejectRef: map[string]bool{}, headers: map[int64][]any{}, body: map[int64][][]any{},
 		workbook: googlesheet.Workbook{Tabs: []googlesheet.TabInfo{{ID: 0, Title: "Pedidos", Rows: 1000, Columns: 10}}},
 	}
 }
 
-func (f *fakeAPI) CreateSpreadsheet(context.Context, string, googlesheet.SpreadsheetSpec) (googlesheet.CreatedSpreadsheet, error) {
+func (f *fakeAPI) grid(tab int64) [][]any {
+	first, ok := f.headers[tab]
+	if !ok {
+		first = f.header
+	}
+	return append([][]any{first}, f.body[tab]...)
+}
+
+func (f *fakeAPI) store(tab int64, grid [][]any) {
+	f.headers[tab] = grid[0]
+	f.body[tab] = grid[1:]
+}
+
+func (f *fakeAPI) addRows(tab int64, rows ...[]any) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.body[tab] = append(f.body[tab], rows...)
+}
+
+func (f *fakeAPI) setHeader(tab int64, header []any) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.headers[tab] = header
+}
+
+func (f *fakeAPI) CreateSpreadsheet(_ context.Context, _ string, spec googlesheet.SpreadsheetSpec) (googlesheet.CreatedSpreadsheet, error) {
+	f.specs = append(f.specs, spec)
 	return f.created, f.createErr
+}
+
+func (f *fakeAPI) RenameSpreadsheet(_ context.Context, _, spreadsheetID, title string) error {
+	if f.renameErr != nil {
+		return f.renameErr
+	}
+	f.renamed = append(f.renamed, spreadsheetID+"="+title)
+	return nil
 }
 
 func (f *fakeAPI) TrashSpreadsheet(_ context.Context, _, id string) error {
@@ -439,6 +562,28 @@ func (f *fakeAPI) ApplyLayout(_ context.Context, _ string, target googlesheet.Ta
 	f.applied++
 	f.layouts = append(f.layouts, appliedLayout{target: target, layout: layout})
 	f.headers[target.TabID] = layoutHeader(layout)
+	return nil
+}
+
+func (f *fakeAPI) RepairHeader(_ context.Context, _ string, target googlesheet.Target, repair googlesheet.HeaderRepair, layout googlesheet.Layout) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.repairs = append(f.repairs, repair)
+	if f.repairIgnored {
+		return nil
+	}
+	grid := f.grid(target.TabID)
+	switch {
+	case repair.MoveFrom > 1:
+		header := grid[repair.MoveFrom-1]
+		rest := append(append([][]any{}, grid[:repair.MoveFrom-1]...), grid[repair.MoveFrom:]...)
+		grid = append([][]any{header}, rest...)
+	case repair.Insert:
+		grid = append([][]any{{}}, grid...)
+	}
+	grid[0] = layoutHeader(layout)
+	f.store(target.TabID, grid)
+	f.layouts = append(f.layouts, appliedLayout{target: target, layout: layout})
 	return nil
 }
 
@@ -469,34 +614,88 @@ func (f *fakeAPI) DeleteTab(_ context.Context, _, _ string, tabID int64) error {
 	return nil
 }
 
-var errInvalidRow = errors.New("invalid row")
+var (
+	errInvalidRow  = errors.New("invalid row")
+	errOverHeader  = errors.New("a write at row 1 pushes the header down")
+	rowRangeFormat = regexp.MustCompile(`^(\d+):(\d+)$`)
+)
 
-func (f *fakeAPI) AppendRows(_ context.Context, _ string, target googlesheet.Target, rows [][]any) (googlesheet.AppendResult, error) {
+func (f *fakeAPI) InsertRows(_ context.Context, _ string, target googlesheet.Target, at int, rows [][]any) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	refs := make([]string, len(rows))
 	for i, row := range rows {
 		refs[i] = row[0].(string)
 	}
-	f.appends = append(f.appends, appendCall{tab: target.TabID, refs: refs, rows: rows})
+	f.appends = append(f.appends, appendCall{tab: target.TabID, at: at, refs: refs, rows: rows})
 	if len(f.appendErrs) > 0 {
 		err := f.appendErrs[0]
 		f.appendErrs = f.appendErrs[1:]
 		if err != nil {
-			return googlesheet.AppendResult{}, err
+			return err
 		}
 	}
 	for _, ref := range refs {
 		if f.rejectRef[ref] {
-			return googlesheet.AppendResult{}, errInvalidRow
+			return errInvalidRow
 		}
 	}
-	first := f.nextRow
-	for _, ref := range refs {
-		f.refs = append(f.refs, []any{ref})
+	if at < 2 {
+		return errOverHeader
 	}
-	f.nextRow += len(rows)
-	return googlesheet.AppendResult{FirstRow: first, Rows: len(rows)}, nil
+	grid := f.grid(target.TabID)
+	for len(grid) < at-1 {
+		grid = append(grid, []any{})
+	}
+	grid = append(grid[:at-1], append(append([][]any{}, rows...), grid[at-1:]...)...)
+	f.store(target.TabID, grid)
+	return nil
+}
+
+func (f *fakeAPI) DeleteRow(_ context.Context, _ string, target googlesheet.Target, row int) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.deletedRows = append(f.deletedRows, row)
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
+	if row < 2 {
+		return errOverHeader
+	}
+	grid := f.grid(target.TabID)
+	if row > len(grid) {
+		return nil
+	}
+	f.store(target.TabID, append(append([][]any{}, grid[:row-1]...), grid[row:]...))
+	return nil
+}
+
+func trimmedRow(row []any) []any {
+	end := len(row)
+	for end > 0 && (row[end-1] == nil || row[end-1] == "") {
+		end--
+	}
+	return row[:end]
+}
+
+func (f *fakeAPI) read(tab int64, a1 string) [][]any {
+	grid := f.grid(tab)
+	var out [][]any
+	if a1 == googlesheet.RefColumnRange {
+		for _, row := range grid {
+			out = append(out, trimmedRow(append([]any{}, row[:min(len(row), 1)]...)))
+		}
+	} else if match := rowRangeFormat.FindStringSubmatch(a1); match != nil {
+		row, _ := strconv.Atoi(match[1])
+		if row <= len(grid) {
+			out = [][]any{trimmedRow(grid[row-1])}
+		}
+	}
+	end := len(out)
+	for end > 0 && len(out[end-1]) == 0 {
+		end--
+	}
+	return out[:end]
 }
 
 func (f *fakeAPI) ReadRange(_ context.Context, _ string, target googlesheet.Target, a1 string) ([][]any, error) {
@@ -506,27 +705,48 @@ func (f *fakeAPI) ReadRange(_ context.Context, _ string, target googlesheet.Targ
 	if f.readErr != nil {
 		return nil, f.readErr
 	}
-	if a1 == "1:1" {
-		if header, ok := f.headers[target.TabID]; ok {
-			return [][]any{header}, nil
-		}
-		return [][]any{f.header}, nil
+	return f.read(target.TabID, a1), nil
+}
+
+func (f *fakeAPI) ReadRanges(_ context.Context, _ string, target googlesheet.Target, ranges []string) ([][][]any, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.readCalls++
+	if f.readErr != nil {
+		return nil, f.readErr
 	}
-	return append([][]any{{"ref"}}, f.refs...), nil
+	out := make([][][]any, len(ranges))
+	for i, a1 := range ranges {
+		out[i] = f.read(target.TabID, a1)
+	}
+	return out, nil
 }
 
 func (f *fakeAPI) Workbook(context.Context, string, string) (googlesheet.Workbook, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.workbookCalls++
 	return googlesheet.Workbook{Tabs: append([]googlesheet.TabInfo(nil), f.workbook.Tabs...)}, f.readErr
 }
 
 func (f *fakeAPI) written() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	tabs := make([]int64, 0, len(f.body))
+	for tab := range f.body {
+		tabs = append(tabs, tab)
+	}
+	sort.Slice(tabs, func(i, j int) bool { return tabs[i] < tabs[j] })
 	var out []string
-	for _, row := range f.refs {
-		out = append(out, row[0].(string))
+	for _, tab := range tabs {
+		for _, row := range f.grid(tab) {
+			if len(row) == 0 {
+				continue
+			}
+			if ref, ok := row[0].(string); ok && ref != "" && ref != googlesheet.RefHeader {
+				out = append(out, ref)
+			}
+		}
 	}
 	return out
 }

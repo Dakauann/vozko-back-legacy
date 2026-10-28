@@ -12,11 +12,12 @@ type WorkbookSheetRequest struct {
 
 type WorkbookRequest struct {
 	SpreadsheetID string                 `json:"spreadsheetId,omitempty" example:"1AbC"`
+	FileTitle     string                 `json:"fileTitle,omitempty" example:"Altiva"`
 	Sheets        []WorkbookSheetRequest `json:"sheets"`
 }
 
 func (r WorkbookRequest) input(workspaceID, userID string) gsuc.WorkbookInput {
-	in := gsuc.WorkbookInput{WorkspaceID: workspaceID, UserID: userID, SpreadsheetID: r.SpreadsheetID}
+	in := gsuc.WorkbookInput{WorkspaceID: workspaceID, UserID: userID, SpreadsheetID: r.SpreadsheetID, FileTitle: r.FileTitle}
 	for _, sheet := range r.Sheets {
 		item := gsuc.WorkbookSheet{Ref: sheet.Ref, Input: sheet.CreateSheetRequest.input(workspaceID, userID, "")}
 		for i, col := range sheet.Columns {
@@ -123,6 +124,7 @@ type PresetSheetResponse struct {
 	TabPeriod string                 `json:"tabPeriod" enums:"none,month"`
 	Style     string                 `json:"style" enums:"plain,graphite,blue,green,purple"`
 	Columns   []PresetColumnResponse `json:"columns"`
+	Unique    PresetUniqueResponse   `json:"unique"`
 }
 
 type PresetResponse struct {
@@ -140,7 +142,7 @@ func presets() PresetListResponse {
 	for _, preset := range googlesheet.Presets() {
 		item := PresetResponse{Key: preset.Key, Icon: preset.Icon}
 		for _, sheet := range preset.Sheets {
-			entry := PresetSheetResponse{Ref: sheet.Ref, TabPeriod: string(sheet.TabPeriod), Style: string(sheet.Style)}
+			entry := PresetSheetResponse{Ref: sheet.Ref, TabPeriod: string(sheet.TabPeriod), Style: string(sheet.Style), Unique: toPresetUnique(sheet.Unique)}
 			for _, col := range sheet.Columns {
 				var colors map[string]string
 				if len(col.Colors) > 0 {

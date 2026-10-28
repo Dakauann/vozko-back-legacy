@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"vozko/domain/automationneeds"
 	"vozko/domain/conversation"
 	"vozko/domain/shared"
 	"vozko/domain/workflow"
@@ -26,9 +27,15 @@ const (
 )
 
 type AnalyzeNodeInput struct {
-	WorkflowID  string `json:"workflow_id"`
-	WorkspaceID string `json:"workspace_id"`
-	NodeID      string `json:"node_id"`
+	WorkflowID  string       `json:"workflow_id"`
+	WorkspaceID string       `json:"workspace_id"`
+	NodeID      string       `json:"node_id"`
+	FromRun     *TestFromRun `json:"from_run,omitempty"`
+}
+
+type TestFromRun struct {
+	RunID  string `json:"runId"`
+	StepID string `json:"stepId"`
 }
 
 type AnalyzeNodeOutput struct {
@@ -42,6 +49,7 @@ type AnalyzeNodeOutput struct {
 	CanRunDirect  bool                          `json:"can_run_direct"`
 	Trigger       *workflow.TriggerInputSpec    `json:"trigger,omitempty"`
 	Variables     []workflow.CatalogVariable    `json:"variables,omitempty"`
+	Prefill       map[string]interface{}        `json:"prefill,omitempty"`
 }
 
 type TestNodeInput struct {
@@ -55,6 +63,7 @@ type TestNodeInput struct {
 	ContinueWaits    bool                      `json:"continue_waits"`
 	WaitAnswers      map[string]TestWaitAnswer `json:"wait_answers"`
 	Trigger          *TestTrigger              `json:"trigger,omitempty"`
+	FromRun          *TestFromRun              `json:"from_run,omitempty"`
 }
 
 type TestTrigger struct {
@@ -99,6 +108,13 @@ type TestNodeDeps struct {
 	ViewerOf      func(context.Context) (shared.Person, bool)
 	TriggerInputs TriggerInputReaders
 	Variables     *VariableCatalogReader
+	Needs         automationneeds.Source
+	Runs          workflow.RunStepPicks
+	TestValues    NodeTestValues
+}
+
+type NodeTestValues interface {
+	Saved(wf *workflow.Workflow, userID string) (map[string]string, error)
 }
 
 var ErrNodeTestUnavailable = errors.New("workflow: the node test has no workflow store to read from")
@@ -152,79 +168,26 @@ func (uc *testNodeUseCase) Analyze(ctx context.Context, input AnalyzeNodeInput) 
 	if err != nil {
 		return nil, err
 	}
-
-	deps := workflow.ExtractDependencies(node.Config)
-
-	testMode, _, canRunDirect := resolveTestMode(deps)
-
-	allMocks := workflow.GetRequiredMocks(deps)
-	requiredMocks := filterMocksForAIDeps(allMocks, &wf.Graph)
-	hasAIDeps := workflow.HasAIDependencies(deps) || len(requiredMocks) > 0
-
-	if len(requiredMocks) > 0 && canRunDirect {
-		canRunDirect = false
-		testMode = TestModeExecuteUntil
-		hasAIDeps = true
+	plan, err := uc.planFor(wf, node)
+	if err != nil {
+		return nil, err
 	}
-
-	if node.Type == workflow.NodeTypeActionAIAgent {
-		source, _ := node.Config["source"].(string)
-		agentID, _ := node.Config["agent_id"].(string)
-		if (source == "" || source == "agent") && agentID != "" && uc.deps.ExecutorDeps.AgentRepo != nil {
-			agentRecord, agentErr := uc.deps.ExecutorDeps.AgentRepo.FindByID(agentID)
-			if agentErr == nil && agentRecord != nil {
-				varInfos := agentRecord.RequiredVariableInfos()
-				for _, vi := range varInfos {
-					mockKey := "campvars." + vi.Name
-					displayName := vi.Name
-					if vi.Description != "" {
-						displayName = vi.Description
-					}
-					requiredMocks = append(requiredMocks, workflow.RequiredMock{
-						StateKey:    mockKey,
-						DisplayName: displayName,
-						Source:      workflow.DependencySourceAgentVar,
-					})
-					if vi.Required {
-						hasAIDeps = true
-					}
-				}
-			}
-		}
+	prefill, err := uc.prefill(ctx, wf, node, plan.mocks, input.FromRun)
+	if err != nil {
+		return nil, err
 	}
-
-	if node.Type == workflow.NodeTypeWaitDTMF {
-		requiredMocks = append(requiredMocks, workflow.RequiredMock{
-			StateKey:    testKeyMock,
-			DisplayName: "Tecla pressionada (vazio simula silêncio)",
-			Source:      workflow.DependencySourceCaller,
-			Optional:    true,
-		})
-	}
-
-	if node.Type == workflow.NodeTypeTransferToQueue {
-		requiredMocks = append(requiredMocks, workflow.RequiredMock{
-			StateKey:    testTransferMock,
-			DisplayName: "Resultado da fila ('timeout' simula ninguém atendendo; vazio, atendido)",
-			Source:      workflow.DependencySourceCaller,
-			Optional:    true,
-		})
-	}
-
-	nodeLabel := uc.stepName(node.Type)
-	pathTrigger := uc.pathTriggerSpec(wf, node.ID)
-
 	return &AnalyzeNodeOutput{
 		NodeID:        node.ID,
 		NodeType:      node.Type,
-		NodeLabel:     nodeLabel,
-		Dependencies:  deps,
-		RequiredMocks: requiredMocks,
-		TestMode:      testMode,
-		HasAIDeps:     hasAIDeps,
-		CanRunDirect:  canRunDirect,
-		Trigger:       pathTrigger,
+		NodeLabel:     uc.stepName(node.Type),
+		Dependencies:  plan.deps,
+		RequiredMocks: plan.mocks,
+		TestMode:      plan.mode,
+		HasAIDeps:     plan.hasAIDeps,
+		CanRunDirect:  plan.canRunDirect,
+		Trigger:       uc.pathTriggerSpec(wf, node.ID),
 		Variables:     uc.variablesAt(ctx, wf, node.ID),
+		Prefill:       prefill,
 	}, nil
 }
 
@@ -260,11 +223,20 @@ func (uc *testNodeUseCase) Execute(ctx context.Context, input TestNodeInput) (*T
 	if node = wf.Graph.FindNode(node.ID); node == nil {
 		return nil, fmt.Errorf("%w: %s", workflow.ErrNodeNotFound, input.NodeID)
 	}
+	plan, err := uc.planFor(wf, node)
+	if err != nil {
+		return nil, err
+	}
+	recorded, err := uc.recordedState(ctx, wf, node.ID, input.FromRun)
+	if err != nil {
+		return nil, err
+	}
 	started := time.Now()
 	t, err := uc.newNodeTest(wf, node, input)
 	if err != nil {
 		return nil, err
 	}
+	t.prepare(plan, recorded)
 	limit := uc.timeout()
 	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
@@ -292,26 +264,23 @@ func (uc *testNodeUseCase) Execute(ctx context.Context, input TestNodeInput) (*T
 }
 
 func (t *nodeTest) execute(ctx context.Context) *TestNodeOutput {
-	wf, node, input := t.wf, t.target, t.input
-	deps := workflow.ExtractDependencies(node.Config)
-	testMode, _, _ := resolveTestMode(deps)
-	requiredMocks := filterMocksForAIDeps(workflow.GetRequiredMocks(deps), &wf.Graph)
-	if len(requiredMocks) > 0 && testMode == TestModeDirect {
-		testMode = TestModeExecuteUntil
-	}
-	missingMocks := missingRequiredMocks(requiredMocks, input.MockedState)
-	if shouldBlockForMissingMocks(testMode, input.MockedState, missingMocks) {
-		return buildMissingMocksOutput(node, input.TriggerVars, input.MockedState, missingMocks)
+	node, input, mocked := t.target, t.input, t.mocked
+	testMode := t.plan.mode
+	missingMocks := missingRequiredMocks(t.plan.mocks, mocked)
+	if shouldBlockForMissingMocks(testMode, mocked, missingMocks) {
+		return buildMissingMocksOutput(node, input.TriggerVars, mocked, missingMocks)
 	}
 
 	state := &t.run.State
-	applyMockedState(state, input.MockedState)
-	t.satisfyCaptureDeps(mockRootKeys(input.MockedState))
+	applyMockedState(state, mocked)
+	if !t.recorded {
+		t.satisfyCaptureDeps(mockRootKeys(mocked))
+	}
 
-	needsUpstreamExecution := testMode == TestModeExecuteUntil && (len(input.MockedState) == 0 || len(missingMocks) > 0)
+	needsUpstreamExecution := !t.recorded && testMode == TestModeExecuteUntil && (len(mocked) == 0 || len(missingMocks) > 0)
 	if needsUpstreamExecution {
 		if stop := t.executeUntilTarget(ctx); stop != nil {
-			applyMockedState(state, input.MockedState)
+			applyMockedState(state, mocked)
 			message := stop.Message
 			if len(missingMocks) > 0 {
 				message = fmt.Sprintf("%s Forneca valores simulados para continuar o teste: %s", message, strings.Join(missingMocks, ", "))
@@ -329,7 +298,7 @@ func (t *nodeTest) execute(ctx context.Context) *TestNodeOutput {
 		}
 	}
 
-	applyMockedState(state, input.MockedState)
+	applyMockedState(state, mocked)
 	upstream, _ := t.snapshot()
 	out := &TestNodeOutput{
 		NodeID:             node.ID,
@@ -546,12 +515,10 @@ func missingRequiredMocks(required []workflow.RequiredMock, mockedState map[stri
 	}
 	missing := make([]string, 0, len(required))
 	for _, mock := range required {
-		value, ok := mockedState[mock.StateKey]
-		if !ok {
-			missing = append(missing, mock.DisplayName)
+		if mock.Optional {
 			continue
 		}
-		if text, isString := value.(string); isString && strings.TrimSpace(text) == "" {
+		if isBlankMock(mockedState[mock.StateKey]) {
 			missing = append(missing, mock.DisplayName)
 		}
 	}
@@ -621,12 +588,14 @@ func findAncestorRoot(ancestors map[string]bool, g *workflow.Graph) string {
 }
 
 type MockFieldSpec struct {
-	Key         string `json:"key"`
-	DisplayName string `json:"display_name"`
-	Source      string `json:"source"`
-	SourceNode  string `json:"source_node,omitempty"`
-	Hint        string `json:"hint,omitempty"`
-	Optional    bool   `json:"optional,omitempty"`
+	Key         string      `json:"key"`
+	DisplayName string      `json:"display_name"`
+	Source      string      `json:"source"`
+	SourceNode  string      `json:"source_node,omitempty"`
+	Hint        string      `json:"hint,omitempty"`
+	NeededBy    string      `json:"needed_by,omitempty"`
+	Optional    bool        `json:"optional,omitempty"`
+	Value       interface{} `json:"value,omitempty"`
 }
 
 type UIAnalysis struct {
@@ -650,7 +619,10 @@ func (a *AnalyzeNodeOutput) ToUIAnalysis() UIAnalysis {
 			DisplayName: m.DisplayName,
 			Source:      string(m.Source),
 			SourceNode:  m.SourceNode,
+			Hint:        m.Hint,
+			NeededBy:    m.NeededBy,
 			Optional:    m.Optional,
+			Value:       a.Prefill[m.StateKey],
 		})
 	}
 

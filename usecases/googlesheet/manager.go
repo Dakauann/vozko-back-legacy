@@ -14,7 +14,7 @@ import (
 
 const healthProblemRows = 50
 
-func (m *Manager) ListRows(ctx context.Context, workspaceID, id string, pagination shared.Pagination) (*shared.PaginatedResult[*googlesheet.Row], error) {
+func (m *Manager) ListRows(ctx context.Context, workspaceID, id string, pagination shared.Pagination) (*shared.PaginatedResult[RowView], error) {
 	sheet, err := m.sheets.FindInWorkspace(ctx, workspaceID, id)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,11 @@ func (m *Manager) ListRows(ctx context.Context, workspaceID, id string, paginati
 	for _, row := range page.Items {
 		row.Cells = sheet.DisplayCells(row.Cells)
 	}
-	return page, nil
+	views, err := m.names.views(ctx, workspaceID, page.Items)
+	if err != nil {
+		return nil, err
+	}
+	return &shared.PaginatedResult[RowView]{Items: views, Page: page.Page, PageSize: page.PageSize, TotalItems: page.TotalItems, TotalPages: page.TotalPages}, nil
 }
 
 type ManagerDeps struct {
@@ -40,6 +44,7 @@ type ManagerDeps struct {
 	Marks   Marker
 	Alerts  Alerts
 	Nudger  Nudger
+	Names   OriginNames
 }
 
 type Manager struct {
@@ -54,15 +59,16 @@ type Manager struct {
 	marks   Marker
 	alerts  Alerts
 	nudger  Nudger
+	names   OriginNames
 }
 
 func NewManager(d ManagerDeps) *Manager {
-	if d.Sheets == nil || d.Rows == nil || d.API == nil || d.Errors == nil || d.Access == nil || d.Limiter == nil || d.Marks == nil || d.Alerts == nil || d.Nudger == nil {
-		panic("googlesheet: the manager requires sheets, rows, the sheets api, an error classifier, google access, a limiter, marks, alerts and a nudger")
+	if d.Sheets == nil || d.Rows == nil || d.API == nil || d.Errors == nil || d.Access == nil || d.Limiter == nil || d.Marks == nil || d.Alerts == nil || d.Nudger == nil || !d.Names.complete() {
+		panic("googlesheet: the manager requires sheets, rows, the sheets api, an error classifier, google access, a limiter, marks, alerts, a nudger and the agent, workflow and people names")
 	}
 	return &Manager{
 		sheets: d.Sheets, rows: d.Rows, api: d.API, errs: d.Errors, access: d.Access,
-		limiter: d.Limiter, marks: d.Marks, alerts: d.Alerts, nudger: d.Nudger, now: utcNow, seed: rand.Int64,
+		limiter: d.Limiter, marks: d.Marks, alerts: d.Alerts, nudger: d.Nudger, names: d.Names, now: utcNow, seed: rand.Int64,
 	}
 }
 
@@ -70,6 +76,7 @@ type CreateInput struct {
 	WorkspaceID   string
 	UserID        string
 	SpreadsheetID string
+	FileTitle     string
 	Title         string
 	TabName       string
 	TabPeriod     googlesheet.TabPeriod
@@ -78,6 +85,7 @@ type CreateInput struct {
 	Description   string
 	TimeZone      string
 	Columns       []googlesheet.ColumnInput
+	Unique        googlesheet.UniqueInput
 }
 
 func (m *Manager) Create(ctx context.Context, in CreateInput) (*googlesheet.Sheet, error) {
@@ -104,6 +112,7 @@ func (m *Manager) create(ctx context.Context, access googleaccount.Access, in Cr
 		TimeZone:    in.TimeZone,
 		CreatedBy:   in.UserID,
 		Columns:     in.Columns,
+		Unique:      in.Unique,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -111,9 +120,16 @@ func (m *Manager) create(ctx context.Context, access googleaccount.Access, in Cr
 	if err := sheet.OpenPeriod(m.now()); err != nil {
 		return nil, nil, err
 	}
+	newFile := in.SpreadsheetID == ""
+	var fileTitle string
+	if newFile {
+		if fileTitle, err = googlesheet.CheckFileTitle(in.FileTitle); err != nil {
+			return nil, nil, err
+		}
+	}
 	var google undo
-	if in.SpreadsheetID == "" {
-		google, err = m.newSpreadsheet(ctx, access, sheet)
+	if newFile {
+		google, err = m.newSpreadsheet(ctx, access, sheet, fileTitle)
 	} else {
 		google, err = m.newTab(ctx, access, sheet, in.SpreadsheetID)
 	}
@@ -124,6 +140,15 @@ func (m *Manager) create(ctx context.Context, access googleaccount.Access, in Cr
 		google(ctx)
 		return nil, nil, err
 	}
+	if newFile {
+		if err := m.sheets.SaveFileTitle(ctx, sheet.WorkspaceID, sheet.SpreadsheetID, fileTitle); err != nil {
+			if err := m.sheets.Delete(ctx, sheet.WorkspaceID, sheet.ID); err != nil {
+				log.Printf("[googlesheet] sheet %s could not be removed after its file name failed to save: %v", sheet.ID, err)
+			}
+			google(ctx)
+			return nil, nil, err
+		}
+	}
 	return sheet, func(ctx context.Context) {
 		if err := m.sheets.Delete(ctx, sheet.WorkspaceID, sheet.ID); err != nil {
 			log.Printf("[googlesheet] sheet %s could not be removed while undoing a workbook: %v", sheet.ID, err)
@@ -132,14 +157,14 @@ func (m *Manager) create(ctx context.Context, access googleaccount.Access, in Cr
 	}, nil
 }
 
-func (m *Manager) newSpreadsheet(ctx context.Context, access googleaccount.Access, sheet *googlesheet.Sheet) (undo, error) {
+func (m *Manager) newSpreadsheet(ctx context.Context, access googleaccount.Access, sheet *googlesheet.Sheet, fileTitle string) (undo, error) {
 	if err := m.checkLinks(ctx, sheet); err != nil {
 		return nil, err
 	}
 	if err := m.takeWrite(ctx, access); err != nil {
 		return nil, err
 	}
-	created, err := m.api.CreateSpreadsheet(ctx, access.Token, sheet.Spec())
+	created, err := m.api.CreateSpreadsheet(ctx, access.Token, sheet.Spec(fileTitle))
 	if err != nil {
 		if created.SpreadsheetID != "" {
 			m.trash(ctx, access, created.SpreadsheetID)
@@ -236,6 +261,7 @@ type DetailsInput struct {
 	Version     int
 	Title       *string
 	Description *string
+	Unique      *googlesheet.UniqueRule
 }
 
 func (m *Manager) UpdateDetails(ctx context.Context, in DetailsInput) (*googlesheet.Sheet, error) {
@@ -246,8 +272,15 @@ func (m *Manager) UpdateDetails(ctx context.Context, in DetailsInput) (*googlesh
 	if in.Version != sheet.Version {
 		return nil, googlesheet.ErrStaleSheet
 	}
-	if err := sheet.Rename(in.Title, in.Description); err != nil {
-		return nil, err
+	if in.Title != nil || in.Description != nil || in.Unique == nil {
+		if err := sheet.Rename(in.Title, in.Description); err != nil {
+			return nil, err
+		}
+	}
+	if in.Unique != nil {
+		if err := m.changeUnique(ctx, sheet, *in.Unique); err != nil {
+			return nil, err
+		}
 	}
 	if err := m.sheets.Update(ctx, sheet, in.Version); err != nil {
 		return nil, err
@@ -324,7 +357,7 @@ func (m *Manager) saveLayout(ctx context.Context, sheet *googlesheet.Sheet, vers
 	if err := m.sheets.Update(ctx, sheet, version); err != nil {
 		return nil, err
 	}
-	m.forgetHeaderCheck(sheet.ID)
+	m.forgetTabCheck(sheet.ID)
 	return sheet, nil
 }
 
@@ -401,14 +434,7 @@ func (m *Manager) Reactivate(ctx context.Context, in ReactivateInput) (*googlesh
 	if workbook.NearlyFull(0) {
 		return nil, fmt.Errorf("%w: %s", googlesheet.ErrSheetNotActive, googlesheet.ReasonSheetFull)
 	}
-	if in.RepairHeader {
-		if err := m.takeWrite(ctx, access); err != nil {
-			return nil, err
-		}
-		if err := m.api.ApplyLayout(ctx, access.Token, sheet.Target(), sheet.Layout(len(sheet.Columns))); err != nil {
-			return nil, m.googleRefusal(err)
-		}
-	} else if err := m.confirmHeader(ctx, access, sheet); err != nil {
+	if err := m.settleHeaders(ctx, access, sheet, workbook, in.RepairHeader); err != nil {
 		return nil, err
 	}
 	sheet.Activate()
@@ -420,7 +446,7 @@ func (m *Manager) Reactivate(ctx context.Context, in ReactivateInput) (*googlesh
 	if err := m.sheets.SaveStatus(ctx, sheet); err != nil {
 		return nil, err
 	}
-	m.forgetHeaderCheck(sheet.ID)
+	m.forgetTabCheck(sheet.ID)
 	if err := m.alerts.Resolved(ctx, sheet); err != nil {
 		log.Printf("[googlesheet] attention alert of %s not resolved: %v", sheet.ID, err)
 	}
@@ -429,20 +455,6 @@ func (m *Manager) Reactivate(ctx context.Context, in ReactivateInput) (*googlesh
 }
 
 const tabGoneDetail = "a aba da planilha foi removida no Google"
-
-func (m *Manager) confirmHeader(ctx context.Context, access googleaccount.Access, sheet *googlesheet.Sheet) error {
-	if err := m.takeRead(ctx, access); err != nil {
-		return err
-	}
-	header, err := m.api.ReadRange(ctx, access.Token, sheet.Target(), "1:1")
-	if err != nil {
-		return m.googleRefusal(err)
-	}
-	if difference := googlesheet.HeaderDifference(sheet.HeaderRow(), header); difference != "" {
-		return fmt.Errorf("%w: %s: %s", googlesheet.ErrSheetNotActive, googlesheet.ReasonHeaderMismatch, difference)
-	}
-	return nil
-}
 
 func (m *Manager) sheetAccess(ctx context.Context, sheet *googlesheet.Sheet) (googleaccount.Access, error) {
 	access, err := m.access.Access(ctx, sheet.WorkspaceID, googleaccount.ProductSheets)
@@ -477,9 +489,9 @@ func (m *Manager) takeRead(ctx context.Context, access googleaccount.Access) err
 	return nil
 }
 
-func (m *Manager) forgetHeaderCheck(sheetID string) {
-	if err := m.marks.Del(headerMarkKey(sheetID)); err != nil {
-		log.Printf("[googlesheet] header check mark of %s not cleared: %v", sheetID, err)
+func (m *Manager) forgetTabCheck(sheetID string) {
+	if err := m.marks.Del(tabCheckKey(sheetID)); err != nil {
+		log.Printf("[googlesheet] tab check mark of %s not cleared: %v", sheetID, err)
 	}
 }
 

@@ -3,12 +3,14 @@ package entrypurge_repository
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
 	"vozko/domain/shared"
+	"vozko/infra/crypto/piigorm"
 	"vozko/infra/database/schema"
 	"vozko/infra/repositories/repotest"
 )
@@ -24,7 +26,7 @@ func purgeDB(t *testing.T) *gorm.DB {
 		&schema.InboxAssignment{}, &schema.EntryLabel{}, &schema.EntryStage{}, &schema.OpportunityConversation{},
 		&schema.ScheduledMessage{}, &schema.LeadExitRun{}, &schema.WhatsAppFormSend{}, &schema.WhatsAppFormResponse{},
 		&schema.LeadMemory{}, &schema.WorkflowRunSchema{}, &schema.WorkflowRunLogSchema{}, &schema.CustomerPortfolioEntry{},
-		&schema.AIToolCallSchema{}, &schema.WorkflowWebhookDeliverySchema{}, &schema.GoogleSheetRow{}, &schema.GoogleSheetExportCursor{},
+		&schema.AIToolCallSchema{}, &schema.WorkflowWebhookDeliverySchema{}, &schema.GoogleSheetRow{}, &schema.GoogleSheetExportCursor{}, &schema.GoogleSheetRowRemoval{}, &schema.GoogleSheetUniqueKey{}, &schema.ConversationVariable{}, &schema.AgentRunSchema{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -41,6 +43,7 @@ func count(t *testing.T, db *gorm.DB, table, where string, args ...any) int64 {
 }
 
 func TestPurgingEntriesRemovesTheirRowsInEveryTableAndNothingElse(t *testing.T) {
+	repotest.WithPII(t)
 	db := purgeDB(t)
 	ctx := context.Background()
 	target, kept, otherChannel := uuid.NewString(), uuid.NewString(), uuid.NewString()
@@ -50,6 +53,8 @@ func TestPurgingEntriesRemovesTheirRowsInEveryTableAndNothingElse(t *testing.T) 
 			&schema.ConversationMessage{EntryID: entryID, EntryType: entryType},
 			&schema.ConversationMedia{EntryID: entryID, EntryType: entryType, Type: "image", URL: "https://files.example/" + entryID + ".jpg"},
 			&schema.EntryLabel{ID: uuid.NewString(), LabelID: uuid.NewString(), EntryID: entryID, EntryType: entryType, WorkspaceID: ws},
+			&schema.GoogleSheetUniqueKey{SheetID: uuid.NewString(), KeyHash: uuid.NewString(), WorkspaceID: ws, RowID: uuid.NewString(), EntryID: entryID, EntryType: entryType},
+			&schema.GoogleSheetRowRemoval{WorkspaceID: ws, SheetID: uuid.NewString(), RowID: uuid.NewString(), Kind: "remove", Reason: piigorm.NewEncrypted("duplicada"), RemovedBy: "u", Cells: piigorm.NewEncrypted("{}"), OriginKind: "agent", EntryID: entryID, EntryType: entryType, RemovedAt: time.Now()},
 		} {
 			if err := db.Omit(clause.Associations).Create(row).Error; err != nil {
 				t.Fatalf("seed %T: %v", row, err)
@@ -84,7 +89,7 @@ func TestPurgingEntriesRemovesTheirRowsInEveryTableAndNothingElse(t *testing.T) 
 	if err := s.DeleteEntries(ctx, shared.EntryTypeMercadoLivre, []string{target}); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"conversation_messages", "conversation_media", "entry_labels", "workflow_runs"} {
+	for _, table := range []string{"conversation_messages", "conversation_media", "entry_labels", "google_sheet_unique_keys", "google_sheet_row_removals", "workflow_runs"} {
 		if n := count(t, db, table, "entry_id = ? AND entry_type = ?", target, "mercadolivre"); n != 0 {
 			t.Errorf("%s kept %d rows of the purged entry", table, n)
 		}

@@ -15,6 +15,7 @@ type eloSheets struct {
 	sheet   *googlesheet.Sheet
 	created gsuc.CreateInput
 	queued  []gsuc.EnqueueInput
+	repeat  *googlesheet.RepeatError
 }
 
 func (e *eloSheets) List(context.Context, googlesheet.ListInput) (*shared.PaginatedResult[*googlesheet.Sheet], error) {
@@ -28,7 +29,7 @@ func (e *eloSheets) Create(_ context.Context, in gsuc.CreateInput) (*googlesheet
 
 func (e *eloSheets) Enqueue(_ context.Context, in gsuc.EnqueueInput) (*gsuc.EnqueueResult, error) {
 	e.queued = append(e.queued, in)
-	return &gsuc.EnqueueResult{RowID: "row-1", Sheet: e.sheet}, nil
+	return &gsuc.EnqueueResult{RowID: "row-1", Sheet: e.sheet, Repeat: e.repeat}, nil
 }
 
 func (e *eloSheets) Preview(_ context.Context, _, _ string, values map[string]any, _ googlesheet.Origin) (*googlesheet.Sheet, googlesheet.Cells, error) {
@@ -102,5 +103,16 @@ func TestListGoogleSheetsShowsTheWorkbookAndTheLook(t *testing.T) {
 	columns := sheet["columns"].([]map[string]interface{})
 	if columns[1]["colors"] == nil {
 		t.Fatalf("columns = %+v", columns)
+	}
+}
+
+func TestCreateGoogleSheetNamesTheNewFileAfterTheSheet(t *testing.T) {
+	sheets := eloSheet(t)
+	args := map[string]interface{}{"title": "Leads da feira", "columns": []interface{}{map[string]interface{}{"header": "Nome", "type": "text"}}}
+	if res := NewCreateGoogleSheetTool(sheets).Execute(context.Background(), eloContext, args); res.Status != copilot.StatusOK {
+		t.Fatalf("Execute = %+v", res)
+	}
+	if sheets.created.FileTitle != "Leads da feira" || sheets.created.Title != "Leads da feira" {
+		t.Fatalf("created = %+v", sheets.created)
 	}
 }

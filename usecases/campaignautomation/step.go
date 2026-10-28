@@ -33,11 +33,16 @@ func NewStep(workflows Workflows, agents Agents) (*Step, error) {
 }
 
 type Rule struct {
-	needs automationneeds.Needs
+	needs    automationneeds.Needs
+	optional automationneeds.Needs
 }
 
 func (r Rule) Needs() automationneeds.Needs {
 	return r.needs
+}
+
+func (r Rule) Optional() automationneeds.Needs {
+	return r.optional
 }
 
 func (r Rule) Check(entries []campaign.EntryMetadata) error {
@@ -75,7 +80,7 @@ func (s *Step) Rule(workspaceID string, a campaign.Automation) (Rule, error) {
 	if s == nil || s.workflows == nil || s.agents == nil {
 		return Rule{}, campaign.ErrAutomationUnavailable
 	}
-	var needs automationneeds.Needs
+	var vars automationneeds.Variables
 	if id := strings.TrimSpace(a.WorkflowID); id != "" {
 		wf, err := s.ownWorkflow(workspaceID, id)
 		if err != nil {
@@ -85,7 +90,7 @@ func (s *Step) Rule(workspaceID string, a campaign.Automation) (Rule, error) {
 		if err != nil {
 			return Rule{}, err
 		}
-		needs = needs.Union(found)
+		vars = vars.Union(found)
 	}
 	if id := strings.TrimSpace(a.AgentID); id != "" {
 		owned, err := s.ownAgent(workspaceID, id)
@@ -96,20 +101,20 @@ func (s *Step) Rule(workspaceID string, a campaign.Automation) (Rule, error) {
 		if err != nil {
 			return Rule{}, err
 		}
-		needs = needs.Union(found)
+		vars = vars.Union(found)
 	}
-	return Rule{needs: needs}, nil
+	return Rule{needs: vars.Required, optional: vars.Optional}, nil
 }
 
-func (s *Step) needsOf(src automationneeds.Source, workspaceID string, root conversation.Automation) (automationneeds.Needs, error) {
-	needs, err := automationneeds.Of(src, workspaceID, root)
+func (s *Step) needsOf(src automationneeds.Source, workspaceID string, root conversation.Automation) (automationneeds.Variables, error) {
+	vars, err := automationneeds.VariablesOf(src, workspaceID, root)
 	switch {
 	case err == nil:
-		return needs, nil
+		return vars, nil
 	case errors.Is(err, automationneeds.ErrNotFound):
-		return nil, fmt.Errorf("%w: %w", campaign.ErrAgentNotFound, err)
+		return automationneeds.Variables{}, fmt.Errorf("%w: %w", campaign.ErrAgentNotFound, err)
 	}
-	return nil, fmt.Errorf("%w: %w", campaign.ErrAutomationUnavailable, err)
+	return automationneeds.Variables{}, fmt.Errorf("%w: %w", campaign.ErrAutomationUnavailable, err)
 }
 
 func (s *Step) ownWorkflow(workspaceID, workflowID string) (*workflow.Workflow, error) {

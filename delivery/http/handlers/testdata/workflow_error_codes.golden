@@ -71,6 +71,10 @@ run_terminal
 segmented_send_conflict
 stage_not_conversation_funnel
 test_input_invalid
+test_value_invalid
+test_value_not_needed
+test_values_unavailable
+test_values_unwired
 trigger_has_incoming_edge
 trigger_incompatible_with_type
 trigger_input_invalid

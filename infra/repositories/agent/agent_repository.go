@@ -169,6 +169,7 @@ type agentListRow struct {
 	WorkspaceID    string    `gorm:"column:workspace_id"`
 	DepartmentID   *string   `gorm:"column:department_id"`
 	Name           string    `gorm:"column:name"`
+	Description    *string   `gorm:"column:description"`
 	AvatarURL      string    `gorm:"column:avatar_url"`
 	Tags           string    `gorm:"column:tags"`
 	Provider       string    `gorm:"column:provider"`
@@ -191,7 +192,7 @@ func (r *repository) List(input agent.ListAgentsInput) (*shared.PaginatedResult[
 	}
 
 	dataQuery := r.db.Model(&schema.Agent{}).
-		Select("id", "workspace_id", "department_id", "name", "avatar_url",
+		Select("id", "workspace_id", "department_id", "name", "description", "avatar_url",
 			"tags", "provider", "messaging_model",
 			"is_active", "archived", "created_at", "updated_at").
 		Offset(pagination.Offset()).
@@ -222,6 +223,7 @@ func mapAgentRowToListItem(row *agentListRow) *agent.AgentListItem {
 		WorkspaceID:    row.WorkspaceID,
 		DepartmentID:   derefString(row.DepartmentID),
 		Name:           row.Name,
+		Description:    derefString(row.Description),
 		AvatarURL:      row.AvatarURL,
 		Tags:           decodeStringSlice(row.Tags),
 		Provider:       agent.AgentProvider(row.Provider),

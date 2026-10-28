@@ -277,7 +277,9 @@ func (uc *activateWorkflowUseCase) graphProblems(ctx context.Context, w *workflo
 		problems = append(problems, err)
 	}
 	if len(catalog) > 0 {
-		problems = append(problems, workflow.ReferenceProblems(&w.Graph, catalog, uc.referenceValidators(w)...)...)
+		sheets := &googleSheetValidator{sheets: uc.googleSheets, workspaceID: strings.TrimSpace(w.WorkspaceID)}
+		problems = append(problems, workflow.ReferenceProblems(&w.Graph, catalog, uc.referenceValidators(w, sheets)...)...)
+		report.Issues = append(report.Issues, workflow.SheetLinkExportIssues(&w.Graph, catalog, sheets.links)...)
 	}
 	if w.Type == workflow.WorkflowTypeVoice {
 		problems = append(problems, uc.callQueueProblems(w)...)
@@ -320,7 +322,7 @@ func (uc *activateWorkflowUseCase) validateRunnable(ctx context.Context, w *work
 	return err
 }
 
-func (uc *activateWorkflowUseCase) referenceValidators(w *workflow.Workflow) []workflow.ConfigValidator {
+func (uc *activateWorkflowUseCase) referenceValidators(w *workflow.Workflow, sheets *googleSheetValidator) []workflow.ConfigValidator {
 	workflowWorkspaceID := strings.TrimSpace(w.WorkspaceID)
 	return []workflow.ConfigValidator{
 		&businessPhoneValidator{repo: uc.businessPhoneRepo, workspaceID: workflowWorkspaceID},
@@ -336,7 +338,7 @@ func (uc *activateWorkflowUseCase) referenceValidators(w *workflow.Workflow) []w
 		&mcpCollectionValidator{repo: uc.mcpCollectionRepo, workspaceID: workflowWorkspaceID},
 		&knowledgeBaseValidator{repo: uc.knowledgeBaseRepo, workspaceID: workflowWorkspaceID},
 		&modelValidator{lookup: uc.modelLookup},
-		&googleSheetValidator{sheets: uc.googleSheets, workspaceID: workflowWorkspaceID},
+		sheets,
 		&workflowReferenceValidator{repo: uc.repo, workspaceID: workflowWorkspaceID},
 	}
 }

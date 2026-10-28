@@ -276,14 +276,14 @@ type VariableDependency struct {
 type DependencySource string
 
 const (
-	DependencySourcePreviousNode DependencySource = "previous_node"
-	DependencySourceSpecificNode DependencySource = "specific_node"
-	DependencySourceTrigger      DependencySource = "trigger"
-	DependencySourceAI           DependencySource = "ai"
-	DependencySourceSystem       DependencySource = "system"
-	DependencySourceCustom       DependencySource = "custom"
-	DependencySourceAgentVar     DependencySource = "agent_variable"
-	DependencySourceCaller       DependencySource = "caller"
+	DependencySourcePreviousNode  DependencySource = "previous_node"
+	DependencySourceSpecificNode  DependencySource = "specific_node"
+	DependencySourceTrigger       DependencySource = "trigger"
+	DependencySourceAI            DependencySource = "ai"
+	DependencySourceSystem        DependencySource = "system"
+	DependencySourceCustom        DependencySource = "custom"
+	DependencySourceAutomationVar DependencySource = "automation_variable"
+	DependencySourceCaller        DependencySource = "caller"
 )
 
 type RequiredMock struct {
@@ -292,6 +292,8 @@ type RequiredMock struct {
 	Source      DependencySource `json:"source"`
 	SourceNode  string           `json:"sourceNode"`
 	Optional    bool             `json:"optional,omitempty"`
+	Hint        string           `json:"hint,omitempty"`
+	NeededBy    string           `json:"neededBy,omitempty"`
 }
 
 func ExtractDependencies(config map[string]interface{}) []VariableDependency {

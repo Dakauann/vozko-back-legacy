@@ -33,7 +33,7 @@ func newAnonymizationWorld(t *testing.T) anonymizationWorld {
 	db, repo := collectionsDB(t)
 	db.Config.DisableForeignKeyConstraintWhenMigrating = true
 	if err := db.AutoMigrate(&schema.LeadMemory{}, &schema.WhatsAppCampaignEntry{}, &schema.UnofficialWhatsAppCampaignEntry{},
-		&schema.Call{}, &schema.WhatsAppTemplateSend{}, &schema.CallListItem{}, &schema.CustomerPortfolioEntry{}, &schema.GoogleSheetRow{}); err != nil {
+		&schema.Call{}, &schema.WhatsAppTemplateSend{}, &schema.CallListItem{}, &schema.CustomerPortfolioEntry{}, &schema.GoogleSheetRow{}, &schema.GoogleSheetUniqueKey{}, &schema.GoogleSheetRowRemoval{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	ws := uuid.NewString()
@@ -91,6 +91,10 @@ func newAnonymizationWorld(t *testing.T) anonymizationWorld {
 		uuid.NewString(), ws, uuid.NewString(), w.maria.ID).Error)
 	must(db.Exec("INSERT INTO google_sheet_rows (id, workspace_id, sheet_id, idempotency_key, cells, sheet_version, origin_kind, lead_id, next_attempt_at, created_at)"+
 		" VALUES (?, ?, ?, 'k', '\\x00'::bytea, 1, 'agent', ?, now(), now())", uuid.NewString(), ws, uuid.NewString(), w.maria.ID).Error)
+	must(db.Exec("INSERT INTO google_sheet_unique_keys (sheet_id, period_key, key_hash, workspace_id, row_id, lead_id, created_at) VALUES (?, '', 'h', ?, ?, ?, now())",
+		uuid.NewString(), ws, uuid.NewString(), w.maria.ID).Error)
+	must(db.Exec("INSERT INTO google_sheet_row_removals (id, workspace_id, sheet_id, row_id, kind, reason, removed_by, cells, origin_kind, lead_id, removed_at)"+
+		" VALUES (?, ?, ?, ?, 'remove', '\\x00'::bytea, 'u', '\\x00'::bytea, 'agent', ?, now())", uuid.NewString(), ws, uuid.NewString(), uuid.NewString(), w.maria.ID).Error)
 	return w
 }
 
@@ -218,6 +222,12 @@ func TestAnonymizeErasesThePersonEverywhereAgainstPostgres(t *testing.T) {
 	}
 	if n := w.count(t, "SELECT count(*) FROM google_sheet_rows WHERE lead_id = ?", w.maria.ID); n != 0 {
 		t.Errorf("the rows kept for the Google Sheets of an anonymized person must be erased, found %d", n)
+	}
+	if n := w.count(t, "SELECT count(*) FROM google_sheet_unique_keys WHERE lead_id = ?", w.maria.ID); n != 0 {
+		t.Errorf("the unique keys of an anonymized person must be erased, found %d", n)
+	}
+	if n := w.count(t, "SELECT count(*) FROM google_sheet_row_removals WHERE lead_id = ?", w.maria.ID); n != 0 {
+		t.Errorf("the removed row snapshots of an anonymized person must be erased, found %d", n)
 	}
 }
 

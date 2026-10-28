@@ -103,6 +103,7 @@ type debugSimOptions struct {
 	runs          *runDetailStub
 	permissions   permissionStub
 	triggerInputs TriggerInputReaders
+	testValues    *memoryTestValues
 }
 
 func startDebugSimulation(t *testing.T, opts debugSimOptions) *debugSim {
@@ -111,6 +112,9 @@ func startDebugSimulation(t *testing.T, opts debugSimOptions) *debugSim {
 	_ = repo.Create(opts.workflow)
 	if opts.runs == nil {
 		opts.runs = &runDetailStub{}
+	}
+	if opts.testValues == nil {
+		opts.testValues = newMemoryTestValues()
 	}
 	if opts.permissions.allowed == nil {
 		opts.permissions = permissionStub{allowed: map[string]bool{"workflows:read": true}}
@@ -122,6 +126,7 @@ func startDebugSimulation(t *testing.T, opts debugSimOptions) *debugSim {
 		Permissions:      opts.permissions,
 		PauseIdleTimeout: opts.idle,
 		TriggerInputs:    opts.triggerInputs,
+		TestValues:       mustTestValues(t, opts.testValues),
 	})
 	upgrader := websocket.Upgrader{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

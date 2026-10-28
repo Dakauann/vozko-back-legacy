@@ -18,7 +18,7 @@ func TestWrittenRowsRemainReadableWithTheirCellsAndAreWorkspaceScoped(t *testing
 	queued := w.enqueue(t, "visible-row", map[string]any{"nome": "Dakauann", "valor": 12.5})
 	w.write(t)
 	page, err := w.manager.ListRows(context.Background(), testWorkspace, w.sheet.ID, shared.Pagination{Page: 1, PageSize: 25})
-	if err != nil || len(page.Items) != 1 || page.Items[0].ID != queued.RowID || page.Items[0].Status != googlesheet.RowWritten || page.Items[0].Cells["nome"] != "Dakauann" {
+	if err != nil || len(page.Items) != 1 || page.Items[0].Row.ID != queued.RowID || page.Items[0].Row.Status != googlesheet.RowWritten || page.Items[0].Row.Cells["nome"] != "Dakauann" {
 		t.Fatalf("page=%+v err=%v", page, err)
 	}
 	if _, err := w.manager.ListRows(context.Background(), "another-workspace", w.sheet.ID, shared.Pagination{}); !errors.Is(err, googlesheet.ErrSheetNotFound) {
@@ -27,37 +27,43 @@ func TestWrittenRowsRemainReadableWithTheirCellsAndAreWorkspaceScoped(t *testing
 }
 
 type world struct {
-	sheets   *memorySheets
-	rows     *memoryRows
-	api      *fakeAPI
-	access   *fakeAccess
-	limiter  *fakeLimiter
-	leases   *fakeLeases
-	marks    *fakeMarks
-	alerts   *fakeAlerts
-	nudger   *recordingNudger
-	resolver *fakeResolver
-	exports  *memoryExports
-	writer   *Writer
-	intake   *Intake
-	manager  *Manager
-	now      time.Time
-	sheet    *googlesheet.Sheet
+	sheets    *memorySheets
+	rows      *memoryRows
+	api       *fakeAPI
+	access    *fakeAccess
+	limiter   *fakeLimiter
+	leases    *fakeLeases
+	marks     *fakeMarks
+	alerts    *fakeAlerts
+	nudger    *recordingNudger
+	resolver  *fakeResolver
+	exports   *memoryExports
+	agents    *workspaceNames
+	workflows *workspaceNames
+	people    *workspaceNames
+	writer    *Writer
+	intake    *Intake
+	manager   *Manager
+	now       time.Time
+	sheet     *googlesheet.Sheet
 }
 
 func newWorld(t *testing.T) *world {
 	t.Helper()
 	w := &world{
 		sheets: newMemorySheets(), rows: newMemoryRows(), api: newFakeAPI(),
-		access:   &fakeAccess{access: googleaccount.Access{AccountID: "acct-1", Email: "ops@example.com", Token: "token"}},
-		limiter:  &fakeLimiter{writes: 100, reads: 100},
-		leases:   &fakeLeases{held: map[string]bool{}},
-		marks:    &fakeMarks{keys: map[string]bool{}},
-		alerts:   &fakeAlerts{},
-		nudger:   &recordingNudger{},
-		resolver: &fakeResolver{values: googlesheet.SystemValues{googlesheet.SourceLeadPhone: "+5511999990000"}},
-		exports:  newMemoryExports(),
-		now:      time.Date(2026, 10, 21, 15, 0, 0, 0, time.UTC),
+		access:    &fakeAccess{access: googleaccount.Access{AccountID: "acct-1", Email: "ops@example.com", Token: "token"}},
+		limiter:   &fakeLimiter{writes: 100, reads: 100},
+		leases:    &fakeLeases{held: map[string]bool{}},
+		marks:     &fakeMarks{keys: map[string]bool{}},
+		alerts:    &fakeAlerts{},
+		nudger:    &recordingNudger{},
+		resolver:  &fakeResolver{values: googlesheet.SystemValues{googlesheet.SourceLeadPhone: "+5511999990000"}},
+		exports:   newMemoryExports(),
+		agents:    newWorkspaceNames(map[string]string{}),
+		workflows: newWorkspaceNames(map[string]string{}),
+		people:    newWorkspaceNames(map[string]string{}),
+		now:       time.Date(2026, 10, 21, 15, 0, 0, 0, time.UTC),
 	}
 	sheet, err := googlesheet.NewSheet(googlesheet.NewSheetInput{
 		WorkspaceID: testWorkspace, AccountID: "acct-1", Title: "Pedidos", TabName: "Pedidos",
@@ -89,6 +95,7 @@ func newWorld(t *testing.T) *world {
 	w.manager = NewManager(ManagerDeps{
 		Sheets: w.sheets, Rows: w.rows, API: w.api, Errors: fakeClassifier{}, Access: w.access, Limiter: w.limiter,
 		Marks: w.marks, Alerts: w.alerts, Nudger: w.nudger,
+		Names: OriginNames{Agents: w.agents.lookup, Workflows: w.workflows.lookup, People: w.people.lookup},
 	})
 	w.manager.now = func() time.Time { return w.now }
 	return w
@@ -305,15 +312,18 @@ func TestHeaderChangedInGoogleStopsWritesBeforeAnyAppend(t *testing.T) {
 	}
 }
 
-func TestHeaderIsCheckedOncePerWindow(t *testing.T) {
+func TestRoomIsCheckedOncePerWindowButTheHeaderBeforeEveryBatch(t *testing.T) {
 	w := newWorld(t)
 	w.enqueue(t, "k1", map[string]any{"nome": "a"})
 	w.write(t)
-	reads := w.api.readCalls
+	reads, workbooks := w.api.readCalls, w.api.workbookCalls
 	w.enqueue(t, "k2", map[string]any{"nome": "b"})
 	w.write(t)
-	if w.api.readCalls != reads {
-		t.Fatalf("header read again inside the window: %d reads, then %d", reads, w.api.readCalls)
+	if w.api.workbookCalls != workbooks {
+		t.Fatalf("workbook read again inside the window: %d, then %d", workbooks, w.api.workbookCalls)
+	}
+	if w.api.readCalls != reads+1 {
+		t.Fatalf("reads = %d then %d, the header and the ref column are read once per batch", reads, w.api.readCalls)
 	}
 }
 
@@ -344,8 +354,7 @@ func TestRecoveryFindsRowsGoogleAlreadyHas(t *testing.T) {
 	if _, err := w.rows.Claim(context.Background(), w.sheet.ID, "lost-batch", 10, w.now); err != nil {
 		t.Fatal(err)
 	}
-	w.api.refs = append(w.api.refs, []any{a})
-	w.api.nextRow = 3
+	w.api.addRows(0, []any{a})
 	w.now = w.now.Add(3 * time.Minute)
 	w.write(t)
 	written := w.rows.byStatus(w.sheet.ID, googlesheet.RowWritten)
@@ -400,7 +409,7 @@ func TestCreateTrashesTheSpreadsheetWhenItCannotBeRecorded(t *testing.T) {
 	w.api.created = googlesheet.CreatedSpreadsheet{SpreadsheetID: "sp-new", TabID: 7}
 	w.sheets.fail = errors.New("db down")
 	_, err := w.manager.Create(context.Background(), CreateInput{
-		WorkspaceID: testWorkspace, Title: "Leads", Columns: []googlesheet.ColumnInput{{Header: "Nome", Type: googlesheet.TypeText}},
+		WorkspaceID: testWorkspace, FileTitle: "Leads", Title: "Leads", Columns: []googlesheet.ColumnInput{{Header: "Nome", Type: googlesheet.TypeText}},
 	})
 	if err == nil || len(w.api.trashed) != 1 || w.api.trashed[0] != "sp-new" {
 		t.Fatalf("err = %v, trashed = %v", err, w.api.trashed)
@@ -409,7 +418,7 @@ func TestCreateTrashesTheSpreadsheetWhenItCannotBeRecorded(t *testing.T) {
 
 func TestCreateNeedsAConnectedAccountAndQuota(t *testing.T) {
 	w := newWorld(t)
-	in := CreateInput{WorkspaceID: testWorkspace, Title: "Leads", Columns: []googlesheet.ColumnInput{{Header: "Nome", Type: googlesheet.TypeText}}}
+	in := CreateInput{WorkspaceID: testWorkspace, FileTitle: "Leads", Title: "Leads", Columns: []googlesheet.ColumnInput{{Header: "Nome", Type: googlesheet.TypeText}}}
 	w.limiter.writes = 0
 	if _, err := w.manager.Create(context.Background(), in); !errors.Is(err, googlesheet.ErrGoogleBusy) {
 		t.Fatalf("over quota err = %v", err)
@@ -434,8 +443,8 @@ func TestReactivateRepairsTheHeaderAndResumes(t *testing.T) {
 	if _, err := w.manager.Reactivate(context.Background(), ReactivateInput{WorkspaceID: testWorkspace, ID: w.sheet.ID, RepairHeader: true}); err != nil {
 		t.Fatalf("Reactivate: %v", err)
 	}
-	if w.api.applied != 1 || w.stored(t).Status != googlesheet.StatusActive || w.alerts.resolved != 1 {
-		t.Fatalf("applied %d, sheet %+v, resolved %d", w.api.applied, w.stored(t), w.alerts.resolved)
+	if len(w.api.repairs) != 1 || w.api.repairs[0] != (googlesheet.HeaderRepair{}) || w.stored(t).Status != googlesheet.StatusActive || w.alerts.resolved != 1 {
+		t.Fatalf("repairs %v, sheet %+v, resolved %d", w.api.repairs, w.stored(t), w.alerts.resolved)
 	}
 	w.api.header = toAny(w.sheet.HeaderRow())
 	w.write(t)

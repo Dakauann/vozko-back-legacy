@@ -3,6 +3,8 @@ package conversationvars
 import (
 	"reflect"
 	"testing"
+
+	"vozko/domain/workflow"
 )
 
 func TestMergeLayersCampaignStoredAndSystemValues(t *testing.T) {
@@ -36,9 +38,15 @@ func TestCampaignValuesNumberTheTemplateVariablesAndFormatMetadata(t *testing.T)
 	}
 }
 
-func TestCampaignVarsCarriesTheValuesForAWorkflowRun(t *testing.T) {
-	got := CampaignVars(map[string]string{"escola": "Prisma"})
+func TestSeedRunPutsTheValuesWhereARunReadsCampvars(t *testing.T) {
+	state := workflow.NewRunState()
+	state.Set(workflow.DataKeyCampaignVars, map[string]interface{}{"antigo": "x"})
+	SeedRun(&state, map[string]string{"escola": "Prisma"})
+	got, _ := state.Get(workflow.DataKeyCampaignVars)
 	if !reflect.DeepEqual(got, map[string]interface{}{"escola": "Prisma"}) {
 		t.Fatalf("campvars = %v", got)
+	}
+	if text, unresolved := workflow.InterpolateStrict("{{campvars.escola}}", &state, nil); text != "Prisma" || len(unresolved) > 0 {
+		t.Fatalf("interpolated = %q, unresolved %v", text, unresolved)
 	}
 }

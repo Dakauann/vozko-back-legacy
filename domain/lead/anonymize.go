@@ -27,13 +27,15 @@ const (
 	ErasureCallListItems             ErasureTarget = "call_list_items"
 	ErasureCustomerPortfolio         ErasureTarget = "customer_portfolio_entries"
 	ErasureGoogleSheetRows           ErasureTarget = "google_sheet_rows"
+	ErasureGoogleSheetUniqueKeys     ErasureTarget = "google_sheet_unique_keys"
+	ErasureGoogleSheetRowRemovals    ErasureTarget = "google_sheet_row_removals"
 	ErasureSentiment                 ErasureTarget = "lead_sentiments"
 )
 
 func ErasureTargets() []ErasureTarget {
 	return []ErasureTarget{
 		ErasureRecord, ErasurePhones, ErasureAddresses, ErasureRelations, ErasureEvents, ErasureMemories,
-		ErasureCampaignEntries, ErasureUnofficialCampaignEntries, ErasureCallNumbers, ErasureTemplateSendNumbers, ErasureCallListItems, ErasureCustomerPortfolio, ErasureGoogleSheetRows, ErasureSentiment,
+		ErasureCampaignEntries, ErasureUnofficialCampaignEntries, ErasureCallNumbers, ErasureTemplateSendNumbers, ErasureCallListItems, ErasureCustomerPortfolio, ErasureGoogleSheetRows, ErasureGoogleSheetUniqueKeys, ErasureGoogleSheetRowRemovals, ErasureSentiment,
 	}
 }
 

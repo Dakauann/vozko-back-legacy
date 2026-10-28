@@ -10,6 +10,7 @@ import (
 
 var attentionCopy = map[googlesheet.AttentionReason]string{
 	googlesheet.ReasonHeaderMismatch:    "O cabeçalho da planilha foi alterado no Google. Para não gravar dados na coluna errada, as novas linhas ficam guardadas até alguém reparar o cabeçalho.",
+	googlesheet.ReasonHeaderNotFirstRow: "Linhas foram parar acima do cabeçalho da planilha. Para não gravar fora do lugar, as novas linhas ficam guardadas até alguém reparar a aba; o reparo move o cabeçalho de volta para a linha 1 sem apagar nada.",
 	googlesheet.ReasonAccessLost:        "A conta conectada perdeu o acesso à planilha no Google. As novas linhas ficam guardadas até o acesso voltar.",
 	googlesheet.ReasonSpreadsheetGone:   "A planilha ou a aba foi removida ou renomeada no Google. As novas linhas ficam guardadas até alguém revisar a planilha.",
 	googlesheet.ReasonSheetFull:         "A planilha está perto do limite de 10 milhões de células do Google. Crie uma nova planilha com as mesmas colunas.",

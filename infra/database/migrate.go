@@ -167,6 +167,7 @@ func autoMigratedModels() [][]any {
 			&schema.AgentScenarioRunSchema{},
 			&schema.WorkflowRuntimeAlertSchema{},
 			&schema.WorkflowSecret{},
+			&schema.WorkflowTestValue{},
 			&schema.BuilderSessionSchema{},
 			&schema.BuilderMessageSchema{},
 			&schema.CalendarEvent{},

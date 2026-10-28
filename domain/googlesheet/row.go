@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
+
+	"vozko/domain/shared"
 )
 
 const (
@@ -52,6 +54,14 @@ type Origin struct {
 	LeadID     string
 	EntryID    string
 	EntryType  string
+}
+
+func (o Origin) Conversation() (shared.EntryRef, bool) {
+	entry := shared.EntryRef{EntryID: strings.TrimSpace(o.EntryID), EntryType: shared.EntryType(strings.TrimSpace(o.EntryType))}
+	if entry.EntryID == "" || !entry.EntryType.SupportsConversationView() {
+		return shared.EntryRef{}, false
+	}
+	return entry, true
 }
 
 type Row struct {
@@ -238,6 +248,6 @@ func RowErrorCodes() []string {
 
 func AttentionReasons() []AttentionReason {
 	return []AttentionReason{
-		ReasonHeaderMismatch, ReasonAccessLost, ReasonSpreadsheetGone, ReasonSheetFull, ReasonGoogleUnavailable, ReasonAccountChanged,
+		ReasonHeaderMismatch, ReasonHeaderNotFirstRow, ReasonAccessLost, ReasonSpreadsheetGone, ReasonSheetFull, ReasonGoogleUnavailable, ReasonAccountChanged,
 	}
 }

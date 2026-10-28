@@ -272,3 +272,52 @@ func TestOfAgentNamesWhatOneAgentNeedsWithoutFollowingItsTools(t *testing.T) {
 		t.Fatal("no agent needs nothing")
 	}
 }
+
+func TestVariablesOfListsAgentVariablesWithADefaultAsOptional(t *testing.T) {
+	got, err := VariablesOf(source(), "ws", workflowRef("com-ia"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.Required.Names(), []string{"escola", "turma"}) {
+		t.Fatalf("required = %v", got.Required.Names())
+	}
+	if !reflect.DeepEqual(got.Optional.Names(), []string{"cidade"}) {
+		t.Fatalf("optional = %v", got.Optional.Names())
+	}
+	cidade := got.Optional.Find("cidade")
+	if cidade.Default != "Curitiba" || cidade.Owner().Name != "Escola" || len(cidade.Via) != 2 {
+		t.Fatalf("cidade = %+v", cidade)
+	}
+	needs, err := Of(source(), "ws", workflowRef("com-ia"))
+	if err != nil || !reflect.DeepEqual(needs, got.Required) {
+		t.Fatalf("Of = %v %v, want the required variables only", needs.Names(), err)
+	}
+}
+
+func TestAVariableRequiredSomewhereIsNeverOptional(t *testing.T) {
+	src := source()
+	src.workflows["mix"] = &workflow.Workflow{ID: "mix", WorkspaceID: "ws", Name: "Mix", Graph: nodes(aiNode("n1", "escola"), textNode("n2", "{{campvars.cidade}}"))}
+	got, err := VariablesOf(src, "ws", workflowRef("mix"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Required.Find("cidade") == nil || got.Optional.Find("cidade") != nil {
+		t.Fatalf("required %v optional %v", got.Required.Names(), got.Optional.Names())
+	}
+	left := Variables{Optional: Needs{{Name: "cidade", Default: "Curitiba"}}}
+	right := Variables{Required: Needs{{Name: "cidade"}}}
+	merged := left.Union(right)
+	if merged.Required.Find("cidade") == nil || len(merged.Optional) != 0 {
+		t.Fatalf("union = %+v", merged)
+	}
+}
+
+func TestOptionalOfAgentCarriesTheDefault(t *testing.T) {
+	got := OptionalOfAgent(source().agents["escola"])
+	if len(got) != 1 || got[0].Name != "cidade" || got[0].Default != "Curitiba" {
+		t.Fatalf("optional = %+v", got)
+	}
+	if OptionalOfAgent(nil) != nil {
+		t.Fatal("no agent has nothing optional")
+	}
+}

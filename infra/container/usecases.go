@@ -1239,6 +1239,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 	)
 	c.wireConversationRuns(wfEngine)
 	c.wireAgentWorkflowCalls(wfRegistry, turnAssembler)
+	c.wireAutomationTransfer(turnAssembler)
 	c.useCases.consumeWorkflowWake = workflow_usecase.NewConsumeRunWakeUseCase(
 		c.services.workflowWakeSub,
 		c.services.workflowWakePub,
@@ -1283,6 +1284,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		Permissions:       simulationPermissions,
 		PinSources:        workflowPinSources,
 		TriggerInputs:     c.workflowTriggerInputs(),
+		TestValues:        c.workflowTestValues(),
 	})
 	openRouter, ok := c.services.ai.(*openrouter_service.Service)
 	if !ok {
@@ -1351,6 +1353,9 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		ViewerOf:      httpx.PersonFromContext,
 		TriggerInputs: c.workflowTriggerInputs(),
 		Variables:     c.workflowVariables(),
+		Needs:         c.automationNeeds().service.Source(),
+		Runs:          c.useCases.getWorkflowRun,
+		TestValues:    c.workflowTestValues(),
 	})
 
 	if err := c.useCases.consumeNotifications.Start(); err != nil {

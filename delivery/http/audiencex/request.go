@@ -10,6 +10,7 @@ type VariableRequest struct {
 	Key     string `json:"key" example:"1"`
 	Source  string `json:"source,omitempty" example:"lead.first_name"`
 	Value   string `json:"value,omitempty" example:"1º ano"`
+	Column  string `json:"column,omitempty" example:"VAR3"`
 	Missing string `json:"missing,omitempty" enums:"text,exclude" example:"text"`
 	Text    string `json:"text,omitempty" example:"cliente"`
 }
@@ -24,7 +25,7 @@ type AudienceRequest struct {
 func Variables(in []VariableRequest) []audience.Variable {
 	out := make([]audience.Variable, 0, len(in))
 	for _, v := range in {
-		out = append(out, audience.Variable{Key: v.Key, Source: campaign.BindingSource(v.Source), Value: v.Value, Missing: audience.MissingPolicy(v.Missing), Text: v.Text})
+		out = append(out, audience.Variable{Key: v.Key, Source: campaign.BindingSource(v.Source), Value: v.Value, Column: v.Column, Missing: audience.MissingPolicy(v.Missing), Text: v.Text})
 	}
 	return out
 }

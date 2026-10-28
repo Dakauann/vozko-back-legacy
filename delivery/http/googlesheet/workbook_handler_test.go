@@ -260,3 +260,59 @@ func TestFilesCanBeNarrowedToOneFileOrToFilesWithInputTabs(t *testing.T) {
 		t.Fatalf("input = %+v", stub.list)
 	}
 }
+
+func TestCreatePassesTheNameOfTheNewFile(t *testing.T) {
+	stub := &stubSheets{sheet: sampleSheet()}
+	serve(NewHandler(stub, &stubRows{}), http.MethodPost, "/google-sheets", `{"fileTitle":"CDT Jabaquara","title":"Leads","columns":[{"header":"Nome","type":"text"}]}`, nil)
+	if stub.created.FileTitle != "CDT Jabaquara" || stub.created.Title != "Leads" {
+		t.Fatalf("input = %+v", stub.created)
+	}
+	serve(NewHandler(stub, &stubRows{}), http.MethodPost, "/google-sheets/workbook", `{"fileTitle":"Altiva","sheets":[{"title":"Negociações"}]}`, nil)
+	if stub.workbook.FileTitle != "Altiva" {
+		t.Fatalf("workbook = %+v", stub.workbook)
+	}
+}
+
+func TestRenameFileAnswersTheFileWithItsNewName(t *testing.T) {
+	sheet := sampleSheet()
+	stub := &stubSheets{renamed: &googlesheet.Spreadsheet{ID: "sp-1", Name: "Altiva", Sheets: []*googlesheet.Sheet{sheet}}}
+	rec := serve(NewHandler(stub, &stubRows{}), http.MethodPatch, "/google-sheets/files/sp-1", `{"title":"Altiva"}`, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d %s", rec.Code, rec.Body.String())
+	}
+	if stub.rename.SpreadsheetID != "sp-1" || stub.rename.Title != "Altiva" {
+		t.Fatalf("input = %+v", stub.rename)
+	}
+	var body SheetFileEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.File.SpreadsheetID != "sp-1" || body.File.Title != "Altiva" || len(body.File.Sheets) != 1 {
+		t.Fatalf("body = %+v", body)
+	}
+}
+
+func TestRenameFileRefusalsAreCoded(t *testing.T) {
+	cases := []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{"blank", &googlesheet.DefinitionError{Code: googlesheet.CodeFileTitleRequired, Field: googlesheet.FieldFileTitle, Column: -1}, http.StatusBadRequest, googlesheet.CodeFileTitleRequired},
+		{"unknown file", googlesheet.ErrSpreadsheetNotFound, 0, googlesheet.ErrorCode(googlesheet.ErrSpreadsheetNotFound)},
+		{"another account", googlesheet.ErrAccountChanged, 0, googlesheet.ErrorCode(googlesheet.ErrAccountChanged)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rec := serve(NewHandler(&stubSheets{err: c.err}, &stubRows{}), http.MethodPatch, "/google-sheets/files/sp-1", `{"title":"x"}`, nil)
+			code, details := codeOf(t, rec)
+			if code != c.code || (c.status != 0 && rec.Code != c.status) || rec.Code < 400 {
+				t.Fatalf("status %d code %s details %v", rec.Code, code, details)
+			}
+			if c.name == "blank" && details["field"] != "fileTitle" {
+				t.Fatalf("details = %v", details)
+			}
+		})
+	}
+}

@@ -7899,7 +7899,7 @@ const docTemplate = `{
         },
         "/auth/reset-password": {
             "post": {
-                "description": "Conclui a redefinição de senha usando o código enviado por email. A nova senha segue as regras de ` + "`" + `GET /auth/password-policy` + "`" + ` e é usada exatamente como digitada.\n\nToda recusa traz um ` + "`" + `code` + "`" + ` estável e, em ` + "`" + `details` + "`" + `, o campo envolvido (` + "`" + `field` + "`" + `) e, quando a senha é fraca, todas as regras não atendidas (` + "`" + `unmetRules` + "`" + `).\n\n| code | Quando |\n| --- | --- |\n| ` + "`" + `invalid_body` + "`" + ` | Corpo ilegível |\n| ` + "`" + `reset_email_required` + "`" + ` | Email ausente |\n| ` + "`" + `reset_code_required` + "`" + ` | Código ausente |\n| ` + "`" + `new_password_required` + "`" + ` | Nova senha ausente |\n| ` + "`" + `password_too_short` + "`" + ` | Menos caracteres que o mínimo |\n| ` + "`" + `password_missing_uppercase` + "`" + ` | Sem letra maiúscula |\n| ` + "`" + `password_missing_lowercase` + "`" + ` | Sem letra minúscula |\n| ` + "`" + `password_missing_digit` + "`" + ` | Sem número |\n| ` + "`" + `weak_password` + "`" + ` | Outra regra não atendida |\n| ` + "`" + `invalid_reset_code` + "`" + ` | Código inválido ou expirado |\n| ` + "`" + `reset_code_used` + "`" + ` | Código já usado |\n| ` + "`" + `reset_code_attempts_exceeded` + "`" + ` | Tentativas esgotadas; peça um novo código |\n| ` + "`" + `password_reset_failed` + "`" + ` | Falha inesperada |",
+                "description": "Conclui a redefinição de senha usando o código enviado por email. A nova senha segue as regras de ` + "`" + `GET /auth/password-policy` + "`" + ` e é usada exatamente como digitada. Recusas por campo ausente ou por regra de senha não contam no limite de tentativas; o limite (429) vale para as tentativas que chegam à conferência do código.\n\nToda recusa traz um ` + "`" + `code` + "`" + ` estável e, em ` + "`" + `details` + "`" + `, o campo envolvido (` + "`" + `field` + "`" + `) e, quando a senha é fraca, todas as regras não atendidas (` + "`" + `unmetRules` + "`" + `).\n\n| code | Quando |\n| --- | --- |\n| ` + "`" + `invalid_body` + "`" + ` | Corpo ilegível |\n| ` + "`" + `reset_email_required` + "`" + ` | Email ausente |\n| ` + "`" + `reset_code_required` + "`" + ` | Código ausente |\n| ` + "`" + `new_password_required` + "`" + ` | Nova senha ausente |\n| ` + "`" + `password_too_short` + "`" + ` | Menos caracteres que o mínimo |\n| ` + "`" + `password_missing_uppercase` + "`" + ` | Sem letra maiúscula |\n| ` + "`" + `password_missing_lowercase` + "`" + ` | Sem letra minúscula |\n| ` + "`" + `password_missing_digit` + "`" + ` | Sem número |\n| ` + "`" + `weak_password` + "`" + ` | Outra regra não atendida |\n| ` + "`" + `invalid_reset_code` + "`" + ` | Código inválido ou expirado |\n| ` + "`" + `reset_code_used` + "`" + ` | Código já usado |\n| ` + "`" + `reset_code_attempts_exceeded` + "`" + ` | Tentativas esgotadas; peça um novo código |\n| ` + "`" + `password_reset_failed` + "`" + ` | Falha inesperada |",
                 "consumes": [
                     "application/json"
                 ],
@@ -10089,7 +10089,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Conta quem recebe antes de a campanha existir, pelas mesmas regras do envio do canal. A origem é ` + "`" + `leads` + "`" + ` (uma seleção de leads, como na tela de Leads) ou ` + "`" + `list` + "`" + ` (o ` + "`" + `listId` + "`" + ` de uma lista enviada). Cada variável liga a um campo do lead; no WhatsApp, quando algum lead não tem o valor, a escolha entre ` + "`" + `text` + "`" + ` (texto padrão) e ` + "`" + `exclude` + "`" + ` (deixar de fora) é obrigatória e, enquanto falta, ` + "`" + `sendable` + "`" + ` vem nulo com o bloqueio ` + "`" + `variable_choice_required` + "`" + `. No e-mail as variáveis são as tags do assunto e do documento, e sem escolha vale o texto padrão da própria tag. ` + "`" + `out` + "`" + ` conta cada destinatário uma vez, pelo primeiro motivo; ` + "`" + `variables[].missing` + "`" + ` conta cada lead sem o valor em cada variável. Campos por canal: whatsapp ` + "`" + `templateId` + "`" + ` (e ` + "`" + `businessPhoneId` + "`" + ` para contar o intervalo entre disparos), unofficial ` + "`" + `message` + "`" + ` (e ` + "`" + `instanceId` + "`" + `), email ` + "`" + `subject` + "`" + ` e ` + "`" + `document` + "`" + `, carrier ` + "`" + `kind` + "`" + `. No WhatsApp o modelo (ou a mensagem) é opcional na contagem: sem ele a contagem já traz encontrados, com WhatsApp, quem recebe e quem fica de fora pelos motivos que não dependem do modelo (sem número, bloqueado, opt-out, outra campanha em andamento e, com ` + "`" + `businessPhoneId` + "`" + `, o intervalo entre disparos), sem variáveis, com o bloqueio ` + "`" + `template_required` + "`" + ` (ou ` + "`" + `message_required` + "`" + ` no não oficial) até a escolha. Com o modelo, ` + "`" + `variables` + "`" + ` traz uma variável por parâmetro na ordem do envio: a do texto do cabeçalho primeiro (` + "`" + `header: true` + "`" + `), depois as do corpo; ` + "`" + `name` + "`" + ` é o nome da variável (` + "`" + `nome` + "`" + ` nas nomeadas, ` + "`" + `1` + "`" + `, ` + "`" + `2` + "`" + ` nas numeradas) e ` + "`" + `key` + "`" + ` é a posição. No WhatsApp, ` + "`" + `workflowId` + "`" + ` e ` + "`" + `agentId` + "`" + ` são o fluxo e o agente da campanha: cada destinatário precisa ter, nos metadados, as chaves que eles pedem (a mesma regra da criação). ` + "`" + `metadataMissing` + "`" + ` lista cada chave faltando com quantos destinatários não a têm e, numa lista, as linhas (até 50 por chave); numa lista o bloqueio é ` + "`" + `list_metadata_missing` + "`" + `, e com leads, que não têm metadados, é ` + "`" + `leads_metadata_unavailable` + "`" + `. Exige a ação ` + "`" + `create` + "`" + ` do recurso do canal e, para leads, ` + "`" + `leads:read` + "`" + `.",
+                "description": "Conta quem recebe antes de a campanha existir, pelas mesmas regras do envio do canal. A origem é ` + "`" + `leads` + "`" + ` (uma seleção de leads, como na tela de Leads) ou ` + "`" + `list` + "`" + ` (o ` + "`" + `listId` + "`" + ` de uma lista enviada). Cada variável liga a um campo do lead; no WhatsApp, quando algum lead não tem o valor, a escolha entre ` + "`" + `text` + "`" + ` (texto padrão) e ` + "`" + `exclude` + "`" + ` (deixar de fora) é obrigatória e, enquanto falta, ` + "`" + `sendable` + "`" + ` vem nulo com o bloqueio ` + "`" + `variable_choice_required` + "`" + `. No e-mail as variáveis são as tags do assunto e do documento, e sem escolha vale o texto padrão da própria tag. ` + "`" + `out` + "`" + ` conta cada destinatário uma vez, pelo primeiro motivo; ` + "`" + `variables[].missing` + "`" + ` conta cada lead sem o valor em cada variável. Campos por canal: whatsapp ` + "`" + `templateId` + "`" + ` (e ` + "`" + `businessPhoneId` + "`" + ` para contar o intervalo entre disparos), unofficial ` + "`" + `message` + "`" + ` (e ` + "`" + `instanceId` + "`" + `), email ` + "`" + `subject` + "`" + ` e ` + "`" + `document` + "`" + `, carrier ` + "`" + `kind` + "`" + `. No WhatsApp o modelo (ou a mensagem) é opcional na contagem: sem ele a contagem já traz encontrados, com WhatsApp, quem recebe e quem fica de fora pelos motivos que não dependem do modelo (sem número, bloqueado, opt-out, outra campanha em andamento e, com ` + "`" + `businessPhoneId` + "`" + `, o intervalo entre disparos), sem variáveis, com o bloqueio ` + "`" + `template_required` + "`" + ` (ou ` + "`" + `message_required` + "`" + ` no não oficial) até a escolha. Com o modelo, ` + "`" + `variables` + "`" + ` traz uma variável por parâmetro na ordem do envio: a do texto do cabeçalho primeiro (` + "`" + `header: true` + "`" + `), depois as do corpo; ` + "`" + `name` + "`" + ` é o nome da variável (` + "`" + `nome` + "`" + ` nas nomeadas, ` + "`" + `1` + "`" + `, ` + "`" + `2` + "`" + ` nas numeradas) e ` + "`" + `key` + "`" + ` é a posição. No WhatsApp, ` + "`" + `workflowId` + "`" + ` e ` + "`" + `agentId` + "`" + ` são o fluxo e o agente da campanha: cada variável que eles pedem (a regra da criação, que segue agentes de nós de IA, subfluxos e ferramentas) vem em ` + "`" + `variables` + "`" + ` com ` + "`" + `kind: automation` + "`" + ` e ` + "`" + `neededBy` + "`" + `; a variável de agente com valor padrão vem com ` + "`" + `optional: true` + "`" + ` e ` + "`" + `default` + "`" + ` e nunca bloqueia. Cada uma tem a escolha de origem das variáveis do modelo: um campo do lead em ` + "`" + `source` + "`" + `, um texto fixo (` + "`" + `source: literal` + "`" + ` com ` + "`" + `value` + "`" + `) ou, numa lista, a coluna pelo nome do cabeçalho em ` + "`" + `column` + "`" + ` (nunca pela posição; a mesma coluna pode alimentar uma posição do modelo e uma variável); ` + "`" + `source: default` + "`" + ` mantém o padrão do agente. Numa lista, a coluna com o nome da variável vem sugerida (` + "`" + `suggested: true` + "`" + `). A linha sem valor segue ` + "`" + `missing` + "`" + ` (` + "`" + `text` + "`" + ` ou ` + "`" + `exclude` + "`" + `) e, sem a escolha, o bloqueio é ` + "`" + `variable_choice_required` + "`" + `. Uma coluna que a lista não tem marca ` + "`" + `columnMissing` + "`" + ` e bloqueia com ` + "`" + `list_column_missing` + "`" + ` (422 ` + "`" + `audience_list_column_unknown` + "`" + ` na criação); ` + "`" + `column` + "`" + ` numa seleção de leads é 400 ` + "`" + `audience_variable_column_needs_list` + "`" + `, ` + "`" + `column` + "`" + ` junto de ` + "`" + `source` + "`" + ` é 400 ` + "`" + `audience_variable_column_with_source` + "`" + ` e ` + "`" + `default` + "`" + ` numa variável sem padrão é 400 ` + "`" + `audience_variable_default_unavailable` + "`" + `. Os valores resolvidos vão para os metadados de cada entrada, onde o fluxo (` + "`" + `campvars` + "`" + `) e o agente os leem. Exige a ação ` + "`" + `create` + "`" + ` do recurso do canal e, para leads, ` + "`" + `leads:read` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10392,7 +10392,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Refaz a prévia de uma lista do próprio membro: linhas, já leads e leads novos, linhas puladas com o motivo e qual coluna preenche cada variável do modelo ou da mensagem do ` + "`" + `context` + "`" + `. Com ` + "`" + `workflowId` + "`" + ` ou ` + "`" + `agentId` + "`" + ` no ` + "`" + `context` + "`" + `, ` + "`" + `metadataMissing` + "`" + ` lista cada chave de metadados que o fluxo ou o agente pede e que falta, com quantas linhas e quais (até 50 por chave), pela mesma regra da criação. Exige a ação ` + "`" + `create` + "`" + ` do recurso do canal.",
+                "description": "Refaz a prévia de uma lista do próprio membro: linhas, já leads e leads novos, linhas puladas com o motivo e qual coluna preenche cada variável do modelo ou da mensagem do ` + "`" + `context` + "`" + `. ` + "`" + `columns.headers` + "`" + ` lista cada cabeçalho uma vez, para escolher a coluna de uma variável do fluxo ou do agente. Com ` + "`" + `workflowId` + "`" + ` ou ` + "`" + `agentId` + "`" + ` e as ` + "`" + `variables` + "`" + ` no ` + "`" + `context` + "`" + `, ` + "`" + `columns.metadata` + "`" + ` traz também cada variável do fluxo ou do agente (a chave que a linha leva nos metadados). Exige a ação ` + "`" + `create` + "`" + ` do recurso do canal.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10561,7 +10561,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Página das linhas, na ordem da planilha (as incluídas à mão vêm antes), com as variáveis já preenchidas pelo servidor (coluna, nome da linha ou campo do lead) e, em ` + "`" + `missing` + "`" + `, os números das variáveis que ainda faltam; com ` + "`" + `workflowId` + "`" + ` ou ` + "`" + `agentId` + "`" + `, ` + "`" + `metadataMissing` + "`" + ` traz as chaves de metadados que o fluxo ou o agente pede e a linha não tem. ` + "`" + `missingOnly` + "`" + ` mantém só as linhas com variável ou chave faltando. ` + "`" + `limit` + "`" + ` vai de 1 a 200. Exige a ação ` + "`" + `create` + "`" + ` do recurso do canal.",
+                "description": "Página das linhas, na ordem da planilha (as incluídas à mão vêm antes), com as variáveis já preenchidas pelo servidor (coluna, nome da linha ou campo do lead) e, em ` + "`" + `missing` + "`" + `, os números das variáveis que ainda faltam; com ` + "`" + `workflowId` + "`" + ` ou ` + "`" + `agentId` + "`" + `, ` + "`" + `metadata` + "`" + ` traz o valor de cada variável do fluxo ou do agente, lido pela coluna escolhida em ` + "`" + `variables` + "`" + ` do ` + "`" + `context` + "`" + ` (ou pela chave digitada na linha), e ` + "`" + `metadataMissing` + "`" + ` as variáveis obrigatórias que a linha não tem. ` + "`" + `missingOnly` + "`" + ` mantém só as linhas com variável ou chave faltando. ` + "`" + `limit` + "`" + ` vai de 1 a 200. Exige a ação ` + "`" + `create` + "`" + ` do recurso do canal.",
                 "consumes": [
                     "application/json"
                 ],
@@ -20488,7 +20488,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Cria a planilha no Google Drive da conta conectada ao Google Planilhas, com o cabeçalho, os formatos, as validações, o estilo e as cores das opções, e a registra no workspace. Com spreadsheetId, cria uma aba nova num arquivo que já tem planilhas deste workspace. Com tabPeriod=month, cada mês ganha a sua aba, nomeada pelo tabPattern. Definições recusadas devolvem um código próprio com field, column, header, option e limit em details.",
+                "description": "Cria a planilha no Google Drive da conta conectada ao Google Planilhas, com o cabeçalho, os formatos, as validações, o estilo e as cores das opções, e a registra no workspace. Com spreadsheetId, cria uma aba nova num arquivo que já tem planilhas deste workspace. Com tabPeriod=month, cada mês ganha a sua aba, nomeada pelo tabPattern. unique escolhe a linha única: none (padrão, cada registro vira uma linha), conversation (uma linha por conversa, dentro da aba do mês quando a aba é mensal) ou columns (columnIndexes são as posições, neste pedido, das colunas cujos valores não podem se repetir; colunas de link, de data de gravação e por mensagem não valem). Se repetir, onRepeat=skip não grava de novo. Definições recusadas devolvem um código próprio com field, column, header, option e limit em details.",
                 "consumes": [
                     "application/json"
                 ],
@@ -20627,6 +20627,82 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/googlesheet.SheetFileListResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/google-sheets/files/{spreadsheetId}": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Troca o nome do arquivo no Google e no painel. O nome é aparado e não pode ficar vazio, passar de 200 caracteres nem ter quebras de linha; recusas trazem details.field=fileTitle. A conta conectada precisa ser a que criou o arquivo.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Google Planilhas"
+                ],
+                "summary": "Renomear o arquivo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Arquivo do Google",
+                        "name": "spreadsheetId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Novo nome",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.RenameFileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.SheetFileEnvelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -20872,7 +20948,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Muda o nome e a descrição da planilha no painel. O arquivo no Google Drive mantém o nome que tem lá.",
+                "description": "Muda o nome e a descrição da planilha no painel. O arquivo no Google Drive mantém o nome que tem lá. Com unique, troca a linha única da aba (mode none, conversation ou columns, com columns pelas chaves das colunas): vale para as próximas gravações, e as linhas que o painel ainda guarda (gravadas nos últimos 30 dias ou ainda na fila) passam a contar; linhas mais antigas não. Recusas da regra trazem details.field=unique.",
                 "consumes": [
                     "application/json"
                 ],
@@ -20882,7 +20958,7 @@ const docTemplate = `{
                 "tags": [
                     "Google Planilhas"
                 ],
-                "summary": "Editar título e descrição",
+                "summary": "Editar título, descrição e linha única",
                 "parameters": [
                     {
                         "type": "string",
@@ -20906,6 +20982,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/googlesheet.SheetEnvelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "409": {
@@ -21092,7 +21174,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Confere o acesso, a aba e o cabeçalho no Google e volta a gravar. Com repairHeader=true reescreve o cabeçalho a partir das colunas do painel.",
+                "description": "Confere o acesso, as abas e o cabeçalho no Google e volta a gravar. Sem repairHeader, um cabeçalho fora do lugar deixa a planilha pausada com o motivo (header_mismatch ou header_not_first_row) e responde 409. Com repairHeader=true repara a aba sem apagar linhas: se o cabeçalho desceu, ele volta para a linha 1 e as linhas que estavam acima ficam logo abaixo, na mesma ordem; se a linha 1 tem dados, um cabeçalho novo entra acima dela; se só os nomes mudaram, o cabeçalho é reescrito. Depois reaplica o formato e confere de novo. Quando a planilha está pausada por um motivo que o reparo resolve, repairable vem true.",
                 "consumes": [
                     "application/json"
                 ],
@@ -21143,6 +21225,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/google-sheets/{id}/removals": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Registro das gravações canceladas e das linhas removidas da planilha, da mais recente para a mais antiga: quem removeu, quando, o motivo, os valores que a linha tinha e de onde ela veio (originDetail, como na lista de linhas). kind é cancel para uma gravação cancelada antes de chegar ao Google e remove para uma linha apagada da planilha, com rowNumber, a linha em que estava.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Google Planilhas"
+                ],
+                "summary": "Linhas removidas da planilha",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Planilha",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Página",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Tamanho da página",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.RowRemovalListResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/google-sheets/{id}/retry": {
             "post": {
                 "security": [
@@ -21184,13 +21318,57 @@ const docTemplate = `{
             }
         },
         "/google-sheets/{id}/rows": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Linhas da mais recente para a mais antiga, com a situação de gravação e os valores como aparecem na tela (colunas de link trazem o rótulo). origin é o tipo de quem gravou, e originDetail diz de onde a linha veio:\n\n| Campo | Quando vem |\n| --- | --- |\n| conversation | A linha nasceu numa conversa (agente ou fluxo numa conversa). Abrir a conversa passa pela verificação de acesso normal, inclusive departamentos. |\n| agent | Agente que gravou, com o nome. |\n| workflow e runId | Fluxo e execução que gravaram, com o nome do fluxo. |\n| person | Pessoa que adicionou à mão ou pediu à IA. |\n\nSó vêm nomes de agentes, fluxos e membros deste workspace; quando o nome não pode ser mostrado, o campo não vem.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Google Planilhas"
+                ],
+                "summary": "Listar as linhas registradas de uma planilha",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Planilha",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Página",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Tamanho da página",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.RowListResponse"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Valida os valores com as mesmas regras de agentes e fluxos e põe a linha na fila de gravação. O cabeçalho Idempotency-Key é obrigatório; repetir a chave devolve a mesma linha.",
+                "description": "Valida os valores com as mesmas regras de agentes e fluxos e põe a linha na fila de gravação. O cabeçalho Idempotency-Key é obrigatório; repetir a chave devolve a mesma linha. Numa aba com linha única, um registro que já existe é recusado com 409 e um dos códigos google_sheet_already_recorded_conversation, google_sheet_already_recorded_conversation_month, google_sheet_already_recorded_columns ou google_sheet_already_recorded_columns_month, com details.rowId da linha existente e details.header das colunas comparadas; nada é gravado. Numa aba com linha única por conversa, a adição manual é recusada com google_sheet_unique_needs_conversation.",
                 "consumes": [
                     "application/json"
                 ],
@@ -21239,8 +21417,168 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
                     "422": {
                         "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/google-sheets/{id}/rows/{rowId}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Tira da fila uma linha que ainda não chegou ao Google (aguardando, retida ou recusada), com o motivo obrigatório (até 500 caracteres). O Google não é chamado. Uma linha que já está sendo gravada responde google_sheet_row_being_written, e uma que já foi gravada responde google_sheet_row_status_changed; nesse caso use remover da planilha. A remoção fica registrada com quem, quando, o motivo e os valores da linha, e libera a chave de linha única para o registro poder ser gravado de novo.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Google Planilhas"
+                ],
+                "summary": "Cancelar a gravação de uma linha na fila",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Planilha",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Linha",
+                        "name": "rowId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Motivo",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.RemoveRowRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.RowRemovalEnvelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/google-sheets/{id}/rows/{rowId}/remove": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Apaga no Google exatamente a linha gravada, achada pela referência na coluna A oculta, onde quer que ela esteja depois de ordenações ou movimentos. O motivo é obrigatório (até 500 caracteres). Nada é apagado e a resposta traz o código quando:\n\n| Código | Quando |\n| --- | --- |\n| google_sheet_not_active | A planilha está pausada ou precisa de atenção, ou a linha 1 não é o cabeçalho esperado (a planilha fica pausada com o motivo). |\n| google_sheet_row_not_in_sheet | A referência não está mais na coluna A da aba. |\n| google_sheet_row_ref_repeated | A referência aparece mais de uma vez na coluna A. |\n| google_sheet_busy | Uma gravação está em andamento na planilha; tente de novo em instantes. |\n| google_sheet_google_busy | A cota do Google deste minuto acabou. |\n| google_sheet_row_status_changed | A linha ainda não foi gravada; use cancelar a gravação. |\n\nA remoção fica registrada com quem, quando, o motivo e os valores da linha, e libera a chave de linha única para o registro poder ser gravado de novo.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Google Planilhas"
+                ],
+                "summary": "Remover uma linha gravada da planilha",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Planilha",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Linha",
+                        "name": "rowId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Motivo",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.RemoveRowRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/googlesheet.RowRemovalEnvelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -38001,7 +38339,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Cria uma campanha parada do WhatsApp não oficial com os números enviados. O contato só usa a saída que vê: cada variação da mensagem precisa mostrar um comando com barra, como ` + "`" + `Responda /sair para não receber mais mensagens.` + "`" + `, e sem ele a criação responde 422 ` + "`" + `unofficial_campaign_needs_exit` + "`" + `, sem exceção. Um áudio não mostra legenda ao contato: nele o comando vai em ` + "`" + `message.exitText` + "`" + `, um texto curto enviado logo depois do áudio na mesma conversa, e um áudio sem esse texto é recusado do mesmo jeito. Se o texto de saída falhar depois do áudio, o contato fica SENT com o código 910005 e o motivo, sem reenviar o áudio. Um link (` + "`" + `https://loja.com/sair` + "`" + `) ou uma data (` + "`" + `12/10` + "`" + `) não contam. Depois do envio, quem responde o comando mostrado na última mensagem de campanha que recebeu nesta conversa deixa de receber mensagens, sem mensagem de confirmação. O fluxo e o agente são conferidos pelo passo compartilhado. Em vez de ` + "`" + `targets` + "`" + `, o passo de público manda ` + "`" + `recipients` + "`" + `: ` + "`" + `source: list` + "`" + ` com o ` + "`" + `listId` + "`" + ` de ` + "`" + `POST /campaign-audience/unofficial/lists` + "`" + ` (as mesmas entradas que os números davam) ou ` + "`" + `source: leads` + "`" + ` com a seleção (com ` + "`" + `expectedCount` + "`" + ` e ` + "`" + `fingerprint` + "`" + ` da contagem) e cada variável ligada a um campo do lead; o lead sem o valor precisa de ` + "`" + `missing: text` + "`" + ` ou ` + "`" + `missing: exclude` + "`" + ` (entra pulado com ` + "`" + `missing_variable` + "`" + `), senão 422 ` + "`" + `audience_variable_choice_required` + "`" + `. Com ` + "`" + `workflowId` + "`" + ` ou ` + "`" + `agentId` + "`" + `, cada linha da lista precisa ter nos metadados as chaves que o fluxo ou o agente pede (422 ` + "`" + `audience_list_metadata_missing` + "`" + `), e a seleção de leads, que não têm metadados, é recusada com 422 ` + "`" + `audience_leads_metadata_unavailable` + "`" + `. ` + "`" + `recipients` + "`" + ` com ` + "`" + `targets` + "`" + ` responde 400 ` + "`" + `audience_source_ambiguous` + "`" + ` e, numa campanha para grupos, 422 ` + "`" + `audience_source_unsupported` + "`" + `. Com ` + "`" + `scheduledStart` + "`" + `, a criação passa antes pela mesma verificação do Iniciar: um bloqueio responde 409 ` + "`" + `campaign_launch_blocked` + "`" + ` com os motivos e nada é criado; Se no horário o início falhar, a campanha fica parada com ` + "`" + `scheduleFailure` + "`" + ` e quem a criou recebe uma notificação. Agendar exige a permissão de iniciar campanhas (403 ` + "`" + `start_permission_required` + "`" + `).",
+                "description": "Cria uma campanha parada do WhatsApp não oficial com os números enviados. O contato só usa a saída que vê: cada variação da mensagem precisa mostrar um comando com barra, como ` + "`" + `Responda /sair para não receber mais mensagens.` + "`" + `, e sem ele a criação responde 422 ` + "`" + `unofficial_campaign_needs_exit` + "`" + `, sem exceção. Um áudio não mostra legenda ao contato: nele o comando vai em ` + "`" + `message.exitText` + "`" + `, um texto curto enviado logo depois do áudio na mesma conversa, e um áudio sem esse texto é recusado do mesmo jeito. Se o texto de saída falhar depois do áudio, o contato fica SENT com o código 910005 e o motivo, sem reenviar o áudio. Um link (` + "`" + `https://loja.com/sair` + "`" + `) ou uma data (` + "`" + `12/10` + "`" + `) não contam. Depois do envio, quem responde o comando mostrado na última mensagem de campanha que recebeu nesta conversa deixa de receber mensagens, sem mensagem de confirmação. O fluxo e o agente são conferidos pelo passo compartilhado. Em vez de ` + "`" + `targets` + "`" + `, o passo de público manda ` + "`" + `recipients` + "`" + `: ` + "`" + `source: list` + "`" + ` com o ` + "`" + `listId` + "`" + ` de ` + "`" + `POST /campaign-audience/unofficial/lists` + "`" + ` (as mesmas entradas que os números davam) ou ` + "`" + `source: leads` + "`" + ` com a seleção (com ` + "`" + `expectedCount` + "`" + ` e ` + "`" + `fingerprint` + "`" + ` da contagem) e cada variável ligada a um campo do lead; o lead sem o valor precisa de ` + "`" + `missing: text` + "`" + ` ou ` + "`" + `missing: exclude` + "`" + ` (entra pulado com ` + "`" + `missing_variable` + "`" + `), senão 422 ` + "`" + `audience_variable_choice_required` + "`" + `. Com ` + "`" + `workflowId` + "`" + ` ou ` + "`" + `agentId` + "`" + `, cada variável que o fluxo ou o agente pede vem do público como as da mensagem (` + "`" + `variables[]` + "`" + ` com ` + "`" + `key` + "`" + ` igual ao nome: um campo do lead, um texto fixo ou, numa lista, a coluna pelo cabeçalho em ` + "`" + `column` + "`" + `), com a mesma escolha de ` + "`" + `missing` + "`" + `; sem valor e sem escolha, 422 ` + "`" + `audience_variable_choice_required` + "`" + `, e uma coluna que a lista não tem, 422 ` + "`" + `audience_list_column_unknown` + "`" + `. A variável de agente com padrão é opcional. ` + "`" + `recipients` + "`" + ` com ` + "`" + `targets` + "`" + ` responde 400 ` + "`" + `audience_source_ambiguous` + "`" + ` e, numa campanha para grupos, 422 ` + "`" + `audience_source_unsupported` + "`" + `. Com ` + "`" + `scheduledStart` + "`" + `, a criação passa antes pela mesma verificação do Iniciar: um bloqueio responde 409 ` + "`" + `campaign_launch_blocked` + "`" + ` com os motivos e nada é criado; Se no horário o início falhar, a campanha fica parada com ` + "`" + `scheduleFailure` + "`" + ` e quem a criou recebe uma notificação. Agendar exige a permissão de iniciar campanhas (403 ` + "`" + `start_permission_required` + "`" + `).",
                 "consumes": [
                     "application/json"
                 ],
@@ -43613,7 +43951,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Cria uma campanha com um modelo aprovado e os contatos de uma de duas formas. ` + "`" + `phoneNumbers` + "`" + ` (como sempre): cada item vira um lead, casado pelo número em qualquer formato ou criado com origem importação, e uma entrada com ` + "`" + `variables` + "`" + ` e ` + "`" + `metadata` + "`" + `. ` + "`" + `recipients` + "`" + ` (o passo de público, sem ` + "`" + `phoneNumbers` + "`" + `): ` + "`" + `source: list` + "`" + ` com o ` + "`" + `listId` + "`" + ` de ` + "`" + `POST /campaign-audience/whatsapp/lists` + "`" + `, que vira as mesmas entradas, com as colunas ligadas às variáveis e as células vazias de variável com campo sugerido preenchidas pelo lead (linha sem o valor recusa a criação com 422 ` + "`" + `audience_list_variables_missing` + "`" + `); ou ` + "`" + `source: leads` + "`" + ` com a seleção (com ` + "`" + `expectedCount` + "`" + ` e ` + "`" + `fingerprint` + "`" + ` da contagem) e as variáveis ligadas a campos do lead, em que cada lead sem o valor precisa de ` + "`" + `missing: text` + "`" + ` (texto padrão) ou ` + "`" + `missing: exclude` + "`" + ` (entra como pulado com ` + "`" + `missing_variable` + "`" + `), senão 422 ` + "`" + `audience_variable_choice_required` + "`" + `. Com ` + "`" + `workflowId` + "`" + ` ou ` + "`" + `agentId` + "`" + `, cada linha precisa ter nos metadados as chaves que o fluxo ou o agente pede, senão 422 ` + "`" + `audience_list_metadata_missing` + "`" + `; leads não têm metadados, então a seleção de leads com essas chaves é recusada com 422 ` + "`" + `audience_leads_metadata_unavailable` + "`" + `. Leads bloqueados, sem número, com opt-out, no intervalo entre disparos ou em outra campanha em andamento entram pulados com o motivo. As variáveis seguem a ordem do envio, nas duas formas: a variável do texto do cabeçalho primeiro, depois as do corpo (nomeadas ou numeradas); no envio a do cabeçalho vai no cabeçalho e as do corpo no corpo, com o nome quando o modelo usa variáveis nomeadas. As ondas de ` + "`" + `smartPolicy` + "`" + ` valem para as duas formas. Com ` + "`" + `scheduledStart` + "`" + `, a criação passa antes pela mesma verificação do Iniciar: um bloqueio responde 409 ` + "`" + `campaign_launch_blocked` + "`" + ` e riscos pedem confirmação com 409 ` + "`" + `campaign_launch_unconfirmed` + "`" + ` (reenvie com o ` + "`" + `confirmedFingerprint` + "`" + ` dos detalhes); em ambos nada é criado. A confirmação fica guardada com o agendamento e, no horário, a campanha só inicia se os riscos ainda forem os mesmos; senão ela fica parada com ` + "`" + `scheduleFailure` + "`" + ` e quem agendou recebe uma notificação. Agendar exige a permissão de iniciar campanhas (403 ` + "`" + `start_permission_required` + "`" + `); criar sem agendamento exige só a de criar.",
+                "description": "Cria uma campanha com um modelo aprovado e os contatos de uma de duas formas. ` + "`" + `phoneNumbers` + "`" + ` (como sempre): cada item vira um lead, casado pelo número em qualquer formato ou criado com origem importação, e uma entrada com ` + "`" + `variables` + "`" + ` e ` + "`" + `metadata` + "`" + `. ` + "`" + `recipients` + "`" + ` (o passo de público, sem ` + "`" + `phoneNumbers` + "`" + `): ` + "`" + `source: list` + "`" + ` com o ` + "`" + `listId` + "`" + ` de ` + "`" + `POST /campaign-audience/whatsapp/lists` + "`" + `, que vira as mesmas entradas, com as colunas ligadas às variáveis e as células vazias de variável com campo sugerido preenchidas pelo lead (linha sem o valor recusa a criação com 422 ` + "`" + `audience_list_variables_missing` + "`" + `); ou ` + "`" + `source: leads` + "`" + ` com a seleção (com ` + "`" + `expectedCount` + "`" + ` e ` + "`" + `fingerprint` + "`" + ` da contagem) e as variáveis ligadas a campos do lead, em que cada lead sem o valor precisa de ` + "`" + `missing: text` + "`" + ` (texto padrão) ou ` + "`" + `missing: exclude` + "`" + ` (entra como pulado com ` + "`" + `missing_variable` + "`" + `), senão 422 ` + "`" + `audience_variable_choice_required` + "`" + `. Com ` + "`" + `workflowId` + "`" + ` ou ` + "`" + `agentId` + "`" + `, cada variável que o fluxo ou o agente pede vem do público como as do modelo (` + "`" + `variables[]` + "`" + ` com ` + "`" + `key` + "`" + ` igual ao nome: um campo do lead, um texto fixo ou, numa lista, a coluna pelo cabeçalho em ` + "`" + `column` + "`" + `), com a mesma escolha de ` + "`" + `missing` + "`" + `; sem valor e sem escolha, 422 ` + "`" + `audience_variable_choice_required` + "`" + `, e uma coluna que a lista não tem, 422 ` + "`" + `audience_list_column_unknown` + "`" + `. A variável de agente com padrão é opcional. Os valores vão para os metadados da entrada. Leads bloqueados, sem número, com opt-out, no intervalo entre disparos ou em outra campanha em andamento entram pulados com o motivo. As variáveis seguem a ordem do envio, nas duas formas: a variável do texto do cabeçalho primeiro, depois as do corpo (nomeadas ou numeradas); no envio a do cabeçalho vai no cabeçalho e as do corpo no corpo, com o nome quando o modelo usa variáveis nomeadas. As ondas de ` + "`" + `smartPolicy` + "`" + ` valem para as duas formas. Com ` + "`" + `scheduledStart` + "`" + `, a criação passa antes pela mesma verificação do Iniciar: um bloqueio responde 409 ` + "`" + `campaign_launch_blocked` + "`" + ` e riscos pedem confirmação com 409 ` + "`" + `campaign_launch_unconfirmed` + "`" + ` (reenvie com o ` + "`" + `confirmedFingerprint` + "`" + ` dos detalhes); em ambos nada é criado. A confirmação fica guardada com o agendamento e, no horário, a campanha só inicia se os riscos ainda forem os mesmos; senão ela fica parada com ` + "`" + `scheduleFailure` + "`" + ` e quem agendou recebe uma notificação. Agendar exige a permissão de iniciar campanhas (403 ` + "`" + `start_permission_required` + "`" + `); criar sem agendamento exige só a de criar.",
                 "consumes": [
                     "application/json"
                 ],
@@ -43674,7 +44012,7 @@ const docTemplate = `{
                         }
                     },
                     "422": {
-                        "description": "audience_variable_choice_required, audience_list_variables_missing, audience_list_metadata_missing, audience_leads_metadata_unavailable, audience_list_channel_mismatch",
+                        "description": "audience_variable_choice_required, audience_list_variables_missing, audience_list_column_unknown, audience_list_channel_mismatch",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -48101,7 +48439,7 @@ const docTemplate = `{
         },
         "/workflows/{id}/nodes/{nodeId}/analyze": {
             "get": {
-                "description": "Diz como o teste do nó vai rodar: modo (direct, mock ou execute_until), as dependências que precisam de valor simulado (mock_fields) e, em trigger, a entrada do gatilho de onde o caminho até o nó começa (o mesmo formato de sim_ready.triggers do Testar). O caminho começa no gatilho principal quando ele leva até o nó, senão no primeiro gatilho do rascunho que leva. trigger é omitido quando o caminho não começa num gatilho com entrada (gatilhos de mensagem, ligação recebida ou nenhum gatilho no caminho). Envie a entrada em POST /workflows/{id}/nodes/{nodeId}/test no campo trigger.",
+                "description": "Diz como o teste do nó vai rodar: modo (direct, mock ou execute_until), as dependências que precisam de valor simulado (mock_fields) e, em trigger, a entrada do gatilho de onde o caminho até o nó começa (o mesmo formato de sim_ready.triggers do Testar). O caminho começa no gatilho principal quando ele leva até o nó, senão no primeiro gatilho do rascunho que leva. trigger é omitido quando o caminho não começa num gatilho com entrada (gatilhos de mensagem, ligação recebida ou nenhum gatilho no caminho). Envie a entrada em POST /workflows/{id}/nodes/{nodeId}/test no campo trigger. mock_fields também lista cada campvars que o nó lê e as variáveis do agente ou do subfluxo que ele chama (source automation_variable, com hint e needed_by, pela mesma regra de GET /workflows/{id}/test-values), sempre obrigatórias. value traz o valor de partida de cada campo: com runId e stepId, o que a execução registrou antes dessa etapa (o estado da execução e as saídas das etapas anteriores, já mascarados); sem eles, os dados do teste salvos por quem pede para as automation_variable.",
                 "produces": [
                     "application/json"
                 ],
@@ -48123,6 +48461,18 @@ const docTemplate = `{
                         "name": "nodeId",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Execução de onde vêm os valores de partida",
+                        "name": "runId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Etapa deste nó na execução (obrigatória com runId)",
+                        "name": "stepId",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -48133,13 +48483,19 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "Workflow ou nó não encontrado",
+                        "description": "Workflow ou nó não encontrado; run_not_found quando a execução não é deste fluxo, não está visível para quem pede ou não tem essa etapa deste nó",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "501": {
                         "description": "Teste de nó não configurado",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "test_values_unavailable: não foi possível ler os dados do teste",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -48233,7 +48589,7 @@ const docTemplate = `{
         },
         "/workflows/{id}/nodes/{nodeId}/test": {
             "post": {
-                "description": "Executa um único nó no ambiente de teste (nunca no registro de produção) com um estado simulado (mockedState e triggerVars). Devolve o mesmo registro de etapa da produção e da simulação em step (parâmetros usados, saída, tipo e cadeia do erro, pilha, HTTP, logs do script, tempos em ms, saída seguida e se veio de uma saída fixada), e em execute_until também upstream_steps, cada etapa anterior que rodou, em ordem. Mensagens são sempre simuladas; HTTP, código com fetch, e-mail e agenda só fazem chamadas reais com confirmRealCalls, caso contrário falham com error_kind real_call_not_confirmed. Nós de espera descrevem a espera em wait sem esperar. Quando o caminho não chega ao nó, path_stop explica onde parou, onde divergiu e quais correções aplicar; com continueWaits e waitAnswers o teste segue por esperas no caminho (timer pulado, resposta ou formulário informados). O teste inteiro tem limite de 60 s (error_kind timeout); saídas grandes são cortadas e valores sensíveis mascarados. Com skipExecution, só resolve a configuração sem executar efeitos. Com trigger {nodeId, input} o teste começa pelo gatilho escolhido, com a mesma entrada e as mesmas regras do Testar (sim_ready.triggers): input segue o formato do gatilho (campos planos por chave, o corpo JSON do webhook, ignorado em gatilhos de mensagem ou sem entrada) e é validado como em produção; dados inválidos respondem 422 trigger_input_invalid com details.issues ({code, key}). O caminho do execute_until começa nesse gatilho; se ele não leva até o nó, path_stop vem com reason no_path.",
+                "description": "Executa um único nó no ambiente de teste (nunca no registro de produção) com um estado simulado (mockedState e triggerVars). Devolve o mesmo registro de etapa da produção e da simulação em step (parâmetros usados, saída, tipo e cadeia do erro, pilha, HTTP, logs do script, tempos em ms, saída seguida e se veio de uma saída fixada), e em execute_until também upstream_steps, cada etapa anterior que rodou, em ordem. Mensagens são sempre simuladas; HTTP, código com fetch, e-mail e agenda só fazem chamadas reais com confirmRealCalls, caso contrário falham com error_kind real_call_not_confirmed. Nós de espera descrevem a espera em wait sem esperar. Quando o caminho não chega ao nó, path_stop explica onde parou, onde divergiu e quais correções aplicar; com continueWaits e waitAnswers o teste segue por esperas no caminho (timer pulado, resposta ou formulário informados). O teste inteiro tem limite de 60 s (error_kind timeout); saídas grandes são cortadas e valores sensíveis mascarados. Com skipExecution, só resolve a configuração sem executar efeitos. Com trigger {nodeId, input} o teste começa pelo gatilho escolhido, com a mesma entrada e as mesmas regras do Testar (sim_ready.triggers): input segue o formato do gatilho (campos planos por chave, o corpo JSON do webhook, ignorado em gatilhos de mensagem ou sem entrada) e é validado como em produção; dados inválidos respondem 422 trigger_input_invalid com details.issues ({code, key}). O caminho do execute_until começa nesse gatilho; se ele não leva até o nó, path_stop vem com reason no_path. Com fromRun {runId, stepId} o teste parte do que a execução registrou antes dessa etapa do nó: o estado dela (campvars, dados do gatilho, variáveis) e as saídas das etapas anteriores, já mascarados, sem rodar os nós anteriores; mockedState substitui valores, e um valor que a execução não tinha continua faltando (error_kind missing_mocks), nunca vai em branco. A conversa e o lead continuam os do teste, então nada é lido nem gravado na conversa real. Uma execução de outro fluxo, invisível para quem pede ou sem essa etapa responde 404 run_not_found.",
                 "consumes": [
                     "application/json"
                 ],
@@ -48289,7 +48645,7 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "Workflow ou nó não encontrado; trigger_not_found quando trigger.nodeId não é um gatilho do rascunho",
+                        "description": "Workflow ou nó não encontrado; trigger_not_found quando trigger.nodeId não é um gatilho do rascunho; run_not_found quando fromRun não pode ser usada",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -48775,6 +49131,167 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "run_export_failed",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/workflows/{id}/test-values": {
+            "get": {
+                "description": "Lista as variáveis que o fluxo usa e que um teste precisa receber, pela mesma regra das campanhas e das passagens de conversa: as campvars que os passos leem, mais as variáveis dos agentes e dos subfluxos que o fluxo chama (o rascunho, com agentes e subfluxos publicados). Cada variável vem com a descrição e o caminho via (o último item é quem a usa). values são os valores que quem pede salvou para este fluxo; cada pessoa tem os seus, e eles só valem nos testes (Testar e teste de nó), nunca em execuções de produção nem nas variáveis das conversas. Valores de variáveis que o fluxo não usa mais ficam de fora.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Dados do teste de um fluxo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do workflow",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.testValuesResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Workflow de outro departamento",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Workflow não encontrado",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "automation_needs_not_found: um agente ou subfluxo que o fluxo chama não existe mais",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "test_values_unavailable ou automation_needs_unreadable: não foi possível ler agora",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Substitui os valores que quem pede guardou para os testes deste fluxo. values vai por nome de variável; um valor vazio apaga o valor salvo. Só aceita variáveis que o fluxo usa (test_value_not_needed, inclusive lead_name, lead_number e campaign_name, que o teste preenche sozinho) e valores de até 2000 caracteres (test_value_invalid). O Testar começa só quando todas as variáveis têm valor salvo; o teste de nó usa estes valores como ponto de partida.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Salvar os dados do teste de um fluxo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do workflow",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Valores por nome de variável",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.saveTestValuesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.testValuesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Corpo inválido (invalid_body) ou valor longo demais (test_value_invalid)",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Workflow de outro departamento",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Workflow não encontrado",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "test_value_not_needed: o fluxo não usa essa variável",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "test_values_unavailable ou automation_needs_unreadable: não foi possível gravar agora",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Apaga todos os valores que quem pede guardou para os testes deste fluxo. Os de outras pessoas ficam.",
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Limpar os dados do teste de um fluxo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID do workflow",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Valores apagados"
+                    },
+                    "403": {
+                        "description": "Workflow de outro departamento",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Workflow não encontrado",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "test_values_unavailable: não foi possível apagar agora",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -51696,7 +52213,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Executa um fluxo em modo de teste, sem enviar mensagens nem fazer ligações de verdade. Você faz o papel do contato: responde mensagens, aperta teclas e acompanha cada nó executado.\n\n## Conectar\n\n` + "`" + `` + "`" + `` + "`" + `text\nwss://SUA_URL_BASE/ws/workflows/{id}/simulate?token=SEU_ACCESS_TOKEN\u0026workspace_id=SEU_WORKSPACE_ID\n` + "`" + `` + "`" + `` + "`" + `\n\n- ` + "`" + `id` + "`" + `: ID do fluxo.\n- Permissão: ` + "`" + `workflows:update` + "`" + ` no workspace.\n\nO modo depende do tipo do fluxo: fluxos ` + "`" + `voice` + "`" + ` simulam uma ligação; os demais simulam uma conversa de mensagens.\n\n- ` + "`" + `await_start=1` + "`" + ` (opcional): o servidor envia ` + "`" + `sim_ready` + "`" + ` e só começa depois de um ` + "`" + `start` + "`" + ` ou de um ` + "`" + `reproduce_run` + "`" + `. Use para ligar pontos de parada e confirmar chamadas reais antes do primeiro passo. Sem ele, a execução começa logo pelo gatilho principal, como um ` + "`" + `start` + "`" + ` sem ` + "`" + `data` + "`" + ` (ou depois do ` + "`" + `reply` + "`" + ` inicial em fluxos disparados por mensagem). Se esse gatilho exige campos de entrada, nada roda: chega ` + "`" + `command_refused` + "`" + ` com ` + "`" + `code: \"trigger_input_invalid\"` + "`" + ` e ` + "`" + `issues` + "`" + `, e a sessão espera um ` + "`" + `start` + "`" + ` (ou ` + "`" + `reproduce_run` + "`" + `) como com ` + "`" + `await_start=1` + "`" + `, sem ` + "`" + `sim_ready` + "`" + `.\n\n## Depuração\n\n- O simulador usa o rascunho. Um nó com ` + "`" + `pinned` + "`" + ` (saída fixada) devolve essa saída e segue a conexão fixada, sem executar; a etapa vem com ` + "`" + `pinned: true` + "`" + `.\n- Chamadas reais: nós de requisição HTTP sem saída fixada, nós de código que usam ` + "`" + `fetch` + "`" + `, e-mail e agenda (agendar, reagendar, consultar disponibilidade) chamam serviços externos de verdade. Eles aparecem em ` + "`" + `realCallNodes` + "`" + ` e só executam depois de ` + "`" + `confirm_real_calls` + "`" + ` (vale para a sessão inteira). Sem a confirmação o nó falha com ` + "`" + `errorKind: \"real_call_not_confirmed\"` + "`" + `. Envios de mensagem já são simulados.\n- Pontos de parada ficam só nesta sessão (não são gravados no fluxo). A pausa acontece antes de executar o nó. Uma pausa sem comando por 10 minutos encerra com ` + "`" + `run_cancelled` + "`" + ` e ` + "`" + `reason: \"paused_timeout\"` + "`" + `.\n- Saída fixada de produção (` + "`" + `source: \"run:\u003cid\u003e\"` + "`" + `) só vale para quem pode ver a conversa daquela execução (mesma regra da caixa de entrada). Para os demais, o nó roda como se não tivesse saída fixada (inclusive a regra de chamadas reais) e a etapa vem com ` + "`" + `notice: \"saída fixada indisponível para você\"` + "`" + `.\n- Nós que mexem no CRM (etiqueta, etapa, atribuir membro, transferir departamento, oportunidade e campos do lead) não gravam nada: conferem o alvo no workspace (etiqueta, etapa, membro, departamento, funil ou campo) e devolvem o que fariam. A etapa vem com ` + "`" + `simulated: true` + "`" + ` e ` + "`" + `output.would_do` + "`" + `: lista de ` + "`" + `{\"kind\": \"label\" \\| \"stage\" \\| \"member\" \\| \"department\" \\| \"deal\" \\| \"lead_field\", \"action\": string, \"target_id\"?: string, \"target_name\"?: string, \"field\"?: string, \"value\"?: any, \"description\": string}` + "`" + `. Um alvo que não existe (ou é de outro workspace) faz o nó falhar pela saída de erro, sem ` + "`" + `would_do` + "`" + `.\n- Cada etapa que enviou mensagens traz, em ` + "`" + `output` + "`" + `, a lista ` + "`" + `sent_messages` + "`" + ` com as mesmas mensagens de ` + "`" + `message_sent` + "`" + `, no formato ` + "`" + `message` + "`" + ` descrito abaixo.\n- Reproduzir uma execução de produção (` + "`" + `reproduce_run` + "`" + `) exige ` + "`" + `workflows:read` + "`" + ` e poder ver a conversa da execução (mesma regra da caixa de entrada). O teste começa com os dados do gatilho daquela execução, fixa a saída e a conexão gravadas de cada nó HTTP, de código ou com efeito externo que rodou nela (só nesta sessão, sem gravar no rascunho) e pausa antes do primeiro passo. Nós que não rodaram na execução seguem a regra de chamadas reais. Valores mascarados na execução continuam mascarados. Só para fluxos de mensagens.\n\n## Entrada do gatilho\n\nCada item de ` + "`" + `sim_ready.triggers` + "`" + ` (TriggerInputSpec) é ` + "`" + `{\"nodeId\": string, \"triggerType\": string, \"label\": string, \"shape\": \"fields\" | \"json\" | \"message\" | \"none\", \"fields\": [TriggerInputField], \"sample\": object | null, \"readKeys\": [string], \"issues\": [{\"code\": string, \"key\": string}], \"window\": \"open\" | \"closed\" | null, \"windowEditable\": boolean, \"acceptedEvents\": [string]}` + "`" + `. ` + "`" + `label` + "`" + ` é o nome dado ao nó (vazio sem nome). ` + "`" + `acceptedEvents` + "`" + ` lista os eventos que o webhook aceita, normalizados como a produção compara (minúsculas, sem espaços nas pontas); vazia quando o webhook aceita qualquer evento e em todo gatilho que não é webhook. ` + "`" + `window` + "`" + ` é a janela de atendimento de 24 h com que o gatilho costuma começar em produção: ` + "`" + `open` + "`" + ` para mensagens recebidas, chamado por agente e formulário respondido; ` + "`" + `closed` + "`" + ` para webhook, aniversário e entrada em etapa; ` + "`" + `null` + "`" + ` quando o gatilho não tem janela (ligação). ` + "`" + `windowEditable` + "`" + ` diz se o teste pode escolher a janela: ` + "`" + `false` + "`" + ` para mensagem recebida e primeira mensagem (a mensagem do próprio cliente abre a janela, como em produção) e para ligação; ` + "`" + `true` + "`" + ` para webhook, aniversário, entrada em etapa, formulário respondido e chamado por agente. Durante o teste, toda mensagem do cliente (a mensagem inicial, respostas, seleções, mídia, localização e formulário respondido) abre a janela pela mesma regra de produção (24 h desde a última mensagem do cliente). TriggerInputField é ` + "`" + `{\"key\": string, \"type\": \"text\" | \"number\" | \"boolean\" | \"object\" | \"list\", \"required\": boolean, \"description\": string, \"example\": string, \"options\"?: [{\"value\": string, \"label\": string}], \"readBy\": [string]}` + "`" + `; ` + "`" + `readBy` + "`" + ` lista os nós que leem o campo e ` + "`" + `readKeys` + "`" + ` as chaves lidas pelo fluxo.\n\n- ` + "`" + `fields` + "`" + `: ` + "`" + `input` + "`" + ` é um objeto plano por ` + "`" + `key` + "`" + `. Chamado por agente IA: os campos declarados mais ` + "`" + `agent.name` + "`" + ` (vazio vira \"Agente de teste\"); formulário: ` + "`" + `form.\u003cchave\u003e` + "`" + ` como a produção grava as respostas, mais ` + "`" + `form_id` + "`" + ` quando o gatilho aceita mais de um formulário; etapa: ` + "`" + `stage_id` + "`" + ` (uma das ` + "`" + `options` + "`" + `); aniversário: ` + "`" + `birthday` + "`" + ` (AAAA-MM-DD, vazio usa hoje).\n- ` + "`" + `json` + "`" + ` (webhook): ` + "`" + `input` + "`" + ` é o corpo; ` + "`" + `sample` + "`" + ` é um corpo com os caminhos que o fluxo lê e o primeiro evento aceito em ` + "`" + `event` + "`" + `.\n- ` + "`" + `message` + "`" + `: ` + "`" + `input` + "`" + ` é ignorado; chega ` + "`" + `waiting_trigger` + "`" + ` e o primeiro ` + "`" + `reply` + "`" + ` começa a execução.\n- ` + "`" + `none` + "`" + `: ` + "`" + `input` + "`" + ` é ignorado e a execução começa direto.\n\nA entrada é validada como em produção e a execução é semeada pelo mesmo construtor de dados do gatilho. Códigos em ` + "`" + `issues` + "`" + `: ` + "`" + `required` + "`" + ` (campo obrigatório vazio; o agente também não consegue chamar sem ele), ` + "`" + `wrong_type` + "`" + `, ` + "`" + `unknown_field` + "`" + `, ` + "`" + `event_not_accepted` + "`" + ` (o webhook filtra eventos), ` + "`" + `unknown_option` + "`" + `, ` + "`" + `too_large` + "`" + ` (mais de 64 KB). Em ` + "`" + `triggers[].issues` + "`" + `, ` + "`" + `read_not_declared` + "`" + ` aponta uma chave lida pelo fluxo que o gatilho não declara (sempre vazia em produção); ela nunca bloqueia o início. ` + "`" + `trigger_input_unavailable` + "`" + ` aparece quando os formulários ou as etapas do gatilho não puderam ser lidos.\n\n## Mensagens que você envia\n\nFormato: ` + "`" + `{\"type\": \"...\", \"data\": {...}}` + "`" + `.\n\n### Fluxos de mensagens\n\n| type | data | O que faz |\n|---|---|---|\n| ` + "`" + `reply` + "`" + ` | ` + "`" + `{\"text\": string}` + "`" + ` (obrigatório) | Mensagem de texto do contato. Dispara o fluxo depois de ` + "`" + `waiting_trigger` + "`" + ` ou responde um ` + "`" + `waiting_reply` + "`" + `. Em mensagens interativas, o texto ainda é usado como o id da opção escolhida (compatibilidade); prefira ` + "`" + `reply_selection` + "`" + `. |\n| ` + "`" + `reply_selection` + "`" + ` | ` + "`" + `{\"kind\": \"button\" \\| \"list\", \"id\": string, \"title\": string}` + "`" + ` (todos obrigatórios) | O contato tocou um botão ou uma linha de lista, como o webhook entrega: ` + "`" + `message` + "`" + ` = ` + "`" + `title` + "`" + `, ` + "`" + `message_type: \"text\"` + "`" + `, ` + "`" + `selected_option_id` + "`" + `, ` + "`" + `selected_option_title` + "`" + ` e ` + "`" + `selected_option_type` + "`" + ` (` + "`" + `button` + "`" + ` ou ` + "`" + `list` + "`" + `). O ramo segue a saída com o id da opção, senão ` + "`" + `no_match` + "`" + `. |\n| ` + "`" + `reply_location` + "`" + ` | ` + "`" + `{\"latitude\": number, \"longitude\": number, \"name\"?: string, \"address\"?: string}` + "`" + ` | O contato enviou uma localização: ` + "`" + `message` + "`" + ` = \"📍 nome, endereço (lat, lng)\" e ` + "`" + `message_type: \"text\"` + "`" + `, como no webhook. |\n| ` + "`" + `reply_media` + "`" + ` | ` + "`" + `{\"kind\": \"image\" \\| \"video\" \\| \"audio\" \\| \"document\" \\| \"sticker\", \"url\": string, \"mime\"?: string, \"filename\"?: string, \"caption\"?: string}` + "`" + ` | O contato enviou uma mídia: ` + "`" + `message_type: \"media\"` + "`" + ` e ` + "`" + `media_type` + "`" + ` (áudio: ` + "`" + `message_type: \"audio\"` + "`" + `). ` + "`" + `message` + "`" + ` é a legenda (imagem, vídeo), o nome do arquivo (documento), vazio (figurinha) ou a legenda como transcrição (áudio). |\n| ` + "`" + `set_variable` + "`" + ` | ` + "`" + `{\"key\": string, \"value\": any}` + "`" + ` | Grava uma variável no estado da execução antes do próximo passo. |\n| ` + "`" + `form_reply` + "`" + ` | ` + "`" + `{\"answers\": {chave_do_campo: valor}}` + "`" + ` ou ` + "`" + `{\"outcome\": \"no_reply\"}` + "`" + ` | Responde um ` + "`" + `waiting_form` + "`" + `: as respostas ficam nas variáveis ` + "`" + `form.\u003cchave\u003e` + "`" + `; ` + "`" + `no_reply` + "`" + ` segue a saída Sem resposta. Um ` + "`" + `reply` + "`" + ` de texto não conclui o formulário. |\n| ` + "`" + `cancel` + "`" + ` | sem ` + "`" + `data` + "`" + ` | Cancela a execução. O servidor responde ` + "`" + `run_cancelled` + "`" + `. |\n\n### Depuração (mensagens e voz)\n\n| type | data | O que faz |\n|---|---|---|\n| ` + "`" + `start` + "`" + ` | sem ` + "`" + `data` + "`" + ` ou ` + "`" + `{\"triggerNodeId\"?: string, \"input\"?: object, \"windowOpen\"?: boolean}` + "`" + ` | Com ` + "`" + `await_start=1` + "`" + ` (ou depois da recusa do início automático sem ele): começa o teste depois do ` + "`" + `sim_ready` + "`" + `, pelo gatilho ` + "`" + `triggerNodeId` + "`" + ` (sem ele, o ` + "`" + `defaultTriggerNodeId` + "`" + `) com a entrada ` + "`" + `input` + "`" + `, validada pelas regras de produção do gatilho (veja Entrada do gatilho). ` + "`" + `windowOpen` + "`" + ` escolhe a janela de atendimento com que o teste começa quando o gatilho tem ` + "`" + `windowEditable: true` + "`" + `; sem ele vale o ` + "`" + `window` + "`" + ` do gatilho, e com ` + "`" + `windowEditable: false` + "`" + ` ele é ignorado (a mensagem do cliente decide). Com a janela fechada, todo envio livre (texto, mídia, botões, formulário, resposta do agente de IA) falha como em produção, com ` + "`" + `errorKind: \"window_closed\"` + "`" + ` na etapa, sem novas tentativas (recusa permanente, como contato bloqueado, descadastrado ou número inválido); só templates saem. Se for recusado, chega ` + "`" + `command_refused` + "`" + ` com ` + "`" + `code` + "`" + ` e a sessão continua esperando. |\n| ` + "`" + `reproduce_run` + "`" + ` | ` + "`" + `{\"runId\": string}` + "`" + ` | Com ` + "`" + `await_start=1` + "`" + ` (ou durante ` + "`" + `waiting_trigger` + "`" + `): começa o teste reproduzindo a execução. Se for recusado, chega ` + "`" + `command_refused` + "`" + ` e a sessão continua esperando. |\n| ` + "`" + `set_breakpoints` + "`" + ` | ` + "`" + `{\"nodeIds\": [string]}` + "`" + ` | Troca os pontos de parada da sessão. A execução pausa antes de cada um desses nós. |\n| ` + "`" + `run_until` + "`" + ` | ` + "`" + `{\"nodeId\": string}` + "`" + ` | Para uma vez antes desse nó. Se estiver pausado, continua até ele. |\n| ` + "`" + `step` + "`" + ` | sem ` + "`" + `data` + "`" + ` | Pausado: executa um nó e pausa antes do próximo. |\n| ` + "`" + `continue` + "`" + ` | sem ` + "`" + `data` + "`" + ` | Pausado: segue até o próximo ponto de parada. |\n| ` + "`" + `confirm_real_calls` + "`" + ` | sem ` + "`" + `data` + "`" + ` | Libera as chamadas reais pelo resto da sessão. Pode ser enviado a qualquer momento, inclusive antes do ` + "`" + `start` + "`" + `. |\n\n### Fluxos de voz\n\n| type | data | O que faz |\n|---|---|---|\n| ` + "`" + `key` + "`" + ` | ` + "`" + `{\"key\": string}` + "`" + ` | Tecla do telefone: um caractere entre ` + "`" + `0-9` + "`" + `, ` + "`" + `*` + "`" + ` e ` + "`" + `#` + "`" + `. |\n| ` + "`" + `cancel` + "`" + ` | sem ` + "`" + `data` + "`" + ` | Desliga a ligação simulada. O servidor responde ` + "`" + `run_cancelled` + "`" + `. |\n\nFechar a conexão tem o mesmo efeito de ` + "`" + `cancel` + "`" + `.\n\n## Mensagens que você recebe\n\nFormato: ` + "`" + `{\"type\": \"...\", \"payload\": {...}}` + "`" + `.\n\n| type | payload | Quando |\n|---|---|---|\n| ` + "`" + `sim_ready` + "`" + ` | ` + "`" + `{\"workflowId\": string, \"triggerType\": string, \"realCallNodes\": [string], \"triggers\": [TriggerInputSpec], \"defaultTriggerNodeId\": string}` + "`" + ` | Só com ` + "`" + `await_start=1` + "`" + `: a sessão espera ` + "`" + `start` + "`" + ` ou ` + "`" + `reproduce_run` + "`" + `. ` + "`" + `triggers` + "`" + ` descreve cada gatilho do rascunho (o principal primeiro) e o que ele recebe. |\n| ` + "`" + `waiting_trigger` + "`" + ` | ` + "`" + `{\"triggerType\": string, \"nodeId\": string}` + "`" + ` | O gatilho escolhido é de mensagem (` + "`" + `shape: \"message\"` + "`" + `): envie um ` + "`" + `reply` + "`" + ` para começar. |\n| ` + "`" + `sim_started` + "`" + ` | ` + "`" + `{\"runId\": string, \"workflowId\": string, \"realCallNodes\": [string], \"trigger\": {\"nodeId\": string, \"triggerType\": string}, \"reproducing\"?: {\"runId\": string, \"workflowVersion\"?: number, \"pinnedNodes\": [string]}}` + "`" + ` | A execução começou pelo gatilho ` + "`" + `trigger` + "`" + ` (ao reproduzir, o gatilho da execução quando ele ainda existe no rascunho). ` + "`" + `realCallNodes` + "`" + ` lista os nós que fariam chamadas reais; ` + "`" + `reproducing` + "`" + ` aparece ao reproduzir uma execução, com os nós fixados nesta sessão. |\n| ` + "`" + `state_update` + "`" + ` | ` + "`" + `{\"vars\": object}` + "`" + ` | Antes e depois de cada passo, com todas as variáveis. |\n| ` + "`" + `node_executed` + "`" + ` | Registro da etapa, o mesmo de ` + "`" + `GET /workflow-runs/{runId}` + "`" + ` (` + "`" + `id` + "`" + `, ` + "`" + `runId` + "`" + `, ` + "`" + `nodeId` + "`" + `, ` + "`" + `nodeType` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `input` + "`" + `?, ` + "`" + `output` + "`" + `?, ` + "`" + `error` + "`" + `?, ` + "`" + `executedAt` + "`" + `, ` + "`" + `attempt` + "`" + `, ` + "`" + `startedAt` + "`" + `?, ` + "`" + `finishedAt` + "`" + `?, ` + "`" + `durationMs` + "`" + `, ` + "`" + `branch` + "`" + `?, ` + "`" + `errorKind` + "`" + `?, ` + "`" + `errorChain` + "`" + `?, ` + "`" + `stack` + "`" + `?, ` + "`" + `scriptLogs` + "`" + `?, ` + "`" + `http` + "`" + `?), com valores sensíveis mascarados, mais ` + "`" + `stepIndex` + "`" + ` (número da etapa na sessão, a partir de 0), ` + "`" + `pinned` + "`" + `? (` + "`" + `true` + "`" + ` quando veio de uma saída fixada), ` + "`" + `simulated` + "`" + `? (` + "`" + `true` + "`" + ` quando um nó de CRM só descreveu o que faria, em ` + "`" + `output.would_do` + "`" + `), ` + "`" + `notice` + "`" + `? (por exemplo a saída fixada indisponível) e, quando o nó enviou mensagens, ` + "`" + `output.sent_messages` + "`" + ` | Um nó terminou. |\n| ` + "`" + `paused` + "`" + ` | ` + "`" + `{\"nodeId\": string, \"nodeType\": string, \"stepIndex\": number, \"reason\": \"breakpoint\" \\| \"run_until\" \\| \"step\", \"state\": object}` + "`" + ` | A execução parou antes desse nó. ` + "`" + `stepIndex` + "`" + ` é o número que a próxima etapa terá; ` + "`" + `state` + "`" + ` são as variáveis naquele momento, mascaradas. Responda ` + "`" + `step` + "`" + `, ` + "`" + `continue` + "`" + `, ` + "`" + `run_until` + "`" + ` ou ` + "`" + `cancel` + "`" + `. |\n| ` + "`" + `command_refused` + "`" + ` | ` + "`" + `{\"command\": string, \"error\": string, \"code\"?: \"trigger_input_invalid\" | \"trigger_not_found\" | \"trigger_input_unavailable\", \"issues\"?: [{\"code\": string, \"key\": string}]}` + "`" + ` | Um comando foi recusado (por exemplo ` + "`" + `reproduce_run` + "`" + ` sem permissão, execução invisível, de outro fluxo ou sem dados do gatilho, ou um ` + "`" + `start` + "`" + ` com entrada inválida). ` + "`" + `issues` + "`" + ` vem com ` + "`" + `trigger_input_invalid` + "`" + `. A sessão continua. |\n| ` + "`" + `message_sent` + "`" + ` | ` + "`" + `{\"direction\": \"outbound\", \"text\": string, \"msgType\": string, \"nodeId\"?: string, \"nodeName\"?: string, \"messageId\": string, \"audioBase64\"?: string, \"audioMime\"?: string, \"audioUrl\"?: string, \"message\"?: object}` + "`" + ` | O fluxo enviou uma mensagem ou, em voz, tocou um áudio (` + "`" + `msgType: \"audio\"` + "`" + ` com ` + "`" + `audioUrl` + "`" + `). Em fluxos de mensagens, ` + "`" + `nodeId` + "`" + ` e ` + "`" + `nodeName` + "`" + ` (o nome dado ao nó, senão o nome do tipo no catálogo) são do nó que enviou, e a mensagem chega antes do ` + "`" + `node_executed` + "`" + ` desse nó. Em fluxos de mensagens, ` + "`" + `message` + "`" + ` é a mensagem como a conversa do CRM a guardaria (formato abaixo); ` + "`" + `text` + "`" + ` continua com o resumo antigo. |\n| ` + "`" + `message_received` + "`" + ` | ` + "`" + `{\"direction\": \"inbound\", \"message\": object}` + "`" + ` | Uma resposta sua (` + "`" + `reply` + "`" + `, ` + "`" + `reply_selection` + "`" + `, ` + "`" + `reply_location` + "`" + `, ` + "`" + `reply_media` + "`" + `) como a conversa do CRM a guardaria. |\n| ` + "`" + `reply_ignored` + "`" + ` | ` + "`" + `{\"nodeId\": string, \"reason\": \"interactive_reply_unhandled\"}` + "`" + ` | A mensagem interativa não tem saída para essa resposta (nem ` + "`" + `no_match` + "`" + `, nem saída padrão). Como em produção, o fluxo continua esperando. |\n| ` + "`" + `waiting_reply` + "`" + ` | ` + "`" + `{\"nodeId\": string, \"timeoutSeconds\": number}` + "`" + ` | O fluxo espera uma resposta do contato. |\n| ` + "`" + `waiting_form` + "`" + ` | ` + "`" + `{\"nodeId\": string, \"formId\": string, \"timeoutSeconds\": number}` + "`" + ` | O fluxo enviou um formulário do WhatsApp e espera as respostas: envie um ` + "`" + `form_reply` + "`" + `. |\n| ` + "`" + `wait_skipped` + "`" + ` | ` + "`" + `{\"nodeId\": string, \"reason\": \"duration\" \\| \"event\"}` + "`" + ` | Uma espera por tempo ou evento foi pulada para agilizar o teste. |\n| ` + "`" + `waiting_key` + "`" + ` | ` + "`" + `{\"timeoutSeconds\": number}` + "`" + ` | Voz: o fluxo espera uma tecla. |\n| ` + "`" + `call_transferred` + "`" + ` | ` + "`" + `{\"queueId\": string, \"queueName\": string, \"notes\"?: string}` + "`" + ` | Voz: a ligação foi para a fila. Na simulação ela é considerada atendida e o fluxo termina. |\n| ` + "`" + `run_completed` + "`" + ` | ` + "`" + `{\"vars\": object}` + "`" + ` | A execução terminou. |\n| ` + "`" + `run_cancelled` + "`" + ` | ` + "`" + `{\"reason\": \"cancelled\" \\| \"paused_timeout\"}` + "`" + ` | A execução foi cancelada: pelo ` + "`" + `cancel` + "`" + ` (ou pela conexão fechada) ou por uma pausa abandonada por 10 minutos. |\n| ` + "`" + `run_error` + "`" + ` | ` + "`" + `{\"error\": string, \"status\"?: \"error\" \\| \"cancelled\"}` + "`" + ` | A execução parou com erro. |\n| ` + "`" + `error` + "`" + ` | ` + "`" + `{\"error\": string}` + "`" + ` | Não foi possível simular (fluxo inexistente, de outro workspace ou sem gatilho). A conexão é encerrada. |\n\nValores de ` + "`" + `msgType` + "`" + ` em fluxos de mensagens: ` + "`" + `text` + "`" + `, ` + "`" + `button` + "`" + `, ` + "`" + `list` + "`" + `, ` + "`" + `media` + "`" + `, ` + "`" + `audio` + "`" + `, ` + "`" + `template` + "`" + `, ` + "`" + `form` + "`" + `, ` + "`" + `flow` + "`" + ` e ` + "`" + `call_permission_request` + "`" + `.\n\n### Formato de ` + "`" + `message` + "`" + `\n\nO mesmo das mensagens de ` + "`" + `GET /conversations/...` + "`" + ` (o CRM renderiza com os mesmos componentes): ` + "`" + `id` + "`" + ` (igual a ` + "`" + `messageId` + "`" + `), ` + "`" + `entryId` + "`" + `, ` + "`" + `entryType` + "`" + `, ` + "`" + `channel` + "`" + `, ` + "`" + `messageType` + "`" + ` (` + "`" + `ai_response` + "`" + `, ` + "`" + `media` + "`" + `, ` + "`" + `template` + "`" + `, ` + "`" + `user_message` + "`" + `, ` + "`" + `audio` + "`" + `), ` + "`" + `direction` + "`" + ` (` + "`" + `OUTBOUND` + "`" + ` ou ` + "`" + `INBOUND` + "`" + `), ` + "`" + `sentBy` + "`" + `, ` + "`" + `from` + "`" + `, ` + "`" + `to` + "`" + `, ` + "`" + `text` + "`" + `, ` + "`" + `deliveryStatus` + "`" + ` (` + "`" + `sent` + "`" + `), ` + "`" + `createdAt` + "`" + ` e, quando houver:\n\n- ` + "`" + `mediaType` + "`" + ` (` + "`" + `image` + "`" + `, ` + "`" + `video` + "`" + `, ` + "`" + `audio` + "`" + `, ` + "`" + `document` + "`" + `, ` + "`" + `sticker` + "`" + `) e ` + "`" + `media` + "`" + `: ` + "`" + `{\"url\": string, \"mimeType\"?: string, \"filename\"?: string, \"size\"?: number, \"layout\": object}` + "`" + `; a legenda fica em ` + "`" + `text` + "`" + `.\n- ` + "`" + `metadata.buttons` + "`" + `: ` + "`" + `{\"header_text\"?: string, \"body_text\": string, \"footer_text\"?: string, \"buttons\": [{\"id\": string, \"title\": string}]}` + "`" + ` (botões e também as linhas de uma lista, achatadas).\n- ` + "`" + `metadata.list` + "`" + `: ` + "`" + `{\"header_text\"?: string, \"body_text\": string, \"footer_text\"?: string, \"button_text\": string, \"sections\": [{\"title\"?: string, \"rows\": [{\"id\": string, \"title\": string, \"description\"?: string}]}]}` + "`" + `.\n- Template (` + "`" + `messageType: \"template\"` + "`" + `): ` + "`" + `metadata` + "`" + ` com ` + "`" + `template_name` + "`" + `, ` + "`" + `language` + "`" + `, ` + "`" + `category` + "`" + `, ` + "`" + `body_text` + "`" + ` (corpo com os parâmetros), ` + "`" + `components` + "`" + ` (com os botões) e ` + "`" + `header_media_url` + "`" + `?; ` + "`" + `text` + "`" + ` é o corpo renderizado.\n- ` + "`" + `metadata.form` + "`" + `: ` + "`" + `{\"kind\": \"message\", \"formId\": string, \"formName\": string, \"sendId\": string, \"cta\": string}` + "`" + ` (formulário do WhatsApp; ` + "`" + `formName` + "`" + ` vem vazio no teste).\n- ` + "`" + `location` + "`" + `: ` + "`" + `{\"latitude\": number, \"longitude\": number, \"name\"?: string, \"address\"?: string, \"candidate\": boolean}` + "`" + `.\n\nAs respostas segmentadas do nó de IA chegam como um ` + "`" + `message_sent` + "`" + ` por segmento.\n\nA sessão termina depois de ` + "`" + `run_completed` + "`" + `, ` + "`" + `run_cancelled` + "`" + `, ` + "`" + `run_error` + "`" + ` ou ` + "`" + `error` + "`" + `.\n\n## Autenticação\n\nUse o mesmo access token da API HTTP. Navegadores não permitem cabeçalhos em WebSockets, então o token pode ir no cabeçalho ` + "`" + `Authorization: Bearer SEU_ACCESS_TOKEN` + "`" + ` (clientes fora do navegador), no parâmetro ` + "`" + `token` + "`" + ` da URL ou no cookie ` + "`" + `accessToken` + "`" + ` do login em modo cookie. Com o cookie, a conexão só é aceita quando o ` + "`" + `Origin` + "`" + ` é o próprio painel ou uma origem confiável; o token no cabeçalho ou na URL vale de qualquer origem.\n\n## Workspace\n\nInforme o workspace em ` + "`" + `workspace_id` + "`" + ` e em ` + "`" + `workspaceId` + "`" + `, com o mesmo valor (ou o cabeçalho ` + "`" + `X-Workspace-ID` + "`" + ` junto com ` + "`" + `workspaceId` + "`" + `). O primeiro é usado na checagem de permissão da conexão; o segundo define o workspace da sessão.\n\n## Formato das mensagens\n\nCada quadro de texto carrega um único objeto JSON com o tipo da mensagem. Datas são strings RFC 3339. Antes de abrir o WebSocket, erros de autenticação, workspace e permissão voltam como HTTP comum (401, 400, 403, 429, 501).",
+                "description": "Executa um fluxo em modo de teste, sem enviar mensagens nem fazer ligações de verdade. Você faz o papel do contato: responde mensagens, aperta teclas e acompanha cada nó executado.\n\n## Conectar\n\n` + "`" + `` + "`" + `` + "`" + `text\nwss://SUA_URL_BASE/ws/workflows/{id}/simulate?token=SEU_ACCESS_TOKEN\u0026workspace_id=SEU_WORKSPACE_ID\n` + "`" + `` + "`" + `` + "`" + `\n\n- ` + "`" + `id` + "`" + `: ID do fluxo.\n- Permissão: ` + "`" + `workflows:update` + "`" + ` no workspace.\n\nO modo depende do tipo do fluxo: fluxos ` + "`" + `voice` + "`" + ` simulam uma ligação; os demais simulam uma conversa de mensagens.\n\n- ` + "`" + `await_start=1` + "`" + ` (opcional): o servidor envia ` + "`" + `sim_ready` + "`" + ` e só começa depois de um ` + "`" + `start` + "`" + ` ou de um ` + "`" + `reproduce_run` + "`" + `. Use para ligar pontos de parada e confirmar chamadas reais antes do primeiro passo. Sem ele, a execução começa logo pelo gatilho principal, como um ` + "`" + `start` + "`" + ` sem ` + "`" + `data` + "`" + ` (ou depois do ` + "`" + `reply` + "`" + ` inicial em fluxos disparados por mensagem). Se esse gatilho exige campos de entrada, nada roda: chega ` + "`" + `command_refused` + "`" + ` com ` + "`" + `code: \"trigger_input_invalid\"` + "`" + ` e ` + "`" + `issues` + "`" + `, e a sessão espera um ` + "`" + `start` + "`" + ` (ou ` + "`" + `reproduce_run` + "`" + `) como com ` + "`" + `await_start=1` + "`" + `, sem ` + "`" + `sim_ready` + "`" + `.\n\n## Depuração\n\n- O simulador usa o rascunho. Um nó com ` + "`" + `pinned` + "`" + ` (saída fixada) devolve essa saída e segue a conexão fixada, sem executar; a etapa vem com ` + "`" + `pinned: true` + "`" + `.\n- Chamadas reais: nós de requisição HTTP sem saída fixada, nós de código que usam ` + "`" + `fetch` + "`" + `, e-mail e agenda (agendar, reagendar, consultar disponibilidade) chamam serviços externos de verdade. Eles aparecem em ` + "`" + `realCallNodes` + "`" + ` e só executam depois de ` + "`" + `confirm_real_calls` + "`" + ` (vale para a sessão inteira). Sem a confirmação o nó falha com ` + "`" + `errorKind: \"real_call_not_confirmed\"` + "`" + `. Envios de mensagem já são simulados.\n- Pontos de parada ficam só nesta sessão (não são gravados no fluxo). A pausa acontece antes de executar o nó. Uma pausa sem comando por 10 minutos encerra com ` + "`" + `run_cancelled` + "`" + ` e ` + "`" + `reason: \"paused_timeout\"` + "`" + `.\n- Saída fixada de produção (` + "`" + `source: \"run:\u003cid\u003e\"` + "`" + `) só vale para quem pode ver a conversa daquela execução (mesma regra da caixa de entrada). Para os demais, o nó roda como se não tivesse saída fixada (inclusive a regra de chamadas reais) e a etapa vem com ` + "`" + `notice: \"saída fixada indisponível para você\"` + "`" + `.\n- Nós que mexem no CRM (etiqueta, etapa, atribuir membro, transferir departamento, oportunidade e campos do lead) não gravam nada: conferem o alvo no workspace (etiqueta, etapa, membro, departamento, funil ou campo) e devolvem o que fariam. A etapa vem com ` + "`" + `simulated: true` + "`" + ` e ` + "`" + `output.would_do` + "`" + `: lista de ` + "`" + `{\"kind\": \"label\" \\| \"stage\" \\| \"member\" \\| \"department\" \\| \"deal\" \\| \"lead_field\", \"action\": string, \"target_id\"?: string, \"target_name\"?: string, \"field\"?: string, \"value\"?: any, \"description\": string}` + "`" + `. Um alvo que não existe (ou é de outro workspace) faz o nó falhar pela saída de erro, sem ` + "`" + `would_do` + "`" + `.\n- Cada etapa que enviou mensagens traz, em ` + "`" + `output` + "`" + `, a lista ` + "`" + `sent_messages` + "`" + ` com as mesmas mensagens de ` + "`" + `message_sent` + "`" + `, no formato ` + "`" + `message` + "`" + ` descrito abaixo.\n- Reproduzir uma execução de produção (` + "`" + `reproduce_run` + "`" + `) exige ` + "`" + `workflows:read` + "`" + ` e poder ver a conversa da execução (mesma regra da caixa de entrada). O teste começa com os dados do gatilho daquela execução, fixa a saída e a conexão gravadas de cada nó HTTP, de código ou com efeito externo que rodou nela (só nesta sessão, sem gravar no rascunho) e pausa antes do primeiro passo. Nós que não rodaram na execução seguem a regra de chamadas reais. Valores mascarados na execução continuam mascarados. Só para fluxos de mensagens.\n\n## Entrada do gatilho\n\nCada item de ` + "`" + `sim_ready.triggers` + "`" + ` (TriggerInputSpec) é ` + "`" + `{\"nodeId\": string, \"triggerType\": string, \"label\": string, \"shape\": \"fields\" | \"json\" | \"message\" | \"none\", \"fields\": [TriggerInputField], \"sample\": object | null, \"readKeys\": [string], \"issues\": [{\"code\": string, \"key\": string}], \"window\": \"open\" | \"closed\" | null, \"windowEditable\": boolean, \"acceptedEvents\": [string]}` + "`" + `. ` + "`" + `label` + "`" + ` é o nome dado ao nó (vazio sem nome). ` + "`" + `acceptedEvents` + "`" + ` lista os eventos que o webhook aceita, normalizados como a produção compara (minúsculas, sem espaços nas pontas); vazia quando o webhook aceita qualquer evento e em todo gatilho que não é webhook. ` + "`" + `window` + "`" + ` é a janela de atendimento de 24 h com que o gatilho costuma começar em produção: ` + "`" + `open` + "`" + ` para mensagens recebidas, chamado por agente e formulário respondido; ` + "`" + `closed` + "`" + ` para webhook, aniversário e entrada em etapa; ` + "`" + `null` + "`" + ` quando o gatilho não tem janela (ligação). ` + "`" + `windowEditable` + "`" + ` diz se o teste pode escolher a janela: ` + "`" + `false` + "`" + ` para mensagem recebida e primeira mensagem (a mensagem do próprio cliente abre a janela, como em produção) e para ligação; ` + "`" + `true` + "`" + ` para webhook, aniversário, entrada em etapa, formulário respondido e chamado por agente. Durante o teste, toda mensagem do cliente (a mensagem inicial, respostas, seleções, mídia, localização e formulário respondido) abre a janela pela mesma regra de produção (24 h desde a última mensagem do cliente). TriggerInputField é ` + "`" + `{\"key\": string, \"type\": \"text\" | \"number\" | \"boolean\" | \"object\" | \"list\", \"required\": boolean, \"description\": string, \"example\": string, \"options\"?: [{\"value\": string, \"label\": string}], \"readBy\": [string]}` + "`" + `; ` + "`" + `readBy` + "`" + ` lista os nós que leem o campo e ` + "`" + `readKeys` + "`" + ` as chaves lidas pelo fluxo.\n\n- ` + "`" + `fields` + "`" + `: ` + "`" + `input` + "`" + ` é um objeto plano por ` + "`" + `key` + "`" + `. Chamado por agente IA: os campos declarados mais ` + "`" + `agent.name` + "`" + ` (vazio vira \"Agente de teste\"); formulário: ` + "`" + `form.\u003cchave\u003e` + "`" + ` como a produção grava as respostas, mais ` + "`" + `form_id` + "`" + ` quando o gatilho aceita mais de um formulário; etapa: ` + "`" + `stage_id` + "`" + ` (uma das ` + "`" + `options` + "`" + `); aniversário: ` + "`" + `birthday` + "`" + ` (AAAA-MM-DD, vazio usa hoje).\n- ` + "`" + `json` + "`" + ` (webhook): ` + "`" + `input` + "`" + ` é o corpo; ` + "`" + `sample` + "`" + ` é um corpo com os caminhos que o fluxo lê e o primeiro evento aceito em ` + "`" + `event` + "`" + `.\n- ` + "`" + `message` + "`" + `: ` + "`" + `input` + "`" + ` é ignorado; chega ` + "`" + `waiting_trigger` + "`" + ` e o primeiro ` + "`" + `reply` + "`" + ` começa a execução.\n- ` + "`" + `none` + "`" + `: ` + "`" + `input` + "`" + ` é ignorado e a execução começa direto.\n\nA entrada é validada como em produção e a execução é semeada pelo mesmo construtor de dados do gatilho. Antes do gatilho, o teste recebe em ` + "`" + `campvars` + "`" + ` os dados do teste salvos por quem testa (` + "`" + `PUT /workflows/{id}/test-values` + "`" + `), no mesmo lugar em que a produção põe os valores da campanha e da conversa, mais ` + "`" + `lead_name` + "`" + `, ` + "`" + `lead_number` + "`" + ` e ` + "`" + `campaign_name` + "`" + ` do contato de teste; o ` + "`" + `start` + "`" + ` é recusado com ` + "`" + `automation_test_values_missing` + "`" + ` enquanto alguma variável que o fluxo usa não tem valor. Códigos em ` + "`" + `issues` + "`" + `: ` + "`" + `required` + "`" + ` (campo obrigatório vazio; o agente também não consegue chamar sem ele), ` + "`" + `wrong_type` + "`" + `, ` + "`" + `unknown_field` + "`" + `, ` + "`" + `event_not_accepted` + "`" + ` (o webhook filtra eventos), ` + "`" + `unknown_option` + "`" + `, ` + "`" + `too_large` + "`" + ` (mais de 64 KB). Em ` + "`" + `triggers[].issues` + "`" + `, ` + "`" + `read_not_declared` + "`" + ` aponta uma chave lida pelo fluxo que o gatilho não declara (sempre vazia em produção); ela nunca bloqueia o início. ` + "`" + `trigger_input_unavailable` + "`" + ` aparece quando os formulários ou as etapas do gatilho não puderam ser lidos.\n\n## Mensagens que você envia\n\nFormato: ` + "`" + `{\"type\": \"...\", \"data\": {...}}` + "`" + `.\n\n### Fluxos de mensagens\n\n| type | data | O que faz |\n|---|---|---|\n| ` + "`" + `reply` + "`" + ` | ` + "`" + `{\"text\": string}` + "`" + ` (obrigatório) | Mensagem de texto do contato. Dispara o fluxo depois de ` + "`" + `waiting_trigger` + "`" + ` ou responde um ` + "`" + `waiting_reply` + "`" + `. Em mensagens interativas, o texto ainda é usado como o id da opção escolhida (compatibilidade); prefira ` + "`" + `reply_selection` + "`" + `. |\n| ` + "`" + `reply_selection` + "`" + ` | ` + "`" + `{\"kind\": \"button\" \\| \"list\", \"id\": string, \"title\": string}` + "`" + ` (todos obrigatórios) | O contato tocou um botão ou uma linha de lista, como o webhook entrega: ` + "`" + `message` + "`" + ` = ` + "`" + `title` + "`" + `, ` + "`" + `message_type: \"text\"` + "`" + `, ` + "`" + `selected_option_id` + "`" + `, ` + "`" + `selected_option_title` + "`" + ` e ` + "`" + `selected_option_type` + "`" + ` (` + "`" + `button` + "`" + ` ou ` + "`" + `list` + "`" + `). O ramo segue a saída com o id da opção, senão ` + "`" + `no_match` + "`" + `. |\n| ` + "`" + `reply_location` + "`" + ` | ` + "`" + `{\"latitude\": number, \"longitude\": number, \"name\"?: string, \"address\"?: string}` + "`" + ` | O contato enviou uma localização: ` + "`" + `message` + "`" + ` = \"📍 nome, endereço (lat, lng)\" e ` + "`" + `message_type: \"text\"` + "`" + `, como no webhook. |\n| ` + "`" + `reply_media` + "`" + ` | ` + "`" + `{\"kind\": \"image\" \\| \"video\" \\| \"audio\" \\| \"document\" \\| \"sticker\", \"url\": string, \"mime\"?: string, \"filename\"?: string, \"caption\"?: string}` + "`" + ` | O contato enviou uma mídia: ` + "`" + `message_type: \"media\"` + "`" + ` e ` + "`" + `media_type` + "`" + ` (áudio: ` + "`" + `message_type: \"audio\"` + "`" + `). ` + "`" + `message` + "`" + ` é a legenda (imagem, vídeo), o nome do arquivo (documento), vazio (figurinha) ou a legenda como transcrição (áudio). |\n| ` + "`" + `set_variable` + "`" + ` | ` + "`" + `{\"key\": string, \"value\": any}` + "`" + ` | Grava uma variável no estado da execução antes do próximo passo. |\n| ` + "`" + `form_reply` + "`" + ` | ` + "`" + `{\"answers\": {chave_do_campo: valor}}` + "`" + ` ou ` + "`" + `{\"outcome\": \"no_reply\"}` + "`" + ` | Responde um ` + "`" + `waiting_form` + "`" + `: as respostas ficam nas variáveis ` + "`" + `form.\u003cchave\u003e` + "`" + `; ` + "`" + `no_reply` + "`" + ` segue a saída Sem resposta. Um ` + "`" + `reply` + "`" + ` de texto não conclui o formulário. |\n| ` + "`" + `cancel` + "`" + ` | sem ` + "`" + `data` + "`" + ` | Cancela a execução. O servidor responde ` + "`" + `run_cancelled` + "`" + `. |\n\n### Depuração (mensagens e voz)\n\n| type | data | O que faz |\n|---|---|---|\n| ` + "`" + `start` + "`" + ` | sem ` + "`" + `data` + "`" + ` ou ` + "`" + `{\"triggerNodeId\"?: string, \"input\"?: object, \"windowOpen\"?: boolean}` + "`" + ` | Com ` + "`" + `await_start=1` + "`" + ` (ou depois da recusa do início automático sem ele): começa o teste depois do ` + "`" + `sim_ready` + "`" + `, pelo gatilho ` + "`" + `triggerNodeId` + "`" + ` (sem ele, o ` + "`" + `defaultTriggerNodeId` + "`" + `) com a entrada ` + "`" + `input` + "`" + `, validada pelas regras de produção do gatilho (veja Entrada do gatilho). ` + "`" + `windowOpen` + "`" + ` escolhe a janela de atendimento com que o teste começa quando o gatilho tem ` + "`" + `windowEditable: true` + "`" + `; sem ele vale o ` + "`" + `window` + "`" + ` do gatilho, e com ` + "`" + `windowEditable: false` + "`" + ` ele é ignorado (a mensagem do cliente decide). Com a janela fechada, todo envio livre (texto, mídia, botões, formulário, resposta do agente de IA) falha como em produção, com ` + "`" + `errorKind: \"window_closed\"` + "`" + ` na etapa, sem novas tentativas (recusa permanente, como contato bloqueado, descadastrado ou número inválido); só templates saem. Se for recusado, chega ` + "`" + `command_refused` + "`" + ` com ` + "`" + `code` + "`" + ` e a sessão continua esperando. |\n| ` + "`" + `reproduce_run` + "`" + ` | ` + "`" + `{\"runId\": string}` + "`" + ` | Com ` + "`" + `await_start=1` + "`" + ` (ou durante ` + "`" + `waiting_trigger` + "`" + `): começa o teste reproduzindo a execução. Se for recusado, chega ` + "`" + `command_refused` + "`" + ` e a sessão continua esperando. |\n| ` + "`" + `set_breakpoints` + "`" + ` | ` + "`" + `{\"nodeIds\": [string]}` + "`" + ` | Troca os pontos de parada da sessão. A execução pausa antes de cada um desses nós. |\n| ` + "`" + `run_until` + "`" + ` | ` + "`" + `{\"nodeId\": string}` + "`" + ` | Para uma vez antes desse nó. Se estiver pausado, continua até ele. |\n| ` + "`" + `step` + "`" + ` | sem ` + "`" + `data` + "`" + ` | Pausado: executa um nó e pausa antes do próximo. |\n| ` + "`" + `continue` + "`" + ` | sem ` + "`" + `data` + "`" + ` | Pausado: segue até o próximo ponto de parada. |\n| ` + "`" + `confirm_real_calls` + "`" + ` | sem ` + "`" + `data` + "`" + ` | Libera as chamadas reais pelo resto da sessão. Pode ser enviado a qualquer momento, inclusive antes do ` + "`" + `start` + "`" + `. |\n\n### Fluxos de voz\n\n| type | data | O que faz |\n|---|---|---|\n| ` + "`" + `key` + "`" + ` | ` + "`" + `{\"key\": string}` + "`" + ` | Tecla do telefone: um caractere entre ` + "`" + `0-9` + "`" + `, ` + "`" + `*` + "`" + ` e ` + "`" + `#` + "`" + `. |\n| ` + "`" + `cancel` + "`" + ` | sem ` + "`" + `data` + "`" + ` | Desliga a ligação simulada. O servidor responde ` + "`" + `run_cancelled` + "`" + `. |\n\nFechar a conexão tem o mesmo efeito de ` + "`" + `cancel` + "`" + `.\n\n## Mensagens que você recebe\n\nFormato: ` + "`" + `{\"type\": \"...\", \"payload\": {...}}` + "`" + `.\n\n| type | payload | Quando |\n|---|---|---|\n| ` + "`" + `sim_ready` + "`" + ` | ` + "`" + `{\"workflowId\": string, \"triggerType\": string, \"realCallNodes\": [string], \"triggers\": [TriggerInputSpec], \"defaultTriggerNodeId\": string}` + "`" + ` | Só com ` + "`" + `await_start=1` + "`" + `: a sessão espera ` + "`" + `start` + "`" + ` ou ` + "`" + `reproduce_run` + "`" + `. ` + "`" + `triggers` + "`" + ` descreve cada gatilho do rascunho (o principal primeiro) e o que ele recebe. |\n| ` + "`" + `waiting_trigger` + "`" + ` | ` + "`" + `{\"triggerType\": string, \"nodeId\": string}` + "`" + ` | O gatilho escolhido é de mensagem (` + "`" + `shape: \"message\"` + "`" + `): envie um ` + "`" + `reply` + "`" + ` para começar. |\n| ` + "`" + `sim_started` + "`" + ` | ` + "`" + `{\"runId\": string, \"workflowId\": string, \"realCallNodes\": [string], \"trigger\": {\"nodeId\": string, \"triggerType\": string}, \"reproducing\"?: {\"runId\": string, \"workflowVersion\"?: number, \"pinnedNodes\": [string]}}` + "`" + ` | A execução começou pelo gatilho ` + "`" + `trigger` + "`" + ` (ao reproduzir, o gatilho da execução quando ele ainda existe no rascunho). ` + "`" + `realCallNodes` + "`" + ` lista os nós que fariam chamadas reais; ` + "`" + `reproducing` + "`" + ` aparece ao reproduzir uma execução, com os nós fixados nesta sessão. |\n| ` + "`" + `state_update` + "`" + ` | ` + "`" + `{\"vars\": object}` + "`" + ` | Antes e depois de cada passo, com todas as variáveis. |\n| ` + "`" + `node_executed` + "`" + ` | Registro da etapa, o mesmo de ` + "`" + `GET /workflow-runs/{runId}` + "`" + ` (` + "`" + `id` + "`" + `, ` + "`" + `runId` + "`" + `, ` + "`" + `nodeId` + "`" + `, ` + "`" + `nodeType` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `input` + "`" + `?, ` + "`" + `output` + "`" + `?, ` + "`" + `error` + "`" + `?, ` + "`" + `executedAt` + "`" + `, ` + "`" + `attempt` + "`" + `, ` + "`" + `startedAt` + "`" + `?, ` + "`" + `finishedAt` + "`" + `?, ` + "`" + `durationMs` + "`" + `, ` + "`" + `branch` + "`" + `?, ` + "`" + `errorKind` + "`" + `?, ` + "`" + `errorChain` + "`" + `?, ` + "`" + `stack` + "`" + `?, ` + "`" + `scriptLogs` + "`" + `?, ` + "`" + `http` + "`" + `?), com valores sensíveis mascarados, mais ` + "`" + `stepIndex` + "`" + ` (número da etapa na sessão, a partir de 0), ` + "`" + `pinned` + "`" + `? (` + "`" + `true` + "`" + ` quando veio de uma saída fixada), ` + "`" + `simulated` + "`" + `? (` + "`" + `true` + "`" + ` quando um nó de CRM só descreveu o que faria, em ` + "`" + `output.would_do` + "`" + `), ` + "`" + `notice` + "`" + `? (por exemplo a saída fixada indisponível) e, quando o nó enviou mensagens, ` + "`" + `output.sent_messages` + "`" + ` | Um nó terminou. |\n| ` + "`" + `paused` + "`" + ` | ` + "`" + `{\"nodeId\": string, \"nodeType\": string, \"stepIndex\": number, \"reason\": \"breakpoint\" \\| \"run_until\" \\| \"step\", \"state\": object}` + "`" + ` | A execução parou antes desse nó. ` + "`" + `stepIndex` + "`" + ` é o número que a próxima etapa terá; ` + "`" + `state` + "`" + ` são as variáveis naquele momento, mascaradas. Responda ` + "`" + `step` + "`" + `, ` + "`" + `continue` + "`" + `, ` + "`" + `run_until` + "`" + ` ou ` + "`" + `cancel` + "`" + `. |\n| ` + "`" + `command_refused` + "`" + ` | ` + "`" + `{\"command\": string, \"error\": string, \"code\"?: \"trigger_input_invalid\" | \"trigger_not_found\" | \"trigger_input_unavailable\" | \"automation_test_values_missing\" | \"test_values_unavailable\" | \"automation_needs_unreadable\" | \"automation_needs_not_found\", \"issues\"?: [{\"code\": string, \"key\": string}], \"variables\"?: [string]}` + "`" + ` | Um comando foi recusado (por exemplo ` + "`" + `reproduce_run` + "`" + ` sem permissão, execução invisível, de outro fluxo ou sem dados do gatilho, ou um ` + "`" + `start` + "`" + ` com entrada inválida). ` + "`" + `issues` + "`" + ` vem com ` + "`" + `trigger_input_invalid` + "`" + `. ` + "`" + `automation_test_values_missing` + "`" + ` recusa o ` + "`" + `start` + "`" + ` enquanto faltam dados do teste: ` + "`" + `variables` + "`" + ` lista as variáveis do fluxo (as mesmas de ` + "`" + `GET /workflows/{id}/test-values` + "`" + `) sem valor salvo por quem testa. A sessão continua. |\n| ` + "`" + `message_sent` + "`" + ` | ` + "`" + `{\"direction\": \"outbound\", \"text\": string, \"msgType\": string, \"nodeId\"?: string, \"nodeName\"?: string, \"messageId\": string, \"audioBase64\"?: string, \"audioMime\"?: string, \"audioUrl\"?: string, \"message\"?: object}` + "`" + ` | O fluxo enviou uma mensagem ou, em voz, tocou um áudio (` + "`" + `msgType: \"audio\"` + "`" + ` com ` + "`" + `audioUrl` + "`" + `). Em fluxos de mensagens, ` + "`" + `nodeId` + "`" + ` e ` + "`" + `nodeName` + "`" + ` (o nome dado ao nó, senão o nome do tipo no catálogo) são do nó que enviou, e a mensagem chega antes do ` + "`" + `node_executed` + "`" + ` desse nó. Em fluxos de mensagens, ` + "`" + `message` + "`" + ` é a mensagem como a conversa do CRM a guardaria (formato abaixo); ` + "`" + `text` + "`" + ` continua com o resumo antigo. |\n| ` + "`" + `message_received` + "`" + ` | ` + "`" + `{\"direction\": \"inbound\", \"message\": object}` + "`" + ` | Uma resposta sua (` + "`" + `reply` + "`" + `, ` + "`" + `reply_selection` + "`" + `, ` + "`" + `reply_location` + "`" + `, ` + "`" + `reply_media` + "`" + `) como a conversa do CRM a guardaria. |\n| ` + "`" + `reply_ignored` + "`" + ` | ` + "`" + `{\"nodeId\": string, \"reason\": \"interactive_reply_unhandled\"}` + "`" + ` | A mensagem interativa não tem saída para essa resposta (nem ` + "`" + `no_match` + "`" + `, nem saída padrão). Como em produção, o fluxo continua esperando. |\n| ` + "`" + `waiting_reply` + "`" + ` | ` + "`" + `{\"nodeId\": string, \"timeoutSeconds\": number}` + "`" + ` | O fluxo espera uma resposta do contato. |\n| ` + "`" + `waiting_form` + "`" + ` | ` + "`" + `{\"nodeId\": string, \"formId\": string, \"timeoutSeconds\": number}` + "`" + ` | O fluxo enviou um formulário do WhatsApp e espera as respostas: envie um ` + "`" + `form_reply` + "`" + `. |\n| ` + "`" + `wait_skipped` + "`" + ` | ` + "`" + `{\"nodeId\": string, \"reason\": \"duration\" \\| \"event\"}` + "`" + ` | Uma espera por tempo ou evento foi pulada para agilizar o teste. |\n| ` + "`" + `waiting_key` + "`" + ` | ` + "`" + `{\"timeoutSeconds\": number}` + "`" + ` | Voz: o fluxo espera uma tecla. |\n| ` + "`" + `call_transferred` + "`" + ` | ` + "`" + `{\"queueId\": string, \"queueName\": string, \"notes\"?: string}` + "`" + ` | Voz: a ligação foi para a fila. Na simulação ela é considerada atendida e o fluxo termina. |\n| ` + "`" + `run_completed` + "`" + ` | ` + "`" + `{\"vars\": object}` + "`" + ` | A execução terminou. |\n| ` + "`" + `run_cancelled` + "`" + ` | ` + "`" + `{\"reason\": \"cancelled\" \\| \"paused_timeout\"}` + "`" + ` | A execução foi cancelada: pelo ` + "`" + `cancel` + "`" + ` (ou pela conexão fechada) ou por uma pausa abandonada por 10 minutos. |\n| ` + "`" + `run_error` + "`" + ` | ` + "`" + `{\"error\": string, \"status\"?: \"error\" \\| \"cancelled\"}` + "`" + ` | A execução parou com erro. |\n| ` + "`" + `error` + "`" + ` | ` + "`" + `{\"error\": string}` + "`" + ` | Não foi possível simular (fluxo inexistente, de outro workspace ou sem gatilho). A conexão é encerrada. |\n\nValores de ` + "`" + `msgType` + "`" + ` em fluxos de mensagens: ` + "`" + `text` + "`" + `, ` + "`" + `button` + "`" + `, ` + "`" + `list` + "`" + `, ` + "`" + `media` + "`" + `, ` + "`" + `audio` + "`" + `, ` + "`" + `template` + "`" + `, ` + "`" + `form` + "`" + `, ` + "`" + `flow` + "`" + ` e ` + "`" + `call_permission_request` + "`" + `.\n\n### Formato de ` + "`" + `message` + "`" + `\n\nO mesmo das mensagens de ` + "`" + `GET /conversations/...` + "`" + ` (o CRM renderiza com os mesmos componentes): ` + "`" + `id` + "`" + ` (igual a ` + "`" + `messageId` + "`" + `), ` + "`" + `entryId` + "`" + `, ` + "`" + `entryType` + "`" + `, ` + "`" + `channel` + "`" + `, ` + "`" + `messageType` + "`" + ` (` + "`" + `ai_response` + "`" + `, ` + "`" + `media` + "`" + `, ` + "`" + `template` + "`" + `, ` + "`" + `user_message` + "`" + `, ` + "`" + `audio` + "`" + `), ` + "`" + `direction` + "`" + ` (` + "`" + `OUTBOUND` + "`" + ` ou ` + "`" + `INBOUND` + "`" + `), ` + "`" + `sentBy` + "`" + `, ` + "`" + `from` + "`" + `, ` + "`" + `to` + "`" + `, ` + "`" + `text` + "`" + `, ` + "`" + `deliveryStatus` + "`" + ` (` + "`" + `sent` + "`" + `), ` + "`" + `createdAt` + "`" + ` e, quando houver:\n\n- ` + "`" + `mediaType` + "`" + ` (` + "`" + `image` + "`" + `, ` + "`" + `video` + "`" + `, ` + "`" + `audio` + "`" + `, ` + "`" + `document` + "`" + `, ` + "`" + `sticker` + "`" + `) e ` + "`" + `media` + "`" + `: ` + "`" + `{\"url\": string, \"mimeType\"?: string, \"filename\"?: string, \"size\"?: number, \"layout\": object}` + "`" + `; a legenda fica em ` + "`" + `text` + "`" + `.\n- ` + "`" + `metadata.buttons` + "`" + `: ` + "`" + `{\"header_text\"?: string, \"body_text\": string, \"footer_text\"?: string, \"buttons\": [{\"id\": string, \"title\": string}]}` + "`" + ` (botões e também as linhas de uma lista, achatadas).\n- ` + "`" + `metadata.list` + "`" + `: ` + "`" + `{\"header_text\"?: string, \"body_text\": string, \"footer_text\"?: string, \"button_text\": string, \"sections\": [{\"title\"?: string, \"rows\": [{\"id\": string, \"title\": string, \"description\"?: string}]}]}` + "`" + `.\n- Template (` + "`" + `messageType: \"template\"` + "`" + `): ` + "`" + `metadata` + "`" + ` com ` + "`" + `template_name` + "`" + `, ` + "`" + `language` + "`" + `, ` + "`" + `category` + "`" + `, ` + "`" + `body_text` + "`" + ` (corpo com os parâmetros), ` + "`" + `components` + "`" + ` (com os botões) e ` + "`" + `header_media_url` + "`" + `?; ` + "`" + `text` + "`" + ` é o corpo renderizado.\n- ` + "`" + `metadata.form` + "`" + `: ` + "`" + `{\"kind\": \"message\", \"formId\": string, \"formName\": string, \"sendId\": string, \"cta\": string}` + "`" + ` (formulário do WhatsApp; ` + "`" + `formName` + "`" + ` vem vazio no teste).\n- ` + "`" + `location` + "`" + `: ` + "`" + `{\"latitude\": number, \"longitude\": number, \"name\"?: string, \"address\"?: string, \"candidate\": boolean}` + "`" + `.\n\nAs respostas segmentadas do nó de IA chegam como um ` + "`" + `message_sent` + "`" + ` por segmento.\n\nA sessão termina depois de ` + "`" + `run_completed` + "`" + `, ` + "`" + `run_cancelled` + "`" + `, ` + "`" + `run_error` + "`" + ` ou ` + "`" + `error` + "`" + `.\n\n## Autenticação\n\nUse o mesmo access token da API HTTP. Navegadores não permitem cabeçalhos em WebSockets, então o token pode ir no cabeçalho ` + "`" + `Authorization: Bearer SEU_ACCESS_TOKEN` + "`" + ` (clientes fora do navegador), no parâmetro ` + "`" + `token` + "`" + ` da URL ou no cookie ` + "`" + `accessToken` + "`" + ` do login em modo cookie. Com o cookie, a conexão só é aceita quando o ` + "`" + `Origin` + "`" + ` é o próprio painel ou uma origem confiável; o token no cabeçalho ou na URL vale de qualquer origem.\n\n## Workspace\n\nInforme o workspace em ` + "`" + `workspace_id` + "`" + ` e em ` + "`" + `workspaceId` + "`" + `, com o mesmo valor (ou o cabeçalho ` + "`" + `X-Workspace-ID` + "`" + ` junto com ` + "`" + `workspaceId` + "`" + `). O primeiro é usado na checagem de permissão da conexão; o segundo define o workspace da sessão.\n\n## Formato das mensagens\n\nCada quadro de texto carrega um único objeto JSON com o tipo da mensagem. Datas são strings RFC 3339. Antes de abrir o WebSocket, erros de autenticação, workspace e permissão voltam como HTTP comum (401, 400, 403, 429, 501).",
                 "tags": [
                     "WebSockets"
                 ],
@@ -59743,6 +60260,10 @@ const docTemplate = `{
         "audiencex.VariableRequest": {
             "type": "object",
             "properties": {
+                "column": {
+                    "type": "string",
+                    "example": "VAR3"
+                },
                 "key": {
                     "type": "string",
                     "example": "1"
@@ -63272,6 +63793,7 @@ const docTemplate = `{
                 "variable_source_required",
                 "list_variables_missing",
                 "list_metadata_missing",
+                "list_column_missing",
                 "leads_metadata_unavailable",
                 "template_required",
                 "message_required"
@@ -63281,6 +63803,7 @@ const docTemplate = `{
                 "BlockerSourceRequired",
                 "BlockerListVariablesMissing",
                 "BlockerListMetadataMissing",
+                "BlockerListColumnMissing",
                 "BlockerLeadsMetadataUnavailable",
                 "BlockerTemplateRequired",
                 "BlockerMessageRequired"
@@ -63512,6 +64035,17 @@ const docTemplate = `{
                 "choiceRequired": {
                     "type": "boolean"
                 },
+                "column": {
+                    "type": "string",
+                    "example": "VAR3"
+                },
+                "columnMissing": {
+                    "type": "boolean"
+                },
+                "default": {
+                    "type": "string",
+                    "example": "cordial"
+                },
                 "fallback": {
                     "type": "string"
                 },
@@ -63540,6 +64074,9 @@ const docTemplate = `{
                 },
                 "neededBy": {
                     "type": "string"
+                },
+                "optional": {
+                    "type": "boolean"
                 },
                 "policy": {
                     "$ref": "#/definitions/campaignaudience.MissingPolicy"
@@ -63613,6 +64150,12 @@ const docTemplate = `{
             "properties": {
                 "contact": {
                     "type": "string"
+                },
+                "headers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "metadata": {
                     "type": "array",
@@ -66760,7 +67303,8 @@ const docTemplate = `{
                 "lead_exit_action",
                 "lead_send_refused",
                 "agent_reply_withheld",
-                "email_forward_skipped"
+                "email_forward_skipped",
+                "automation_transferred"
             ],
             "x-enum-varnames": [
                 "EventAssigned",
@@ -66798,7 +67342,8 @@ const docTemplate = `{
                 "EventLeadExitAction",
                 "EventLeadSendRefused",
                 "EventAgentReplyWithheld",
-                "EventEmailForwardSkipped"
+                "EventEmailForwardSkipped",
+                "EventAutomationTransferred"
             ]
         },
         "conversation_usecase.ResponsibleWorkflow": {
@@ -67253,32 +67798,6 @@ const docTemplate = `{
         "crmfilter.Field": {
             "type": "string",
             "enum": [
-                "id",
-                "phone_any",
-                "email",
-                "nickname",
-                "birthday",
-                "birth_date",
-                "zip",
-                "state",
-                "city",
-                "district",
-                "geo_precision",
-                "geo_status",
-                "has_address",
-                "has_identity",
-                "opted_out",
-                "whatsapp_opt_in",
-                "relation_kind",
-                "relatives_count",
-                "referred_count",
-                "referred_by",
-                "geo_placement",
-                "opt_out_source",
-                "opted_out_at",
-                "company",
-                "sentiment",
-                "area_approximate",
                 "owner",
                 "carteira",
                 "pipeline",
@@ -67310,35 +67829,35 @@ const docTemplate = `{
                 "memory_count",
                 "memory_updated_at",
                 "custom",
-                "area"
+                "area",
+                "id",
+                "phone_any",
+                "email",
+                "nickname",
+                "birthday",
+                "birth_date",
+                "zip",
+                "state",
+                "city",
+                "district",
+                "geo_precision",
+                "geo_status",
+                "has_address",
+                "has_identity",
+                "opted_out",
+                "whatsapp_opt_in",
+                "relation_kind",
+                "relatives_count",
+                "referred_count",
+                "referred_by",
+                "geo_placement",
+                "opt_out_source",
+                "opted_out_at",
+                "company",
+                "sentiment",
+                "area_approximate"
             ],
             "x-enum-varnames": [
-                "FieldID",
-                "FieldPhoneAny",
-                "FieldEmail",
-                "FieldNickname",
-                "FieldBirthday",
-                "FieldBirthDate",
-                "FieldZip",
-                "FieldState",
-                "FieldCity",
-                "FieldDistrict",
-                "FieldGeoPrecision",
-                "FieldGeoStatus",
-                "FieldHasAddress",
-                "FieldHasIdentity",
-                "FieldOptedOut",
-                "FieldWhatsAppOptIn",
-                "FieldRelationKind",
-                "FieldRelativesCount",
-                "FieldReferredCount",
-                "FieldReferredBy",
-                "FieldGeoPlacement",
-                "FieldOptOutSource",
-                "FieldOptedOutAt",
-                "FieldCompany",
-                "FieldSentiment",
-                "FieldAreaApproximate",
                 "FieldOwner",
                 "FieldCarteira",
                 "FieldPipeline",
@@ -67370,7 +67889,33 @@ const docTemplate = `{
                 "FieldMemoryCount",
                 "FieldMemoryUpdatedAt",
                 "FieldCustom",
-                "FieldArea"
+                "FieldArea",
+                "FieldID",
+                "FieldPhoneAny",
+                "FieldEmail",
+                "FieldNickname",
+                "FieldBirthday",
+                "FieldBirthDate",
+                "FieldZip",
+                "FieldState",
+                "FieldCity",
+                "FieldDistrict",
+                "FieldGeoPrecision",
+                "FieldGeoStatus",
+                "FieldHasAddress",
+                "FieldHasIdentity",
+                "FieldOptedOut",
+                "FieldWhatsAppOptIn",
+                "FieldRelationKind",
+                "FieldRelativesCount",
+                "FieldReferredCount",
+                "FieldReferredBy",
+                "FieldGeoPlacement",
+                "FieldOptOutSource",
+                "FieldOptedOutAt",
+                "FieldCompany",
+                "FieldSentiment",
+                "FieldAreaApproximate"
             ]
         },
         "crmfilter.Filter": {
@@ -68561,22 +69106,22 @@ const docTemplate = `{
         "emailcampaign.HoldReason": {
             "type": "string",
             "enum": [
+                "test_batch_bounces",
+                "test_batch_complaints",
                 "",
                 "daily_cap",
                 "account_paused",
                 "sender_unavailable",
-                "balance_insufficient",
-                "test_batch_bounces",
-                "test_batch_complaints"
+                "balance_insufficient"
             ],
             "x-enum-varnames": [
+                "HoldTestBatchBounces",
+                "HoldTestBatchComplaints",
                 "HoldNone",
                 "HoldDailyCap",
                 "HoldAccountPaused",
                 "HoldSenderUnavailable",
-                "HoldBalanceShort",
-                "HoldTestBatchBounces",
-                "HoldTestBatchComplaints"
+                "HoldBalanceShort"
             ]
         },
         "emailcampaign.Issue": {
@@ -71355,6 +71900,9 @@ const docTemplate = `{
                 "maxOption": {
                     "type": "integer"
                 },
+                "maxRemovalReason": {
+                    "type": "integer"
+                },
                 "maxTabName": {
                     "type": "integer"
                 },
@@ -71365,6 +71913,12 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/googlesheet.OptionColorResponse"
+                    }
+                },
+                "repeatActions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 },
                 "rowErrorCodes": {
@@ -71398,6 +71952,18 @@ const docTemplate = `{
                     }
                 },
                 "types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "uniqueModes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "uniqueSources": {
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -71582,6 +72148,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Pedidos registrados pelo agente de vendas"
                 },
+                "fileTitle": {
+                    "type": "string",
+                    "example": "CDT Jabaquara"
+                },
                 "spreadsheetId": {
                     "type": "string",
                     "example": "1AbC"
@@ -71620,6 +72190,9 @@ const docTemplate = `{
                 "title": {
                     "type": "string",
                     "example": "Pedidos do site"
+                },
+                "unique": {
+                    "$ref": "#/definitions/googlesheet.UniqueCreateRequest"
                 }
             }
         },
@@ -71729,6 +72302,32 @@ const docTemplate = `{
                 }
             }
         },
+        "googlesheet.OriginConversationResponse": {
+            "type": "object",
+            "properties": {
+                "entryId": {
+                    "type": "string",
+                    "example": "c7f1e2a0-9b3d-4a1e-8f2c-1d2e3f4a5b6c"
+                },
+                "entryType": {
+                    "type": "string",
+                    "example": "whatsapp"
+                }
+            }
+        },
+        "googlesheet.OriginNameResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "8f8e5f7a-3c1d-4a77-9a55-0d6f0f3b2a11"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Cobrança"
+                }
+            }
+        },
         "googlesheet.PresetColumnResponse": {
             "type": "object",
             "properties": {
@@ -71827,6 +72426,29 @@ const docTemplate = `{
                         "none",
                         "month"
                     ]
+                },
+                "unique": {
+                    "$ref": "#/definitions/googlesheet.PresetUniqueResponse"
+                }
+            }
+        },
+        "googlesheet.PresetUniqueResponse": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "conversation",
+                        "columns"
+                    ],
+                    "example": "conversation"
                 }
             }
         },
@@ -71876,6 +72498,24 @@ const docTemplate = `{
                 }
             }
         },
+        "googlesheet.RemoveRowRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "example": "Registro duplicado pelo fluxo de cobrança"
+                }
+            }
+        },
+        "googlesheet.RenameFileRequest": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "example": "CDT Jabaquara"
+                }
+            }
+        },
         "googlesheet.RetryResponse": {
             "type": "object",
             "properties": {
@@ -71884,11 +72524,204 @@ const docTemplate = `{
                 }
             }
         },
+        "googlesheet.RowListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.RowResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total_items": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "googlesheet.RowOriginResponse": {
+            "type": "object",
+            "properties": {
+                "agent": {
+                    "$ref": "#/definitions/googlesheet.OriginNameResponse"
+                },
+                "conversation": {
+                    "$ref": "#/definitions/googlesheet.OriginConversationResponse"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "agent",
+                        "workflow",
+                        "copilot",
+                        "manual"
+                    ]
+                },
+                "person": {
+                    "$ref": "#/definitions/googlesheet.OriginNameResponse"
+                },
+                "runId": {
+                    "type": "string",
+                    "example": "5b1d7c9e-2f4a-4e8b-9c3d-7a6e5f4d3c2b"
+                },
+                "workflow": {
+                    "$ref": "#/definitions/googlesheet.OriginNameResponse"
+                }
+            }
+        },
+        "googlesheet.RowRemovalEnvelope": {
+            "type": "object",
+            "properties": {
+                "removal": {
+                    "$ref": "#/definitions/googlesheet.RowRemovalResponse"
+                }
+            }
+        },
+        "googlesheet.RowRemovalListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/googlesheet.RowRemovalResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total_items": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "googlesheet.RowRemovalResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "3b9f4c2e-1d7a-4e5b-9c8d-2a1f0e3d4c5b"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "cancel",
+                        "remove"
+                    ]
+                },
+                "origin": {
+                    "type": "string",
+                    "enum": [
+                        "agent",
+                        "workflow",
+                        "copilot",
+                        "manual"
+                    ]
+                },
+                "originDetail": {
+                    "$ref": "#/definitions/googlesheet.RowOriginResponse"
+                },
+                "reason": {
+                    "type": "string",
+                    "example": "Registro duplicado pelo fluxo de cobrança"
+                },
+                "removedAt": {
+                    "type": "string"
+                },
+                "removedBy": {
+                    "$ref": "#/definitions/googlesheet.OriginNameResponse"
+                },
+                "rowId": {
+                    "type": "string",
+                    "example": "6f1c2d3e-4a5b-4c6d-8e7f-90a1b2c3d4e5"
+                },
+                "rowNumber": {
+                    "type": "integer",
+                    "example": 14
+                },
+                "values": {
+                    "type": "object"
+                }
+            }
+        },
+        "googlesheet.RowResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "errorCode": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "origin": {
+                    "type": "string",
+                    "enum": [
+                        "agent",
+                        "workflow",
+                        "copilot",
+                        "manual"
+                    ]
+                },
+                "originDetail": {
+                    "$ref": "#/definitions/googlesheet.RowOriginResponse"
+                },
+                "removal": {
+                    "type": "string",
+                    "enum": [
+                        "cancel",
+                        "remove"
+                    ]
+                },
+                "rowNumber": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "pending",
+                        "in_flight",
+                        "held",
+                        "failed",
+                        "written"
+                    ]
+                },
+                "values": {
+                    "type": "object"
+                },
+                "writtenAt": {
+                    "type": "string"
+                }
+            }
+        },
         "googlesheet.SheetEnvelope": {
             "type": "object",
             "properties": {
                 "sheet": {
                     "$ref": "#/definitions/googlesheet.SheetResponse"
+                }
+            }
+        },
+        "googlesheet.SheetFileEnvelope": {
+            "type": "object",
+            "properties": {
+                "file": {
+                    "$ref": "#/definitions/googlesheet.SheetFileResponse"
                 }
             }
         },
@@ -72000,6 +72833,9 @@ const docTemplate = `{
                 "reasonDetail": {
                     "type": "string"
                 },
+                "repairable": {
+                    "type": "boolean"
+                },
                 "spreadsheetId": {
                     "type": "string"
                 },
@@ -72053,6 +72889,9 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                },
+                "unique": {
+                    "$ref": "#/definitions/googlesheet.UniqueRuleResponse"
                 },
                 "updatedAt": {
                     "type": "string"
@@ -72210,6 +73049,93 @@ const docTemplate = `{
                 }
             }
         },
+        "googlesheet.UniqueCreateRequest": {
+            "type": "object",
+            "properties": {
+                "columnIndexes": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        2
+                    ]
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "conversation",
+                        "columns"
+                    ],
+                    "example": "columns"
+                },
+                "onRepeat": {
+                    "type": "string",
+                    "enum": [
+                        "skip"
+                    ],
+                    "example": "skip"
+                }
+            }
+        },
+        "googlesheet.UniqueRuleRequest": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "matricula"
+                    ]
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "conversation",
+                        "columns"
+                    ],
+                    "example": "columns"
+                },
+                "onRepeat": {
+                    "type": "string",
+                    "enum": [
+                        "skip"
+                    ],
+                    "example": "skip"
+                }
+            }
+        },
+        "googlesheet.UniqueRuleResponse": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "conversation",
+                        "columns"
+                    ],
+                    "example": "conversation"
+                },
+                "onRepeat": {
+                    "type": "string",
+                    "enum": [
+                        "skip"
+                    ],
+                    "example": "skip"
+                }
+            }
+        },
         "googlesheet.UpdateDetailsRequest": {
             "type": "object",
             "properties": {
@@ -72218,6 +73144,9 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                },
+                "unique": {
+                    "$ref": "#/definitions/googlesheet.UniqueRuleRequest"
                 },
                 "version": {
                     "type": "integer",
@@ -72228,6 +73157,10 @@ const docTemplate = `{
         "googlesheet.WorkbookRequest": {
             "type": "object",
             "properties": {
+                "fileTitle": {
+                    "type": "string",
+                    "example": "Altiva"
+                },
                 "sheets": {
                     "type": "array",
                     "items": {
@@ -72263,6 +73196,10 @@ const docTemplate = `{
                 "description": {
                     "type": "string",
                     "example": "Pedidos registrados pelo agente de vendas"
+                },
+                "fileTitle": {
+                    "type": "string",
+                    "example": "CDT Jabaquara"
                 },
                 "ref": {
                     "type": "string",
@@ -72306,6 +73243,9 @@ const docTemplate = `{
                 "title": {
                     "type": "string",
                     "example": "Pedidos do site"
+                },
+                "unique": {
+                    "$ref": "#/definitions/googlesheet.UniqueCreateRequest"
                 }
             }
         },
@@ -72681,6 +73621,17 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.saveTestValuesRequest": {
+            "type": "object",
+            "properties": {
+                "values": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "handlers.screenClaimRequest": {
             "type": "object",
             "properties": {
@@ -72713,6 +73664,9 @@ const docTemplate = `{
                 "continueWaits": {
                     "type": "boolean"
                 },
+                "fromRun": {
+                    "$ref": "#/definitions/workflow_usecase.TestFromRun"
+                },
                 "mockedState": {
                     "type": "object",
                     "additionalProperties": true
@@ -72731,6 +73685,23 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/workflow_usecase.TestWaitAnswer"
+                    }
+                }
+            }
+        },
+        "handlers.testValuesResponse": {
+            "type": "object",
+            "properties": {
+                "values": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/automationneedsx.NeedResponse"
                     }
                 }
             }
@@ -79479,7 +80450,6 @@ const docTemplate = `{
         "report.FailureCode": {
             "type": "string",
             "enum": [
-                "forbidden",
                 "unknown_kind",
                 "unsupported_format",
                 "too_many_rows",
@@ -79489,10 +80459,10 @@ const docTemplate = `{
                 "source_unavailable",
                 "cancelled",
                 "workspace_required",
-                "empty_result"
+                "empty_result",
+                "forbidden"
             ],
             "x-enum-varnames": [
-                "FailureForbidden",
                 "FailureUnknownKind",
                 "FailureUnsupported",
                 "FailureTooManyRows",
@@ -79502,7 +80472,8 @@ const docTemplate = `{
                 "FailureSourceFailed",
                 "FailureCancelled",
                 "FailureWorkspaceEmpty",
-                "FailureEmptyResult"
+                "FailureEmptyResult",
+                "FailureForbidden"
             ]
         },
         "report.Format": {
@@ -79580,22 +80551,22 @@ const docTemplate = `{
         "report.Kind": {
             "type": "string",
             "enum": [
-                "leads",
-                "whatsapp_dispatch",
-                "whatsapp_form_responses",
                 "attendance_overview",
                 "conversation_entries",
                 "balance_transactions",
-                "opportunities"
+                "opportunities",
+                "leads",
+                "whatsapp_dispatch",
+                "whatsapp_form_responses"
             ],
             "x-enum-varnames": [
-                "KindLeads",
-                "KindWhatsAppDispatch",
-                "KindWhatsAppFormResponses",
                 "KindAttendanceOverview",
                 "KindConversationEntries",
                 "KindBalanceTransactions",
-                "KindOpportunities"
+                "KindOpportunities",
+                "KindLeads",
+                "KindWhatsAppDispatch",
+                "KindWhatsAppFormResponses"
             ]
         },
         "report.KindDescriptor": {
@@ -88795,10 +89766,14 @@ const docTemplate = `{
         "workflow.LintIssueCode": {
             "type": "string",
             "enum": [
+                "NODE_HTTP_URL_NOT_HTTPS",
+                "SEND_OUTSIDE_WINDOW_RISK",
+                "NODE_STAGE_DESTINATION",
                 "NODE_CONSENT_GRANT_NEEDS_REPLY",
+                "SHEET_LINK_EXPORT_MISSING",
+                "SHEET_LINK_EXPORT_SOME_PATHS",
                 "DATA_REF_NEVER_SET",
                 "DATA_REF_SOME_PATHS",
-                "SEND_OUTSIDE_WINDOW_RISK",
                 "GRAPH_EMPTY",
                 "GRAPH_TOO_MANY_NODES",
                 "GRAPH_TOO_MANY_EDGES",
@@ -88849,15 +89824,17 @@ const docTemplate = `{
                 "NODE_PINNED_OUTPUT",
                 "NODE_AGENT_CALL_INPUTS_INVALID",
                 "NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER",
-                "NODE_HTTP_URL_NOT_HTTPS",
-                "NODE_STAGE_DESTINATION",
                 "NODE_INVALID_PLATFORM_EMAIL"
             ],
             "x-enum-varnames": [
+                "LintHTTPURLNotHTTPS",
+                "LintSendOutsideWindowRisk",
+                "LintStageDestination",
                 "LintConsentGrantNeedsReply",
+                "LintSheetLinkExportMissing",
+                "LintSheetLinkExportSomePaths",
                 "LintDataRefNeverSet",
                 "LintDataRefSomePaths",
-                "LintSendOutsideWindowRisk",
                 "LintGraphEmpty",
                 "LintGraphTooManyNodes",
                 "LintGraphTooManyEdges",
@@ -88908,8 +89885,6 @@ const docTemplate = `{
                 "LintPinnedOutput",
                 "LintAgentCallInputsInvalid",
                 "LintReplyToAgentWithoutTrigger",
-                "LintHTTPURLNotHTTPS",
-                "LintStageDestination",
                 "LintInvalidPlatformEmail"
             ]
         },
@@ -90224,6 +91199,9 @@ const docTemplate = `{
                 "key": {
                     "type": "string"
                 },
+                "needed_by": {
+                    "type": "string"
+                },
                 "optional": {
                     "type": "boolean"
                 },
@@ -90232,7 +91210,8 @@ const docTemplate = `{
                 },
                 "source_node": {
                     "type": "string"
-                }
+                },
+                "value": {}
             }
         },
         "workflow_usecase.NodeTestFix": {
@@ -90299,6 +91278,17 @@ const docTemplate = `{
                 },
                 "wait": {
                     "$ref": "#/definitions/workflow.WaitPreview"
+                }
+            }
+        },
+        "workflow_usecase.TestFromRun": {
+            "type": "object",
+            "properties": {
+                "runId": {
+                    "type": "string"
+                },
+                "stepId": {
+                    "type": "string"
                 }
             }
         },

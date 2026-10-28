@@ -23,11 +23,12 @@ import (
 const maxRequestBody = 256 << 10
 
 type Sheets interface {
-	ListRows(ctx context.Context, workspaceID, id string, pagination shared.Pagination) (*shared.PaginatedResult[*googlesheet.Row], error)
+	ListRows(ctx context.Context, workspaceID, id string, pagination shared.Pagination) (*shared.PaginatedResult[gsuc.RowView], error)
 	Create(ctx context.Context, in gsuc.CreateInput) (*googlesheet.Sheet, error)
 	Get(ctx context.Context, workspaceID, id string) (*googlesheet.Sheet, error)
 	List(ctx context.Context, in googlesheet.ListInput) (*shared.PaginatedResult[*googlesheet.Sheet], error)
 	ListSpreadsheets(ctx context.Context, in googlesheet.ListInput) (*shared.PaginatedResult[googlesheet.Spreadsheet], error)
+	RenameFile(ctx context.Context, in gsuc.RenameFileInput) (*googlesheet.Spreadsheet, error)
 	UpdateDetails(ctx context.Context, in gsuc.DetailsInput) (*googlesheet.Sheet, error)
 	EditColumns(ctx context.Context, in gsuc.ColumnsInput) (*googlesheet.Sheet, error)
 	Delete(ctx context.Context, workspaceID, id string) error
@@ -40,17 +41,32 @@ type Sheets interface {
 	PreviewTabName(pattern, timeZone string) (string, string, error)
 }
 
+// @Summary		Listar as linhas registradas de uma planilha
+// @Description	Linhas da mais recente para a mais antiga, com a situação de gravação e os valores como aparecem na tela (colunas de link trazem o rótulo). origin é o tipo de quem gravou, e originDetail diz de onde a linha veio:
+// @Description
+// @Description	| Campo | Quando vem |
+// @Description	| --- | --- |
+// @Description	| conversation | A linha nasceu numa conversa (agente ou fluxo numa conversa). Abrir a conversa passa pela verificação de acesso normal, inclusive departamentos. |
+// @Description	| agent | Agente que gravou, com o nome. |
+// @Description	| workflow e runId | Fluxo e execução que gravaram, com o nome do fluxo. |
+// @Description	| person | Pessoa que adicionou à mão ou pediu à IA. |
+// @Description
+// @Description	Só vêm nomes de agentes, fluxos e membros deste workspace; quando o nome não pode ser mostrado, o campo não vem.
+// @Tags			Google Planilhas
+// @Produce		json
+// @Param			id			path		string	true	"Planilha"
+// @Param			page		query		int		false	"Página"
+// @Param			pageSize	query		int		false	"Tamanho da página"
+// @Success		200			{object}	RowListResponse
+// @Security		BearerAuth
+// @Router			/google-sheets/{id}/rows [get]
 func (h *Handler) ListRows(w http.ResponseWriter, r *http.Request) {
 	page, err := h.sheets.ListRows(r.Context(), middleware.GetWorkspaceID(r), mux.Vars(r)["id"], httpx.ParsePagination(r.URL.Query()))
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	items := make([]RowResponse, 0, len(page.Items))
-	for _, row := range page.Items {
-		items = append(items, RowResponse{ID: row.ID, Values: row.Cells, Status: string(row.Status), RowNumber: row.RowNumber, Origin: string(row.Origin.Kind), CreatedAt: row.CreatedAt, WrittenAt: row.WrittenAt, ErrorCode: row.ErrorCode})
-	}
-	response.WriteSuccess(w, http.StatusOK, shared.PaginatedResult[RowResponse]{Items: items, Page: page.Page, PageSize: page.PageSize, TotalItems: page.TotalItems, TotalPages: page.TotalPages})
+	response.WriteSuccess(w, http.StatusOK, toRowListResponse(page))
 }
 
 type Rows interface {
@@ -135,8 +151,38 @@ func (h *Handler) Files(w http.ResponseWriter, r *http.Request) {
 	response.WriteSuccess(w, http.StatusOK, toFileListResponse(page))
 }
 
+// @Summary		Renomear o arquivo
+// @Description	Troca o nome do arquivo no Google e no painel. O nome é aparado e não pode ficar vazio, passar de 200 caracteres nem ter quebras de linha; recusas trazem details.field=fileTitle. A conta conectada precisa ser a que criou o arquivo.
+// @Tags			Google Planilhas
+// @Accept			json
+// @Produce		json
+// @Param			spreadsheetId	path		string				true	"Arquivo do Google"
+// @Param			request			body		RenameFileRequest	true	"Novo nome"
+// @Success		200				{object}	SheetFileEnvelope
+// @Failure		400				{object}	response.ErrorResponse
+// @Failure		404				{object}	response.ErrorResponse
+// @Failure		409				{object}	response.ErrorResponse
+// @Failure		429				{object}	response.ErrorResponse
+// @Failure		502				{object}	response.ErrorResponse
+// @Security		BearerAuth
+// @Router			/google-sheets/files/{spreadsheetId} [patch]
+func (h *Handler) RenameFile(w http.ResponseWriter, r *http.Request) {
+	var req RenameFileRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	file, err := h.sheets.RenameFile(r.Context(), gsuc.RenameFileInput{
+		WorkspaceID: middleware.GetWorkspaceID(r), SpreadsheetID: mux.Vars(r)["spreadsheetId"], Title: req.Title,
+	})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	response.WriteSuccess(w, http.StatusOK, SheetFileEnvelope{File: toFileResponse(*file)})
+}
+
 // @Summary		Criar planilha
-// @Description	Cria a planilha no Google Drive da conta conectada ao Google Planilhas, com o cabeçalho, os formatos, as validações, o estilo e as cores das opções, e a registra no workspace. Com spreadsheetId, cria uma aba nova num arquivo que já tem planilhas deste workspace. Com tabPeriod=month, cada mês ganha a sua aba, nomeada pelo tabPattern. Definições recusadas devolvem um código próprio com field, column, header, option e limit em details.
+// @Description	Cria a planilha no Google Drive da conta conectada ao Google Planilhas, com o cabeçalho, os formatos, as validações, o estilo e as cores das opções, e a registra no workspace. Com spreadsheetId, cria uma aba nova num arquivo que já tem planilhas deste workspace. Com tabPeriod=month, cada mês ganha a sua aba, nomeada pelo tabPattern. unique escolhe a linha única: none (padrão, cada registro vira uma linha), conversation (uma linha por conversa, dentro da aba do mês quando a aba é mensal) ou columns (columnIndexes são as posições, neste pedido, das colunas cujos valores não podem se repetir; colunas de link, de data de gravação e por mensagem não valem). Se repetir, onRepeat=skip não grava de novo. Definições recusadas devolvem um código próprio com field, column, header, option e limit em details.
 // @Tags			Google Planilhas
 // @Accept			json
 // @Produce		json
@@ -179,14 +225,15 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	response.WriteSuccess(w, http.StatusOK, SheetEnvelope{Sheet: toSheetResponse(sheet)})
 }
 
-// @Summary		Editar título e descrição
-// @Description	Muda o nome e a descrição da planilha no painel. O arquivo no Google Drive mantém o nome que tem lá.
+// @Summary		Editar título, descrição e linha única
+// @Description	Muda o nome e a descrição da planilha no painel. O arquivo no Google Drive mantém o nome que tem lá. Com unique, troca a linha única da aba (mode none, conversation ou columns, com columns pelas chaves das colunas): vale para as próximas gravações, e as linhas que o painel ainda guarda (gravadas nos últimos 30 dias ou ainda na fila) passam a contar; linhas mais antigas não. Recusas da regra trazem details.field=unique.
 // @Tags			Google Planilhas
 // @Accept			json
 // @Produce		json
 // @Param			id		path		string					true	"Planilha"
 // @Param			request	body		UpdateDetailsRequest	true	"Alterações"
 // @Success		200		{object}	SheetEnvelope
+// @Failure		400		{object}	response.ErrorResponse
 // @Failure		409		{object}	response.ErrorResponse
 // @Security		BearerAuth
 // @Router			/google-sheets/{id} [patch]
@@ -197,6 +244,7 @@ func (h *Handler) UpdateDetails(w http.ResponseWriter, r *http.Request) {
 	}
 	sheet, err := h.sheets.UpdateDetails(r.Context(), gsuc.DetailsInput{
 		WorkspaceID: middleware.GetWorkspaceID(r), ID: mux.Vars(r)["id"], Version: req.Version, Title: req.Title, Description: req.Description,
+		Unique: req.Unique.rule(),
 	})
 	if err != nil {
 		writeError(w, err)
@@ -287,7 +335,7 @@ func (h *Handler) Retry(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Reativar planilha
-// @Description	Confere o acesso, a aba e o cabeçalho no Google e volta a gravar. Com repairHeader=true reescreve o cabeçalho a partir das colunas do painel.
+// @Description	Confere o acesso, as abas e o cabeçalho no Google e volta a gravar. Sem repairHeader, um cabeçalho fora do lugar deixa a planilha pausada com o motivo (header_mismatch ou header_not_first_row) e responde 409. Com repairHeader=true repara a aba sem apagar linhas: se o cabeçalho desceu, ele volta para a linha 1 e as linhas que estavam acima ficam logo abaixo, na mesma ordem; se a linha 1 tem dados, um cabeçalho novo entra acima dela; se só os nomes mudaram, o cabeçalho é reescrito. Depois reaplica o formato e confere de novo. Quando a planilha está pausada por um motivo que o reparo resolve, repairable vem true.
 // @Tags			Google Planilhas
 // @Accept			json
 // @Produce		json
@@ -429,7 +477,7 @@ func userOf(r *http.Request) string {
 }
 
 // @Summary		Adicionar linha
-// @Description	Valida os valores com as mesmas regras de agentes e fluxos e põe a linha na fila de gravação. O cabeçalho Idempotency-Key é obrigatório; repetir a chave devolve a mesma linha.
+// @Description	Valida os valores com as mesmas regras de agentes e fluxos e põe a linha na fila de gravação. O cabeçalho Idempotency-Key é obrigatório; repetir a chave devolve a mesma linha. Numa aba com linha única, um registro que já existe é recusado com 409 e um dos códigos google_sheet_already_recorded_conversation, google_sheet_already_recorded_conversation_month, google_sheet_already_recorded_columns ou google_sheet_already_recorded_columns_month, com details.rowId da linha existente e details.header das colunas comparadas; nada é gravado. Numa aba com linha única por conversa, a adição manual é recusada com google_sheet_unique_needs_conversation.
 // @Tags			Google Planilhas
 // @Accept			json
 // @Produce		json
@@ -438,6 +486,7 @@ func userOf(r *http.Request) string {
 // @Param			request			body		AddRowRequest	true	"Valores por chave de coluna"
 // @Success		202				{object}	AddRowResponse
 // @Failure		400				{object}	response.ErrorResponse
+// @Failure		409				{object}	response.ErrorResponse
 // @Failure		422				{object}	response.ErrorResponse
 // @Security		BearerAuth
 // @Router			/google-sheets/{id}/rows [post]
@@ -461,6 +510,10 @@ func (h *Handler) AddRow(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		writeError(w, err)
+		return
+	}
+	if result.Repeat != nil {
+		writeError(w, result.Repeat)
 		return
 	}
 	response.WriteSuccess(w, http.StatusAccepted, AddRowResponse{RowID: result.RowID, Duplicate: result.Duplicate})
@@ -492,11 +545,21 @@ var refusals = []response.ErrorRefusal{
 	{Err: googlesheet.ErrRowTooLarge, Refusal: refusal(http.StatusRequestEntityTooLarge, googlesheet.CodeRowTooLarge, "A linha é grande demais para uma gravação")},
 	{Err: googlesheet.ErrNoMessageColumns, Refusal: refusal(http.StatusUnprocessableEntity, googlesheet.CodeNoMessageColumns, "A planilha não tem colunas preenchidas por mensagem")},
 	{Err: googlesheet.ErrNeedsConversation, Refusal: refusal(http.StatusUnprocessableEntity, googlesheet.CodeNeedsConversation, "Exportar mensagens precisa de uma conversa")},
+	{Err: googlesheet.ErrUniqueNeedsConversation, Refusal: refusal(http.StatusUnprocessableEntity, googlesheet.CodeUniqueNeedsConversation, "Esta aba registra uma linha por conversa; registre pelo atendimento")},
 	{Err: googlesheet.ErrNoInputColumns, Refusal: refusal(http.StatusUnprocessableEntity, googlesheet.CodeNoInputColumns, "A planilha não tem colunas preenchidas por agentes ou fluxos")},
 	{Err: googlesheet.ErrSpreadsheetNotFound, Refusal: refusal(http.StatusNotFound, googlesheet.CodeSpreadsheetNotFound, "Nenhuma planilha deste workspace está nesse arquivo")},
 	{Err: googlesheet.ErrTabNameTaken, Refusal: refusal(http.StatusConflict, googlesheet.CodeTabNameTaken, "O arquivo já tem uma aba com esse nome")},
 	{Err: googlesheet.ErrLinkTargetInvalid, Refusal: refusal(http.StatusUnprocessableEntity, googlesheet.CodeLinkTargetInvalid, "O link precisa apontar para outra planilha de mensagens do mesmo arquivo")},
 	{Err: googlesheet.ErrPresetNotFound, Refusal: refusal(http.StatusNotFound, googlesheet.CodePresetNotFound, "Modelo não encontrado")},
+	{Err: googlesheet.ErrRowNotFound, Refusal: refusal(http.StatusNotFound, googlesheet.CodeRowNotFound, "Linha não encontrada")},
+	{Err: googlesheet.ErrRowBeingWritten, Refusal: refusal(http.StatusConflict, googlesheet.CodeRowBeingWritten, "A linha está sendo gravada agora; tente de novo em instantes")},
+	{Err: googlesheet.ErrRowStatusChanged, Refusal: refusal(http.StatusConflict, googlesheet.CodeRowStatusChanged, "A linha mudou de situação; recarregue a lista")},
+	{Err: googlesheet.ErrRowNotInSheet, Refusal: refusal(http.StatusConflict, googlesheet.CodeRowNotInSheet, "A linha não está mais na planilha; nada foi apagado")},
+	{Err: googlesheet.ErrRowRefRepeated, Refusal: refusal(http.StatusConflict, googlesheet.CodeRowRefRepeated, "A referência da linha aparece mais de uma vez na planilha; nada foi apagado")},
+	{Err: googlesheet.ErrRemovalReasonRequired, Refusal: refusal(http.StatusBadRequest, googlesheet.CodeRemovalReasonRequired, "Informe o motivo da remoção")},
+	{Err: googlesheet.ErrRemovalReasonTooLong, Refusal: refusal(http.StatusBadRequest, googlesheet.CodeRemovalReasonTooLong, "O motivo passa de 500 caracteres")},
+	{Err: googlesheet.ErrRemovalActorRequired, Refusal: refusal(http.StatusBadRequest, googlesheet.CodeRemovalActorRequired, "A remoção precisa de quem a pediu")},
+	{Err: googlesheet.ErrSheetBusy, Refusal: refusal(http.StatusConflict, googlesheet.CodeSheetBusy, "A planilha está gravando linhas agora; tente de novo em instantes")},
 }
 
 type valueRefusal struct {
@@ -554,6 +617,11 @@ func writeError(w http.ResponseWriter, err error) {
 			valueRefusal{Sheet: sheet, Column: valueErr.Column, Header: valueErr.Header, Detail: valueErr.Detail})
 		return
 	}
+	var repeat *googlesheet.RepeatError
+	if errors.As(err, &repeat) {
+		response.WriteErrorWithDetails(w, http.StatusConflict, repeat.Code, repeat.Message(), repeatRefusal{Sheet: sheet, Header: repeat.HeaderList(), RowID: repeat.RowID})
+		return
+	}
 	var googleErr *gsuc.GoogleRefusal
 	if errors.As(err, &googleErr) {
 		response.WriteErrorWithDetails(w, http.StatusBadGateway, googleErr.Failure.Code(), "O Google recusou a operação",
@@ -569,5 +637,5 @@ func writeError(w http.ResponseWriter, err error) {
 }
 
 func RefusalCodes() []string {
-	return append(response.RefusalCodes(response.ErrorRefusalsOf(refusals)), googlesheet.CodeInternal, "invalid_body")
+	return append(append(response.RefusalCodes(response.ErrorRefusalsOf(refusals)), googlesheet.RepeatCodes()...), googlesheet.CodeInternal, "invalid_body")
 }

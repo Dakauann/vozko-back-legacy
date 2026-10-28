@@ -108,11 +108,7 @@ func (q *Queries) SaveConversationValues(ctx context.Context, in SaveValues) err
 	if !q.allows(in.ConversationRef) {
 		return ErrForbidden
 	}
-	defs, err := q.definitions(in.WorkspaceID)
-	if err != nil {
-		return err
-	}
-	assignment, err := conversationvars.Assign(append(conversationvars.LiteralBindings(in.Values), in.Bindings...), defs)
+	assignment, err := q.assign(in.WorkspaceID, append(conversationvars.LiteralBindings(in.Values), in.Bindings...))
 	if err != nil {
 		return err
 	}
@@ -123,20 +119,44 @@ func (q *Queries) SaveConversationValues(ctx context.Context, in SaveValues) err
 	if unneeded := unneededNames(needs, assignment.Names()); len(unneeded) > 0 {
 		return &conversationvars.VariablesError{Cause: conversationvars.ErrNotNeeded, Names: unneeded}
 	}
-	snapshot, err := q.d.Conversations.Snapshot(ctx, strings.TrimSpace(in.EntryID), in.EntryType)
-	if err != nil {
-		return fmt.Errorf("%w: %w", domain.ErrUnreadable, err)
-	}
-	subject, err := q.subjectOf(ctx, in.WorkspaceID, snapshot.LeadID, assignment.Plan())
-	if err != nil {
-		return err
-	}
-	resolved, err := assignment.Resolve(subject, snapshot.Values)
+	ref := conversationvars.Ref{WorkspaceID: in.WorkspaceID, EntryID: strings.TrimSpace(in.EntryID), EntryType: in.EntryType}
+	resolved, err := q.resolve(ctx, ref, assignment)
 	if err != nil || len(resolved) == 0 {
 		return err
 	}
-	ref := conversationvars.Ref{WorkspaceID: in.WorkspaceID, EntryID: strings.TrimSpace(in.EntryID), EntryType: in.EntryType}
 	return q.d.Store.Save(ctx, ref, resolved, in.UserID)
+}
+
+func (q *Queries) ResolveValues(ctx context.Context, ref conversationvars.Ref, bindings []conversationvars.Binding) (map[string]string, error) {
+	assignment, err := q.assign(ref.WorkspaceID, bindings)
+	if err != nil {
+		return nil, err
+	}
+	return q.resolve(ctx, ref, assignment)
+}
+
+func (q *Queries) assign(workspaceID string, bindings []conversationvars.Binding) (conversationvars.Assignment, error) {
+	defs, err := q.definitions(workspaceID)
+	if err != nil {
+		return conversationvars.Assignment{}, err
+	}
+	return conversationvars.Assign(bindings, defs)
+}
+
+func (q *Queries) resolve(ctx context.Context, ref conversationvars.Ref, assignment conversationvars.Assignment) (map[string]string, error) {
+	snapshot, err := q.d.Conversations.Snapshot(ctx, strings.TrimSpace(ref.EntryID), ref.EntryType)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", domain.ErrUnreadable, err)
+	}
+	subject, err := q.subjectOf(ctx, ref.WorkspaceID, snapshot.LeadID, assignment.Plan())
+	if err != nil {
+		return nil, err
+	}
+	return assignment.Resolve(subject, snapshot.Values)
+}
+
+func (q *Queries) LeadFields(workspaceID string) ([]*customfield.Definition, error) {
+	return q.definitions(workspaceID)
 }
 
 func (q *Queries) allows(in ConversationRef) bool {

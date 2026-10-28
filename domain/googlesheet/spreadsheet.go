@@ -1,10 +1,31 @@
 package googlesheet
 
-import "time"
+import (
+	"strings"
+	"time"
+	"unicode"
+	"unicode/utf8"
+)
+
+const MaxFileTitleRunes = MaxTitleRunes
 
 type Spreadsheet struct {
 	ID     string
+	Name   string
 	Sheets []*Sheet
+}
+
+func CheckFileTitle(title string) (string, error) {
+	title = strings.TrimSpace(title)
+	switch {
+	case title == "":
+		return "", refuse(FieldFileTitle, CodeFileTitleRequired)
+	case utf8.RuneCountInString(title) > MaxFileTitleRunes:
+		return "", refuse(FieldFileTitle, CodeFileTitleTooLong).limit(MaxFileTitleRunes)
+	case strings.IndexFunc(title, unicode.IsControl) >= 0:
+		return "", refuse(FieldFileTitle, CodeFileTitleInvalid).detail("%q", title)
+	}
+	return title, nil
 }
 
 func GroupBySpreadsheet(sheets []*Sheet) []Spreadsheet {
@@ -41,6 +62,9 @@ func (s Spreadsheet) Oldest() *Sheet {
 }
 
 func (s Spreadsheet) Title() string {
+	if s.Name != "" {
+		return s.Name
+	}
 	if oldest := s.Oldest(); oldest != nil {
 		return oldest.Title
 	}

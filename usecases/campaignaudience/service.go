@@ -203,11 +203,16 @@ func (s *Service) Recipients(ctx context.Context, a Actor, ch campaignaudience.C
 
 func recipientOf(source campaignaudience.Source, tally *campaignaudience.Tally, c campaignaudience.Candidate, d campaignaudience.Decision) Recipient {
 	if source == campaignaudience.SourceList {
+		if d.Reason == campaignaudience.ReasonMissingVariable {
+			return Recipient{Number: c.Contact, Name: c.Name, Skip: campaign.SkipReason(d.Reason), Missing: d.Missing}
+		}
 		values := d.Values
 		if values == nil {
 			values = c.Values
 		}
-		return Recipient{Number: c.Contact, Name: c.Name, Variables: values, Metadata: c.Metadata}
+		r := Recipient{Number: c.Contact, Name: c.Name}
+		r.Variables, r.Metadata = tally.EntryMetadata(c.Metadata, values)
+		return r
 	}
 	r := Recipient{LeadID: c.LeadID}
 	switch d.Outcome {
@@ -238,11 +243,7 @@ func (s *Service) walk(ctx context.Context, w walk, visit visitor) (*campaignaud
 	if err != nil {
 		return nil, campaignaudience.Count{}, err
 	}
-	slots, rule, err := s.audienceSlots(w, prepared)
-	if err != nil {
-		return nil, campaignaudience.Count{}, err
-	}
-	bound, err := campaignaudience.Bind(slots, campaignaudience.KnownVariables(w.spec.Variables, slots, prepared.Needs))
+	bound, err := s.bindAudience(w.actor, w.spec.Source, list, prepared, w.spec.Variables)
 	if err != nil {
 		return nil, campaignaudience.Count{}, err
 	}
@@ -253,7 +254,7 @@ func (s *Service) walk(ctx context.Context, w walk, visit visitor) (*campaignaud
 	if err != nil {
 		return nil, campaignaudience.Count{}, err
 	}
-	tally := campaignaudience.NewTally(w.channel, w.spec.Source, bound).Requiring(rule).Awaiting(prepared.Awaits)
+	tally := campaignaudience.NewTally(w.channel, w.spec.Source, bound).Awaiting(prepared.Awaits)
 	add := func(c campaignaudience.Candidate) error {
 		d := tally.Add(c)
 		if visit == nil {
@@ -266,7 +267,7 @@ func (s *Service) walk(ctx context.Context, w walk, visit visitor) (*campaignaud
 		if err != nil {
 			return nil, campaignaudience.Count{}, err
 		}
-		matched, err := s.walkList(ctx, *list, judge, campaign.MapList(list.Layout, list.Channel.Contact(), campaignaudience.Fields(bound), defs), add)
+		matched, err := s.walkList(ctx, *list, judge, campaign.MapList(list.Layout, list.Channel.Contact(), campaignaudience.ListTargets(bound), defs), add)
 		if err != nil {
 			return nil, campaignaudience.Count{}, err
 		}
@@ -434,16 +435,32 @@ func (s *Service) readable(ctx context.Context, a Actor, ch campaignaudience.Cha
 	return list, nil
 }
 
-func (s *Service) audienceSlots(w walk, prepared Prepared) ([]campaignaudience.Slot, campaignaudience.MetadataRule, error) {
-	rule := campaignaudience.WithoutTemplateKeys(prepared.Metadata, prepared.Slots)
-	if w.spec.Source != campaignaudience.SourceLeads || len(prepared.Needs) == 0 {
-		return prepared.Slots, rule, nil
-	}
-	defs, err := s.definitions(w.actor.WorkspaceID)
+func (s *Service) bindAudience(a Actor, source campaignaudience.Source, list *campaignaudience.List, prepared Prepared, vars []campaignaudience.Variable) ([]campaignaudience.Bound, error) {
+	slots, err := s.audienceSlots(a, list, prepared)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	suggest := func(name string) campaign.BindingSource { return campaign.SameKeyBinding(defs, name) }
-	slots := append(append([]campaignaudience.Slot(nil), prepared.Slots...), campaignaudience.AutomationSlots(prepared.Needs, prepared.Slots, suggest)...)
-	return slots, nil, nil
+	bound, err := campaignaudience.Bind(slots, campaignaudience.KnownVariables(vars, slots, prepared.Needs.Union(prepared.Optional)))
+	if err != nil {
+		return nil, err
+	}
+	if source == campaignaudience.SourceList && list != nil {
+		bound = campaignaudience.MarkColumns(bound, list.Layout)
+	}
+	return bound, nil
+}
+
+func (s *Service) audienceSlots(a Actor, list *campaignaudience.List, prepared Prepared) ([]campaignaudience.Slot, error) {
+	if len(prepared.Needs) == 0 && len(prepared.Optional) == 0 {
+		return prepared.Slots, nil
+	}
+	defs, err := s.definitions(a.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	suggest := campaignaudience.NeedSuggest{Field: func(name string) campaign.BindingSource { return campaign.SameKeyBinding(defs, name) }}
+	if list != nil {
+		suggest.Column = list.Layout.ColumnNamed
+	}
+	return append(append([]campaignaudience.Slot(nil), prepared.Slots...), campaignaudience.AutomationSlots(prepared.Needs, prepared.Optional, prepared.Slots, suggest)...), nil
 }

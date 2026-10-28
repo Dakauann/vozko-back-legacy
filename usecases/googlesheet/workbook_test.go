@@ -122,7 +122,7 @@ func TestAPeriodicSheetStartsOnTheTabOfTheCurrentPeriod(t *testing.T) {
 	w := newWorld(t)
 	w.api.created = googlesheet.CreatedSpreadsheet{SpreadsheetID: "sp-new", TabID: 0}
 	created, err := w.manager.Create(context.Background(), CreateInput{
-		WorkspaceID: testWorkspace, Title: "Pagamentos", TabPeriod: googlesheet.PeriodMonth, TabPattern: "Pagamentos · {mes} {ano}",
+		WorkspaceID: testWorkspace, FileTitle: "Cobrança", Title: "Pagamentos", TabPeriod: googlesheet.PeriodMonth, TabPattern: "Pagamentos · {mes} {ano}",
 		Columns: []googlesheet.ColumnInput{{Header: "Valor", Type: googlesheet.TypeMoney}},
 	})
 	if err != nil {
@@ -141,7 +141,7 @@ func TestALinkColumnMustPointAtATimelineInTheSameFile(t *testing.T) {
 	timeline := w.storeTimeline(t)
 	elsewhere := w.storeSheet(t, googlesheet.NewSheetInput{Title: "Outra", Columns: timelineColumns()}, "sp-9", 0)
 	ctx := context.Background()
-	if _, err := w.manager.Create(ctx, CreateInput{WorkspaceID: testWorkspace, Title: "Pagamentos", Columns: paymentColumns(timeline.ID)}); !errors.Is(err, googlesheet.ErrLinkTargetInvalid) {
+	if _, err := w.manager.Create(ctx, CreateInput{WorkspaceID: testWorkspace, FileTitle: "Cobrança", Title: "Pagamentos", Columns: paymentColumns(timeline.ID)}); !errors.Is(err, googlesheet.ErrLinkTargetInvalid) {
 		t.Fatalf("a link in a new file = %v", err)
 	}
 	if _, err := w.manager.Create(ctx, CreateInput{WorkspaceID: testWorkspace, SpreadsheetID: "sp-1", Title: "Pagamentos", Columns: paymentColumns(elsewhere.ID)}); !errors.Is(err, googlesheet.ErrLinkTargetInvalid) {
@@ -166,7 +166,7 @@ func TestCreateWorkbookWiresTheLinkToTheSiblingItJustMade(t *testing.T) {
 	payments := WorkbookSheet{Ref: "pagamentos", Input: CreateInput{Title: "Pagamentos", TabPeriod: googlesheet.PeriodMonth, Columns: paymentColumns("")}}
 	payments.LinkRefs = map[int]string{2: "negociacoes"}
 	sheets, err := w.manager.CreateWorkbook(context.Background(), WorkbookInput{
-		WorkspaceID: testWorkspace,
+		WorkspaceID: testWorkspace, FileTitle: "Cobrança",
 		Sheets: []WorkbookSheet{
 			{Ref: "negociacoes", Input: CreateInput{Title: "Negociações", Columns: timelineColumns()}},
 			payments,
@@ -193,7 +193,7 @@ func TestCreateWorkbookUndoesEverySheetWhenALaterOneFails(t *testing.T) {
 	w.api.workbook = googlesheet.Workbook{Tabs: []googlesheet.TabInfo{{ID: 0, Title: "Negociações", Rows: 100, Columns: 3}}}
 	w.api.addErr = errTransient
 	_, err := w.manager.CreateWorkbook(context.Background(), WorkbookInput{
-		WorkspaceID: testWorkspace,
+		WorkspaceID: testWorkspace, FileTitle: "Cobrança",
 		Sheets: []WorkbookSheet{
 			{Ref: "negociacoes", Input: CreateInput{Title: "Negociações", Columns: timelineColumns()}},
 			{Ref: "pagamentos", Input: CreateInput{Title: "Pagamentos", Columns: []googlesheet.ColumnInput{{Header: "Valor", Type: googlesheet.TypeMoney}}}},
@@ -207,8 +207,8 @@ func TestCreateWorkbookUndoesEverySheetWhenALaterOneFails(t *testing.T) {
 		t.Fatalf("trashed %v deleted %v: the new file and its first sheet must go", w.api.trashed, w.sheets.deleted)
 	}
 	_, err = w.manager.CreateWorkbook(context.Background(), WorkbookInput{
-		WorkspaceID: testWorkspace,
-		Sheets:      []WorkbookSheet{{Ref: "a", Input: CreateInput{Title: "A", Columns: paymentColumns("")}, LinkRefs: map[int]string{2: "later"}}},
+		WorkspaceID: testWorkspace, FileTitle: "Cobrança",
+		Sheets: []WorkbookSheet{{Ref: "a", Input: CreateInput{Title: "A", Columns: paymentColumns("")}, LinkRefs: map[int]string{2: "later"}}},
 	})
 	if !errors.As(err, &wbErr) || !errors.Is(err, googlesheet.ErrLinkTargetInvalid) {
 		t.Fatalf("a link to an unknown sibling = %v", err)
@@ -451,7 +451,7 @@ func TestListRowsShowsTheLinkLabel(t *testing.T) {
 		t.Fatal(err)
 	}
 	page, err := w.manager.ListRows(context.Background(), testWorkspace, payments.ID, shared.Pagination{Page: 1, PageSize: 10})
-	if err != nil || page.Items[0].Cells["negociacao"] != googlesheet.DefaultLinkLabel {
+	if err != nil || page.Items[0].Row.Cells["negociacao"] != googlesheet.DefaultLinkLabel {
 		t.Fatalf("rows = %+v, %v", page, err)
 	}
 }
@@ -463,5 +463,125 @@ func TestReactivateRefusesWhenTheTabIsGone(t *testing.T) {
 	var refusal *GoogleRefusal
 	if !errors.As(err, &refusal) || refusal.Failure.Kind != googlesheet.FailureNotFound {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestANewFileIsCreatedAndStoredWithItsName(t *testing.T) {
+	w := newWorld(t)
+	w.api.created = googlesheet.CreatedSpreadsheet{SpreadsheetID: "sp-new", TabID: 7}
+	in := CreateInput{WorkspaceID: testWorkspace, FileTitle: "  CDT Jabaquara ", Title: "Leads", Columns: []googlesheet.ColumnInput{{Header: "Nome", Type: googlesheet.TypeText}}}
+	if _, err := w.manager.Create(context.Background(), in); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if len(w.api.specs) != 1 || w.api.specs[0].Title != "CDT Jabaquara" || w.api.specs[0].TabName != "Leads" {
+		t.Fatalf("specs = %+v", w.api.specs)
+	}
+	if w.sheets.titles[testWorkspace+"/sp-new"] != "CDT Jabaquara" {
+		t.Fatalf("stored titles = %v", w.sheets.titles)
+	}
+}
+
+func TestANewFileNeedsANameBeforeGoogleIsCalled(t *testing.T) {
+	w := newWorld(t)
+	in := CreateInput{WorkspaceID: testWorkspace, Title: "Leads", Columns: []googlesheet.ColumnInput{{Header: "Nome", Type: googlesheet.TypeText}}}
+	_, err := w.manager.Create(context.Background(), in)
+	var def *googlesheet.DefinitionError
+	if !errors.As(err, &def) || def.Code != googlesheet.CodeFileTitleRequired || len(w.api.specs) != 0 {
+		t.Fatalf("err = %v, specs = %d", err, len(w.api.specs))
+	}
+}
+
+func TestANewTabInAnExistingFileLeavesTheFileNameAlone(t *testing.T) {
+	w := newWorld(t)
+	in := CreateInput{WorkspaceID: testWorkspace, SpreadsheetID: "sp-1", FileTitle: "Outro", Title: "Extra", Columns: []googlesheet.ColumnInput{{Header: "A", Type: googlesheet.TypeText}}}
+	if _, err := w.manager.Create(context.Background(), in); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if len(w.sheets.titles) != 0 || len(w.api.specs) != 0 {
+		t.Fatalf("titles = %v, specs = %v", w.sheets.titles, w.api.specs)
+	}
+}
+
+func TestAWorkbookNamesItsNewFileOnceAndRefusesABlankName(t *testing.T) {
+	w := newWorld(t)
+	w.api.created = googlesheet.CreatedSpreadsheet{SpreadsheetID: "sp-new", TabID: 7}
+	sheets := []WorkbookSheet{
+		{Ref: "negociacoes", Input: CreateInput{Title: "Negociações", Columns: timelineColumns()}},
+		{Ref: "pagamentos", Input: CreateInput{Title: "Pagamentos", Columns: []googlesheet.ColumnInput{{Header: "Valor", Type: googlesheet.TypeMoney}}}},
+	}
+	_, err := w.manager.CreateWorkbook(context.Background(), WorkbookInput{WorkspaceID: testWorkspace, FileTitle: " ", Sheets: sheets})
+	var def *googlesheet.DefinitionError
+	var inSheet *WorkbookError
+	if !errors.As(err, &def) || def.Code != googlesheet.CodeFileTitleRequired || errors.As(err, &inSheet) || len(w.api.specs) != 0 {
+		t.Fatalf("blank name err = %v", err)
+	}
+	if _, err := w.manager.CreateWorkbook(context.Background(), WorkbookInput{WorkspaceID: testWorkspace, FileTitle: "Altiva", Sheets: sheets}); err != nil {
+		t.Fatalf("CreateWorkbook: %v", err)
+	}
+	if len(w.api.specs) != 1 || w.api.specs[0].Title != "Altiva" || w.sheets.titles[testWorkspace+"/sp-new"] != "Altiva" {
+		t.Fatalf("specs = %+v titles = %v", w.api.specs, w.sheets.titles)
+	}
+}
+
+func TestWorkbooksShowTheStoredFileName(t *testing.T) {
+	w := newWorld(t)
+	w.sheets.titles[testWorkspace+"/sp-1"] = "Altiva"
+	books, err := w.manager.Workbooks(context.Background(), testWorkspace)
+	if err != nil || len(books) != 1 || books[0].Title != "Altiva" {
+		t.Fatalf("Workbooks = %+v, %v", books, err)
+	}
+}
+
+func TestRenameFileWritesTheNameToGoogleThenStoresIt(t *testing.T) {
+	w := newWorld(t)
+	file, err := w.manager.RenameFile(context.Background(), RenameFileInput{WorkspaceID: testWorkspace, SpreadsheetID: "sp-1", Title: " Altiva "})
+	if err != nil || file.ID != "sp-1" || file.Title() != "Altiva" || len(file.Sheets) != 1 {
+		t.Fatalf("RenameFile = %+v, %v", file, err)
+	}
+	if len(w.api.renamed) != 1 || w.api.renamed[0] != "sp-1=Altiva" || w.sheets.titles[testWorkspace+"/sp-1"] != "Altiva" {
+		t.Fatalf("renamed = %v titles = %v", w.api.renamed, w.sheets.titles)
+	}
+}
+
+func TestRenameFileRefusesBeforeTouchingGoogle(t *testing.T) {
+	cases := []struct {
+		name  string
+		setup func(w *world) RenameFileInput
+		want  error
+	}{
+		{"blank name", func(*world) RenameFileInput {
+			return RenameFileInput{WorkspaceID: testWorkspace, SpreadsheetID: "sp-1", Title: "  "}
+		}, googlesheet.ErrInvalidSheet},
+		{"unknown file", func(*world) RenameFileInput {
+			return RenameFileInput{WorkspaceID: testWorkspace, SpreadsheetID: "sp-unknown", Title: "Altiva"}
+		}, googlesheet.ErrSpreadsheetNotFound},
+		{"another account", func(w *world) RenameFileInput {
+			w.access.access.AccountID = "acct-2"
+			return RenameFileInput{WorkspaceID: testWorkspace, SpreadsheetID: "sp-1", Title: "Altiva"}
+		}, googlesheet.ErrAccountChanged},
+		{"no write quota", func(w *world) RenameFileInput {
+			w.limiter.writes = 0
+			return RenameFileInput{WorkspaceID: testWorkspace, SpreadsheetID: "sp-1", Title: "Altiva"}
+		}, googlesheet.ErrGoogleBusy},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			w := newWorld(t)
+			_, err := w.manager.RenameFile(context.Background(), c.setup(w))
+			if !errors.Is(err, c.want) || len(w.api.renamed) != 0 || len(w.sheets.titles) != 0 {
+				t.Fatalf("err = %v renamed = %v titles = %v", err, w.api.renamed, w.sheets.titles)
+			}
+		})
+	}
+}
+
+func TestRenameFileKeepsTheOldNameWhenGoogleRefuses(t *testing.T) {
+	w := newWorld(t)
+	w.api.renameErr = errors.New("google said no")
+	if _, err := w.manager.RenameFile(context.Background(), RenameFileInput{WorkspaceID: testWorkspace, SpreadsheetID: "sp-1", Title: "Altiva"}); err == nil {
+		t.Fatal("a refused rename was accepted")
+	}
+	if len(w.sheets.titles) != 0 {
+		t.Fatalf("titles = %v", w.sheets.titles)
 	}
 }

@@ -33,7 +33,7 @@ type WriterConfig struct {
 	LeaseTTL    time.Duration
 	DrainBudget time.Duration
 	AccountWait time.Duration
-	HeaderCheck time.Duration
+	TabCheck    time.Duration
 	Concurrency int
 }
 
@@ -46,7 +46,7 @@ func DefaultWriterConfig(concurrency int) WriterConfig {
 		LeaseTTL:    2 * time.Minute,
 		DrainBudget: 50 * time.Second,
 		AccountWait: 5 * time.Minute,
-		HeaderCheck: 10 * time.Minute,
+		TabCheck:    10 * time.Minute,
 		Concurrency: concurrency,
 	}
 }
@@ -160,21 +160,15 @@ func (w *Writer) linger(ctx context.Context) time.Duration {
 }
 
 func (w *Writer) WriteSheet(ctx context.Context, sheetID string) error {
-	probe, cancel := context.WithTimeout(ctx, leaseProbe)
-	release, err := w.leases.Acquire(probe, "gs:sheet:"+sheetID)
-	cancel()
+	release, busy, err := acquireSheet(ctx, w.leases, sheetID)
+	if busy {
+		w.metrics.AddGoogleSheetsEvent("lease", "busy")
+		return nil
+	}
 	if err != nil {
-		if ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
-			w.metrics.AddGoogleSheetsEvent("lease", "busy")
-			return nil
-		}
 		return err
 	}
-	defer func() {
-		if _, err := release(); err != nil {
-			log.Printf("[googlesheet] lease of sheet %s not released, it expires on its own: %v", sheetID, err)
-		}
-	}()
+	defer release()
 	sheet, err := w.sheets.Get(ctx, sheetID)
 	if errors.Is(err, googlesheet.ErrSheetNotFound) {
 		return w.rows.DeleteUnwritten(ctx, sheetID)
@@ -281,40 +275,33 @@ func (s *session) recoverPeriod(ctx context.Context, period string, stuck []*goo
 	if ok, err := s.take(ctx, false); !ok || err != nil {
 		return false, 0, err
 	}
-	refs, err := w.api.ReadRange(ctx, s.access.Token, target, "A:A")
+	refs, err := w.api.ReadRange(ctx, s.access.Token, target, googlesheet.RefColumnRange)
 	if err != nil {
 		return false, 0, s.readFailed(ctx, err)
 	}
-	positions := make(map[string]int, len(refs))
-	for i, row := range refs {
-		if len(row) > 0 {
-			positions[fmt.Sprint(row[0])] = i + 1
-		}
+	written, missing := alreadyWritten(googlesheet.TabSnapshot{Refs: refs}, stuck)
+	if err := w.rows.MarkWritten(ctx, written, w.now()); err != nil {
+		return false, 0, err
 	}
+	return true, len(written), w.rows.Release(ctx, rowIDs(missing), w.now(), "")
+}
+
+func alreadyWritten(snapshot googlesheet.TabSnapshot, rows []*googlesheet.Row) ([]googlesheet.WrittenRow, []*googlesheet.Row) {
+	positions := snapshot.RefPositions()
 	var written []googlesheet.WrittenRow
-	var missing []string
-	for _, row := range stuck {
+	var missing []*googlesheet.Row
+	for _, row := range rows {
 		if number, ok := positions[row.ID]; ok {
 			written = append(written, googlesheet.WrittenRow{ID: row.ID, RowNumber: number})
 			continue
 		}
-		missing = append(missing, row.ID)
+		missing = append(missing, row)
 	}
-	if err := w.rows.MarkWritten(ctx, written, w.now()); err != nil {
-		return false, 0, err
-	}
-	return true, len(written), w.rows.Release(ctx, missing, w.now(), "")
+	return written, missing
 }
 
 func (s *session) knownTarget(ctx context.Context, period string) (googlesheet.Target, bool, error) {
-	if !s.sheet.Periodic() || period == s.sheet.TabPeriodKey {
-		return s.sheet.Target(), true, nil
-	}
-	tab, found, err := s.w.sheets.FindTab(ctx, s.sheet.ID, period)
-	if err != nil || !found {
-		return googlesheet.Target{}, false, err
-	}
-	return googlesheet.Target{SpreadsheetID: s.sheet.SpreadsheetID, TabID: tab.ID, TabName: tab.Title}, true, nil
+	return periodTarget(ctx, s.w.sheets, s.sheet, period)
 }
 
 func (s *session) target(ctx context.Context, period string) (googlesheet.Target, bool, error) {
@@ -372,7 +359,7 @@ func (s *session) adopt(ctx context.Context, target googlesheet.Target) (bool, e
 	if ok, err := s.take(ctx, false); !ok || err != nil {
 		return false, err
 	}
-	header, err := w.api.ReadRange(ctx, s.access.Token, target, "1:1")
+	header, err := w.api.ReadRange(ctx, s.access.Token, target, googlesheet.HeaderRange)
 	if err != nil {
 		return false, s.readFailed(ctx, err)
 	}
@@ -406,34 +393,49 @@ func (s *session) layoutFailed(ctx context.Context, err error) error {
 func (s *session) verify(ctx context.Context, target googlesheet.Target) (bool, error) {
 	w := s.w
 	if target.TabID != s.sheet.TabID {
-		return s.checkHeaderAndRoom(ctx, target)
+		return s.checkRoom(ctx, target)
 	}
-	key := headerMarkKey(s.sheet.ID)
-	due, err := w.marks.SetNX(key, "1", w.cfg.HeaderCheck)
+	key := tabCheckKey(s.sheet.ID)
+	due, err := w.marks.SetNX(key, "1", w.cfg.TabCheck)
 	if err != nil || !due {
 		return err == nil, err
 	}
-	ok, err := s.checkHeaderAndRoom(ctx, target)
+	ok, err := s.checkRoom(ctx, target)
 	if !ok {
 		if delErr := w.marks.Del(key); delErr != nil {
-			log.Printf("[googlesheet] header check mark of %s not cleared: %v", s.sheet.ID, delErr)
+			log.Printf("[googlesheet] tab check mark of %s not cleared: %v", s.sheet.ID, delErr)
 		}
 	}
 	return ok, err
 }
 
-func (s *session) checkHeaderAndRoom(ctx context.Context, target googlesheet.Target) (bool, error) {
+func (s *session) reads() tabReads {
+	return tabReads{
+		api: s.w.api, token: s.access.Token,
+		take:   func(ctx context.Context) (bool, error) { return s.take(ctx, false) },
+		failed: s.readFailed,
+	}
+}
+
+type cursor struct {
+	target  googlesheet.Target
+	next    int
+	present googlesheet.TabSnapshot
+}
+
+func (s *session) position(ctx context.Context, target googlesheet.Target) (*cursor, bool, error) {
+	inspection, ok, err := s.reads().inspect(ctx, s.sheet, target)
+	if err != nil || !ok {
+		return nil, false, err
+	}
+	if place := inspection.place; !place.InPlace() {
+		return nil, false, s.w.attention(ctx, s.sheet, place.Reason, tabDetail(s.sheet, target, place.Detail))
+	}
+	return &cursor{target: target, next: inspection.snapshot.NextFreeRow(), present: inspection.snapshot}, true, nil
+}
+
+func (s *session) checkRoom(ctx context.Context, target googlesheet.Target) (bool, error) {
 	w := s.w
-	if ok, err := s.take(ctx, false); !ok || err != nil {
-		return false, err
-	}
-	header, err := w.api.ReadRange(ctx, s.access.Token, target, "1:1")
-	if err != nil {
-		return false, s.readFailed(ctx, err)
-	}
-	if difference := googlesheet.HeaderDifference(s.sheet.HeaderRow(), header); difference != "" {
-		return false, w.attention(ctx, s.sheet, googlesheet.ReasonHeaderMismatch, difference)
-	}
 	if ok, err := s.take(ctx, false); !ok || err != nil {
 		return false, err
 	}
@@ -477,8 +479,22 @@ func (s *session) writeNext(ctx context.Context) (bool, error) {
 	if err == nil && ok {
 		ok, err = s.verify(ctx, target)
 	}
+	var at *cursor
+	if err == nil && ok {
+		at, ok, err = s.position(ctx, target)
+	}
 	if err != nil || !ok {
 		return false, errors.Join(err, w.rows.Unclaim(ctx, rowIDs(run)))
+	}
+	found, run := alreadyWritten(at.present, run)
+	if len(found) > 0 {
+		if err := w.rows.MarkWritten(ctx, found, w.now()); err != nil {
+			return false, errors.Join(err, w.rows.Unclaim(ctx, rowIDs(run)))
+		}
+		w.metrics.AddGoogleSheetsEvent("write", "already_in_sheet")
+	}
+	if len(run) == 0 {
+		return true, nil
 	}
 	batch, values, sizes, err := s.encode(ctx, run)
 	if err != nil {
@@ -494,7 +510,7 @@ func (s *session) writeNext(ctx context.Context) (bool, error) {
 	if len(batch) == 0 {
 		return true, nil
 	}
-	return s.send(ctx, target, batch, values)
+	return s.send(ctx, at, batch, values)
 }
 
 func samePeriod(rows []*googlesheet.Row) []*googlesheet.Row {
@@ -590,13 +606,15 @@ func (s *session) waitForLink(ctx context.Context, row *googlesheet.Row, gone ma
 	return w.rows.Release(ctx, []string{row.ID}, w.now().Add(googlesheet.Backoff(row.Attempts, w.jitter())), googlesheet.CodeWriteLinkPending)
 }
 
-func (s *session) send(ctx context.Context, target googlesheet.Target, batch []*googlesheet.Row, values [][]any) (bool, error) {
+func (s *session) send(ctx context.Context, at *cursor, batch []*googlesheet.Row, values [][]any) (bool, error) {
 	w := s.w
 	started := time.Now()
-	result, err := w.api.AppendRows(ctx, s.access.Token, target, values)
+	err := w.api.InsertRows(ctx, s.access.Token, at.target, at.next, values)
 	w.metrics.ObserveGoogleSheetsBatch(len(batch), time.Since(started).Seconds())
 	if err == nil {
-		return true, s.written(ctx, batch, result)
+		first := at.next
+		at.next += len(batch)
+		return true, s.written(ctx, batch, first)
 	}
 	failure := w.errs.Classify(err)
 	w.metrics.AddGoogleSheetsEvent("write", string(failure.Kind))
@@ -616,14 +634,14 @@ func (s *session) send(ctx context.Context, target googlesheet.Target, batch []*
 		}
 		return false, w.attention(ctx, s.sheet, failure.AttentionReason(), failure.Detail)
 	}
-	return s.isolate(ctx, target, batch, values, failure)
+	return s.isolate(ctx, at, batch, values, failure)
 }
 
-func (s *session) written(ctx context.Context, batch []*googlesheet.Row, result googlesheet.AppendResult) error {
+func (s *session) written(ctx context.Context, batch []*googlesheet.Row, first int) error {
 	w := s.w
 	rows := make([]googlesheet.WrittenRow, len(batch))
 	for i, row := range batch {
-		rows[i] = googlesheet.WrittenRow{ID: row.ID, RowNumber: result.FirstRow + i}
+		rows[i] = googlesheet.WrittenRow{ID: row.ID, RowNumber: first + i}
 	}
 	at := w.now()
 	if err := w.rows.MarkWritten(ctx, rows, at); err != nil {
@@ -633,7 +651,7 @@ func (s *session) written(ctx context.Context, batch []*googlesheet.Row, result 
 	return w.sheets.TouchWritten(ctx, s.sheet.ID, at)
 }
 
-func (s *session) isolate(ctx context.Context, target googlesheet.Target, batch []*googlesheet.Row, values [][]any, failure googlesheet.Failure) (bool, error) {
+func (s *session) isolate(ctx context.Context, at *cursor, batch []*googlesheet.Row, values [][]any, failure googlesheet.Failure) (bool, error) {
 	w := s.w
 	if len(batch) == 1 {
 		return true, w.rows.Fail(ctx, batch[0].ID, failure.Code(), failure.Detail)
@@ -644,7 +662,7 @@ func (s *session) isolate(ctx context.Context, target googlesheet.Target, batch 
 		if ok, err := s.take(ctx, true); !ok || err != nil {
 			return false, errors.Join(err, w.rows.Unclaim(ctx, rowIDs(batch[start:])))
 		}
-		more, err := s.send(ctx, target, batch[start:end], values[start:end])
+		more, err := s.send(ctx, at, batch[start:end], values[start:end])
 		if err != nil || !more {
 			return false, errors.Join(err, w.rows.Unclaim(ctx, rowIDs(batch[end:])))
 		}

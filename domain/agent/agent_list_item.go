@@ -7,6 +7,7 @@ type AgentListItem struct {
 	WorkspaceID    string        `json:"workspaceId"`
 	DepartmentID   string        `json:"departmentId,omitempty"`
 	Name           string        `json:"name"`
+	Description    string        `json:"description"`
 	AvatarURL      string        `json:"avatarUrl"`
 	Tags           []string      `json:"tags"`
 	Provider       AgentProvider `json:"provider"`

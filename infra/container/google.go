@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"errors"
 	"log"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	cache_domain "vozko/domain/cache"
 	calendar_domain "vozko/domain/calendar"
 	"vozko/domain/googleaccount"
+	workspace_domain "vozko/domain/workspace"
 	cronPackage "vozko/infra/cron"
 	"vozko/infra/googleoauth"
 	"vozko/infra/googlesheets"
@@ -105,7 +107,8 @@ func googleRoutes(c *Container) deliveryHttp.GoogleRoutes {
 			Status:          c.google.Status,
 			FrontendBaseURL: c.cfg.FrontendBaseURL,
 		}),
-		Sheets: googlesheethttp.NewHandler(c.googleSheets.Manager, c.googleSheets.Intake),
+		Sheets:        googlesheethttp.NewHandler(c.googleSheets.Manager, c.googleSheets.Intake),
+		SheetRemovals: googlesheethttp.NewRowRemovalHandler(c.googleSheets.Removals),
 	}
 }
 
@@ -122,12 +125,13 @@ type googleSheetsBundle struct {
 	Exports   *gsuc.Exports
 	Manager   *gsuc.Manager
 	Retention *gsuc.Retention
+	Removals  *gsuc.RowRemover
 }
 
 func (c *Container) initGoogleSheets() {
 	cfg := c.cfg.Google
-	if c.google == nil || c.repositories.lead == nil || c.repositories.agent == nil || c.repositories.workflow == nil || c.services.metrics == nil {
-		log.Fatalf("[google-sheets] the Google accounts, the lead, agent and workflow repositories and metrics must exist first")
+	if c.google == nil || c.repositories.lead == nil || c.repositories.agent == nil || c.repositories.workflow == nil || c.repositories.workspace == nil || c.services.metrics == nil {
+		log.Fatalf("[google-sheets] the Google accounts, the lead, agent, workflow and workspace repositories and metrics must exist first")
 	}
 	shared := c.redisProvider.SharedState()
 	limiter, err := googlesheets.NewLimiter(shared, googlesheets.Quota{
@@ -165,15 +169,20 @@ func (c *Container) initGoogleSheets() {
 	if err != nil {
 		log.Fatalf("[google-sheets] message exports: %v", err)
 	}
+	manager := gsuc.NewManager(gsuc.ManagerDeps{
+		Sheets: sheets, Rows: rows, API: api, Errors: googlesheets.Classifier{}, Access: c.google.Tokens,
+		Limiter: limiter, Marks: shared, Alerts: alerts, Nudger: writer,
+		Names: gsuc.OriginNames{Agents: c.agentName, Workflows: c.workflowName, People: c.memberName},
+	})
 	c.googleSheets = &googleSheetsBundle{
-		Writer:  writer,
-		Intake:  intake,
-		Exports: exports,
-		Manager: gsuc.NewManager(gsuc.ManagerDeps{
-			Sheets: sheets, Rows: rows, API: api, Errors: googlesheets.Classifier{}, Access: c.google.Tokens,
-			Limiter: limiter, Marks: shared, Alerts: alerts, Nudger: writer,
-		}),
+		Writer:    writer,
+		Intake:    intake,
+		Exports:   exports,
+		Manager:   manager,
 		Retention: gsuc.NewRetention(rows),
+		Removals: gsuc.NewRowRemover(gsuc.RowRemoverDeps{
+			Manager: manager, Removals: googlesheet_repository.NewRowRemovalRepository(c.db), Leases: leases,
+		}),
 	}
 }
 
@@ -191,6 +200,19 @@ func (c *Container) workflowName(_ context.Context, workspaceID, id string) (str
 		return "", nil
 	}
 	return found.Name, nil
+}
+
+func (c *Container) memberName(_ context.Context, workspaceID, userID string) (string, error) {
+	member, err := c.repositories.workspace.GetMember(workspaceID, userID)
+	switch {
+	case errors.Is(err, workspace_domain.ErrMemberNotFound):
+		return "", nil
+	case err != nil:
+		return "", err
+	case member == nil:
+		return "", nil
+	}
+	return member.Username, nil
 }
 
 func (c *Container) googleSheetsJobs() cronJobs {

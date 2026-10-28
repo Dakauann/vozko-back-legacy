@@ -59,7 +59,16 @@ func (s *Service) ConversationMissing(ctx context.Context, workspaceID, entryID 
 	return err
 }
 
+func (s *Service) ConversationMissingWith(ctx context.Context, workspaceID, entryID string, entryType shared.EntryType, target conversation.Automation, pending map[string]string) error {
+	_, err := s.valuesWith(ctx, workspaceID, entryID, entryType, target, pending)
+	return err
+}
+
 func (s *Service) ValuesFor(ctx context.Context, workspaceID, entryID string, entryType shared.EntryType, target conversation.Automation) (map[string]string, error) {
+	return s.valuesWith(ctx, workspaceID, entryID, entryType, target, nil)
+}
+
+func (s *Service) valuesWith(ctx context.Context, workspaceID, entryID string, entryType shared.EntryType, target conversation.Automation, pending map[string]string) (map[string]string, error) {
 	needs, err := s.Needs(workspaceID, target)
 	if err != nil {
 		return nil, err
@@ -71,6 +80,7 @@ func (s *Service) ValuesFor(ctx context.Context, workspaceID, entryID string, en
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", domain.ErrUnreadable, err)
 	}
+	values = withPending(values, pending)
 	if missing := needs.Missing(values); len(missing) > 0 {
 		return nil, &domain.Refusal{Cause: domain.ErrConversationMissing, Automation: rootOf(target, needs), Needs: missing, Values: knownValues(needs, values)}
 	}
@@ -101,6 +111,20 @@ func knownValues(needs domain.Needs, values map[string]string) map[string]string
 		if v, ok := values[need.Name]; ok && v != "" {
 			out[need.Name] = v
 		}
+	}
+	return out
+}
+
+func withPending(values, pending map[string]string) map[string]string {
+	if len(pending) == 0 {
+		return values
+	}
+	out := make(map[string]string, len(values)+len(pending))
+	for name, value := range values {
+		out[name] = value
+	}
+	for name, value := range pending {
+		out[name] = value
 	}
 	return out
 }

@@ -211,28 +211,53 @@ func TestApplyLayoutOnAMissingTabIsNotFound(t *testing.T) {
 	}
 }
 
-func TestAppendRowsQuotesTextSoOnlyTheDomainFormulaIsAFormula(t *testing.T) {
-	client, calls := fakeGoogle(t, func(*http.Request) (int, string) {
-		return 200, `{"updates":{"updatedRange":"'Pedidos'!A5:E7","updatedRows":3}}`
+func TestRenameSpreadsheetChangesOnlyTheFileTitle(t *testing.T) {
+	client, calls := fakeGoogle(t, func(*http.Request) (int, string) { return 200, `{}` })
+	if err := client.RenameSpreadsheet(context.Background(), "token", "sp-1", "CDT Jabaquara"); err != nil {
+		t.Fatal(err)
+	}
+	text := batchText(t, (*calls)[0])
+	if !strings.Contains(text, `"updateSpreadsheetProperties":{"fields":"title","properties":{"title":"CDT Jabaquara"}}`) {
+		t.Fatalf("rename = %s", text)
+	}
+}
+
+const shiftedTabState = `{"sheets":[
+	{"properties":{"sheetId":0,"title":"Negociações","gridProperties":{"rowCount":117,"columnCount":10}},
+	 "conditionalFormats":[{"ranges":[{"sheetId":0,"startRowIndex":17,"endRowIndex":117,"startColumnIndex":5,"endColumnIndex":6}],"booleanRule":{"condition":{"type":"TEXT_EQ","values":[{"userEnteredValue":"Entrada"}]}}}],
+	 "bandedRanges":[
+	   {"bandedRangeId":21,"range":{"sheetId":0,"startRowIndex":17,"endRowIndex":117,"startColumnIndex":0,"endColumnIndex":10}},
+	   {"bandedRangeId":22,"range":{"sheetId":0,"startRowIndex":2,"endRowIndex":5,"startColumnIndex":11,"endColumnIndex":12}}
+	 ],
+	 "protectedRanges":[
+	   {"protectedRangeId":31,"description":"Cabeçalho usado pelas gravações automáticas","range":{"sheetId":0,"startRowIndex":17,"endRowIndex":18}},
+	   {"protectedRangeId":32,"description":"Fechamento do mês","range":{"sheetId":0,"startRowIndex":40,"endRowIndex":60}}
+	 ]}
+]}`
+
+func TestApplyLayoutReplacesVozkoBandingRulesAndProtectionEvenAfterRowsPushedThemDown(t *testing.T) {
+	client, calls := fakeGoogle(t, func(r *http.Request) (int, string) {
+		if r.Method == http.MethodGet {
+			return 200, shiftedTabState
+		}
+		return 200, `{}`
 	})
-	formula := googlesheet.Formula(`=HYPERLINK("#gid=1&range=B"&MATCH("x",'T'!$A:$A,0),"Ver")`)
-	rows := [][]any{{"r1", "=1+1", "+5511999", "-2", "@x", "'já", "", 12.5, true, formula}}
-	result, err := client.AppendRows(context.Background(), "token", googlesheet.Target{SpreadsheetID: "sp-1", TabName: "Pedidos"}, rows)
-	if err != nil || result.FirstRow != 5 || result.Rows != 3 {
-		t.Fatalf("AppendRows = %+v, %v", result, err)
+	err := client.ApplyLayout(context.Background(), "token", googlesheet.Target{SpreadsheetID: "sp-1", TabID: 0, TabName: "Negociações"}, styledLayout(googlesheet.StylePurple))
+	if err != nil {
+		t.Fatalf("ApplyLayout: %v", err)
 	}
-	call := (*calls)[0]
-	if !strings.Contains(call.query, "valueInputOption=USER_ENTERED") || !strings.Contains(call.query, "insertDataOption=INSERT_ROWS") {
-		t.Fatalf("query = %s", call.query)
+	if !strings.Contains((*calls)[0].query, "protectedRanges") {
+		t.Fatalf("state query = %s", (*calls)[0].query)
 	}
-	if !strings.HasSuffix(call.path, ":append") || !strings.Contains(call.path, "%27Pedidos%27%21A1") {
-		t.Fatalf("path = %s", call.path)
+	text := batchText(t, (*calls)[1])
+	for _, want := range []string{`"bandedRangeId":21`, `"protectedRangeId":31`, `"deleteConditionalFormatRule":{"index":0`, `"addProtectedRange"`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("layout misses %s: %s", want, text)
+		}
 	}
-	sent := call.body["values"].([]any)[0].([]any)
-	want := []any{"'r1", "'=1+1", "'+5511999", "'-2", "'@x", "''já", "", 12.5, true, string(formula)}
-	for i := range want {
-		if sent[i] != want[i] {
-			t.Fatalf("cell %d sent %#v, want %#v (whole row %#v)", i, sent[i], want[i], sent)
+	for _, kept := range []string{`"bandedRangeId":22`, `"protectedRangeId":32`} {
+		if strings.Contains(text, kept) {
+			t.Fatalf("layout touched what the owner made (%s): %s", kept, text)
 		}
 	}
 }

@@ -527,6 +527,7 @@ func (c *Container) initHandlers() {
 			c.workflowLinter(),
 			c.lastTriggerInput(),
 			c.workflowVariables(),
+			c.workflowTestValues(),
 		),
 		workflowWebhook: workflowwebhookhttp.NewHandler(
 			c.useCases.workflowWebhookConfig,

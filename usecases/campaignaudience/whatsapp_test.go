@@ -312,7 +312,7 @@ func classRules(t *testing.T) campaignautomation.Rules {
 	return step
 }
 
-func TestWhatsAppChannelsJudgeMetadataWithTheCreateAutomationRule(t *testing.T) {
+func TestWhatsAppChannelsTakeTheirNeedsFromTheCreateAutomationRule(t *testing.T) {
 	w := newWhatsAppWorld(t)
 	message := &uwc.MessageSpec{Kind: uwc.KindText, Bodies: []string{"Oi"}}
 	for name, prepare := range map[string]func(Params) (Prepared, error){
@@ -323,8 +323,8 @@ func TestWhatsAppChannelsJudgeMetadataWithTheCreateAutomationRule(t *testing.T) 
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		if prepared.Metadata == nil || !reflect.DeepEqual(prepared.Metadata(map[string]any{"turma": " "}), []string{"turma"}) || len(prepared.Metadata(map[string]any{"turma": "A"})) != 0 {
-			t.Fatalf("%s: the metadata rule is not the workflow's", name)
+		if !reflect.DeepEqual(prepared.Needs.Names(), []string{"turma"}) || len(prepared.Optional) != 0 {
+			t.Fatalf("%s: needs %v optional %v are not the workflow's", name, prepared.Needs.Names(), prepared.Optional.Names())
 		}
 		if _, err := prepare(Params{Automation: campaign.Automation{WorkflowID: "wf-x"}}); !errors.Is(err, campaign.ErrWorkflowNotFound) {
 			t.Fatalf("%s: an unknown workflow = %v", name, err)

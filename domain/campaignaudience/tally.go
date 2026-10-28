@@ -21,6 +21,7 @@ const (
 	BlockerSourceRequired           Blocker = "variable_source_required"
 	BlockerListVariablesMissing     Blocker = "list_variables_missing"
 	BlockerListMetadataMissing      Blocker = "list_metadata_missing"
+	BlockerListColumnMissing        Blocker = "list_column_missing"
 	BlockerLeadsMetadataUnavailable Blocker = "leads_metadata_unavailable"
 	BlockerTemplateRequired         Blocker = "template_required"
 	BlockerMessageRequired          Blocker = "message_required"
@@ -63,6 +64,10 @@ type VariableCount struct {
 	ChoiceRequired bool                   `json:"choiceRequired"`
 	Kind           SlotKind               `json:"kind" enums:"template,automation"`
 	NeededBy       string                 `json:"neededBy,omitempty"`
+	Column         string                 `json:"column,omitempty" example:"VAR3"`
+	ColumnMissing  bool                   `json:"columnMissing"`
+	Optional       bool                   `json:"optional"`
+	Default        string                 `json:"default,omitempty" example:"cordial"`
 }
 
 type SelectionCount struct {
@@ -128,7 +133,7 @@ func (t *Tally) sourcesRequired() bool {
 
 func (t *Tally) skipsSlot(i int) bool {
 	b := t.bound[i]
-	return Unbound(b) && (t.sourcesRequired() || b.Source == campaign.BindLiteral)
+	return !b.fed() && (b.Optional || t.sourcesRequired() || b.Source == campaign.BindLiteral)
 }
 
 func (t *Tally) Add(c Candidate) Decision {
@@ -156,39 +161,53 @@ func (t *Tally) addLead(c Candidate) Decision {
 		t.out[c.Refusal]++
 		return Decision{Outcome: OutcomeOut, Reason: c.Refusal}
 	}
+	values, r := t.resolve(c, func(Bound) bool { return true })
+	return t.decide(values, r)
+}
+
+type resolution struct {
+	empty     []string
+	excluded  []campaign.MissingVariable
+	undecided bool
+}
+
+func (t *Tally) resolve(c Candidate, choosable func(Bound) bool) ([]string, resolution) {
 	values := make([]string, len(t.bound))
-	var empty []string
-	var excluded []campaign.MissingVariable
-	undecided := false
+	var r resolution
 	for i, b := range t.bound {
-		value := ""
 		if i < len(c.Values) {
-			value = strings.TrimSpace(c.Values[i])
+			values[i] = strings.TrimSpace(c.Values[i])
 		}
-		values[i] = value
-		if value != "" || t.skipsSlot(i) {
+		if values[i] != "" || t.skipsSlot(i) {
 			continue
 		}
-		empty = t.lack(i, empty)
+		r.empty = t.lack(i, r.empty)
+		if b.Optional || !choosable(b) {
+			continue
+		}
 		switch t.policyOf(b) {
 		case MissingText:
 			values[i] = t.textOf(b)
 		case MissingExclude:
-			excluded = append(excluded, campaign.MissingVariable{Slot: i + 1, Source: b.Source})
+			r.excluded = append(r.excluded, campaign.MissingVariable{Slot: i + 1, Source: b.Source})
 		default:
-			undecided = true
+			r.undecided = true
 		}
 	}
+	return values, r
+}
+
+func (t *Tally) decide(values []string, r resolution) Decision {
 	switch {
-	case len(excluded) > 0:
+	case len(r.excluded) > 0:
 		t.out[ReasonMissingVariable]++
-		return Decision{Outcome: OutcomeOut, Reason: ReasonMissingVariable, Missing: excluded, Empty: empty}
-	case undecided:
+		return Decision{Outcome: OutcomeOut, Reason: ReasonMissingVariable, Missing: r.excluded, Empty: r.empty}
+	case r.undecided:
 		t.undecided++
-		return Decision{Outcome: OutcomeUndecided, Values: values, Empty: empty}
+		return Decision{Outcome: OutcomeUndecided, Values: values, Empty: r.empty}
 	}
 	t.sendable++
-	return Decision{Outcome: OutcomeSend, Values: values, Empty: empty}
+	return Decision{Outcome: OutcomeSend, Values: values, Empty: r.empty}
 }
 
 func (t *Tally) policyOf(b Bound) MissingPolicy {
@@ -210,8 +229,14 @@ func (t *Tally) blockers() []Blocker {
 	if t.awaits != "" {
 		blockers = append(blockers, t.awaits)
 	}
-	for i := range t.bound {
-		if t.skipsSlot(i) {
+	for _, b := range t.bound {
+		if b.ColumnMissing {
+			blockers = append(blockers, BlockerListColumnMissing)
+			break
+		}
+	}
+	for i, b := range t.bound {
+		if t.skipsSlot(i) && !b.Optional {
 			blockers = append(blockers, BlockerSourceRequired)
 			break
 		}
@@ -220,8 +245,8 @@ func (t *Tally) blockers() []Blocker {
 		blockers = append(blockers, BlockerChoiceRequired)
 	}
 	if t.source == SourceList {
-		for _, n := range t.missing {
-			if n > 0 {
+		for i, n := range t.missing {
+			if n > 0 && !t.bound[i].Automation() {
 				blockers = append(blockers, BlockerListVariablesMissing)
 				break
 			}
@@ -247,6 +272,8 @@ func (t *Tally) Creatable() error {
 			return ErrTemplateRequired
 		case BlockerMessageRequired:
 			return ErrMessageRequired
+		case BlockerListColumnMissing:
+			return ErrListColumnUnknown
 		case BlockerSourceRequired:
 			return ErrSourceRequired
 		case BlockerChoiceRequired:
@@ -272,11 +299,11 @@ func (t *Tally) Count() Count {
 		count.OutTotal += n
 	}
 	for i, b := range t.bound {
-		v := VariableCount{Key: b.Key, Name: b.Name, Header: b.Header, Source: b.Source, Value: b.Value, Missing: t.missing[i], Policy: b.Missing, Text: b.Text, Fallback: b.Fallback, Suggested: b.Suggested, Kind: SlotTemplate, NeededBy: b.NeededBy}
+		v := VariableCount{Key: b.Key, Name: b.Name, Header: b.Header, Source: b.Source, Value: b.Value, Missing: t.missing[i], Policy: b.Missing, Text: b.Text, Fallback: b.Fallback, Suggested: b.Suggested, Kind: SlotTemplate, NeededBy: b.NeededBy, Column: b.Column, ColumnMissing: b.ColumnMissing, Optional: b.Optional, Default: b.Default}
 		if b.Automation() {
 			v.Kind = SlotAutomation
 		}
-		v.ChoiceRequired = t.source == SourceLeads && t.channel.RequiresChoice() && b.Missing == "" && t.missing[i] > 0
+		v.ChoiceRequired = (t.source == SourceLeads || b.Automation()) && !b.Optional && t.channel.RequiresChoice() && b.Missing == "" && t.missing[i] > 0
 		count.Variables = append(count.Variables, v)
 	}
 	undecidable := false
@@ -291,20 +318,10 @@ func (t *Tally) Count() Count {
 }
 
 func (t *Tally) addRow(c Candidate) Decision {
-	values := make([]string, len(t.bound))
-	var empty []string
-	for i := range t.bound {
-		if i < len(c.Values) {
-			values[i] = strings.TrimSpace(c.Values[i])
-		}
-		if values[i] == "" {
-			empty = t.lack(i, empty)
-		}
-	}
+	values, r := t.resolve(c, Bound.Automation)
 	if c.Refusal != "" {
 		t.out[c.Refusal]++
-		return Decision{Outcome: OutcomeOut, Reason: c.Refusal, Values: values, Empty: empty}
+		return Decision{Outcome: OutcomeOut, Reason: c.Refusal, Values: values, Empty: r.empty}
 	}
-	t.sendable++
-	return Decision{Outcome: OutcomeSend, Values: values, Empty: empty}
+	return t.decide(values, r)
 }

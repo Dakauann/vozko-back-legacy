@@ -98,7 +98,7 @@ func (d WhatsAppDeps) prepared(a Actor, p preparation, automation campaign.Autom
 	if err != nil {
 		return Prepared{}, err
 	}
-	return Prepared{Slots: usableSuggestions(p.slots, defs), Awaits: p.awaits, Metadata: rule.Missing, Needs: rule.Needs(), Open: func(ctx context.Context, bound []campaignaudience.Bound, source campaignaudience.Source) (Judge, error) {
+	return Prepared{Slots: usableSuggestions(p.slots, defs), Awaits: p.awaits, Needs: rule.Needs(), Optional: rule.Optional(), Open: func(ctx context.Context, bound []campaignaudience.Bound, source campaignaudience.Source) (Judge, error) {
 		return d.judge(a, p.senderID, bound, source, defs)
 	}}, nil
 }

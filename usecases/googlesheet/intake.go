@@ -39,6 +39,7 @@ type EnqueueInput struct {
 type EnqueueResult struct {
 	RowID     string
 	Duplicate bool
+	Repeat    *googlesheet.RepeatError
 	Sheet     *googlesheet.Sheet
 	Cells     googlesheet.Cells
 }
@@ -52,18 +53,32 @@ func (in *Intake) Enqueue(ctx context.Context, input EnqueueInput) (*EnqueueResu
 	if err != nil {
 		return nil, err
 	}
-	stored, duplicate, err := in.rows.Insert(ctx, row)
+	unique, err := sheet.UniqueKeyOf(cells, input.Origin, row.PeriodKey)
 	if err != nil {
 		return nil, err
 	}
-	if !duplicate {
+	inserted, err := in.rows.InsertUnique(ctx, row, unique)
+	if err != nil {
+		return nil, err
+	}
+	if inserted.RepeatOf != "" {
+		return &EnqueueResult{RowID: inserted.RepeatOf, Repeat: sheet.Repeat(inserted.RepeatOf), Sheet: sheet, Cells: cells}, nil
+	}
+	if !inserted.Duplicate {
 		in.nudger.Nudge(sheet.ID)
 	}
-	return &EnqueueResult{RowID: stored.ID, Duplicate: duplicate, Sheet: sheet, Cells: stored.Cells}, nil
+	return &EnqueueResult{RowID: inserted.Row.ID, Duplicate: inserted.Duplicate, Sheet: sheet, Cells: inserted.Row.Cells}, nil
 }
 
 func (in *Intake) Preview(ctx context.Context, workspaceID, sheetID string, values map[string]any, origin googlesheet.Origin) (*googlesheet.Sheet, googlesheet.Cells, error) {
-	return in.accept(ctx, workspaceID, sheetID, values, origin)
+	sheet, cells, err := in.accept(ctx, workspaceID, sheetID, values, origin)
+	if err != nil {
+		return nil, nil, err
+	}
+	if _, err := sheet.UniqueKeyOf(cells, origin, sheet.PeriodOf(in.now())); err != nil {
+		return nil, nil, err
+	}
+	return sheet, cells, nil
 }
 
 func (in *Intake) accept(ctx context.Context, workspaceID, sheetID string, values map[string]any, origin googlesheet.Origin) (*googlesheet.Sheet, googlesheet.Cells, error) {

@@ -31,9 +31,10 @@ var columnWidths = map[googlesheet.ColumnType]int{
 }
 
 const (
-	white      = "#FFFFFF"
-	headerInk  = "#202124"
-	refColumns = 1
+	white            = "#FFFFFF"
+	headerInk        = "#202124"
+	refColumns       = 1
+	headerProtection = "Cabeçalho usado pelas gravações automáticas"
 )
 
 type gridRangeState struct {
@@ -59,12 +60,19 @@ type bandedRangeState struct {
 	Range         gridRangeState `json:"range"`
 }
 
+type protectedRangeState struct {
+	ProtectedRangeID int64          `json:"protectedRangeId"`
+	Description      string         `json:"description"`
+	Range            gridRangeState `json:"range"`
+}
+
 type tabState struct {
-	tabID    int64
-	rows     int
-	columns  int
-	rules    []conditionalRuleState
-	bandings []bandedRangeState
+	tabID       int64
+	rows        int
+	columns     int
+	rules       []conditionalRuleState
+	bandings    []bandedRangeState
+	protections []protectedRangeState
 }
 
 func zeroIfNil(v *int) int {
@@ -74,22 +82,22 @@ func zeroIfNil(v *int) int {
 	return *v
 }
 
-func (s tabState) reachesTheEnd(r gridRangeState) bool {
-	return r.EndRowIndex == nil || *r.EndRowIndex >= s.rows
-}
-
 func (s tabState) ownsRule(rule conditionalRuleState) bool {
 	if rule.BooleanRule == nil || rule.BooleanRule.Condition.Type != "TEXT_EQ" || len(rule.BooleanRule.Condition.Values) != 1 || len(rule.Ranges) != 1 {
 		return false
 	}
 	r := rule.Ranges[0]
 	start, end := zeroIfNil(r.StartColumnIndex), zeroIfNil(r.EndColumnIndex)
-	return r.SheetID == s.tabID && zeroIfNil(r.StartRowIndex) == 0 && s.reachesTheEnd(r) && start >= refColumns && end == start+1
+	return r.SheetID == s.tabID && start >= refColumns && end == start+1
 }
 
 func (s tabState) ownsBanding(b bandedRangeState) bool {
 	r := b.Range
-	return r.SheetID == s.tabID && zeroIfNil(r.StartRowIndex) == 0 && zeroIfNil(r.StartColumnIndex) == 0 && s.reachesTheEnd(r)
+	return r.SheetID == s.tabID && zeroIfNil(r.StartColumnIndex) == 0
+}
+
+func (s tabState) ownsProtection(p protectedRangeState) bool {
+	return p.Range.SheetID == s.tabID && p.Description == headerProtection
 }
 
 func layoutRequests(state tabState, layout googlesheet.Layout) []map[string]any {
@@ -116,6 +124,11 @@ func layoutRequests(state tabState, layout googlesheet.Layout) []map[string]any 
 			requests = append(requests, map[string]any{"deleteBanding": map[string]any{"bandedRangeId": banding.BandedRangeID}})
 		}
 	}
+	for _, protection := range state.protections {
+		if state.ownsProtection(protection) {
+			requests = append(requests, map[string]any{"deleteProtectedRange": map[string]any{"protectedRangeId": protection.ProtectedRangeID}})
+		}
+	}
 	palette := layout.Style.Palette()
 	requests = append(requests, headerRequests(tabID, layout.Columns, palette)...)
 	for i, col := range layout.Columns {
@@ -134,7 +147,7 @@ func layoutRequests(state tabState, layout googlesheet.Layout) []map[string]any 
 	for i, col := range layout.Columns {
 		requests = append(requests, optionColorRules(tabID, i+refColumns, col)...)
 	}
-	return requests
+	return append(requests, protectHeader(tabID))
 }
 
 func headerRequests(tabID int64, columns []googlesheet.Column, palette googlesheet.Palette) []map[string]any {
@@ -241,7 +254,7 @@ func validationRule(col googlesheet.Column) map[string]any {
 func protectHeader(tabID int64) map[string]any {
 	return map[string]any{"addProtectedRange": map[string]any{"protectedRange": map[string]any{
 		"range":       gridRange(tabID, 0, 1, 0, 0),
-		"description": "Cabeçalho usado pelas gravações automáticas",
+		"description": headerProtection,
 		"warningOnly": true,
 	}}}
 }

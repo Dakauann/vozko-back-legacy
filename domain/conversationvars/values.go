@@ -10,6 +10,7 @@ import (
 	"vozko/domain/agent"
 	"vozko/domain/automationneeds"
 	"vozko/domain/shared"
+	"vozko/domain/workflow"
 )
 
 const (
@@ -90,10 +91,10 @@ func CampaignValuesOf(metadata map[string]any, variables []string) map[string]st
 	return out
 }
 
-func CampaignVars(values map[string]string) map[string]interface{} {
-	out := make(map[string]interface{}, len(values))
+func SeedRun(state *workflow.RunState, values map[string]string) {
+	vars := make(map[string]interface{}, len(values))
 	for k, v := range values {
-		out[k] = v
+		vars[k] = v
 	}
-	return out
+	state.Set(workflow.DataKeyCampaignVars, vars)
 }

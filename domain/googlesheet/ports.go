@@ -25,8 +25,8 @@ type SpreadsheetSpec struct {
 	Layout   Layout
 }
 
-func (s *Sheet) Spec() SpreadsheetSpec {
-	return SpreadsheetSpec{Title: s.Title, TabName: s.TabName, Locale: s.Locale, TimeZone: s.TimeZone, Layout: s.Layout(0)}
+func (s *Sheet) Spec(fileTitle string) SpreadsheetSpec {
+	return SpreadsheetSpec{Title: fileTitle, TabName: s.TabName, Locale: s.Locale, TimeZone: s.TimeZone, Layout: s.Layout(0)}
 }
 
 type TabSpec struct {
@@ -40,19 +40,18 @@ type CreatedSpreadsheet struct {
 	TabID         int64
 }
 
-type AppendResult struct {
-	FirstRow int
-	Rows     int
-}
-
 type SheetsAPI interface {
 	CreateSpreadsheet(ctx context.Context, token string, spec SpreadsheetSpec) (CreatedSpreadsheet, error)
 	TrashSpreadsheet(ctx context.Context, token, spreadsheetID string) error
+	RenameSpreadsheet(ctx context.Context, token, spreadsheetID, title string) error
 	AddTab(ctx context.Context, token, spreadsheetID string, tab TabSpec) error
 	DeleteTab(ctx context.Context, token, spreadsheetID string, tabID int64) error
 	ApplyLayout(ctx context.Context, token string, target Target, layout Layout) error
-	AppendRows(ctx context.Context, token string, target Target, rows [][]any) (AppendResult, error)
+	RepairHeader(ctx context.Context, token string, target Target, repair HeaderRepair, layout Layout) error
+	InsertRows(ctx context.Context, token string, target Target, at int, rows [][]any) error
+	DeleteRow(ctx context.Context, token string, target Target, row int) error
 	ReadRange(ctx context.Context, token string, target Target, a1 string) ([][]any, error)
+	ReadRanges(ctx context.Context, token string, target Target, ranges []string) ([][][]any, error)
 	Workbook(ctx context.Context, token, spreadsheetID string) (Workbook, error)
 }
 
@@ -83,6 +82,8 @@ type SheetRepository interface {
 	FindInWorkspace(ctx context.Context, workspaceID, id string) (*Sheet, error)
 	List(ctx context.Context, in ListInput) (*shared.PaginatedResult[*Sheet], error)
 	ListSpreadsheets(ctx context.Context, in ListInput) (*shared.PaginatedResult[Spreadsheet], error)
+	SaveFileTitle(ctx context.Context, workspaceID, spreadsheetID, title string) error
+	FileTitles(ctx context.Context, workspaceID string, spreadsheetIDs []string) (map[string]string, error)
 	Delete(ctx context.Context, workspaceID, id string) error
 	TouchWritten(ctx context.Context, id string, at time.Time) error
 }
@@ -112,6 +113,9 @@ type Health struct {
 type RowRepository interface {
 	ListRows(ctx context.Context, workspaceID, sheetID string, pagination shared.Pagination) (*shared.PaginatedResult[*Row], error)
 	Insert(ctx context.Context, row *Row) (stored *Row, duplicate bool, err error)
+	InsertUnique(ctx context.Context, row *Row, unique UniqueKey) (Inserted, error)
+	LedgerPage(ctx context.Context, sheetID string, after LedgerCursor, limit int) ([]*Row, error)
+	ClaimUnique(ctx context.Context, claims []UniqueClaim) (int, error)
 	PendingSheets(ctx context.Context, readyAt time.Time, limit int) ([]PendingSheet, error)
 	Claim(ctx context.Context, sheetID, batchID string, limit int, now time.Time) ([]*Row, error)
 	MarkWritten(ctx context.Context, rows []WrittenRow, at time.Time) error

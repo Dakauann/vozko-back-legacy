@@ -25,6 +25,16 @@ type stubSheets struct {
 	layout   gsuc.LayoutInput
 	books    []gsuc.WorkbookView
 	files    []googlesheet.Spreadsheet
+	created  gsuc.CreateInput
+	rename   gsuc.RenameFileInput
+	renamed  *googlesheet.Spreadsheet
+	rows     []gsuc.RowView
+	details  gsuc.DetailsInput
+}
+
+func (s *stubSheets) RenameFile(_ context.Context, in gsuc.RenameFileInput) (*googlesheet.Spreadsheet, error) {
+	s.rename = in
+	return s.renamed, s.err
 }
 
 func (s *stubSheets) ListSpreadsheets(_ context.Context, in googlesheet.ListInput) (*shared.PaginatedResult[googlesheet.Spreadsheet], error) {
@@ -56,11 +66,12 @@ func (s *stubSheets) PreviewTabName(pattern, timeZone string) (string, string, e
 	return googlesheet.PreviewTabTitle(pattern, timeZone, time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC))
 }
 
-func (s *stubSheets) ListRows(context.Context, string, string, shared.Pagination) (*shared.PaginatedResult[*googlesheet.Row], error) {
-	return &shared.PaginatedResult[*googlesheet.Row]{Items: []*googlesheet.Row{}}, s.err
+func (s *stubSheets) ListRows(context.Context, string, string, shared.Pagination) (*shared.PaginatedResult[gsuc.RowView], error) {
+	return &shared.PaginatedResult[gsuc.RowView]{Items: s.rows, Page: 1, PageSize: 25, TotalItems: int64(len(s.rows)), TotalPages: 1}, s.err
 }
 
-func (s *stubSheets) Create(context.Context, gsuc.CreateInput) (*googlesheet.Sheet, error) {
+func (s *stubSheets) Create(_ context.Context, in gsuc.CreateInput) (*googlesheet.Sheet, error) {
+	s.created = in
 	return s.sheet, s.err
 }
 func (s *stubSheets) Get(context.Context, string, string) (*googlesheet.Sheet, error) {
@@ -70,7 +81,8 @@ func (s *stubSheets) List(_ context.Context, in googlesheet.ListInput) (*shared.
 	s.list = in
 	return &shared.PaginatedResult[*googlesheet.Sheet]{Items: []*googlesheet.Sheet{s.sheet}, Page: 1, PageSize: 20, TotalItems: 1, TotalPages: 1}, s.err
 }
-func (s *stubSheets) UpdateDetails(context.Context, gsuc.DetailsInput) (*googlesheet.Sheet, error) {
+func (s *stubSheets) UpdateDetails(_ context.Context, in gsuc.DetailsInput) (*googlesheet.Sheet, error) {
+	s.details = in
 	return s.sheet, s.err
 }
 func (s *stubSheets) EditColumns(context.Context, gsuc.ColumnsInput) (*googlesheet.Sheet, error) {
@@ -86,8 +98,9 @@ func (s *stubSheets) Reactivate(context.Context, gsuc.ReactivateInput) (*googles
 }
 
 type stubRows struct {
-	err error
-	got gsuc.EnqueueInput
+	err    error
+	got    gsuc.EnqueueInput
+	repeat *googlesheet.RepeatError
 }
 
 func (s *stubRows) Enqueue(_ context.Context, in gsuc.EnqueueInput) (*gsuc.EnqueueResult, error) {
@@ -95,7 +108,7 @@ func (s *stubRows) Enqueue(_ context.Context, in gsuc.EnqueueInput) (*gsuc.Enque
 	if s.err != nil {
 		return nil, s.err
 	}
-	return &gsuc.EnqueueResult{RowID: "row-1"}, nil
+	return &gsuc.EnqueueResult{RowID: "row-1", Repeat: s.repeat}, nil
 }
 
 func serve(h *Handler, method, path, body string, headers map[string]string) *httptest.ResponseRecorder {
@@ -106,11 +119,14 @@ func serve(h *Handler, method, path, body string, headers map[string]string) *ht
 	router.HandleFunc("/google-sheets/presets", h.Presets).Methods(http.MethodGet)
 	router.HandleFunc("/google-sheets/spreadsheets", h.Spreadsheets).Methods(http.MethodGet)
 	router.HandleFunc("/google-sheets/files", h.Files).Methods(http.MethodGet)
+	router.HandleFunc("/google-sheets/files/{spreadsheetId}", h.RenameFile).Methods(http.MethodPatch)
 	router.HandleFunc("/google-sheets/workbook", h.CreateWorkbook).Methods(http.MethodPost)
 	router.HandleFunc("/google-sheets/tab-name-preview", h.PreviewTabName).Methods(http.MethodPost)
 	router.HandleFunc("/google-sheets/{id}", h.Get).Methods(http.MethodGet)
+	router.HandleFunc("/google-sheets/{id}", h.UpdateDetails).Methods(http.MethodPatch)
 	router.HandleFunc("/google-sheets/{id}/layout", h.UpdateLayout).Methods(http.MethodPatch)
 	router.HandleFunc("/google-sheets/{id}/rows", h.AddRow).Methods(http.MethodPost)
+	router.HandleFunc("/google-sheets/{id}/rows", h.ListRows).Methods(http.MethodGet)
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	for k, v := range headers {
 		req.Header.Set(k, v)
@@ -195,7 +211,8 @@ func TestEveryDomainCodeCanReachTheFrontend(t *testing.T) {
 }
 
 var valueCodes = map[string]bool{
-	googlesheet.CodeUnknownColumn: true, googlesheet.CodeColumnArchived: true, googlesheet.CodeSystemColumn: true,
+	googlesheet.CodeUniqueValueMissing: true,
+	googlesheet.CodeUnknownColumn:      true, googlesheet.CodeColumnArchived: true, googlesheet.CodeSystemColumn: true,
 	googlesheet.CodeRequiredColumnMissing: true, googlesheet.CodeInvalidValue: true, googlesheet.CodeValueNotInOptions: true,
 	googlesheet.CodeValueTooLong: true, googlesheet.CodeUnresolvedVariable: true, googlesheet.CodeOriginRequired: true,
 	googlesheet.CodeRowNotFound: true, googlesheet.CodeLinkExportMissing: true,

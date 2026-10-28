@@ -26,27 +26,11 @@ func NewRowRepository(db *gorm.DB) googlesheet.RowRepository {
 }
 
 func (r *rowRepository) Insert(ctx context.Context, row *googlesheet.Row) (*googlesheet.Row, bool, error) {
-	record, err := toRowSchema(row)
+	inserted, err := r.InsertUnique(ctx, row, googlesheet.UniqueKey{})
 	if err != nil {
 		return nil, false, err
 	}
-	result := r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "sheet_id"}, {Name: "idempotency_key"}},
-		DoNothing: true,
-	}).Create(record)
-	if result.Error != nil {
-		return nil, false, result.Error
-	}
-	if result.RowsAffected == 1 {
-		row.ID = record.ID
-		return row, false, nil
-	}
-	var existing schema.GoogleSheetRow
-	if err := r.db.WithContext(ctx).Where("sheet_id = ? AND idempotency_key = ?", row.SheetID, row.IdempotencyKey).Take(&existing).Error; err != nil {
-		return nil, false, err
-	}
-	stored, err := toRowDomain(&existing)
-	return stored, true, err
+	return inserted.Row, inserted.Duplicate, nil
 }
 
 func (r *rowRepository) PendingSheets(ctx context.Context, readyAt time.Time, limit int) ([]googlesheet.PendingSheet, error) {
@@ -216,8 +200,13 @@ func (r *rowRepository) DeleteForLead(ctx context.Context, workspaceID, leadID s
 }
 
 func (r *rowRepository) DeleteUnwritten(ctx context.Context, sheetID string) error {
-	return r.db.WithContext(ctx).Where("sheet_id = ? AND status <> ?", sheetID, string(googlesheet.RowWritten)).
-		Delete(&schema.GoogleSheetRow{}).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		unwritten := tx.Model(&schema.GoogleSheetRow{}).Select("id").Where("sheet_id = ? AND status <> ?", sheetID, string(googlesheet.RowWritten))
+		if err := releaseClaims(tx, sheetID, unwritten); err != nil {
+			return err
+		}
+		return tx.Where("sheet_id = ? AND status <> ?", sheetID, string(googlesheet.RowWritten)).Delete(&schema.GoogleSheetRow{}).Error
+	})
 }
 
 func (r *rowRepository) Health(ctx context.Context, sheetID string, problems int) (googlesheet.Health, error) {
