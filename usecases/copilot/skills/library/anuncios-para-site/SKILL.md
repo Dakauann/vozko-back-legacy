@@ -1,6 +1,7 @@
 ---
 name: anuncios-para-site
 description: Anúncios que levam para um site (tráfego e vendas): pixel e API de Conversões, qual resultado otimizar, página de destino coerente e erros que desperdiçam verba; carregue antes de criar ou avaliar um anúncio com destino site.
+surface: ads
 ---
 
 # Anúncios para site

@@ -154,7 +154,7 @@ func scaffoldName(formName string) string {
 func scaffoldGraph(formID, formName, funnelID string) workflow.Graph {
 	dealTitle := formName
 	if dealTitle == "" {
-		dealTitle = "Oportunidade do formulário"
+		dealTitle = "Negociação do formulário"
 	}
 	at := func(step int) workflow.Position {
 		return workflow.Position{X: float64(step * scaffoldNodeSpacing), Y: 0}

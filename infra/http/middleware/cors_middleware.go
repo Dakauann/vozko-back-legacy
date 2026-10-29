@@ -48,16 +48,9 @@ func (c *CORSMiddleware) Handler(next http.Handler) http.Handler {
 		}
 		origin := r.Header.Get("Origin")
 
-		if origin != "" {
-			normalized := strings.TrimRight(origin, "/")
-			if _, trusted := c.trustedOrigins[normalized]; trusted {
-
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-			} else {
-
-				w.Header().Set("Access-Control-Allow-Origin", "*")
-			}
+		if _, trusted := c.trustedOrigins[strings.TrimRight(origin, "/")]; origin != "" && trusted {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Methods", corsAllowMethods)
 			w.Header().Set("Access-Control-Allow-Headers", corsAllowHeaders)
 			w.Header().Set("Access-Control-Max-Age", corsMaxAge)

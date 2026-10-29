@@ -7,6 +7,7 @@ import (
 
 	"vozko/domain/campaign"
 	"vozko/domain/selection"
+	"vozko/domain/variabledecl"
 )
 
 type Channel string
@@ -164,14 +165,14 @@ func validateVariables(vars []Variable) error {
 			return ErrVariableUnknown
 		}
 		if seen[v.Key] {
-			return fmt.Errorf("%w: %q", ErrVariableDuplicate, v.Key)
+			return variableError(ErrVariableDuplicate, v.Key)
 		}
 		seen[v.Key] = true
 		if !v.Missing.valid() {
-			return fmt.Errorf("%w: %q", ErrMissingPolicyInvalid, v.Missing)
+			return variableError(ErrMissingPolicyInvalid, v.Key)
 		}
 		if v.Missing == MissingText && v.Text == "" {
-			return fmt.Errorf("%w: %q", ErrTextRequired, v.Key)
+			return variableError(ErrTextRequired, v.Key)
 		}
 	}
 	return nil
@@ -196,6 +197,10 @@ type Slot struct {
 	Column    string
 	Optional  bool
 	Default   string
+	Sheet     bool
+	Literal   string
+	Type      variabledecl.Type
+	Shape     variabledecl.Shape
 }
 
 type Bound struct {
@@ -209,6 +214,10 @@ type Bound struct {
 	Optional      bool
 	Default       string
 	ColumnMissing bool
+	Sheet         bool
+	Type          variabledecl.Type
+	Shape         variabledecl.Shape
+	SheetUnfit    string
 }
 
 func (b Bound) Automation() bool {
@@ -232,9 +241,11 @@ func Bind(slots []Slot, vars []Variable) ([]Bound, error) {
 		if err := slot.accepts(v); err != nil {
 			return nil, err
 		}
-		b := Bound{Variable: v, Name: slot.Name, Header: slot.Header, Fallback: slot.Fallback, Kind: slot.Kind, NeededBy: slot.NeededBy, Optional: slot.Optional, Default: slot.Default}
+		b := Bound{Variable: v, Name: slot.Name, Header: slot.Header, Fallback: slot.Fallback, Kind: slot.Kind, NeededBy: slot.NeededBy, Optional: slot.Optional, Default: slot.Default, Sheet: slot.Sheet, Type: slot.Type, Shape: slot.Shape}
 		switch {
 		case b.Source != "" || b.Column != "":
+		case slot.Literal != "":
+			b.Source, b.Value, b.Suggested = campaign.BindLiteral, slot.Literal, true
 		case slot.Column != "":
 			b.Column, b.Suggested = slot.Column, true
 		case slot.Suggested != "":
@@ -244,7 +255,7 @@ func Bind(slots []Slot, vars []Variable) ([]Bound, error) {
 	}
 	for key := range byKey {
 		if !known[key] {
-			return nil, fmt.Errorf("%w: %q", ErrVariableUnknown, key)
+			return nil, variableError(ErrVariableUnknown, key)
 		}
 	}
 	return bound, nil
@@ -256,12 +267,20 @@ const SourceDefault campaign.BindingSource = "default"
 
 func (s Slot) accepts(v Variable) error {
 	if v.Column != "" && v.Source != "" {
-		return fmt.Errorf("%w: %q", ErrColumnWithSource, s.Key)
+		return variableError(ErrColumnWithSource, s.Key)
 	}
 	if v.Source == SourceDefault && !s.Optional {
-		return fmt.Errorf("%w: %q", ErrDefaultUnavailable, s.Key)
+		return variableError(ErrDefaultUnavailable, s.Key)
+	}
+	if s.Sheet && !campaignWide(v) {
+		return variableError(ErrSheetLiteralOnly, s.Key)
 	}
 	return nil
+}
+
+func campaignWide(v Variable) bool {
+	fixed := v.Source == "" || v.Source == campaign.BindLiteral || v.Source == SourceDefault
+	return fixed && v.Column == "" && v.Missing == ""
 }
 
 func Unbound(b Bound) bool {

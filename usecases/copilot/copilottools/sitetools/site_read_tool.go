@@ -3,6 +3,8 @@ package sitetools
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -10,25 +12,27 @@ import (
 	"vozko/domain/site"
 	"vozko/domain/tools"
 	"vozko/usecases/copilot/copilottools"
+	site_usecase "vozko/usecases/site"
 )
 
 const (
-	inspectLimit     = 40 * time.Second
-	maxReadLines     = 300
-	maxReadBytes     = 24000
-	readNoFile       = "o arquivo %q não existe nesta página; os caminhos estão no mapa (site_read sem path)"
-	readBadRange     = "from e to são linhas a partir de 1, com from até to"
-	readPastEnd      = "o arquivo %q tem %d linhas; peça um trecho dentro delas"
-	readRangeLabel   = "%d-%d de %d"
-	readTruncatedEnd = "o trecho foi cortado em %d bytes; peça as linhas seguintes a partir de %d"
-	readNoReferences = "as referências do workspace não puderam ser lidas agora"
+	inspectLimit         = 40 * time.Second
+	maxReadLines         = 300
+	maxReadBytes         = 24000
+	readNoFile           = "o arquivo %q não existe neste site; os caminhos estão no mapa (site_read sem path)"
+	readBadRange         = "from e to são linhas a partir de 1, com from até to"
+	readPastEnd          = "o arquivo %q tem %d linhas; peça um trecho dentro delas"
+	readRangeLabel       = "%d-%d de %d"
+	readTruncatedEnd     = "o trecho foi cortado em %d bytes; peça as linhas seguintes a partir de %d"
+	readNoReferences     = "as referências do workspace não puderam ser lidas agora"
+	bookingReferenceName = "%d min, %s"
 )
 
 type siteReadArgs struct {
-	Path       string `json:"path,omitempty" desc:"um caminho do mapa; sem path, o mapa da página"`
+	Path       string `json:"path,omitempty" desc:"um caminho do mapa; sem path, o mapa do site"`
 	From       int    `json:"from,omitempty" desc:"com path: primeira linha, a partir de 1"`
 	To         int    `json:"to,omitempty" desc:"com path: última linha; até 300 por leitura"`
-	References bool   `json:"references,omitempty" desc:"sem path: inclui os ids e nomes de números de WhatsApp, funis, etapas, pessoas, times, fluxos e caixas de e-mail do workspace"`
+	References bool   `json:"references,omitempty" desc:"sem path: inclui os ids e nomes de números de WhatsApp, funis, etapas, pessoas, times, fluxos, caixas de e-mail, chats e agendamentos, e se a agenda Google está conectada"`
 }
 
 type siteReadTool struct {
@@ -44,9 +48,9 @@ func (t *siteReadTool) Meta() copilot.Meta { return readMeta() }
 
 func (t *siteReadTool) Definition() tools.Definition {
 	return copilottools.Definition("site_read",
-		"Lê a página aberta como ela está guardada agora, inclusive o que o usuário mudou. Sem path devolve o mapa: arquivos (tamanho, rev, componentes exportados, seções, formulários), "+
+		"Lê o site aberto como ele está guardado agora, inclusive o que o usuário mudou. Sem path devolve o mapa: arquivos (tamanho, rev, componentes exportados, seções, formulários), "+
 			"rotas, formulários com o destino dos leads, um resumo das configurações, a rota e a seleção na tela do usuário e open_gaps (o que impede publicar). "+
-			"Com path devolve o texto daquele arquivo, por linhas, para copiar o old exato de edit_file. Nunca devolve a página inteira de uma vez.",
+			"Com path devolve o texto daquele arquivo, por linhas, para copiar o old exato de edit_file. Nunca devolve o site inteiro de uma vez.",
 		siteReadArgs{})
 }
 
@@ -75,22 +79,32 @@ func (t *siteReadTool) Execute(ctx context.Context, cc copilot.Context, args map
 		}
 	}
 	if a.References {
-		body["references"] = t.references(ctx, view.Project.WorkspaceID)
+		body["references"] = t.references(ctx, view)
 	}
 	inspectCtx, cancel := bounded(ctx, inspectLimit)
 	defer cancel()
 	return copilot.Result{Status: copilot.StatusOK, Data: withOpenGaps(body, t.deps.inspect(inspectCtx, cc, view))}
 }
 
-func (t *siteReadTool) references(ctx context.Context, workspaceID string) interface{} {
+func (t *siteReadTool) references(ctx context.Context, view *site_usecase.View) interface{} {
 	if t.deps.References == nil {
 		return map[string]string{"unread": readNoReferences}
 	}
-	catalog, err := t.deps.References.Catalog(ctx, workspaceID)
+	catalog, err := t.deps.References.Catalog(ctx, view.Project.WorkspaceID)
 	if err != nil {
 		return map[string]string{"unread": readNoReferences}
 	}
+	catalog.BookingBlocks = bookingReferences(settingsOf(view))
 	return catalog
+}
+
+func bookingReferences(settings site.Settings) []site_usecase.ReferenceItem {
+	out := []site_usecase.ReferenceItem{}
+	for _, id := range slices.Sorted(maps.Keys(settings.Bookings)) {
+		b := settings.Bookings[id]
+		out = append(out, site_usecase.ReferenceItem{ID: id, Name: fmt.Sprintf(bookingReferenceName, b.DurationMinutes, b.Hours.Timezone)})
+	}
+	return out
 }
 
 func readFile(files map[string]site.File, path string, from, to int) copilot.Result {

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"vozko/domain/agenttool"
+	"vozko/domain/automationneeds"
 	"vozko/domain/googleaccount"
 	"vozko/domain/googlesheet"
 	"vozko/domain/shared"
@@ -62,6 +63,7 @@ type SheetRows interface {
 
 type ConversationSheets interface {
 	AgentSheetFiles(ctx context.Context, workspaceID, entryID string, entryType shared.EntryType, agentID string) (map[string]workflow.SheetFile, error)
+	Label(ctx context.Context, workspaceID string, needs automationneeds.Needs) automationneeds.Needs
 }
 
 type addSheetRowTool struct {
@@ -298,6 +300,26 @@ func (t *addSheetRowTool) ValidateBinding(ctx context.Context, workspaceID strin
 	}
 	if !sheet.TakesInput() {
 		return tools.Invalid(agenttool.CodeSheetNoInputColumns, "a planilha não tem colunas preenchidas pelo agente")
+	}
+	return t.checkSheetVariable(ctx, workspaceID, config, sheet)
+}
+
+func (t *addSheetRowTool) checkSheetVariable(ctx context.Context, workspaceID string, config map[string]interface{}, model *googlesheet.Sheet) error {
+	name, set, err := workflow.SheetVariableOf(config[addSheetRowVariableKey])
+	switch {
+	case err != nil:
+		return tools.Invalid(agenttool.CodeSheetVariableInvalid, "\"Muda por conversa\" precisa ser um dado da conversa do tipo Planilha")
+	case !set:
+		return nil
+	case t.conversations == nil:
+		return errors.New("add sheet row: the conversation data declarations are not wired")
+	}
+	labeled := t.conversations.Label(ctx, workspaceID, automationneeds.Needs{{Name: name}})
+	switch err := automationneeds.SheetModelProblem(labeled, model.SpreadsheetID); {
+	case errors.Is(err, automationneeds.ErrSheetModelMismatch):
+		return tools.Invalid(agenttool.CodeSheetVariableInvalid, fmt.Sprintf("a aba %q não é da planilha modelo de %s", model.Title, labeled[0].Display()))
+	case err != nil:
+		return tools.Invalid(agenttool.CodeSheetVariableInvalid, fmt.Sprintf("%q não é um dado da conversa do tipo Planilha", name))
 	}
 	return nil
 }

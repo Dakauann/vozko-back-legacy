@@ -394,11 +394,11 @@ func (r resourceAccess) Execute(_, _ string, res workspace.Resource, _ workspace
 }
 
 func TestDriver_OffersOnlyTheToolsThePersonMayUse(t *testing.T) {
-	allowed := &fakeTool{name: "list_agents", meta: copilot.Meta{Resource: workspace.ResourceAgents, Action: workspace.ActionRead}}
-	forbidden := &fakeTool{name: "create_template", meta: copilot.Meta{Mutating: true, Resource: workspace.ResourceWhatsAppTemplates, Action: workspace.ActionCreate}}
+	allowed := &fakeTool{name: "read_x", meta: copilot.Meta{Resource: workspace.ResourceAgents, Action: workspace.ActionRead}}
+	forbidden := &fakeTool{name: "write_x", meta: copilot.Meta{Mutating: true, Resource: workspace.ResourceWhatsAppTemplates, Action: workspace.ActionCreate}}
 	drv := driverWith(resourceAccess{workspace.ResourceAgents: true}, allowed, forbidden)
 	defs := drv.Tools()
-	if len(defs) != 1 || defs[0].Name != "list_agents" {
+	if len(defs) != 1 || defs[0].Name != "read_x" {
 		t.Fatalf("tools = %+v", defs)
 	}
 	admin := NewDriver(copilot.Context{WorkspaceID: "ws1", UserID: "u1", SystemAdmin: true}, "m", NewRegistry(allowed, forbidden), resourceAccess{}, openFunds{}, func() string { return "a" })
@@ -627,7 +627,7 @@ func (p *prerequisiteTool) AlsoRequires() []workspace.PermissionEntry { return p
 
 func TestDriver_AToolWithPrerequisitesIsOfferedOnlyToHoldersOfAll(t *testing.T) {
 	tool := &prerequisiteTool{
-		fakeTool: fakeTool{name: "create_customer_list_audience", meta: copilot.Meta{Mutating: true, Resource: workspace.ResourceAds, Action: workspace.ActionCreate}},
+		fakeTool: fakeTool{name: "audience_x", meta: copilot.Meta{Mutating: true, Resource: workspace.ResourceAds, Action: workspace.ActionCreate}},
 		also:     []workspace.PermissionEntry{{Resource: workspace.ResourceLeads, Action: workspace.ActionRead}},
 	}
 	adsOnly := driverWith(resourceAccess{workspace.ResourceAds: true}, tool)

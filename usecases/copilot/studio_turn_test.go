@@ -41,8 +41,8 @@ func offeredNames(d *Driver) string {
 
 func TestStudioToolsExistOnlyInsideTheStudio(t *testing.T) {
 	edit := newStudioTool("studio_edit", readMeta)
-	plain := &fakeTool{name: "list_agents", meta: readMeta}
-	if got := offeredNames(studioDriver(copilot.View{}, edit, plain)); got != "list_agents" {
+	plain := &fakeTool{name: "search_leads", meta: readMeta}
+	if got := offeredNames(studioDriver(copilot.View{}, edit, plain)); got != "search_leads" {
 		t.Fatalf("outside the studio the offer must be unchanged, got %q", got)
 	}
 	if got := offeredNames(studioDriver(studioView, edit, plain)); got != "studio_edit" {
@@ -284,8 +284,8 @@ func TestAStudioTurnCarriesTheScreenAndTheModelsSight(t *testing.T) {
 		t.Fatalf("a studio tool must receive the screen and the model's sight, got %+v", look.gotCC)
 	}
 
-	plain := &fakeTool{name: "list_agents", meta: readMeta}
-	prov = &scriptAI{turns: [][]ai.ToolCall{{call("list_agents", nil)}, {}}, texts: []string{"", "ok"}, models: []ai.ModelInfo{toolModel("vision-model")}}
+	plain := &fakeTool{name: "search_leads", meta: readMeta}
+	prov = &scriptAI{turns: [][]ai.ToolCall{{call("search_leads", nil)}, {}}, texts: []string{"", "ok"}, models: []ai.ModelInfo{toolModel("vision-model")}}
 	svc = newService(prov, th, &fakeMessages{}, plain)
 	svc.screens = newMailbox()
 	if err := svc.Stream(context.Background(), th.thread, copilot.UserMessage{Content: "liste"}, ownerCtx, (&capture{}).emit); err != nil {
@@ -316,10 +316,10 @@ func TestScreenRepliesAreDeliveredOnlyToTheirThread(t *testing.T) {
 }
 
 func TestTheStudioPromptExplainsTheEditorOnlyInTheStudio(t *testing.T) {
-	if !strings.Contains(systemPrompt(studioView, time.Now()), "# Estúdio") {
+	if !strings.Contains(systemPrompt(studioView), "# Estúdio") {
 		t.Fatal("the studio surface must explain the editor")
 	}
-	if strings.Contains(systemPrompt(copilot.View{}, time.Now()), "# Estúdio") {
+	if strings.Contains(systemPrompt(copilot.View{}), "# Estúdio") {
 		t.Fatal("the studio section must not leak outside the studio")
 	}
 }
@@ -352,21 +352,21 @@ func TestTheStudioPromptShowsTheWayFromTheProjectToAnAd(t *testing.T) {
 	for _, kind := range []copilot.StudioKind{copilot.StudioVideo, copilot.StudioImage} {
 		view := studioView
 		view.ProjectKind = kind
-		prompt := systemPrompt(view, time.Now())
+		prompt := systemPrompt(view)
 		for _, want := range []string{"studio_export", "media_id", "create_ad", "save_ad_draft", "criativos-que-performam"} {
 			if !strings.Contains(prompt, want) {
 				t.Errorf("%s studio prompt does not mention %s", kind, want)
 			}
 		}
 	}
-	if strings.Contains(systemPrompt(copilot.View{}, time.Now()), studioAdPrompt) {
+	if strings.Contains(systemPrompt(copilot.View{}), studioAdPrompt) {
 		t.Fatal("the studio ad route must not leak outside the studio")
 	}
 }
 
 func TestTheStudioPromptLeavesOutTheGuidesOfOtherAreas(t *testing.T) {
-	studio := systemPrompt(studioView, time.Now())
-	general := systemPrompt(copilot.View{}, time.Now())
+	studio := systemPrompt(studioView)
+	general := systemPrompt(copilot.View{})
 	if strings.Contains(studio, adsPrompt) || strings.Contains(studio, areasPrompt) {
 		t.Fatal("the studio prompt must not carry the ads and areas guides")
 	}

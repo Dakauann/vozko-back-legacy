@@ -12,11 +12,13 @@ import (
 const (
 	VisitorTokenTTL     = 30 * 24 * time.Hour
 	visitorTokenVersion = "v1"
+	demoTokenVersion    = "d1"
 	tokenClockSkew      = 2 * time.Minute
 )
 
 type Keys struct {
 	VisitorToken []byte
+	DemoToken    []byte
 	Challenge    []byte
 	IPHash       []byte
 }
@@ -28,6 +30,7 @@ func DeriveKeys(rootSecret string) (Keys, error) {
 	}
 	return Keys{
 		VisitorToken: derive(root, "vozko/webchat/visitor-token/v1"),
+		DemoToken:    derive(root, "vozko/webchat/demo-token/v1"),
 		Challenge:    derive(root, "vozko/webchat/challenge/v1"),
 		IPHash:       derive(root, "vozko/webchat/ip-hash/v1"),
 	}, nil
@@ -53,34 +56,55 @@ type VisitorGrant struct {
 }
 
 func NewVisitorToken(keys Keys, grant VisitorGrant, now time.Time) (string, error) {
-	if len(keys.VisitorToken) == 0 {
+	issued := now.UTC().Truncate(time.Second)
+	return issueToken(keys.VisitorToken, visitorTokenVersion, grant, issued, issued.Add(VisitorTokenTTL))
+}
+
+func VerifyVisitorToken(keys Keys, token string, now time.Time) (VisitorGrant, error) {
+	return verifyToken(keys.VisitorToken, visitorTokenVersion, token, now)
+}
+
+func NewDemoToken(keys Keys, grant VisitorGrant, now time.Time) (string, error) {
+	issued := now.UTC().Truncate(time.Second)
+	expires := grant.ExpiresAt.UTC().Truncate(time.Second)
+	if !expires.After(issued) {
+		return "", ErrVisitorTokenInvalid
+	}
+	return issueToken(keys.DemoToken, demoTokenVersion, grant, issued, expires)
+}
+
+func VerifyDemoToken(keys Keys, token string, now time.Time) (VisitorGrant, error) {
+	return verifyToken(keys.DemoToken, demoTokenVersion, token, now)
+}
+
+func issueToken(key []byte, version string, grant VisitorGrant, issued, expires time.Time) (string, error) {
+	if len(key) == 0 {
 		return "", ErrSigningKeyMissing
 	}
 	if grant.WidgetID == "" || grant.VisitorID == "" || strings.Contains(grant.WidgetID+grant.VisitorID, "|") {
 		return "", ErrVisitorTokenInvalid
 	}
-	issued := now.UTC().Truncate(time.Second)
 	payload := strings.Join([]string{
 		grant.WidgetID,
 		grant.VisitorID,
 		strconv.FormatInt(issued.Unix(), 10),
-		strconv.FormatInt(issued.Add(VisitorTokenTTL).Unix(), 10),
+		strconv.FormatInt(expires.Unix(), 10),
 	}, "|")
 	encoded := base64.RawURLEncoding.EncodeToString([]byte(payload))
-	head := visitorTokenVersion + "." + encoded
-	return head + "." + sign(keys.VisitorToken, head), nil
+	head := version + "." + encoded
+	return head + "." + sign(key, head), nil
 }
 
-func VerifyVisitorToken(keys Keys, token string, now time.Time) (VisitorGrant, error) {
-	if len(keys.VisitorToken) == 0 {
+func verifyToken(key []byte, version, token string, now time.Time) (VisitorGrant, error) {
+	if len(key) == 0 {
 		return VisitorGrant{}, ErrSigningKeyMissing
 	}
 	parts := strings.Split(strings.TrimSpace(token), ".")
-	if len(parts) != 3 || parts[0] != visitorTokenVersion || parts[1] == "" || parts[2] == "" {
+	if len(parts) != 3 || parts[0] != version || parts[1] == "" || parts[2] == "" {
 		return VisitorGrant{}, ErrVisitorTokenInvalid
 	}
 	head := parts[0] + "." + parts[1]
-	if !hmac.Equal([]byte(parts[2]), []byte(sign(keys.VisitorToken, head))) {
+	if !hmac.Equal([]byte(parts[2]), []byte(sign(key, head))) {
 		return VisitorGrant{}, ErrVisitorTokenInvalid
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(parts[1])

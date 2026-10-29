@@ -83,7 +83,7 @@ func (s *Service) phoneSample(ctx context.Context, a Actor, ch campaignaudience.
 	if err != nil {
 		return nil, nil, err
 	}
-	prepared, err := channel.Prepare(ctx, a, params)
+	prepared, _, err := s.prepare(ctx, channel, a, params)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -100,7 +100,7 @@ func (s *Service) phoneSample(ctx context.Context, a Actor, ch campaignaudience.
 	for i, b := range bound {
 		n := i + 1
 		if b.Automation() {
-			if !b.Optional {
+			if !b.Optional && !b.Sheet {
 				header, example = append(header, b.Key), append(example, sampleValue(b, campaignaudience.Slot{}, n))
 			}
 			continue

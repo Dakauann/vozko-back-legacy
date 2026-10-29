@@ -302,3 +302,26 @@ func TestSomeoneElsesThreadCostIsNotFound(t *testing.T) {
 		t.Fatalf("status = %d, body %s", w.Code, w.Body.String())
 	}
 }
+
+func TestTheThreadCostSplitsContextCacheAndGenerations(t *testing.T) {
+	threads := screenThreads{thread: &aichat.Thread{ID: "th1", WorkspaceID: "ws1", UserID: "u1", CostTracked: true}}
+	ledger := pricedLedger{totals: balance.ReferenceTotals{BillingMicros: 790_000, GenerationBillingMicros: 250_000, Transactions: 4, Debits: 4}}
+	usage := pricedUsage{totals: aiusage.Totals{Calls: 3, Billed: 4, LatestInput: 30_000, Tokens: aiusage.Tokens{Input: 541_600, Output: 4_000, CacheRead: 480_000, CacheWrite: 40_000}}}
+	handler := NewAIChatHandler(chatService(aichat_usecase.Deps{Threads: threads, Charges: ledger, Usage: usage}), copilotService(copilot_usecase.Deps{Threads: threads}))
+	w := call(handler.ThreadCost, turnRequest(context.Background(), http.MethodGet, "/chat/threads/th1/cost", "u1", ""))
+	var body struct {
+		ModelMicros      int64 `json:"modelMicros"`
+		GenerationMicros int64 `json:"generationMicros"`
+		Usage            struct {
+			ContextTokens   int64 `json:"contextTokens"`
+			NewInputTokens  int64 `json:"newInputTokens"`
+			ProcessedTokens int64 `json:"processedTokens"`
+		} `json:"usage"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil || w.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+	}
+	if body.ModelMicros != 540_000 || body.GenerationMicros != 250_000 || body.Usage.ContextTokens != 30_000 || body.Usage.NewInputTokens != 21_600 || body.Usage.ProcessedTokens != 545_600 {
+		t.Fatalf("cost = %s", w.Body.String())
+	}
+}

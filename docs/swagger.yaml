@@ -496,26 +496,26 @@ definitions:
     type: object
   advertising.Destination:
     enum:
-    - WHATSAPP
-    - MESSENGER
-    - INSTAGRAM_DIRECT
     - WEBSITE
     - ON_AD
     - APP
     - ON_POST
     - NONE
     - CATALOG
+    - WHATSAPP
+    - MESSENGER
+    - INSTAGRAM_DIRECT
     type: string
     x-enum-varnames:
-    - DestinationWhatsApp
-    - DestinationMessenger
-    - DestinationInstagramDirect
     - DestinationWebsite
     - DestinationInstantForm
     - DestinationApp
     - DestinationOnPost
     - DestinationNone
     - DestinationCatalog
+    - DestinationWhatsApp
+    - DestinationMessenger
+    - DestinationInstagramDirect
   advertising.ExportLabels:
     properties:
       breakdowns:
@@ -806,7 +806,6 @@ definitions:
     - ObjectiveAppPromotion
   advertising.OptimizationGoal:
     enum:
-    - CONVERSATIONS
     - REACH
     - IMPRESSIONS
     - AD_RECALL_LIFT
@@ -820,9 +819,9 @@ definitions:
     - OFFSITE_CONVERSIONS
     - VALUE
     - APP_INSTALLS
+    - CONVERSATIONS
     type: string
     x-enum-varnames:
-    - GoalConversations
     - GoalReach
     - GoalImpressions
     - GoalAdRecallLift
@@ -836,6 +835,7 @@ definitions:
     - GoalOffsiteConversion
     - GoalValue
     - GoalAppInstalls
+    - GoalConversations
   advertising.Pixel:
     properties:
       creationTime:
@@ -4236,6 +4236,7 @@ definitions:
     type: object
   attendance.Section:
     enum:
+    - service_messages
     - summary
     - trend
     - stages
@@ -4243,9 +4244,9 @@ definitions:
     - team
     - rework
     - live
-    - service_messages
     type: string
     x-enum-varnames:
+    - SectionServiceMessages
     - SectionSummary
     - SectionTrend
     - SectionStages
@@ -4253,7 +4254,6 @@ definitions:
     - SectionTeam
     - SectionRework
     - SectionLive
-    - SectionServiceMessages
   attendance.ServiceMessageBucket:
     properties:
       bucket:
@@ -5429,6 +5429,12 @@ definitions:
       windowOpen:
         type: boolean
     type: object
+  audiencex.VariableDetails:
+    properties:
+      variable:
+        example: planilha_de_gravacao
+        type: string
+    type: object
   audiencex.VariableRequest:
     properties:
       column:
@@ -5670,6 +5676,80 @@ definitions:
         type: string
     required:
     - token
+    type: object
+  automationneedshttp.AgentVariableRequest:
+    properties:
+      defaultValue:
+        example: Manhã
+        type: string
+      description:
+        example: Período da aula
+        type: string
+      name:
+        example: turno
+        type: string
+    type: object
+  automationneedshttp.AgentVariableResponse:
+    properties:
+      declared:
+        type: boolean
+      default:
+        example: Manhã
+        type: string
+      description:
+        example: Nome do cliente na planilha
+        type: string
+      example:
+        example: Ana Souza
+        type: string
+      filledBy:
+        items:
+          $ref: '#/definitions/automationneedshttp.FlowFillerResponse'
+        type: array
+      inAgent:
+        type: boolean
+      inPrompt:
+        type: boolean
+      label:
+        example: Nome do cliente
+        type: string
+      name:
+        example: nome_cliente
+        type: string
+      problem:
+        enum:
+        - agent_variable_name_invalid
+        - agent_variable_name_reserved
+        - agent_variable_duplicate
+        example: agent_variable_name_reserved
+        type: string
+      required:
+        type: boolean
+      type:
+        $ref: '#/definitions/automationneedsx.NeedTypeResponse'
+      used:
+        type: boolean
+      via:
+        items:
+          $ref: '#/definitions/automationneedsx.LinkResponse'
+        type: array
+    type: object
+  automationneedshttp.AgentVariablesRequest:
+    properties:
+      messagingPrompt:
+        example: Olá! Sua matrícula {{matricula}} é do turno {{turno}}.
+        type: string
+      variables:
+        items:
+          $ref: '#/definitions/automationneedshttp.AgentVariableRequest'
+        type: array
+    type: object
+  automationneedshttp.AgentVariablesResponse:
+    properties:
+      variables:
+        items:
+          $ref: '#/definitions/automationneedshttp.AgentVariableResponse'
+        type: array
     type: object
   automationneedshttp.AutomationRequest:
     properties:
@@ -5976,6 +6056,8 @@ definitions:
       name:
         example: nome_cliente
         type: string
+      sheet:
+        type: boolean
       suggested:
         example: lead.custom:matricula
         type: string
@@ -8183,6 +8265,8 @@ definitions:
     - leads_metadata_unavailable
     - template_required
     - message_required
+    - sheet_required
+    - sheet_unfit
     type: string
     x-enum-varnames:
     - BlockerChoiceRequired
@@ -8193,6 +8277,8 @@ definitions:
     - BlockerLeadsMetadataUnavailable
     - BlockerTemplateRequired
     - BlockerMessageRequired
+    - BlockerSheetRequired
+    - BlockerSheetUnfit
   campaignaudience.Channel:
     enum:
     - email
@@ -8379,14 +8465,42 @@ definitions:
         type: boolean
       policy:
         $ref: '#/definitions/campaignaudience.MissingPolicy'
+      sheet:
+        type: boolean
+      sheetUnfit:
+        example: sheet_fit_tab_missing
+        type: string
       source:
         $ref: '#/definitions/campaign.BindingSource'
       suggested:
         type: boolean
       text:
         type: string
+      type:
+        $ref: '#/definitions/campaignaudience.VariableType'
       value:
         type: string
+    type: object
+  campaignaudience.VariableType:
+    properties:
+      kind:
+        allOf:
+        - $ref: '#/definitions/variabledecl.Kind'
+        example: choice
+      options:
+        items:
+          type: string
+        type: array
+      shape:
+        allOf:
+        - $ref: '#/definitions/variabledecl.Shape'
+        enum:
+        - text
+        - number
+        - date
+        - choice
+        - sheet
+        example: choice
     type: object
   campaignaudience_usecase.Preview:
     properties:
@@ -11884,22 +11998,22 @@ definitions:
     type: object
   emailcampaign.HoldReason:
     enum:
-    - test_batch_bounces
-    - test_batch_complaints
     - ""
     - daily_cap
     - account_paused
     - sender_unavailable
     - balance_insufficient
+    - test_batch_bounces
+    - test_batch_complaints
     type: string
     x-enum-varnames:
-    - HoldTestBatchBounces
-    - HoldTestBatchComplaints
     - HoldNone
     - HoldDailyCap
     - HoldAccountPaused
     - HoldSenderUnavailable
     - HoldBalanceShort
+    - HoldTestBatchBounces
+    - HoldTestBatchComplaints
   emailcampaign.Issue:
     properties:
       addresses:
@@ -14165,6 +14279,14 @@ definitions:
     type: object
   googlesheet.FileFitResponse:
     properties:
+      choices:
+        items:
+          $ref: '#/definitions/googlesheet.FitTabChoiceResponse'
+        type: array
+      choosable:
+        type: boolean
+      chosen:
+        type: boolean
       fits:
         type: boolean
       misfit:
@@ -14186,6 +14308,9 @@ definitions:
         type: string
       url:
         example: https://docs.google.com/spreadsheets/d/1AbC/edit
+        type: string
+      value:
+        example: 1AbC
         type: string
     type: object
   googlesheet.FitCandidateResponse:
@@ -14222,6 +14347,37 @@ definitions:
         items:
           $ref: '#/definitions/googlesheet.FitUseRequest'
         type: array
+    type: object
+  googlesheet.FitTabChoiceResponse:
+    properties:
+      modelSheetId:
+        example: 3b9f4c2e-1d7a-4e5b-9c8d-2a1f0e3d4c5b
+        type: string
+      modelTab:
+        example: Pagamentos
+        type: string
+      options:
+        items:
+          $ref: '#/definitions/googlesheet.FitTabOptionResponse'
+        type: array
+    type: object
+  googlesheet.FitTabOptionResponse:
+    properties:
+      chosen:
+        type: boolean
+      fits:
+        type: boolean
+      problem:
+        $ref: '#/definitions/googlesheet.FitProblemResponse'
+      sheetId:
+        example: 9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d
+        type: string
+      title:
+        example: Pagamentos Centro
+        type: string
+      value:
+        example: '{"spreadsheet_id":"1AbC","tabs":{"3b9f4c2e":"9a1b2c3d"}}'
+        type: string
     type: object
   googlesheet.FitTabResponse:
     properties:
@@ -15085,6 +15241,12 @@ definitions:
       currency:
         example: BRL
         type: string
+      generationMicros:
+        example: 120000
+        type: integer
+      modelMicros:
+        example: 300000
+        type: integer
       usage:
         $ref: '#/definitions/handlers.ThreadUsageResponse'
     type: object
@@ -15102,11 +15264,20 @@ definitions:
       calls:
         example: 15
         type: integer
+      contextTokens:
+        example: 30000
+        type: integer
       inputTokens:
         example: 960532
         type: integer
+      newInputTokens:
+        example: 45532
+        type: integer
       outputTokens:
         example: 19172
+        type: integer
+      processedTokens:
+        example: 979704
         type: integer
       reasoningTokens:
         example: 3100
@@ -20012,7 +20183,6 @@ definitions:
     type: object
   report.FailureCode:
     enum:
-    - forbidden
     - unknown_kind
     - unsupported_format
     - too_many_rows
@@ -20023,9 +20193,9 @@ definitions:
     - cancelled
     - workspace_required
     - empty_result
+    - forbidden
     type: string
     x-enum-varnames:
-    - FailureForbidden
     - FailureUnknownKind
     - FailureUnsupported
     - FailureTooManyRows
@@ -20036,6 +20206,7 @@ definitions:
     - FailureCancelled
     - FailureWorkspaceEmpty
     - FailureEmptyResult
+    - FailureForbidden
   report.Format:
     enum:
     - csv
@@ -20087,22 +20258,22 @@ definitions:
     type: object
   report.Kind:
     enum:
-    - leads
-    - whatsapp_dispatch
-    - whatsapp_form_responses
     - attendance_overview
     - conversation_entries
     - balance_transactions
     - opportunities
+    - leads
+    - whatsapp_dispatch
+    - whatsapp_form_responses
     type: string
     x-enum-varnames:
-    - KindLeads
-    - KindWhatsAppDispatch
-    - KindWhatsAppFormResponses
     - KindAttendanceOverview
     - KindConversationEntries
     - KindBalanceTransactions
     - KindOpportunities
+    - KindLeads
+    - KindWhatsAppDispatch
+    - KindWhatsAppFormResponses
   report.KindDescriptor:
     properties:
       formats:
@@ -21015,6 +21186,37 @@ definitions:
         example: "1001"
         type: string
     type: object
+  site.Booking:
+    properties:
+      buffer_minutes:
+        type: integer
+      consent_text:
+        type: string
+      duration_minutes:
+        type: integer
+      fields:
+        items:
+          $ref: '#/definitions/site.BookingField'
+        type: array
+      horizon_days:
+        type: integer
+      hours:
+        $ref: '#/definitions/working_hours.Spec'
+      meet:
+        type: boolean
+      notice_minutes:
+        type: integer
+      title:
+        type: string
+    type: object
+  site.BookingField:
+    enum:
+    - email
+    - message
+    type: string
+    x-enum-varnames:
+    - BookingFieldEmail
+    - BookingFieldMessage
   site.Check:
     properties:
       code:
@@ -21158,6 +21360,8 @@ definitions:
         $ref: '#/definitions/site.FollowUp'
       funnel_id:
         type: string
+      name:
+        type: string
       notify:
         type: boolean
       owner:
@@ -21175,6 +21379,8 @@ definitions:
         type: string
       structured_data:
         type: boolean
+      webchat_widget:
+        type: string
     type: object
   site.Ignored:
     properties:
@@ -21279,6 +21485,9 @@ definitions:
     - remove_knob
     - set_whatsapp_link
     - clear_whatsapp_link
+    - insert_element
+    - set_form_field
+    - insert_form_field
     type: string
     x-enum-varnames:
     - OpWriteFile
@@ -21300,12 +21509,49 @@ definitions:
     - OpRemoveKnob
     - OpSetWhatsAppLink
     - OpClearWhatsAppLink
+    - OpInsertElement
+    - OpSetFormField
+    - OpInsertFormField
+  site.OutlineField:
+    properties:
+      kind:
+        $ref: '#/definitions/siteform.Kind'
+      label:
+        type: string
+      labelNode:
+        type: string
+      name:
+        type: string
+      node:
+        type: string
+      required:
+        type: boolean
+      row:
+        type: string
+    type: object
+  site.OutlineForm:
+    properties:
+      fields:
+        items:
+          $ref: '#/definitions/site.OutlineField'
+        type: array
+      id:
+        type: string
+      node:
+        type: string
+      submit:
+        type: string
+    type: object
   site.OutlineNode:
     properties:
+      anchor:
+        type: string
       children:
         items:
           $ref: '#/definitions/site.OutlineNode'
         type: array
+      form:
+        type: string
       label:
         type: string
       node:
@@ -21370,6 +21616,10 @@ definitions:
     type: object
   site.RouteOutline:
     properties:
+      forms:
+        items:
+          $ref: '#/definitions/site.OutlineForm'
+        type: array
       nodes:
         items:
           $ref: '#/definitions/site.OutlineNode'
@@ -21381,6 +21631,10 @@ definitions:
     type: object
   site.Settings:
     properties:
+      bookings:
+        additionalProperties:
+          $ref: '#/definitions/site.Booking'
+        type: object
       consent:
         $ref: '#/definitions/site.Consent'
       forms:
@@ -21605,6 +21859,120 @@ definitions:
         example: 150000
         type: integer
     type: object
+  siteform.Kind:
+    enum:
+    - text
+    - email
+    - tel
+    - number
+    - date
+    - url
+    - hidden
+    - checkbox
+    - radio
+    - select
+    - textarea
+    type: string
+    x-enum-varnames:
+    - KindText
+    - KindEmail
+    - KindTel
+    - KindNumber
+    - KindDate
+    - KindURL
+    - KindHidden
+    - KindCheckbox
+    - KindRadio
+    - KindSelect
+    - KindTextarea
+  siteformhttp.BookedResponse:
+    properties:
+      end:
+        example: "2026-10-29T12:30:00Z"
+        type: string
+      meetingLink:
+        example: https://meet.google.com/abc-defg-hij
+        type: string
+      start:
+        example: "2026-10-29T12:00:00Z"
+        type: string
+      timeZone:
+        example: America/Sao_Paulo
+        type: string
+    type: object
+  siteformhttp.BookingResponse:
+    properties:
+      booking:
+        $ref: '#/definitions/siteformhttp.BookedResponse'
+      id:
+        example: 7d1f0a52-1b0f-4f7e-9a34-0d5f8f1e2c3b
+        type: string
+      success:
+        $ref: '#/definitions/sitesubmission.SuccessAction'
+    type: object
+  siteformhttp.FormAutomationResponse:
+    properties:
+      active:
+        type: boolean
+      name:
+        example: Respostas do formulário contato
+        type: string
+      workflowId:
+        format: uuid
+        type: string
+    type: object
+  siteformhttp.FormAutomationsResponse:
+    properties:
+      formKey:
+        example: f_8Jd2kq0Lr7
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/siteformhttp.FormAutomationResponse'
+        type: array
+    type: object
+  siteformhttp.FormTargetResponse:
+    properties:
+      custom:
+        type: boolean
+      kinds:
+        example:
+        - tel
+        - text
+        items:
+          type: string
+        type: array
+      label:
+        example: Cidade
+        type: string
+      target:
+        example: lead.phone
+        type: string
+    type: object
+  siteformhttp.FormTargetsResponse:
+    properties:
+      insertable:
+        example:
+        - text
+        - email
+        - tel
+        - textarea
+        items:
+          type: string
+        type: array
+      settable:
+        example:
+        - text
+        - email
+        - tel
+        items:
+          type: string
+        type: array
+      targets:
+        items:
+          $ref: '#/definitions/siteformhttp.FormTargetResponse'
+        type: array
+    type: object
   siteformhttp.PageFormListResponse:
     properties:
       items:
@@ -21620,6 +21988,9 @@ definitions:
       formKey:
         example: f_8Jd2kq0Lr7
         type: string
+      formName:
+        example: Fale conosco
+        type: string
       live:
         type: boolean
       projectId:
@@ -21627,6 +21998,45 @@ definitions:
         type: string
       projectName:
         example: Clínica Sorriso
+        type: string
+    type: object
+  siteformhttp.ScaffoldedAutomationResponse:
+    properties:
+      workflowId:
+        format: uuid
+        type: string
+    type: object
+  siteformhttp.SlotResponse:
+    properties:
+      end:
+        example: "2026-10-29T12:30:00Z"
+        type: string
+      start:
+        example: "2026-10-29T12:00:00Z"
+        type: string
+    type: object
+  siteformhttp.SlotsResponse:
+    properties:
+      consentText:
+        example: Autorizo o contato pelo WhatsApp.
+        type: string
+      durationMinutes:
+        example: 30
+        type: integer
+      fields:
+        example:
+        - email
+        items:
+          type: string
+        type: array
+      preview:
+        type: boolean
+      slots:
+        items:
+          $ref: '#/definitions/siteformhttp.SlotResponse'
+        type: array
+      timeZone:
+        example: America/Sao_Paulo
         type: string
     type: object
   siteformhttp.SubmissionListResponse:
@@ -21970,6 +22380,47 @@ definitions:
       total:
         type: integer
     type: object
+  sitehttp.NextStepActionResponse:
+    properties:
+      kind:
+        enum:
+        - prompt
+        - settings
+        - publish
+        type: string
+      prompt:
+        example: Adicione perto do formulário o link da política de privacidade.
+        type: string
+      tab:
+        enum:
+        - general
+        - domains
+        - forms
+        - bookings
+        - integrations
+        - consent
+        type: string
+    type: object
+  sitehttp.NextStepResponse:
+    properties:
+      action:
+        $ref: '#/definitions/sitehttp.NextStepActionResponse'
+      code:
+        example: add_booking
+        type: string
+      label:
+        example: Adicionar um bloco de agendamento
+        type: string
+    type: object
+  sitehttp.NextStepsResponse:
+    properties:
+      checked:
+        type: boolean
+      steps:
+        items:
+          $ref: '#/definitions/sitehttp.NextStepResponse'
+        type: array
+    type: object
   sitehttp.OutlineResponse:
     properties:
       buildErrors:
@@ -22166,6 +22617,16 @@ definitions:
     type: object
   sitehttp.SectionResponse:
     properties:
+      group:
+        enum:
+        - sections
+        - forms
+        - fields
+        - buttons
+        - media
+        - platform
+        - saved
+        type: string
       key:
         example: faq
         type: string
@@ -22222,6 +22683,16 @@ definitions:
         type: string
       designSystemVersion:
         type: integer
+      group:
+        enum:
+        - sections
+        - forms
+        - fields
+        - buttons
+        - media
+        - platform
+        - saved
+        type: string
       key:
         example: faq
         type: string
@@ -22491,6 +22962,9 @@ definitions:
       offline:
         enum:
         - billing
+        type: string
+      platformDomain:
+        example: vozko.app
         type: string
       used:
         example: 2
@@ -23179,6 +23653,109 @@ definitions:
         type: array
       total:
         type: integer
+    type: object
+  studiohttp.PerceptionLayers:
+    properties:
+      depth:
+        example: true
+        type: boolean
+      layout:
+        example: true
+        type: boolean
+    type: object
+  studiohttp.PerceptionRequest:
+    properties:
+      approximate:
+        type: boolean
+      layers:
+        $ref: '#/definitions/studiohttp.PerceptionLayers'
+      surfaces:
+        items:
+          $ref: '#/definitions/studiohttp.PerceptionSurface'
+        type: array
+      video:
+        $ref: '#/definitions/studiohttp.PerceptionVideo'
+    type: object
+  studiohttp.PerceptionResponse:
+    properties:
+      shapes:
+        items:
+          items:
+            $ref: '#/definitions/studiohttp.PerceptionShape'
+          type: array
+        type: array
+    type: object
+  studiohttp.PerceptionShape:
+    properties:
+      at:
+        items:
+          type: number
+        type: array
+      from:
+        items:
+          type: number
+        type: array
+      kind:
+        enum:
+        - arrow
+        - segment
+        - guide
+        - area
+        - ring
+        type: string
+      points:
+        items:
+          items:
+            format: float64
+            type: number
+          type: array
+        type: array
+      to:
+        items:
+          type: number
+        type: array
+      tone:
+        enum:
+        - ok
+        - bad
+        type: string
+    type: object
+  studiohttp.PerceptionSurface:
+    properties:
+      canvas:
+        type: object
+      id:
+        type: string
+      layers:
+        items:
+          type: object
+        type: array
+      qr:
+        additionalProperties:
+          type: integer
+        type: object
+      texts:
+        type: object
+    type: object
+  studiohttp.PerceptionVideo:
+    properties:
+      background:
+        example: '#0f172a'
+        type: string
+      canvas:
+        type: object
+      frames:
+        items:
+          type: object
+        type: array
+      layers:
+        items:
+          type: object
+        type: array
+      times:
+        items:
+          type: number
+        type: array
     type: object
   studiohttp.PresetChangeRequest:
     properties:
@@ -24060,6 +24637,70 @@ definitions:
       name:
         type: string
       title:
+        type: string
+    type: object
+  tutorialhttp.ChecklistItemResponse:
+    properties:
+      done:
+        type: boolean
+      id:
+        example: publish
+        type: string
+    type: object
+  tutorialhttp.ChecklistResponse:
+    properties:
+      area:
+        example: sites
+        type: string
+      done:
+        example: 2
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/tutorialhttp.ChecklistItemResponse'
+        type: array
+      total:
+        example: 7
+        type: integer
+    type: object
+  tutorialhttp.ProgressListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/tutorialhttp.ProgressResponse'
+        type: array
+    type: object
+  tutorialhttp.ProgressRequest:
+    properties:
+      status:
+        enum:
+        - in_progress
+        - completed
+        - dismissed
+        example: completed
+        type: string
+      step:
+        example: 3
+        maximum: 50
+        minimum: 0
+        type: integer
+    type: object
+  tutorialhttp.ProgressResponse:
+    properties:
+      status:
+        enum:
+        - in_progress
+        - completed
+        - dismissed
+        example: completed
+        type: string
+      step:
+        example: 3
+        type: integer
+      tutorialId:
+        example: sites.editor
+        type: string
+      updatedAt:
         type: string
     type: object
   unofficial_whatsapp.GroupRole:
@@ -25680,6 +26321,44 @@ definitions:
         example: maria.silva
         type: string
     type: object
+  variabledecl.Kind:
+    enum:
+    - sheet
+    - text
+    - number
+    - date
+    - choice
+    type: string
+    x-enum-varnames:
+    - KindSheet
+    - KindText
+    - KindNumber
+    - KindDate
+    - KindChoice
+  variabledecl.Shape:
+    enum:
+    - sheet
+    - text
+    - number
+    - date
+    - choice
+    type: string
+    x-enum-varnames:
+    - ShapeSheet
+    - ShapeText
+    - ShapeNumber
+    - ShapeDate
+    - ShapeChoice
+  variabledeclhttp.ChangeForbiddenDetails:
+    properties:
+      name:
+        example: turno
+        type: string
+      users:
+        items:
+          $ref: '#/definitions/automationneedsx.LinkResponse'
+        type: array
+    type: object
   variabledeclhttp.DeclarationRequest:
     properties:
       description:
@@ -25699,12 +26378,18 @@ definitions:
       description:
         example: Período da aula
         type: string
+      editable:
+        type: boolean
       example:
         example: Manhã
         type: string
       label:
         example: Turno
         type: string
+      lockedBy:
+        items:
+          $ref: '#/definitions/automationneedsx.LinkResponse'
+        type: array
       name:
         example: turno
         type: string
@@ -26258,6 +26943,21 @@ definitions:
         type: string
       workspaceId:
         type: string
+    type: object
+  webchat.WidgetUsageResponse:
+    properties:
+      allowedOrigins:
+        example:
+        - https://www.loja.com.br
+        items:
+          type: string
+        type: array
+      siteOrigins:
+        example:
+        - https://ofertas.vozko.app
+        items:
+          type: string
+        type: array
     type: object
   whatsapp_campaign.ReportSummary:
     properties:
@@ -28134,10 +28834,10 @@ definitions:
     type: object
   workflow.LintIssueCode:
     enum:
-    - SHEET_LINK_EXPORT_MISSING
-    - SHEET_LINK_EXPORT_SOME_PATHS
-    - NODE_CONSENT_GRANT_NEEDS_REPLY
-    - SEND_OUTSIDE_WINDOW_RISK
+    - NODE_AGENT_CALL_INPUTS_INVALID
+    - NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER
+    - NODE_STAGE_DESTINATION
+    - NODE_HTTP_URL_NOT_HTTPS
     - GRAPH_EMPTY
     - GRAPH_TOO_MANY_NODES
     - GRAPH_TOO_MANY_EDGES
@@ -28191,22 +28891,22 @@ definitions:
     - CHANNEL_STEP_FALLS_BACK
     - CHANNEL_DATA_MAY_FAIL
     - CHANNEL_DATA_MAY_BE_EMPTY
+    - NODE_CONSENT_GRANT_NEEDS_REPLY
     - NODE_SCHEDULE_INVALID
     - GRAPH_VARIABLE_INVALID
     - GRAPH_VARIABLE_DEFAULT_INVALID
-    - NODE_HTTP_URL_NOT_HTTPS
     - NODE_INVALID_PLATFORM_EMAIL
-    - NODE_AGENT_CALL_INPUTS_INVALID
-    - NODE_REPLY_TO_AGENT_WITHOUT_AGENT_TRIGGER
+    - SHEET_LINK_EXPORT_MISSING
+    - SHEET_LINK_EXPORT_SOME_PATHS
+    - SEND_OUTSIDE_WINDOW_RISK
     - DATA_REF_NEVER_SET
     - DATA_REF_SOME_PATHS
-    - NODE_STAGE_DESTINATION
     type: string
     x-enum-varnames:
-    - LintSheetLinkExportMissing
-    - LintSheetLinkExportSomePaths
-    - LintConsentGrantNeedsReply
-    - LintSendOutsideWindowRisk
+    - LintAgentCallInputsInvalid
+    - LintReplyToAgentWithoutTrigger
+    - LintStageDestination
+    - LintHTTPURLNotHTTPS
     - LintGraphEmpty
     - LintGraphTooManyNodes
     - LintGraphTooManyEdges
@@ -28260,16 +28960,16 @@ definitions:
     - LintChannelStepFallsBack
     - LintChannelDataMayFail
     - LintChannelDataMayBeEmpty
+    - LintConsentGrantNeedsReply
     - LintScheduleInvalid
     - LintGraphVariableInvalid
     - LintGraphVariableDefaultInvalid
-    - LintHTTPURLNotHTTPS
     - LintInvalidPlatformEmail
-    - LintAgentCallInputsInvalid
-    - LintReplyToAgentWithoutTrigger
+    - LintSheetLinkExportMissing
+    - LintSheetLinkExportSomePaths
+    - LintSendOutsideWindowRisk
     - LintDataRefNeverSet
     - LintDataRefSomePaths
-    - LintStageDestination
   workflow.LintSeverity:
     enum:
     - blocking
@@ -31573,9 +32273,9 @@ paths:
       - Anúncios
   /ads/conversions/settings:
     get:
-      description: 'Para onde a plataforma envia os eventos do CRM (negócio criado
-        vira LeadSubmitted, negócio ganho vira Purchase): conjunto de dados do WhatsApp
-        ou pixel.'
+      description: 'Para onde a plataforma envia os eventos do CRM (negociação criada
+        vira LeadSubmitted, negociação ganha vira Purchase): conjunto de dados do
+        WhatsApp ou pixel.'
       produces:
       - application/json
       responses:
@@ -33254,6 +33954,8 @@ paths:
         Salva os campos do rascunho do agente: nome, descrição, prompt, modelo, avatar, etiquetas, metadados, mídias, bases de conhecimento, RAG, variáveis e o estado ativo. Conversas seguem usando a versão publicada até a próxima publicação.
 
         As ferramentas não vão neste corpo: cada uma é salva em /agents/{id}/tools. Um corpo com `internalTools` responde 400 `agent_tools_moved` sem salvar nada. Servidores MCP também são ferramentas (tipo `mcp_source`, com as ferramentas permitidas): um corpo com `mcpCollectionIds` responde 400 `agent_mcp_collections_moved`.
+
+        `variables` são as variáveis iniciais que o agente usa: o nome técnico (letras sem acento, números e _, até 64, sem repetir; lead_name, lead_number e campaign_name são da plataforma) e o valor padrão (sem padrão, a variável é obrigatória). Mandar `variables` substitui a lista inteira; uma lista vazia tira todas. O nome amigável, a descrição e o tipo moram na declaração do workspace (/conversation-variables), a mesma de fluxos, campanhas e transferências; um nome não declarado vale como texto. Até 50 variáveis.
       parameters:
       - description: ID do agente
         in: path
@@ -33275,7 +33977,8 @@ paths:
             $ref: '#/definitions/agent.Agent'
         "400":
           description: agent_tools_moved, agent_mcp_collections_moved, agent_invalid_body,
-            agent_name_required
+            agent_name_required, agent_variable_name_invalid, agent_variable_name_reserved,
+            agent_variable_duplicate ou agent_variable_too_many
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "403":
@@ -33295,6 +33998,67 @@ paths:
       summary: Atualizar um agente
       tags:
       - Agentes
+  /agents/{id}/conversation-variables:
+    post:
+      consumes:
+      - application/json
+      description: 'Lista as variáveis iniciais que o agente precisa ou usa, como
+        o painel do editor mostra, lendo o prompt e as variáveis enviados no corpo
+        (ainda não salvos). As ferramentas vêm do rascunho salvo do agente, então
+        os fluxos que ele chama entram na lista. Cada linha traz o nome amigável e
+        o tipo da declaração do workspace (declared falso quando o nome ainda não
+        foi declarado; sem declaração vale texto), se é obrigatória (required; opcional
+        quando o agente dá um valor padrão em default), se o agente a lista (inAgent),
+        se o prompt a usa (inPrompt), se ela conta para o agente (used), a cadeia
+        de automações (via), quem pode preenchê-la (filledBy: default, campaign, handoff,
+        transfer) e, quando o nome não pode ser salvo, o motivo (problem: agent_variable_name_invalid,
+        agent_variable_name_reserved ou agent_variable_duplicate). lead_name, lead_number
+        e campaign_name só aparecem quando o agente os lista, sempre com problem,
+        porque a plataforma os preenche.'
+      parameters:
+      - description: ID do agente
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Prompt e variáveis do formulário
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/automationneedshttp.AgentVariablesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/automationneedshttp.AgentVariablesResponse'
+        "400":
+          description: invalid_body
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: agent_forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: agent_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: automation_needs_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: automation_needs_unreadable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Variáveis iniciais do agente
+      tags:
+      - Dados da conversa
   /agents/{id}/publication:
     get:
       description: Diz qual versão está publicada, quando e por quem, e se o rascunho
@@ -34356,6 +35120,40 @@ paths:
       summary: Restaurar uma versão como rascunho
       tags:
       - Agentes
+  /agents/conversation-variables:
+    post:
+      consumes:
+      - application/json
+      description: 'Igual a /agents/{id}/conversation-variables para um agente que
+        ainda não foi salvo: só o prompt e as variáveis do corpo contam, porque ele
+        ainda não tem ferramentas salvas.'
+      parameters:
+      - description: Prompt e variáveis do formulário
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/automationneedshttp.AgentVariablesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/automationneedshttp.AgentVariablesResponse'
+        "400":
+          description: invalid_body
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: automation_needs_unreadable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Variáveis iniciais de um agente novo
+      tags:
+      - Dados da conversa
   /agents/options:
     get:
       description: |-
@@ -35939,10 +36737,17 @@ paths:
         que gravam nesse dado, seguindo agentes, subfluxos e fluxos chamados (exact=true);
         sem eles, ou quando a automação não grava nesse dado, a planilha precisa ter
         todas as abas e colunas do modelo (exact=false). Cada item traz fits, as abas
-        que recebem cada aba do modelo e, quando não serve, misfit com o código e
-        os problemas. A planilha modelo nunca serve como valor. Campanha, passagem
-        da conversa, transferência, dados do teste e painel da conversa usam esta
-        lista; mostra só nomes e conferência.
+        que recebem cada aba do modelo (tabs) e, quando não serve, misfit com o código
+        e os problemas. choices lista, para cada aba do modelo, todas as abas da planilha
+        com fits e, quando não serve, o problema; choosable diz se a planilha pode
+        ser escolhida aba por aba, mesmo quando a escolha automática não decide (mais
+        de uma aba serve). O valor de um dado do tipo Planilha é o ID da planilha
+        (abas escolhidas automaticamente) ou o JSON {"spreadsheet_id","tabs"} com
+        a aba escolhida para cada aba do modelo; as abas não escolhidas seguem a escolha
+        automática. Com value, a planilha desse valor é conferida com as abas escolhidas
+        nele. A planilha modelo nunca serve como valor. Campanha, passagem da conversa,
+        transferência, dados do teste e painel da conversa usam esta lista; mostra
+        só nomes e conferência.
       parameters:
       - description: Nome técnico do dado do tipo Planilha
         in: query
@@ -35959,6 +36764,10 @@ paths:
       - description: ID do agente ou do fluxo (junto com kind)
         in: query
         name: id
+        type: string
+      - description: Valor sendo escolhido, no formato salvo no dado
+        in: query
+        name: value
         type: string
       produces:
       - application/json
@@ -37285,9 +38094,20 @@ paths:
         (422 `audience_list_column_unknown` na criação); `column` numa seleção de
         leads é 400 `audience_variable_column_needs_list`, `column` junto de `source`
         é 400 `audience_variable_column_with_source` e `default` numa variável sem
-        padrão é 400 `audience_variable_default_unavailable`. Os valores resolvidos
-        vão para os metadados de cada entrada, onde o fluxo (`campvars`) e o agente
-        os leem. Exige a ação `create` do recurso do canal e, para leads, `leads:read`.'
+        padrão é 400 `audience_variable_default_unavailable`. Cada variável da automação
+        traz `type` (kind, shape e options da declaração). Uma variável do tipo Planilha
+        (`sheet: true`) vale para a campanha inteira: aceita só `source: literal`
+        com o arquivo em `value`, começa pelo padrão da declaração (`suggested: true`)
+        e nunca vira coluna da lista nem do modelo de lista; `column`, um campo do
+        lead ou `missing` nela são 400 `audience_variable_sheet_literal_only`. O arquivo
+        é conferido contra o que o fluxo ou o agente grava: sem arquivo o bloqueio
+        é `sheet_required`, e um arquivo que não serve vem com `sheetUnfit` (o código
+        do motivo) e o bloqueio `sheet_unfit` (422 `audience_sheet_required` ou `audience_sheet_unfit`
+        na criação). No não oficial, um fluxo ou agente que grava em Planilha é 422
+        `campaign_sheet_variables_official_only`. Uma recusa causada por uma variável
+        traz `details.variable` com a chave dela. Os valores resolvidos vão para os
+        metadados de cada entrada, onde o fluxo (`campvars`) e o agente os leem. Exige
+        a ação `create` do recurso do canal e, para leads, `leads:read`.'
       parameters:
       - description: Canal
         enum:
@@ -37314,10 +38134,15 @@ paths:
             $ref: '#/definitions/campaignaudience.Count'
         "400":
           description: audience_source_invalid, audience_source_ambiguous, audience_variable_unknown,
-            audience_text_required, audience_template_required, audience_message_required,
-            audience_kind_required, selection_*, send_binding_*
+            audience_text_required, audience_variable_sheet_literal_only, audience_template_required,
+            audience_message_required, audience_kind_required, selection_*, send_binding_*
           schema:
-            $ref: '#/definitions/response.ErrorResponse'
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/audiencex.VariableDetails'
+              type: object
         "403":
           description: forbidden, campaign_workflow_forbidden
           schema:
@@ -37333,7 +38158,7 @@ paths:
         "422":
           description: audience_list_channel_mismatch, audience_source_unsupported,
             send_template_unavailable, send_instance_unavailable, campaign_workflow_not_found,
-            campaign_agent_not_found
+            campaign_agent_not_found, campaign_sheet_variables_official_only
           schema:
             $ref: '#/definitions/response.ErrorResponse'
         "503":
@@ -38990,13 +39815,13 @@ paths:
   /chat/threads/{id}/cost:
     get:
       description: |-
-        Quanto foi debitado do saldo do workspace por esta conversa, do início até agora, já com o preço do plano aplicado (nunca o custo do provedor). Soma o uso do modelo em cada resposta e as gerações de imagem, música, locução, vídeo e trabalhos do Estúdio que a Elo iniciou nesta conversa, menos estornos. Cada débito é convertido pela cotação registrada no momento da cobrança.
+        Quanto foi debitado do saldo do workspace por esta conversa, do início até agora, já com o preço do plano aplicado (nunca o custo do provedor). Soma o uso do modelo em cada resposta e as gerações de imagem, música, locução, vídeo e trabalhos do Estúdio que a Elo iniciou nesta conversa, menos estornos. `modelMicros` é a parte das chamadas ao modelo e `generationMicros` a das gerações de mídia; somam `amountMicros`. Cada débito é convertido pela cotação registrada no momento da cobrança.
 
         `amountMicros` é o valor em milionésimos da moeda de cobrança (`currency`, hoje BRL). Os débitos chegam alguns segundos depois de cada chamada, então logo após uma resposta o total pode ainda subir.
 
         `available: false` quando o total não pode ser exato: conversas anteriores ao registro de custo por conversa ou débito sem cotação. Nesse caso `amountMicros` vem 0 e não deve ser mostrado como valor.
 
-        `usage` traz os tokens das chamadas ao modelo nesta conversa: `inputTokens` (já inclui os lidos do cache), `cacheReadTokens` (entrada reaproveitada do cache, cobrada bem mais barata), `cacheWriteTokens` (entrada gravada no cache), `outputTokens` (já inclui o raciocínio), `reasoningTokens` e `calls` (quantas chamadas ao modelo; gerações de mídia não contam). `usage.available: false` quando algum débito da conversa não tem o registro de tokens correspondente; nesse caso os números vêm 0 e não devem ser mostrados.
+        `usage` traz os tokens das chamadas ao modelo nesta conversa: `inputTokens` (já inclui os lidos do cache), `cacheReadTokens` (entrada reaproveitada do cache, cobrada bem mais barata), `cacheWriteTokens` (entrada gravada no cache), `outputTokens` (já inclui o raciocínio), `reasoningTokens` e `calls` (quantas chamadas ao modelo; gerações de mídia não contam). `newInputTokens` é a entrada nova (`inputTokens` menos o lido e o gravado no cache), `processedTokens` é a soma de entrada e saída de todas as chamadas (tokens processados, não o tamanho da conversa) e `contextTokens` é a entrada da chamada mais recente, o tamanho atual do contexto. `usage.available: false` quando algum débito da conversa não tem o registro de tokens correspondente; nesse caso os números vêm 0 e não devem ser mostrados.
 
         Só o dono da conversa consulta; a conversa de outra pessoa responde 404.
       parameters:
@@ -40104,7 +40929,10 @@ paths:
         nome amigável, descrição e tipo), os dados que a plataforma sempre preenche
         (system, com labelKey para traduzir o nome) e os tipos disponíveis (types,
         com o formato de entrada shape). Agentes e fluxos leem esses dados como {{campvars.<nome>}};
-        o nome amigável é o que as telas mostram.
+        o nome amigável é o que as telas mostram. editable diz se quem pede pode mudar
+        ou remover a declaração; quando não pode, lockedBy lista os agentes e fluxos
+        que usam o dado e que ele não pode editar (falta a permissão de editar agentes
+        ou fluxos, ou o departamento deles). Ver exige ver fluxos ou agentes.
       produces:
       - application/json
       responses:
@@ -40125,7 +40953,8 @@ paths:
     delete:
       description: Remove só a declaração (nome amigável e tipo). Textos que já usam
         {{campvars.<nome>}} continuam funcionando e o dado aparece como não declarado;
-        valores já guardados nas conversas ficam.
+        valores já guardados nas conversas ficam. Exige poder editar todos os agentes
+        e fluxos que usam o dado, senão responde 403 variable_change_forbidden.
       parameters:
       - description: Nome técnico
         in: path
@@ -40135,6 +40964,15 @@ paths:
       responses:
         "204":
           description: No Content
+        "403":
+          description: variable_change_forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/variabledeclhttp.ChangeForbiddenDetails'
+              type: object
         "404":
           description: variable_not_found
           schema:
@@ -40164,7 +41002,11 @@ paths:
         vem do caminho: letras sem acento, números e _, até 64; lead_name, lead_number
         e campaign_name são da plataforma. Todo valor que entra (campanha, passagem
         da conversa, transferência, dados do teste, painel da conversa, nó Definir
-        variável) é validado pelo tipo. Mudar o tipo não reescreve valores já guardados.'
+        variável) é validado pelo tipo. Mudar o tipo não reescreve valores já guardados.
+        Declarar um dado novo exige editar fluxos ou agentes; mudar uma declaração
+        que já existe exige poder editar todos os agentes e fluxos que usam o dado
+        (rascunho ou versão publicada, respeitando departamentos), senão responde
+        403 variable_change_forbidden com o dado e quem o usa em details.'
       parameters:
       - description: Nome técnico
         in: path
@@ -40190,6 +41032,15 @@ paths:
             ou variable_example_invalid
           schema:
             $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: variable_change_forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.ErrorResponse'
+            - properties:
+                details:
+                  $ref: '#/definitions/variabledeclhttp.ChangeForbiddenDetails'
+              type: object
         "503":
           description: variable_declarations_unreadable
           schema:
@@ -41609,16 +42460,16 @@ paths:
   /custom-fields:
     get:
       description: 'Retorna as definições de campos personalizados do workspace para
-        o tipo de objeto informado (oportunidade por padrão). Cada definição traz
-        `readable`, o veredito do servidor sobre quem pede: um campo sensível só é
-        legível com `leads:read_sensitive`. Os valores de um campo não legível nunca
-        saem do servidor; a definição continua listada para que a tela conte quantos
-        campos estão ocultos. A permissão vem do objeto do campo: campos de lead pedem
-        `leads:read` para ler e `leads:configure` para criar, editar e remover, e
-        um campo sensível (antes ou depois da mudança) pede também `leads:read_sensitive`
-        para ser criado, editado, desmarcado ou removido; campos de oportunidade seguem
-        `conversations:read`, `conversations:create`, `conversations:update` e `conversations:delete`.
-        Sem a permissão responde 403 (`custom_field_forbidden`).'
+        o tipo de objeto informado (negociação por padrão). Cada definição traz `readable`,
+        o veredito do servidor sobre quem pede: um campo sensível só é legível com
+        `leads:read_sensitive`. Os valores de um campo não legível nunca saem do servidor;
+        a definição continua listada para que a tela conte quantos campos estão ocultos.
+        A permissão vem do objeto do campo: campos de lead pedem `leads:read` para
+        ler e `leads:configure` para criar, editar e remover, e um campo sensível
+        (antes ou depois da mudança) pede também `leads:read_sensitive` para ser criado,
+        editado, desmarcado ou removido; campos de negociação seguem `conversations:read`,
+        `conversations:create`, `conversations:update` e `conversations:delete`. Sem
+        a permissão responde 403 (`custom_field_forbidden`).'
       parameters:
       - description: Tipo de objeto ('opportunity' ou 'lead')
         enum:
@@ -41661,7 +42512,7 @@ paths:
       consumes:
       - application/json
       description: 'Cria uma definição de campo personalizado para um objeto do CRM
-        (oportunidade ou lead). A chave, o rótulo e o tipo são obrigatórios. Um campo
+        (negociação ou lead). A chave, o rótulo e o tipo são obrigatórios. Um campo
         de lead exige a escolha explícita de ''sensitive''; só campos de lead podem
         ser sensíveis (400 para outro objeto); um campo sensível exige ''legalBasis''
         (base legal da LGPD) e só é lido por quem pode ver dados sensíveis. ''optionTones''
@@ -41676,7 +42527,7 @@ paths:
         do campo: campos de lead pedem `leads:read` para ler e `leads:configure` para
         criar, editar e remover, e um campo sensível (antes ou depois da mudança)
         pede também `leads:read_sensitive` para ser criado, editado, desmarcado ou
-        removido; campos de oportunidade seguem `conversations:read`, `conversations:create`,
+        removido; campos de negociação seguem `conversations:read`, `conversations:create`,
         `conversations:update` e `conversations:delete`. Sem a permissão responde
         403 (`custom_field_forbidden`).'
       parameters:
@@ -41722,7 +42573,7 @@ paths:
         objeto do campo: campos de lead pedem `leads:read` para ler e `leads:configure`
         para criar, editar e remover, e um campo sensível (antes ou depois da mudança)
         pede também `leads:read_sensitive` para ser criado, editado, desmarcado ou
-        removido; campos de oportunidade seguem `conversations:read`, `conversations:create`,
+        removido; campos de negociação seguem `conversations:read`, `conversations:create`,
         `conversations:update` e `conversations:delete`. Sem a permissão responde
         403 (`custom_field_forbidden`).'
       parameters:
@@ -41758,7 +42609,7 @@ paths:
         seu ID. A permissão vem do objeto do campo: campos de lead pedem `leads:read`
         para ler e `leads:configure` para criar, editar e remover, e um campo sensível
         (antes ou depois da mudança) pede também `leads:read_sensitive` para ser criado,
-        editado, desmarcado ou removido; campos de oportunidade seguem `conversations:read`,
+        editado, desmarcado ou removido; campos de negociação seguem `conversations:read`,
         `conversations:create`, `conversations:update` e `conversations:delete`. Sem
         a permissão responde 403 (`custom_field_forbidden`).'
       parameters:
@@ -41805,7 +42656,7 @@ paths:
         do campo: campos de lead pedem `leads:read` para ler e `leads:configure` para
         criar, editar e remover, e um campo sensível (antes ou depois da mudança)
         pede também `leads:read_sensitive` para ser criado, editado, desmarcado ou
-        removido; campos de oportunidade seguem `conversations:read`, `conversations:create`,
+        removido; campos de negociação seguem `conversations:read`, `conversations:create`,
         `conversations:update` e `conversations:delete`. Sem a permissão responde
         403 (`custom_field_forbidden`).'
       parameters:
@@ -42174,8 +43025,8 @@ paths:
       - Carteira de clientes
   /deal-automation/{entryType}/{kind}/{containerId}:
     get:
-      description: Retorna o funil de oportunidades que a análise automática usa neste
-        canal. Sem funil, as oportunidades automáticas estão desligadas.
+      description: Retorna o funil de negociações que a análise automática usa neste
+        canal. Sem funil, as negociações automáticas estão desligadas.
       parameters:
       - description: Tipo de conversa do canal (whatsapp, unofficial_whatsapp, instagram,
           facebook, telegram)
@@ -42210,13 +43061,13 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Consultar oportunidades automáticas do canal
+      summary: Consultar negociações automáticas do canal
       tags:
-      - Oportunidades automáticas
+      - Negociações automáticas
     put:
       consumes:
       - application/json
-      description: Define o funil de oportunidades que a análise automática usa neste
+      description: Define o funil de negociações que a análise automática usa neste
         canal. Envie pipelineId vazio para desligar.
       parameters:
       - description: Tipo de conversa do canal
@@ -42234,7 +43085,7 @@ paths:
         name: containerId
         required: true
         type: string
-      - description: Funil de oportunidades
+      - description: Funil de negociações
         in: body
         name: request
         required: true
@@ -42261,9 +43112,9 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Configurar oportunidades automáticas do canal
+      summary: Configurar negociações automáticas do canal
       tags:
-      - Oportunidades automáticas
+      - Negociações automáticas
   /departments:
     get:
       description: Retorna os departamentos do workspace visíveis para o usuário autenticado,
@@ -45881,11 +46732,18 @@ paths:
         e do mesmo tipo, as opções de escolha do modelo, nenhuma coluna obrigatória
         que o fluxo não preenche, colunas de mensagem nas abas de exportação e links
         apontando para as abas do próprio arquivo. tabs diz qual aba do arquivo recebe
-        cada aba modelo. Quando não serve, misfit traz o código e, para a aba modelo
-        sem par, o primeiro problema de cada aba do arquivo, começando pela aba de
-        mesmo nome. Uma aba que precisa de atenção não impede a escolha; status mostra
-        isso. O próprio modelo vem com sheet_fit_model_file, e arquivos de outra conta
-        Google com sheet_fit_file_other_account. Os que servem vêm primeiro.'
+        cada aba modelo. choices lista, para cada aba modelo, todas as abas do arquivo
+        com fits e, quando não serve, o problema; choosable diz se o arquivo pode
+        ser escolhido aba por aba (quando cada aba modelo tem ao menos uma aba que
+        serve). value é o valor do arquivo com as abas escolhidas automaticamente,
+        e o value de cada aba de choices é o valor que escolhe aquela aba para aquela
+        aba modelo, mantendo as outras abas já escolhidas; chosen marca o arquivo
+        e as abas do valor sendo conferido. Quando não serve, misfit traz o código
+        e, para a aba modelo sem par, o primeiro problema de cada aba do arquivo,
+        começando pela aba de mesmo nome. Uma aba que precisa de atenção não impede
+        a escolha; status mostra isso. O próprio modelo também pode receber as linhas;
+        arquivos de outra conta Google vêm com sheet_fit_file_other_account. Os que
+        servem vêm primeiro.'
       parameters:
       - description: Arquivo modelo
         in: path
@@ -48016,7 +48874,7 @@ paths:
         a data, a origem e a finalidade (`purpose`) registrada. `ownerName` é o nome
         do responsável (ausente quando o lead não tem responsável; se o nome não puder
         ser lido, a resposta é 500, nunca uma ficha sem o nome). As contagens das
-        abas Negócios e Memórias e os outros leads que têm os mesmos números saem
+        abas Negociações e Memórias e os outros leads que têm os mesmos números saem
         em GET /leads/{id}/summary, para que uma falha nelas não derrube a ficha.
         Envie a `version` recebida no cabeçalho `If-Match` ao editar.'
       parameters:
@@ -48677,17 +49535,17 @@ paths:
       - Leads
   /leads/{id}/deals:
     get:
-      description: 'Lista, do mais recente para o mais antigo e página por página,
-        os negócios (atendimentos) do lead: os que têm este lead e os ligados a uma
-        conversa dele, sem repetir. Um negócio criado para o lead sem nenhuma conversa
-        também aparece. Só entram os negócios dentro do seu escopo (os mesmos que
-        o funil mostra a você). Para criar um novo, use POST /opportunities com `leadId`
-        (a conversa é opcional; quando só a conversa é enviada, o lead é o dessa conversa).
-        Para a próxima página, envie o `next` recebido em `before`. Exige `leads:read`
-        e acesso aos negócios. Códigos: 400 `lead_page_invalid` (`limit` negativo
-        ou que não é número, `before` que não veio desta rota, como um cursor da linha
-        do tempo); 403 `forbidden` ou `deals_forbidden` (sem acesso aos negócios do
-        workspace); 404 `lead_not_found`; 503 `lead_history_unavailable`.'
+      description: 'Lista, da mais recente para a mais antiga e página por página,
+        as negociações (atendimentos) do lead: as que têm este lead e as ligadas a
+        uma conversa dele, sem repetir. Uma negociação criada para o lead sem nenhuma
+        conversa também aparece. Só entram as negociações dentro do seu escopo (as
+        mesmas que o funil mostra a você). Para criar uma nova, use POST /opportunities
+        com `leadId` (a conversa é opcional; quando só a conversa é enviada, o lead
+        é o dessa conversa). Para a próxima página, envie o `next` recebido em `before`.
+        Exige `leads:read` e acesso às negociações. Códigos: 400 `lead_page_invalid`
+        (`limit` negativo ou que não é número, `before` que não veio desta rota, como
+        um cursor da linha do tempo); 403 `forbidden` ou `deals_forbidden` (sem acesso
+        às negociações do workspace); 404 `lead_not_found`; 503 `lead_history_unavailable`.'
       parameters:
       - description: ID do lead (UUID)
         in: path
@@ -48698,7 +49556,7 @@ paths:
         in: query
         name: before
         type: string
-      - description: Negócios por página (padrão 30, máximo 100)
+      - description: Negociações por página (padrão 30, máximo 100)
         in: query
         name: limit
         type: integer
@@ -48731,7 +49589,7 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Negócios do lead
+      summary: Negociações do lead
       tags:
       - Leads
   /leads/{id}/district:
@@ -49270,11 +50128,11 @@ paths:
     get:
       description: 'Retorna o que as abas e os telefones da ficha do lead mostram,
         fora de GET /leads/{id} para que uma falha aqui não derrube a ficha: `dealsCount`
-        (negócios do lead dentro do que você pode ver no funil; ausente quando você
-        não pode ver negócios, e 0 quando pode e não há nenhum), `memoriesCount` (memórias
-        do lead) e `sharedNumbers`. `sharedNumbers` lista, para cada número do lead
-        que outro lead também tem (o WhatsApp do lead ou um telefone de contato, em
-        `number` exatamente como está guardado no lead), até 5 desses outros leads
+        (negociações do lead dentro do que você pode ver no funil; ausente quando
+        você não pode ver negociações, e 0 quando pode e não há nenhuma), `memoriesCount`
+        (memórias do lead) e `sharedNumbers`. `sharedNumbers` lista, para cada número
+        do lead que outro lead também tem (o WhatsApp do lead ou um telefone de contato,
+        em `number` exatamente como está guardado no lead), até 5 desses outros leads
         (`holders`, com ID, nome e WhatsApp), em ordem de nome sem acentos e os sem
         nome por último; `more` diz que há mais. As duas formas de um número (com
         e sem o nono dígito) contam como o mesmo número. Quando muitos leads têm o
@@ -49338,10 +50196,10 @@ paths:
         resultado da ligação e não aparece; `callListId`, `disposition` e `callbackAt`
         só vêm para quem vê aquela lista, com `call_lists:read` e sendo um dos responsáveis
         por ela, ou gerenciando listas com `call_lists:manage`; para os demais a ligação
-        aparece sem esses campos), negócios (`deal`, os que têm este lead e os ligados
-        a uma conversa dele, sem repetir), movimentos desses negócios (`deal_event`,
+        aparece sem esses campos), negociações (`deal`, as que têm este lead e as
+        ligadas a uma conversa dele, sem repetir), movimentos dessas negociações (`deal_event`,
         com `event` `stage_moved`, `won`, `lost` ou `reopened`, `stageName` e `fromStageName`,
-        no mesmo escopo de negócios), memórias (`memory`), alterações do cadastro
+        no mesmo escopo de negociações), memórias (`memory`), alterações do cadastro
         (`record`, só com o nome de cada campo alterado, nunca os valores; um campo
         sensível só é nomeado para quem tem `leads:read_sensitive`, e uma alteração
         só de campos que você não vê não aparece) e envios de formulários das páginas
@@ -49351,9 +50209,9 @@ paths:
         e envios só aparecem quando você pode abrir a conversa (outro departamento,
         ou de outra pessoa quando você não pode ver as conversas dos colegas, não
         aparecem); ligações só com `call_history:read`, e só as suas a menos que você
-        tenha `call_history:view_others`; negócios só dentro do seu escopo de negócios.
+        tenha `call_history:view_others`; negociações só dentro do seu escopo de negociações.
         `ref` aponta para o que abrir: `entry` (com `entryType`), `call` (o `callId`
-        de GET /calls/{callId}), `deal` (o negócio, também num `deal_event`), `memory`,
+        de GET /calls/{callId}), `deal` (a negociação, também num `deal_event`), `memory`,
         `lead_event` ou `site_submission` (o envio, listado em GET /sites/projects/{id}/submissions).
         Para a próxima página, envie o `next` recebido em `before`; sem `next`, a
         linha do tempo acabou. Uma página pode vir com menos itens que `limit` (até
@@ -52867,7 +53725,7 @@ paths:
       - Cadastro incorporado do WhatsApp
   /opportunities:
     get:
-      description: Retorna as oportunidades de um pipeline do workspace, respeitando
+      description: Retorna as negociações de um pipeline do workspace, respeitando
         o escopo de departamento do usuário. O parâmetro pipelineId é obrigatório.
       parameters:
       - description: ID do pipeline
@@ -52898,26 +53756,26 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Listar oportunidades do pipeline
+      summary: Listar negociações do pipeline
       tags:
-      - Oportunidades
+      - Negociações
     post:
       consumes:
       - application/json
-      description: 'Cria uma nova oportunidade em um funil de oportunidades do workspace.
+      description: 'Cria uma nova negociação em um funil de negociações do workspace.
         O pipeline e a etapa são obrigatórios; o título é obrigatório quando não há
         um lead associado. A conversa (`linkEntryId` e `linkEntryType`) é opcional:
         um atendimento criado na página do lead leva só `leadId`. Quando a conversa
-        vem sem `leadId`, o lead do negócio passa a ser o lead dessa conversa (se
+        vem sem `leadId`, o lead da negociação passa a ser o lead dessa conversa (se
         ela tiver um). Um `leadId` diferente do lead da conversa é recusado com 400;
-        com uma conversa sem lead, o `leadId` enviado é mantido. Os negócios de um
-        lead são listados em GET /leads/{id}/deals. Vincular uma conversa exige acesso
-        a ela (o mesmo critério de POST /opportunities/{id}/conversations): sem acesso,
-        responde 403. Valores de campos personalizados recusados respondem 400 com
-        o código do campo (`custom_field_unknown_key`, `custom_field_value_type`,
+        com uma conversa sem lead, o `leadId` enviado é mantido. As negociações de
+        um lead são listadas em GET /leads/{id}/deals. Vincular uma conversa exige
+        acesso a ela (o mesmo critério de POST /opportunities/{id}/conversations):
+        sem acesso, responde 403. Valores de campos personalizados recusados respondem
+        400 com o código do campo (`custom_field_unknown_key`, `custom_field_value_type`,
         `custom_field_value_not_in_options` ou `custom_field_value_required`).'
       parameters:
-      - description: Dados da oportunidade a criar
+      - description: Dados da negociação a criar
         in: body
         name: request
         required: true
@@ -52944,14 +53802,14 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Criar oportunidade
+      summary: Criar negociação
       tags:
-      - Oportunidades
+      - Negociações
   /opportunities/{id}:
     delete:
-      description: Exclui uma oportunidade do workspace.
+      description: Exclui uma negociação do workspace.
       parameters:
-      - description: ID da oportunidade
+      - description: ID da negociação
         in: path
         name: id
         required: true
@@ -52960,7 +53818,7 @@ paths:
       - application/json
       responses:
         "204":
-          description: Oportunidade removida
+          description: Negociação removida
         "401":
           description: Unauthorized
           schema:
@@ -52971,13 +53829,13 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Remover oportunidade
+      summary: Remover negociação
       tags:
-      - Oportunidades
+      - Negociações
     get:
-      description: Retorna os detalhes de uma oportunidade específica do workspace.
+      description: Retorna os detalhes de uma negociação específica do workspace.
       parameters:
-      - description: ID da oportunidade
+      - description: ID da negociação
         in: path
         name: id
         required: true
@@ -52999,21 +53857,21 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Obter oportunidade
+      summary: Obter negociação
       tags:
-      - Oportunidades
+      - Negociações
     patch:
       consumes:
       - application/json
-      description: Atualiza os campos de uma oportunidade existente. Todos os campos
+      description: Atualiza os campos de uma negociação existente. Todos os campos
         são opcionais e apenas os informados são alterados.
       parameters:
-      - description: ID da oportunidade
+      - description: ID da negociação
         in: path
         name: id
         required: true
         type: string
-      - description: Campos da oportunidade a atualizar
+      - description: Campos da negociação a atualizar
         in: body
         name: request
         required: true
@@ -53040,16 +53898,16 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Atualizar oportunidade
+      summary: Atualizar negociação
       tags:
-      - Oportunidades
+      - Negociações
   /opportunities/{id}/conversations:
     delete:
       consumes:
       - application/json
-      description: Remove a associação entre uma conversa ou chamada e uma oportunidade.
+      description: Remove a associação entre uma conversa ou chamada e uma negociação.
       parameters:
-      - description: ID da oportunidade
+      - description: ID da negociação
         in: path
         name: id
         required: true
@@ -53083,13 +53941,13 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Desvincular conversa da oportunidade
+      summary: Desvincular conversa da negociação
       tags:
-      - Oportunidades
+      - Negociações
     get:
-      description: Retorna as conversas e chamadas vinculadas a uma oportunidade.
+      description: Retorna as conversas e chamadas vinculadas a uma negociação.
       parameters:
-      - description: ID da oportunidade
+      - description: ID da negociação
         in: path
         name: id
         required: true
@@ -53113,16 +53971,16 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Listar conversas da oportunidade
+      summary: Listar conversas da negociação
       tags:
-      - Oportunidades
+      - Negociações
     post:
       consumes:
       - application/json
       description: Associa uma conversa (entryType whatsapp, unofficial_whatsapp,
-        instagram ou telegram) a uma oportunidade.
+        instagram ou telegram) a uma negociação.
       parameters:
-      - description: ID da oportunidade
+      - description: ID da negociação
         in: path
         name: id
         required: true
@@ -53156,16 +54014,16 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Vincular conversa à oportunidade
+      summary: Vincular conversa à negociação
       tags:
-      - Oportunidades
+      - Negociações
   /opportunities/{id}/events:
     get:
-      description: 'Lista, em ordem cronológica, cada mudança da oportunidade (criação,
+      description: 'Lista, em ordem cronológica, cada mudança da negociação (criação,
         etapa, ganho, perda, reabertura, valor, responsável e vínculo com conversa)
         com quem a fez: uma pessoa, um agente de IA (ai:<id>) ou um fluxo (workflow:<id>).'
       parameters:
-      - description: ID da oportunidade
+      - description: ID da negociação
         in: path
         name: id
         required: true
@@ -53189,18 +54047,18 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Histórico da oportunidade
+      summary: Histórico da negociação
       tags:
-      - Oportunidades
+      - Negociações
   /opportunities/{id}/move:
     post:
       consumes:
       - application/json
-      description: 'Move uma oportunidade para outra etapa do funil. O status vem
-        da etapa: uma etapa de ganho marca como ganha (e exige valor), uma de perda
-        marca como perdida (e exige o motivo), qualquer outra reabre.'
+      description: 'Move uma negociação para outra etapa do funil. O status vem da
+        etapa: uma etapa de ganho marca como ganha (e exige valor), uma de perda marca
+        como perdida (e exige o motivo), qualquer outra reabre.'
       parameters:
-      - description: ID da oportunidade
+      - description: ID da negociação
         in: path
         name: id
         required: true
@@ -53232,13 +54090,13 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Mover oportunidade de etapa
+      summary: Mover negociação de etapa
       tags:
-      - Oportunidades
+      - Negociações
   /opportunities/board:
     get:
-      description: Renderiza o funil de oportunidades do workspace agrupado por etapa,
-        responsável ou campo personalizado. Cada coluna traz a contagem de oportunidades
+      description: Renderiza o funil de negociações do workspace agrupado por etapa,
+        responsável ou campo personalizado. Cada coluna traz a contagem de negociações
         e a soma dos valores (em reais do cliente). Respeita o escopo de departamento
         do usuário.
       parameters:
@@ -53267,7 +54125,7 @@ paths:
         in: query
         name: options
         type: string
-      - description: Campo de ordenação das oportunidades
+      - description: Campo de ordenação das negociações
         in: query
         name: sortField
         type: string
@@ -53275,7 +54133,7 @@ paths:
         in: query
         name: sortOrder
         type: string
-      - description: Página das oportunidades por coluna
+      - description: Página das negociações por coluna
         in: query
         name: page
         type: integer
@@ -53308,15 +54166,15 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Quadro de oportunidades
+      summary: Quadro de negociações
       tags:
-      - Oportunidades
+      - Negociações
   /opportunities/export:
     get:
-      description: Exporta as oportunidades de um pipeline do workspace em formato
-        CSV, respeitando o escopo de departamento do usuário. As colunas incluem id,
-        título, valor (em unidades maiores), moeda, status, etapa, responsável, lead,
-        origem, data de fechamento, data de criação e uma coluna por campo personalizado.
+      description: Exporta as negociações de um pipeline do workspace em formato CSV,
+        respeitando o escopo de departamento do usuário. As colunas incluem id, título,
+        valor (em unidades maiores), moeda, status, etapa, responsável, lead, origem,
+        data de fechamento, data de criação e uma coluna por campo personalizado.
       parameters:
       - description: ID do pipeline
         in: query
@@ -53352,13 +54210,13 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Exportar oportunidades (CSV)
+      summary: Exportar negociações (CSV)
       tags:
-      - Oportunidades
+      - Negociações
   /opportunities/for-entry:
     get:
-      description: Retorna as oportunidades vinculadas a uma conversa ou chamada,
-        identificada por entryId e entryType, para exibição no painel lateral da conversa.
+      description: Retorna as negociações vinculadas a uma conversa ou chamada, identificada
+        por entryId e entryType, para exibição no painel lateral da conversa.
       parameters:
       - description: ID da entrada (conversa ou chamada)
         in: query
@@ -53390,14 +54248,14 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Listar oportunidades de uma conversa
+      summary: Listar negociações de uma conversa
       tags:
-      - Oportunidades
+      - Negociações
   /opportunities/import:
     post:
       consumes:
       - multipart/form-data
-      description: Cria uma oportunidade por linha válida a partir de um CSV enviado
+      description: Cria uma negociação por linha válida a partir de um CSV enviado
         como upload multipart (campo 'file') ou como corpo bruto. Com dryRun=true
         nada é criado e cada linha é apenas validada. O parâmetro pipelineId é o pipeline
         padrão para linhas que omitem a coluna pipeline_id. A resposta é um relatório
@@ -53433,14 +54291,14 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Importar oportunidades (CSV)
+      summary: Importar negociações (CSV)
       tags:
-      - Oportunidades
+      - Negociações
   /opportunities/list:
     get:
-      description: Lista plana das oportunidades do workspace sobre o mesmo filtro
-        do funil, com ordenação e paginação. Respeita o escopo de departamento do
-        usuário. Retorna as oportunidades e o total de correspondências.
+      description: Lista plana das negociações do workspace sobre o mesmo filtro do
+        funil, com ordenação e paginação. Respeita o escopo de departamento do usuário.
+        Retorna as negociações e o total de correspondências.
       parameters:
       - description: Filtro compartilhado (JSON crmfilter, opcionalmente em base64)
         in: query
@@ -53493,13 +54351,13 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Lista de oportunidades
+      summary: Lista de negociações
       tags:
-      - Oportunidades
+      - Negociações
   /pipelines:
     get:
       description: Retorna os funis do workspace, opcionalmente filtrados pelo tipo
-        de objeto (conversa ou oportunidade).
+        de objeto (conversa ou negociação).
       parameters:
       - description: Tipo de objeto do funil ('conversation' | 'opportunity')
         in: query
@@ -53526,7 +54384,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Cria um novo funil no workspace para organizar conversas ou oportunidades.
+      description: Cria um novo funil no workspace para organizar conversas ou negociações.
       parameters:
       - description: Dados do funil
         in: body
@@ -53650,7 +54508,7 @@ paths:
       - Funis
   /pipelines/{id}/usage:
     get:
-      description: Retorna quantas conversas, campanhas, canais e oportunidades ainda
+      description: Retorna quantas conversas, campanhas, canais e negociações ainda
         apontam para o funil, para que a exclusão seja confirmada com os números à
         vista.
       parameters:
@@ -53775,6 +54633,72 @@ paths:
       summary: Descadastrar (um clique)
       tags:
       - E-mail marketing
+  /public/sites/forms/{formKey}/bookings:
+    post:
+      consumes:
+      - application/json
+      description: 'Recebe a reserva do runtime da página com o mesmo corpo e a mesma
+        prova de trabalho de um envio de formulário (pegue o desafio em POST /public/sites/forms/{formKey}/challenge),
+        com fields lead.name, lead.phone, lead.email quando pedido, field.mensagem
+        quando pedido, consent e field.horario (o início escolhido em RFC 3339). O
+        servidor confere que o horário é um dos que o bloco oferece, trava a agenda
+        do workspace, confere de novo no Google que o horário (com o intervalo entre
+        reuniões) continua livre e só então cria o evento (com link do Meet quando
+        configurado e convite ao email do visitante quando informado). Depois grava
+        o lead como um formulário da página: funil, etapa, responsável, negociação,
+        aviso, canal de acompanhamento, gatilho do fluxo do formulário e evento de
+        conversão Lead com o id do envio (deduplicado com a API de Conversões). Os
+        campos guardados incluem field.horario, field.horario_fim e field.link_reuniao,
+        que os fluxos recebem. Repetir o mesmo idempotencyKey devolve a reserva original
+        sem criar outro evento; se a gravação falhar, o evento criado é cancelado.
+        Códigos: os mesmos do envio de formulário, mais 409 booking_slot_taken (o
+        horário não é oferecido ou acabou de ser ocupado; o runtime recarrega os horários)
+        e 503 booking_unavailable (o Google não respondeu, a conta foi desconectada
+        ou outra reserva está em andamento; nada é reservado).'
+      parameters:
+      - description: chave pública do agendamento
+        in: path
+        name: formKey
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/siteformhttp.BookingResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Reservar um horário de um agendamento de página
+      tags:
+      - Páginas (público)
   /public/sites/forms/{formKey}/challenge:
     post:
       consumes:
@@ -53820,6 +54744,53 @@ paths:
       summary: Desafio de um formulário de página
       tags:
       - Páginas (público)
+  /public/sites/forms/{formKey}/slots:
+    get:
+      description: 'Lista os horários que o visitante pode reservar no bloco de agendamento
+        (vz-booking) desta chave, calculados no servidor a partir das regras do bloco
+        (duração, intervalo entre reuniões, antecedência mínima, dias à frente e horário
+        de atendimento por dia da semana) e do que está ocupado no Google Agenda do
+        workspace. Nunca devolve títulos, participantes ou detalhes de eventos: só
+        início e fim de cada horário livre, em UTC, mais o fuso do negócio, os campos
+        extras pedidos e o texto do consentimento. A lista fica em cache por um minuto.
+        A origem precisa ser um endereço publicado da página (CORS como nos envios);
+        a chave de prévia vz-preview aceita só origens de prévia e devolve horários
+        de exemplo sem ler agenda nenhuma. Códigos: 403 submission_origin_refused;
+        404 form_unknown (a chave não é de um agendamento publicado); 429 rate_limited
+        (por IP); 503 booking_unavailable (o Google não respondeu ou a conta foi desconectada;
+        nada é mostrado como livre).'
+      parameters:
+      - description: chave pública do agendamento
+        in: path
+        name: formKey
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/siteformhttp.SlotsResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Horários livres de um agendamento de página
+      tags:
+      - Páginas (público)
   /public/sites/forms/{formKey}/submissions:
     options:
       description: Responde 204 com Access-Control-Allow-Origin igual à origem quando
@@ -53854,7 +54825,7 @@ paths:
         404 `form_unknown`; 422 `submission_fields_invalid` com `details` {campo:
         código}; 429 `rate_limited` (por IP antes da prova de trabalho; por formulário
         só depois de uma prova válida); 503 `form_unavailable` (a verificação do desafio
-        está fora do ar; tente de novo). O lead é gravado no envio; responsável, negócio,
+        está fora do ar; tente de novo). O lead é gravado no envio; responsável, negociação,
         conversa, automação, inscrição de email, aviso e evento de conversão rodam
         depois da resposta, com novas tentativas, e nunca atrasam nem bloqueiam o
         envio.'
@@ -53969,14 +54940,21 @@ paths:
       - WebChat
   /public/webchat/{publicKey}/frame:
     get:
-      description: Página do chat carregada pelo script dentro de um iframe. Só pode
+      description: 'Página do chat carregada pelo script dentro de um iframe. Só pode
         ser exibida nos sites permitidos do chat (Content-Security-Policy frame-ancestors).
-        Chat pausado ou removido responde 404.
+        Numa prévia de página da Vozko (origin com o endereço assinado da prévia,
+        do mesmo workspace do chat) a janela é uma demonstração: só a prévia e o editor
+        podem exibi-la e nenhuma mensagem é enviada. Prévia inválida ou vencida, chat
+        pausado ou removido responde 404.'
       parameters:
       - description: chave pública do chat
         in: path
         name: publicKey
         required: true
+        type: string
+      - description: origem da página que exibe o chat
+        in: query
+        name: origin
         type: string
       produces:
       - text/html
@@ -53997,7 +54975,12 @@ paths:
         Com identity (JWT assinado pelo site) o visitante é o cliente identificado,
         em qualquer aparelho. Devolve o token da sessão (30 dias, enviado como Authorization:
         Bearer), a aparência do chat e o que falta no formulário inicial. Limites:
-        novas sessões por IP e por chat (429 rate_limited).'
+        novas sessões por IP e por chat (429 rate_limited). Quando parentOrigin é
+        uma prévia assinada de página do mesmo workspace, a sessão é uma demonstração
+        até a prévia vencer: as rotas da sessão respondem como de costume, mas nada
+        é gravado (sem visitante, conversa, lead, mensagem ou arquivo) e nada chega
+        à caixa de entrada. Prévia inválida, vencida ou de outro workspace responde
+        403.'
       parameters:
       - description: chave pública do chat
         in: path
@@ -54237,7 +55220,7 @@ paths:
         | status | { kind: "status", state: human ou blocked } |
         | ping | a cada 20 s |
 
-        A conexão fecha depois de 30 minutos; o chat reconecta e busca o que perdeu com GET .../messages?after=. No máximo 3 conexões por visitante (429).
+        A conexão fecha depois de 30 minutos; o chat reconecta e busca o que perdeu com GET .../messages?after=. No máximo 3 conexões por visitante (429). Numa sessão de demonstração (prévia de página) só chegam pings.
       produces:
       - text/event-stream
       responses:
@@ -54818,7 +55801,7 @@ paths:
         de endereço completo sem `leads:read_addresses` ou um campo que não existe
         mais, a visão fica de fora da lista, para que os valores do filtro nunca cheguem
         a quem não pode lê-los. A permissão vem do objeto da visão: visões de lead
-        pedem `leads:read`; visões de conversa e de oportunidade seguem `conversations:read`,
+        pedem `leads:read`; visões de conversa e de negociação seguem `conversations:read`,
         `conversations:create`, `conversations:update` e `conversations:delete`. Sem
         a permissão responde 403 (`saved_view_forbidden`).'
       parameters:
@@ -54858,7 +55841,7 @@ paths:
       description: 'Cria uma nova visão salva com filtros, agrupamento e ordenação
         para o quadro do CRM. O nome e o tipo de objeto são obrigatórios. A permissão
         vem do objeto da visão: visões de lead pedem `leads:read`; visões de conversa
-        e de oportunidade seguem `conversations:read`, `conversations:create`, `conversations:update`
+        e de negociação seguem `conversations:read`, `conversations:create`, `conversations:update`
         e `conversations:delete`. Sem a permissão responde 403 (`saved_view_forbidden`).
         O filtro de uma visão de lead é validado para quem salva: um campo desconhecido
         ou um valor impossível responde 400 (`lead_filter_invalid` ou `custom_field_filter_*`)
@@ -54900,7 +55883,7 @@ paths:
   /saved-views/{id}:
     delete:
       description: 'Exclui uma visão salva do usuário. A permissão vem do objeto da
-        visão: visões de lead pedem `leads:read`; visões de conversa e de oportunidade
+        visão: visões de lead pedem `leads:read`; visões de conversa e de negociação
         seguem `conversations:read`, `conversations:create`, `conversations:update`
         e `conversations:delete`. Sem a permissão responde 403 (`saved_view_forbidden`).'
       parameters:
@@ -54936,7 +55919,7 @@ paths:
       - application/json
       description: 'Atualiza os filtros, o agrupamento, a ordenação e os demais atributos
         de uma visão salva existente. A permissão vem do objeto da visão: visões de
-        lead pedem `leads:read`; visões de conversa e de oportunidade seguem `conversations:read`,
+        lead pedem `leads:read`; visões de conversa e de negociação seguem `conversations:read`,
         `conversations:create`, `conversations:update` e `conversations:delete`. Sem
         a permissão responde 403 (`saved_view_forbidden`). O filtro de uma visão de
         lead é validado para quem salva: um campo desconhecido ou um valor impossível
@@ -54989,7 +55972,7 @@ paths:
     put:
       description: 'Marca a visão salva informada como a visão padrão do usuário para
         aquele tipo de objeto. A permissão vem do objeto da visão: visões de lead
-        pedem `leads:read`; visões de conversa e de oportunidade seguem `conversations:read`,
+        pedem `leads:read`; visões de conversa e de negociação seguem `conversations:read`,
         `conversations:create`, `conversations:update` e `conversations:delete`. Sem
         a permissão responde 403 (`saved_view_forbidden`).'
       parameters:
@@ -55832,7 +56815,9 @@ paths:
         não estão sendo removidos, em qualquer página) e quantos pode manter no ar
         agora (allowed: só os domínios contratados como adicional; nenhum plano inclui
         domínios). offline billing indica assinatura pendente ou pagamento contestado:
-        os domínios ficam fora do ar até o pagamento ser confirmado. Exige `site_domains:read`.'
+        os domínios ficam fora do ar até o pagamento ser confirmado. platformDomain
+        é o domínio da plataforma onde ficam os endereços gratuitos das páginas (slug.platformDomain).
+        Exige `site_domains:read`.'
       produces:
       - application/json
       responses:
@@ -55857,7 +56842,8 @@ paths:
     get:
       description: Os formulários das páginas do workspace que já receberam uma chave
         pública (a chave nasce na primeira publicação da página com o formulário),
-        com o nome da página, o id do formulário no código e se ele está no ar agora.
+        com o nome da página, o id do formulário no código, o nome amigável dado nas
+        configurações (formName, vazio quando não tem) e se ele está no ar agora.
         A chave é o valor que o gatilho "formulário enviado" dos fluxos usa para os
         formulários de páginas. Exige `sites:read`.
       produces:
@@ -55878,6 +56864,35 @@ paths:
       security:
       - BearerAuth: []
       summary: Listar os formulários das páginas
+      tags:
+      - Páginas
+  /sites/forms/targets:
+    get:
+      description: 'O que cada campo de um formulário de página pode preencher no
+        lead: nome, WhatsApp, e-mail, consentimento, aceite de e-mails e os campos
+        personalizados do lead deste workspace (os sensíveis ficam de fora), com os
+        tipos de campo que cada um aceita, o primeiro sendo o sugerido. `settable`
+        são os tipos que set_form_field pode gravar num campo existente e `insertable`
+        os que insert_form_field cria. As operações recusam o resto (form_field_unknown,
+        form_field_type_invalid). Exige `sites:read`.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/siteformhttp.FormTargetsResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Campos do lead que um formulário de página preenche
       tags:
       - Páginas
   /sites/projects:
@@ -56075,11 +57090,11 @@ paths:
         visitas e os envios por utm_source e pela origem de quem indicou (sem a própria
         página), até 25 de cada. leads conta as pessoas que enviaram um formulário
         da página ou chegaram por ela a uma conversa no período; wonDeals e wonRevenue
-        somam as oportunidades dessas pessoas ganhas no período, dentro do escopo
-        de oportunidades de quem consulta (dealsVisible falso quando a pessoa não
-        vê oportunidades). wonRevenue está em unidades da moeda wonRevenueCurrency
-        (a de maior valor); wonRevenueByCurrency traz cada moeda em centavos. Sem
-        from e to, os últimos 30 dias. Exige `sites:read`.
+        somam as negociações dessas pessoas ganhas no período, dentro do escopo de
+        negociações de quem consulta (dealsVisible falso quando a pessoa não vê negociações).
+        wonRevenue está em unidades da moeda wonRevenueCurrency (a de maior valor);
+        wonRevenueByCurrency traz cada moeda em centavos. Sem from e to, os últimos
+        30 dias. Exige `sites:read`.
       parameters:
       - description: ID da página
         in: path
@@ -56321,10 +57336,20 @@ paths:
         reescrevem knobs.json; set_whatsapp_link(node, rev, number_ref, text) e clear_whatsapp_link(node,
         rev) mexem nos atributos data-vz-whatsapp, data-vz-text e href, com o número
         validado contra o workspace (whatsapp_number_unknown) e o texto até 500 caracteres.
-        Os índices de falhas e passos apontam para a operação enviada. Devolve os
-        passos (para a reaplicação da Elo), o novo rev de cada arquivo, changes (arquivos
-        alterados com conteúdo e rev, excluídos e renomeados, para o editor substituir
-        sem reaplicar passos) e facts.'
+        insert_element(at, rev, element, key, ref) insere um bloco da plataforma escrito
+        pelo servidor, nunca HTML livre: element webchat com a chave pública ou o
+        id de um chat do site deste workspace (webchat_widget_unknown) ou booking
+        com o id de um bloco de agendamento salvo nas configurações (booking_unknown);
+        outro element responde element_unknown e uma chave malformada element_key_invalid.
+        set_form_field(node, rev, field, input, required) liga um campo de formulário
+        a um campo do lead escrevendo name, type e required (form_field_unknown, form_field_type_invalid);
+        insert_form_field(at, rev, field, input, text, required, ref) insere um campo
+        novo escrito pelo servidor, com rótulo de até 120 caracteres (form_label_too_long);
+        GET /sites/forms/targets lista os campos e tipos aceitos. Os índices de falhas
+        e passos apontam para a operação enviada. Devolve os passos (para a reaplicação
+        da Elo), o novo rev de cada arquivo, changes (arquivos alterados com conteúdo
+        e rev, excluídos e renomeados, para o editor substituir sem reaplicar passos)
+        e facts.'
       parameters:
       - description: id da página
         in: path
@@ -56511,6 +57536,105 @@ paths:
       summary: Salvar arquivos editados no código
       tags:
       - Páginas
+  /sites/projects/{id}/forms/{formId}/automations:
+    get:
+      description: 'Diz o que acontece quando o formulário da página é enviado: os
+        fluxos cujo gatilho "formulário enviado" é este formulário (rascunhos e ativos;
+        `active` diz se a versão publicada do fluxo roda agora). É a mesma regra do
+        gatilho, então só estes fluxos podem ser escolhidos nas configurações do formulário.
+        Reserva a chave pública do formulário, que o gatilho usa, mesmo antes da primeira
+        publicação. Exige `sites:read`. Códigos: 404 `project_not_found`; 422 `form_id_invalid`.'
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: id do formulário no código
+        example: contato
+        in: path
+        name: formId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/siteformhttp.FormAutomationsResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: project_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: form_id_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Automações de um formulário da página
+      tags:
+      - Páginas
+    post:
+      description: 'Cria um fluxo em rascunho cujo gatilho é este formulário (mesmo
+        modelo dos Formulários do WhatsApp: etiqueta e negociação no funil padrão),
+        para revisar e publicar no editor de fluxos. Depois ele aparece nas automações
+        do formulário e pode ser escolhido nas configurações. Exige `workflows:create`.
+        Códigos: 401 `unauthenticated`; 404 `project_not_found`; 422 `form_id_invalid`,
+        `no_default_deal_funnel`.'
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: id do formulário no código
+        example: contato
+        in: path
+        name: formId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/siteformhttp.ScaffoldedAutomationResponse'
+        "401":
+          description: unauthenticated
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: project_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: form_id_invalid ou no_default_deal_funnel
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Criar automação para o formulário da página
+      tags:
+      - Páginas
   /sites/projects/{id}/hostnames:
     get:
       description: Lista o subdomínio da plataforma e os domínios próprios da página
@@ -56678,6 +57802,41 @@ paths:
       summary: Verificar domínio próprio
       tags:
       - sites
+  /sites/projects/{id}/next-steps:
+    get:
+      description: 'Até três próximos passos para a página, calculados do estado real
+        e sem chamar nenhum modelo: pendências que impedem publicar, formulários sem
+        destino, agendamento citado sem bloco, chat do site, ícone da aba, publicação
+        e domínio próprio. Cada passo traz um código estável, um rótulo em português
+        e uma ação: prompt (texto pronto para a Elo), settings (aba das configurações)
+        ou publish (abrir a publicação). Enquanto a versão de trabalho não foi lida
+        no editor, checked fica false e a lista vem vazia; nada é sugerido sem certeza.'
+      parameters:
+      - description: id da página
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sitehttp.NextStepsResponse'
+        "404":
+          description: project_not_found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: next_steps_unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Próximos passos da página
+      tags:
+      - Páginas
   /sites/projects/{id}/outline:
     get:
       description: 'Devolve o mapa guardado da versão de trabalho com as configurações
@@ -56946,8 +58105,8 @@ paths:
   /sites/projects/{id}/settings:
     get:
       description: SEO por rota, integrações, formulários (funil, etapa, responsável,
-        fluxo, canal de acompanhamento, ação de sucesso), redirecionamentos e consentimento,
-        com a versão que vai no If-Match.
+        fluxo, canal de acompanhamento, ação de sucesso), blocos de agendamento, redirecionamentos
+        e consentimento, com a versão que vai no If-Match.
       parameters:
       - description: id da página
         in: path
@@ -56973,10 +58132,25 @@ paths:
     put:
       consumes:
       - application/json
-      description: Substitui o documento de configurações inteiro a partir da versão
+      description: 'Substitui o documento de configurações inteiro a partir da versão
         do If-Match. Campos desconhecidos e valores fora das regras respondem 422;
         funil, etapa, responsável, fluxo e canal de acompanhamento precisam ser deste
         workspace, e um formulário com fluxo precisa de canal (form_channel_required).
+        O fluxo precisa ser uma automação cujo gatilho é este formulário (form_workflow_not_bound;
+        veja GET /sites/projects/{id}/forms/{formId}/automations); um formulário com
+        funil precisa de responsável ou de fluxo (form_deal_owner_required); `site.webchat_widget`
+        é a chave pública ou o id de um chat do site deste workspace (webchat_widget_unknown)
+        e coloca o chat em todas as páginas. `bookings` guarda os blocos de agendamento
+        (vz-booking) por id: duration_minutes (5 a 480, de 5 em 5), buffer_minutes
+        (0 a 240), notice_minutes (até 30 dias), horizon_days (1 a 90), hours (fuso
+        e janelas por dia da semana, como o horário de atendimento), title com a variável
+        {nome}, meet, fields (email, message) e consent_text; cada regra quebrada
+        tem seu código (booking_duration_invalid, booking_buffer_invalid, booking_notice_invalid,
+        booking_horizon_invalid, booking_hours_invalid, booking_title_invalid, booking_consent_invalid,
+        booking_fields_invalid). Para onde vai o lead de um bloco fica em `forms`
+        com o mesmo id. Salvar reserva a chave pública de cada formulário e de cada
+        bloco de agendamento, então eles já aparecem no gatilho dos fluxos antes de
+        publicar.'
       parameters:
       - description: id da página
         in: path
@@ -57258,12 +58432,16 @@ paths:
       - sites
   /sites/sections:
     get:
-      description: 'Seções prontas da biblioteca (kind library: topo, benefícios,
-        depoimentos, perguntas, planos, formulário, WhatsApp, galeria, equipe e rodapé)
-        seguidas das seções salvas pelo workspace (kind snippet, título igual ao nome
-        nos quatro idiomas), para inserir numa página com a operação insert_section
-        e o campo library_key. Cada seção traz o título em pt, en, es e de e as tecnologias
-        em que pode entrar; stack filtra pelas que cabem numa tecnologia.'
+      description: 'Peças prontas da biblioteca (kind library), cada uma num grupo:
+        sections (topo, benefícios, depoimentos, perguntas, planos, WhatsApp, galeria,
+        equipe, rodapé), forms (orçamento, contato e agendamento ligados aos campos
+        do CRM), fields (texto, WhatsApp, e-mail, seleção, caixa de marcar), buttons
+        (botão, botão com contorno, link), media (imagem, vídeo) e platform (botão
+        de WhatsApp), seguidas das seções salvas pelo workspace (kind snippet, grupo
+        saved, título igual ao nome nos quatro idiomas), para inserir numa página
+        com a operação insert_section e o campo library_key. Cada seção traz o título
+        em pt, en, es e de e as tecnologias em que pode entrar; stack filtra pelas
+        que cabem numa tecnologia.'
       parameters:
       - description: tecnologia da página
         enum:
@@ -57729,7 +58907,7 @@ paths:
       - application/json
       description: Move uma conversa ou chamada (entryType 'voice' ou 'whatsapp')
         para uma etapa. Notifica os operadores em tempo real e registra o evento na
-        conversa. Uma etapa de funil de oportunidades é recusada com 409 e code stage_not_conversation_funnel.
+        conversa. Uma etapa de funil de negociações é recusada com 409 e code stage_not_conversation_funnel.
       parameters:
       - description: Etapa e conversa a associar
         in: body
@@ -57839,8 +59017,8 @@ paths:
         /stages/entries porque exige uma permissão distinta (stages:transfer): mover
         um card entre as colunas do próprio funil é atendimento comum, tirar a conversa
         do quadro de uma equipe e colocá-la no de outra não é. Uma etapa de funil
-        de oportunidades é recusada com 409 e code stage_not_conversation_funnel;
-        o evento da conversa registra o funil de origem e o de destino.'
+        de negociações é recusada com 409 e code stage_not_conversation_funnel; o
+        evento da conversa registra o funil de origem e o de destino.'
       parameters:
       - description: Etapa de destino, em outro funil
         in: body
@@ -58178,6 +59356,54 @@ paths:
       security:
       - BearerAuth: []
       summary: Trazer uma figura da biblioteca de elementos para a biblioteca de mídia
+      tags:
+      - Estúdio
+  /studio/perception/analyze:
+    post:
+      consumes:
+      - application/json
+      description: 'Devolve as marcas que os painéis "Sombras e camadas cobertas"
+        (layers.depth) e "Problemas de layout" (layers.layout) desenham sobre o editor:
+        setas da direção de cada sombra, bordas que cortam sombras, áreas cobertas,
+        guias de alinhamento, margens apertadas, quase encostados, sobreposições e
+        faixas vazias, em coordenadas de 0 a 1. O editor envia o que só ele mede:
+        em imagem, cada prancheta como está na tela (canvas, camadas e o layout medido
+        de cada texto em texts); em vídeo, os quadros posados nos instantes de video.times
+        (camadas numa tabela, elementos com a transformação de cada instante, um número
+        repete o elemento daquela posição no quadro anterior). Uma resposta traz uma
+        lista de marcas por prancheta ou por instante, na ordem do pedido. Use surfaces
+        ou video, nunca os dois; até 100 cenas e 10 MB. Fatos que não podem ser lidos,
+        um texto sem o layout medido ou um instante que falta respondem 422 invalid_facts;
+        corpo grande demais responde 413 facts_too_large.'
+      parameters:
+      - description: cenas medidas pelo editor
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/studiohttp.PerceptionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/studiohttp.PerceptionResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Medir os problemas de design de cenas do Estúdio
       tags:
       - Estúdio
   /studio/projects:
@@ -59665,6 +60891,147 @@ paths:
       summary: Listar comentários de uma publicação do TikTok
       tags:
       - TikTok
+  /tutorials/checklists/sites:
+    get:
+      description: |-
+        Mostra os primeiros passos dos Sites no workspace do cabeçalho `X-Workspace-ID`, conferidos nos dados reais do workspace (de qualquer pessoa da equipe). Exige `sites:read`.
+
+        | Item | Conta como feito quando |
+        |---|---|
+        | `create_page` | existe uma página |
+        | `edit_by_hand` | uma pessoa editou uma página à mão (salvamento automático de pessoa) |
+        | `form_to_funnel` | um formulário de página envia leads para um funil |
+        | `site_chat` | uma página tem o chat do site ligado |
+        | `booking` | uma página tem um bloco de agendamento configurado |
+        | `custom_domain` | um domínio próprio está ativo |
+        | `publish` | uma página já foi ao ar |
+
+        A ordem dos itens é a ordem sugerida. Quando os dados não podem ser lidos a resposta é 500 `tutorial_checklist_failed`, nunca itens marcados como feitos.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/tutorialhttp.ChecklistResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: tutorial_checklist_failed
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Primeiros passos dos Sites
+      tags:
+      - Tutoriais
+  /tutorials/progress:
+    get:
+      description: |-
+        Lista o progresso de quem está logado nos tutoriais guiados (tours) do app. O progresso é da pessoa, vale em todos os workspaces dela e só existe para tutoriais que ela já começou, concluiu ou dispensou: um tutorial fora da lista ainda não foi visto.
+
+        `status` é `in_progress`, `completed` ou `dismissed`; `step` é o último passo visto, a partir de 0. Quando o progresso não pode ser lido a resposta é 500 `tutorial_progress_failed`, nunca uma lista vazia, e o app trata os tutoriais como não concluídos.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/tutorialhttp.ProgressListResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: tutorial_progress_failed
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Progresso nos tutoriais
+      tags:
+      - Tutoriais
+  /tutorials/progress/{tutorialId}:
+    delete:
+      description: |-
+        Apaga o progresso de quem está logado em um tutorial, para que ele apareça de novo como não visto. Apagar um tutorial sem progresso também responde 204.
+
+        Códigos: 400 `tutorial_id_invalid`, 401 `unauthorized`, 500 `tutorial_progress_failed`.
+      parameters:
+      - description: id do tutorial
+        in: path
+        name: tutorialId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: tutorial_id_invalid
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: tutorial_progress_failed
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Recomeçar um tutorial
+      tags:
+      - Tutoriais
+    put:
+      consumes:
+      - application/json
+      description: |-
+        Salva o progresso de quem está logado em um tutorial. O id tem o formato `area.nome` (por exemplo `sites.editor`), com letras e números. Um tutorial concluído continua concluído quando chega `in_progress` ou `dismissed` depois: só o `DELETE` recomeça.
+
+        Códigos: 400 `tutorial_id_invalid`, 400 `tutorial_progress_invalid` (status desconhecido ou passo fora de 0 a 50), 400 `invalid_body`, 401 `unauthorized`, 500 `tutorial_progress_failed`.
+      parameters:
+      - description: id do tutorial
+        in: path
+        name: tutorialId
+        required: true
+        type: string
+      - description: progresso
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/tutorialhttp.ProgressRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/tutorialhttp.ProgressResponse'
+        "400":
+          description: tutorial_id_invalid, tutorial_progress_invalid ou invalid_body
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: tutorial_progress_failed
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Salvar o progresso em um tutorial
+      tags:
+      - Tutoriais
   /unofficial-whatsapp-campaigns/{id}/choice-stats:
     get:
       description: 'Taxa de cliques de cada opção do menu da campanha (só as opções
@@ -62653,6 +64020,34 @@ paths:
       summary: Trocar segredo de identidade
       tags:
       - WebChat
+  /webchat/widgets/{id}/usage:
+    get:
+      description: As origens das páginas publicadas que mostram este chat (siteOrigins)
+        e os sites externos onde ele pode abrir (allowedOrigins), para avisar antes
+        de mudar a aparência de um chat usado em mais de um lugar. Uma falha ao ler
+        as páginas responde erro, nunca uma lista vazia.
+      parameters:
+      - description: id do chat
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/webchat.WidgetUsageResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.CodedErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Onde o WebChat aparece
+      tags:
+      - WebChat
   /webhooks/carrier/{provider}/{token}/{kind}:
     post:
       consumes:
@@ -64800,9 +66195,9 @@ paths:
       - Formulários do WhatsApp
     post:
       description: 'Cria um fluxo de automação desligado, já ligado ao formulário:
-        quando ele é respondido, adiciona uma etiqueta, cria um negócio no funil padrão
-        e avisa o responsável. Você edita e liga no editor de fluxos. Exige `whatsapp_forms:read`
-        e `workflows:create`.'
+        quando ele é respondido, adiciona uma etiqueta, cria uma negociação no funil
+        padrão e avisa o responsável. Você edita e liga no editor de fluxos. Exige
+        `whatsapp_forms:read` e `workflows:create`.'
       parameters:
       - description: ID do formulário (UUID)
         in: path
@@ -69922,7 +71317,7 @@ paths:
         | type | payload |
         |---|---|
         | `conversation:connected` | `{"user_id": string, "connection_id": string}` |
-        | `conversation:subscribed` | `{"entry_id", "entry_type", "lead_id"?, "lead_name": string, "lead_number": string, "lead_version": number, "blocked": boolean, "lead_picture": string, "lead_metadata"?: object, "entry_variables"?: string[], "unread_count": number, "automation_enabled": boolean, "window_open": boolean, "window_expires_at"?: string, "window_closed_reason"?: string, "window_closed_detail"?: string, "window_tier"?: "standard" | "human_agent", "ad_origin"?: AdOrigin, "message_capabilities": {"react": boolean, "edit": boolean, "delete": boolean, "edit_window_seconds": number, "delete_window_seconds": number}, "media_limits"?: [{"kind": "image" | "video" | "audio" | "document", "max_bytes": number, "mime_types": string[]}]}`. `message_capabilities` diz o que o canal da conversa permite fazer com as mensagens (veja as regras de `react_message`, `edit_message` e `delete_message`); as janelas contam a partir do `createdAt` da mensagem e valem 0 quando a ação não existe. `media_limits` diz quais anexos o canal aceita, um item por tipo, com o tamanho máximo em bytes; `mime_types` vazio aceita qualquer formato daquele tipo; um tipo fora da lista não é aceito; a lista vazia quer dizer que o canal não aceita anexos; sem o campo, os limites do canal não são conhecidos e o cliente não deve enviar anexos. `lead_name`, `lead_number`, `lead_version` e `lead_picture` vêm sempre (texto vazio ou 0 quando não há valor), para que um valor apagado substitua o anterior na tela. |
+        | `conversation:subscribed` | `{"entry_id", "entry_type", "lead_id"?, "lead_name": string, "lead_number": string, "lead_version": number, "blocked": boolean, "lead_picture": string, "lead_metadata"?: object, "entry_variables"?: string[], "unread_count": number, "automation_enabled": boolean, "window_open": boolean, "window_expires_at"?: string, "window_closed_reason"?: string, "window_closed_detail"?: string, "window_tier"?: "standard" | "human_agent", "ad_origin"?: AdOrigin, "page_origin"?: PageOrigin, "message_capabilities": {"react": boolean, "edit": boolean, "delete": boolean, "edit_window_seconds": number, "delete_window_seconds": number}, "media_limits"?: [{"kind": "image" | "video" | "audio" | "document", "max_bytes": number, "mime_types": string[]}]}`. `message_capabilities` diz o que o canal da conversa permite fazer com as mensagens (veja as regras de `react_message`, `edit_message` e `delete_message`); as janelas contam a partir do `createdAt` da mensagem e valem 0 quando a ação não existe. `media_limits` diz quais anexos o canal aceita, um item por tipo, com o tamanho máximo em bytes; `mime_types` vazio aceita qualquer formato daquele tipo; um tipo fora da lista não é aceito; a lista vazia quer dizer que o canal não aceita anexos; sem o campo, os limites do canal não são conhecidos e o cliente não deve enviar anexos. `lead_name`, `lead_number`, `lead_version` e `lead_picture` vêm sempre (texto vazio ou 0 quando não há valor), para que um valor apagado substitua o anterior na tela. |
         | `conversation:unsubscribed` | `{"entry_id": string, "entry_type": string}` |
         | `conversation:history` | `{"entry_id", "entry_type", "direction": "latest" \| "before" \| "around" \| "after", "messages": Message[], "has_more": boolean, "has_after": boolean, "total": number, "page_size": number}`. `direction` diz qual pedido a página responde: `latest` (primeira página de `subscribe`), `before` (`load_history`), `around` (`load_around`) ou `after` (`load_after`). As mensagens vêm sempre da mais antiga para a mais nova. `has_more`: há mensagens mais antigas que a página (não se aplica a `after`). `has_after`: há mensagens mais novas que a página (só em `around` e `after`). `total` vem em `latest` e `around`. |
         | `conversation:inbox` | `{"entries": InboxEntry[], "personal_marks": PersonalMark[], "page", "page_size", "total_items", "total_pages", "stage_counts"?: object, "conversation_status_counts"?: object, "available_labels"?: Label[]}`. `personal_marks` traz as suas marcas das conversas da página (lista vazia quando não há). |
@@ -70017,6 +71412,8 @@ paths:
         **AIHandler**: `kind`, `agent_id`?, `agent_name`?, `agent_avatar`?, `agent_active`, `workflow_id`?, `workflow_name`?, `workflow_run_id`?, `run_status`?, `current_node_id`?, `current_node_type`?.
 
         **AdOrigin** (camelCase): o primeiro anúncio que trouxe o contato. `adId`?, `platform`?: `facebook | instagram`, `title`?, `sourceUrl`?, `image`?: `{"url", "mimeType"?, "layout": {"width"?, "height"?, "thumbhash"?}}` (cópia guardada pela plataforma), `arrivedAt`.
+
+        **PageOrigin** (camelCase): a página do site que trouxe o contato (o código `(ref XXXXX)` na primeira mensagem). `projectId`, `projectName`? (nome da página; sem o campo quando a página foi apagada), `route` (caminho da página, como `/oferta`), `url`? (endereço público da página, só quando ela está no ar com um endereço ativo), `reference`, `arrivedAt`. Só vem quando a página é do mesmo workspace da conversa.
 
         **LiveRead** (camelCase): `interest`?, `disposition`?, `sentiment`?, `qualification`?, `nextAction`?, `language`?, `attendanceQuality`, `certainty`?: object, `decidedAt`.
 
@@ -70290,7 +71687,7 @@ paths:
         o nó roda como se não tivesse saída fixada (inclusive a regra de chamadas
         reais) e a etapa vem com `notice: \"saída fixada indisponível para você\"`.\n-
         Nós que mexem no CRM (etiqueta, etapa, atribuir membro, transferir departamento,
-        oportunidade e campos do lead) não gravam nada: conferem o alvo no workspace
+        negociação e campos do lead) não gravam nada: conferem o alvo no workspace
         (etiqueta, etapa, membro, departamento, funil ou campo) e devolvem o que fariam.
         A etapa vem com `simulated: true` e `output.would_do`: lista de `{\"kind\":
         \"label\" \\| \"stage\" \\| \"member\" \\| \"department\" \\| \"deal\" \\|

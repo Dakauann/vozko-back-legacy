@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -20,6 +21,7 @@ const (
 	FieldPrefix      = "field."
 
 	FormMarkerAttr = "data-vz-form"
+	TrapField      = "vz_website"
 	FormElement    = "vz-form"
 
 	maxFieldKeyLength = 64
@@ -106,17 +108,7 @@ func ValidFieldKey(key string) bool {
 }
 
 func kindFits(target string, kind Kind) bool {
-	switch target {
-	case TargetName:
-		return kind == KindText
-	case TargetPhone:
-		return kind == KindTel || kind == KindText
-	case TargetEmail:
-		return kind == KindEmail
-	case TargetConsent, TargetEmailOptIn:
-		return kind == KindCheckbox
-	}
-	return knownKinds[kind]
+	return slices.Contains(TargetKinds(target), kind)
 }
 
 type extractor struct {
@@ -195,19 +187,11 @@ func (x *extractor) form(i int) (Manifest, bool) {
 func (x *extractor) field(form string, i int) (Field, bool) {
 	el := x.doc.Elements[i]
 	name, named := x.doc.AttrValue(i, "name")
-	kind := Kind(el.Tag)
-	if el.Tag == "input" {
-		value, _ := x.doc.AttrValue(i, "type")
-		value = strings.ToLower(strings.TrimSpace(value))
-		if buttonTypes[value] {
-			return Field{}, false
-		}
-		kind = KindText
-		if value != "" {
-			kind = Kind(value)
-		}
+	kind, isControl := controlKind(x.doc, i)
+	if !isControl {
+		return Field{}, false
 	}
-	if !named {
+	if !named || name == TrapField {
 		return Field{}, false
 	}
 	problem := func(code string) (Field, bool) {
@@ -250,17 +234,8 @@ func (x *extractor) field(form string, i int) (Field, bool) {
 }
 
 func (x *extractor) label(i int) string {
-	if around, ok := x.doc.Ancestor(i, "label"); ok {
-		return x.doc.Text(around)
-	}
-	id, ok := x.doc.AttrValue(i, "id")
-	if !ok || id == "" {
-		return ""
-	}
-	for _, label := range x.doc.ByTag("label") {
-		if target, ok := x.doc.AttrValue(label, "for"); ok && target == id {
-			return x.doc.Text(label)
-		}
+	if label := labelOf(x.doc, i); label >= 0 {
+		return x.doc.Text(label)
 	}
 	return ""
 }

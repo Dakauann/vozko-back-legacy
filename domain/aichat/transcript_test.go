@@ -27,17 +27,18 @@ func TestATranscriptSurvivesStorage(t *testing.T) {
 	}
 }
 
-func TestATranscriptKeepsOnlyTheAgentsOwnMessagesAndNoImages(t *testing.T) {
+func TestATranscriptKeepsTheNotesTheModelSawButNoImages(t *testing.T) {
 	raw, err := EncodeTranscript([]ai.Message{
 		{Role: ai.RoleUser, Content: "nudge"},
 		{Role: ai.RoleAssistant, Content: "ok", Images: []string{"data:image/png;base64,AAAA"}},
+		{Role: ai.RoleSystem, Content: "nunca"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	back, _ := DecodeTranscript(raw)
-	if len(back) != 1 || back[0].Role != ai.RoleAssistant || len(back[0].Images) != 0 {
-		t.Fatalf("decoded %+v, want only the assistant message without images", back)
+	if len(back) != 2 || back[0].Role != ai.RoleUser || back[0].Content != "nudge" || back[1].Role != ai.RoleAssistant || len(back[1].Images) != 0 {
+		t.Fatalf("decoded %+v, want the note and the assistant message without images", back)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 
 	"vozko/domain/cache"
 	"vozko/domain/conversation"
+	"vozko/domain/sitepublish"
 	wcdomain "vozko/domain/webchat"
 	"vozko/usecases/publicform"
 )
@@ -14,24 +15,26 @@ import (
 const challengeKeyPrefix = "webchat:challenge:"
 
 type VisitorDeps struct {
-	Widgets       wcdomain.WidgetRepository
-	Visitors      wcdomain.VisitorRepository
-	Conversations wcdomain.ConversationRepository
-	Keys          wcdomain.Keys
-	OneShot       OneShot
-	Limits        Limits
-	Leads         LeadFinder
-	Transcript    conversation.MessageHistoryManager
-	Messages      MessageReader
-	Presenter     MessagePresenter
-	Media         conversation.MediaStore
-	Assignments   Assignments
-	Automation    Automation
-	Events        wcdomain.EventPublisher
-	Operators     OperatorNotifier
-	SiteOrigins   SiteOrigins
-	Now           func() time.Time
-	Async         func(func())
+	Widgets        wcdomain.WidgetRepository
+	Visitors       wcdomain.VisitorRepository
+	Conversations  wcdomain.ConversationRepository
+	Keys           wcdomain.Keys
+	OneShot        OneShot
+	Limits         Limits
+	Leads          LeadFinder
+	Transcript     conversation.MessageHistoryManager
+	Messages       MessageReader
+	Presenter      MessagePresenter
+	Media          conversation.MediaStore
+	Assignments    Assignments
+	Automation     Automation
+	Events         wcdomain.EventPublisher
+	Operators      OperatorNotifier
+	SiteOrigins    SiteOrigins
+	Previews       PreviewGrants
+	PreviewEditors []string
+	Now            func() time.Time
+	Async          func(func())
 }
 
 type VisitorService struct {
@@ -52,6 +55,7 @@ type Session struct {
 	Widget  *wcdomain.Widget
 	Visitor *wcdomain.Visitor
 	IPHash  string
+	Demo    bool
 }
 
 type Client struct {
@@ -158,33 +162,69 @@ func (s *VisitorService) widgetByKey(ctx context.Context, publicKey string) (*wc
 	return w, nil
 }
 
-func (s *VisitorService) servedWidget(ctx context.Context, publicKey, parentOrigin string) (*wcdomain.Widget, error) {
+func (s *VisitorService) servingWidget(ctx context.Context, publicKey string) (*wcdomain.Widget, error) {
 	w, err := s.widgetByKey(ctx, publicKey)
 	if err != nil {
 		return nil, err
 	}
 	if !w.Serves() {
 		return nil, wcdomain.ErrWidgetPaused
-	}
-	if !w.AllowsOrigin(parentOrigin) {
-		return nil, wcdomain.ErrOriginNotAllowed
 	}
 	return w, nil
 }
 
-func (s *VisitorService) WidgetForFrame(ctx context.Context, publicKey string) (*wcdomain.Widget, error) {
-	w, err := s.widgetByKey(ctx, publicKey)
+func (s *VisitorService) previewOf(ctx context.Context, w *wcdomain.Widget, origin string) (*sitepublish.PreviewGrant, error) {
+	if s.Previews == nil || !s.Previews.PreviewOrigin(origin) {
+		return nil, nil
+	}
+	grant, found, err := s.Previews.PreviewGrant(ctx, origin)
 	if err != nil {
 		return nil, err
 	}
-	if !w.Serves() {
-		return nil, wcdomain.ErrWidgetPaused
+	if !found || grant.WorkspaceID != w.WorkspaceID {
+		return nil, wcdomain.ErrOriginNotAllowed
 	}
-	return w, nil
+	return &grant, nil
+}
+
+func (s *VisitorService) servedWidget(ctx context.Context, publicKey, parentOrigin string) (*wcdomain.Widget, *sitepublish.PreviewGrant, error) {
+	w, err := s.servingWidget(ctx, publicKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	preview, err := s.previewOf(ctx, w, parentOrigin)
+	if err != nil {
+		return nil, nil, err
+	}
+	if preview == nil && !w.AllowsOrigin(parentOrigin) {
+		return nil, nil, wcdomain.ErrOriginNotAllowed
+	}
+	return w, preview, nil
+}
+
+type Frame struct {
+	Widget    *wcdomain.Widget
+	Demo      bool
+	Ancestors string
+}
+
+func (s *VisitorService) WidgetForFrame(ctx context.Context, publicKey, origin string) (*Frame, error) {
+	w, err := s.servingWidget(ctx, publicKey)
+	if err != nil {
+		return nil, err
+	}
+	preview, err := s.previewOf(ctx, w, origin)
+	if err != nil {
+		return nil, err
+	}
+	if preview != nil {
+		return &Frame{Widget: w, Demo: true, Ancestors: wcdomain.PreviewFrameAncestors(preview.Origin, s.PreviewEditors)}, nil
+	}
+	return &Frame{Widget: w, Ancestors: w.FrameAncestors()}, nil
 }
 
 func (s *VisitorService) Challenge(ctx context.Context, publicKey, parentOrigin string) (wcdomain.Challenge, error) {
-	w, err := s.servedWidget(ctx, publicKey, parentOrigin)
+	w, _, err := s.servedWidget(ctx, publicKey, parentOrigin)
 	if err != nil {
 		return wcdomain.Challenge{}, err
 	}
@@ -197,9 +237,12 @@ func (s *VisitorService) challenges() publicform.ChallengeGate {
 }
 
 func (s *VisitorService) StartSession(ctx context.Context, in StartSessionInput) (*SessionView, error) {
-	w, err := s.servedWidget(ctx, in.PublicKey, in.Client.ParentOrigin)
+	w, preview, err := s.servedWidget(ctx, in.PublicKey, in.Client.ParentOrigin)
 	if err != nil {
 		return nil, err
+	}
+	if preview != nil {
+		return s.startDemo(w, *preview, in)
 	}
 	now := s.Now()
 	ipHash := wcdomain.HashIP(s.Keys, in.Client.IP)
@@ -341,6 +384,14 @@ func (s *VisitorService) allowNewVisitor(w *wcdomain.Widget, ipHash string) erro
 
 func (s *VisitorService) Authenticate(ctx context.Context, token, ip string) (*Session, error) {
 	grant, err := wcdomain.VerifyVisitorToken(s.Keys, token, s.Now())
+	if errors.Is(err, wcdomain.ErrVisitorTokenInvalid) {
+		if demo, demoErr := wcdomain.VerifyDemoToken(s.Keys, token, s.Now()); !errors.Is(demoErr, wcdomain.ErrVisitorTokenInvalid) {
+			if demoErr != nil {
+				return nil, demoErr
+			}
+			return s.demoSession(ctx, demo, ip)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}

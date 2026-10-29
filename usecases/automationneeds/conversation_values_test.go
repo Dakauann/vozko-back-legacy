@@ -257,3 +257,34 @@ func TestEmptyValueRefusalsCarryTheLabelsToo(t *testing.T) {
 		t.Fatalf("err = %v (%+v)", err, named)
 	}
 }
+
+func sheetTurma(q *Queries) {
+	q.d.Service.declarations = fakeDeclarations{rows: []variabledecl.Declaration{{Name: "turma", Label: "Planilha da turma", Type: variabledecl.Type{Kind: variabledecl.KindSheet, Settings: map[string]string{variabledecl.SettingModel: "sp-model"}}}}}
+}
+
+func TestAPlanilhaInTheFormSuggestsNoLeadField(t *testing.T) {
+	f := newFormFakes()
+	q := f.queries(t, true)
+	sheetTurma(q)
+	form, err := q.VariablesForm(context.Background(), conversationRef, agentRef("escola"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(form.Rows) != 1 || !form.Rows[0].Need.IsSheet() || form.Rows[0].Suggested != "" {
+		t.Fatalf("rows = %+v", form.Rows)
+	}
+}
+
+func TestAPlanilhaRefusesALeadFieldInTheHandOff(t *testing.T) {
+	f := newFormFakes()
+	q := f.queries(t, true)
+	sheetTurma(q)
+	err := q.SaveConversationValues(context.Background(), SaveValues{ConversationRef: conversationRef, Automation: ref(conversation.AutomationAgent, "escola"), Bindings: []conversationvars.Binding{{Name: "turma", Source: campaign.CustomBinding("turma")}}})
+	var named *conversationvars.VariablesError
+	if !errors.Is(err, conversationvars.ErrSourceInvalid) || !errors.As(err, &named) || !reflect.DeepEqual(named.Names, []string{"turma"}) {
+		t.Fatalf("err = %v", err)
+	}
+	if f.store.calls != 0 {
+		t.Fatalf("stored = %v", f.store.saved)
+	}
+}

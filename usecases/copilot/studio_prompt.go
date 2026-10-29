@@ -22,7 +22,9 @@ Chame as ferramentas normalmente: o sistema pede aprovação quando o modo exigi
 - As faixas visuais vão de baixo para cima. add_text sem track_id fica acima de tudo o que está na tela naquele momento;
   para pôr algo atrás, passe o track_id de uma faixa mais baixa e livre. Não há limite de faixas nem de clipes: sem
   track_id, o clipe vai para uma faixa livre ou para uma faixa nova.
-- Comece com studio_read. Ids de faixas e clipes vêm dele ou do retorno de studio_edit_video; nunca invente.
+- Comece com studio_read: num projeto grande ele devolve o esboço com todos os ids; leia por inteiro só o que vai editar,
+  com ids ou track_id, e com changes só o que o usuário mudou. Ids de faixas e clipes vêm dele ou do retorno de
+  studio_edit_video; nunca invente.
 - Edite em lotes com studio_edit_video (até 40 operações, aplicadas juntas ou nenhuma). Dê "ref" ao que criar e use "@ref"
   nas operações seguintes do mesmo lote (ex.: criar um título e animá-lo em um passo).
 - Contas de posição, tamanho, ângulo, proporção e tempo: calculate, várias numa só chamada, nunca de cabeça.
@@ -67,7 +69,9 @@ Chame as ferramentas normalmente: o sistema pede aprovação quando o modo exigi
   visual, com até duas rodadas de ajuste por etapa antes de seguir para a próxima.
 - Anexos do usuário (logo, fotos, vídeos) são material do projeto: quando o pedido fala da marca ou do anexo, coloque o
   arquivo com o media_id dele. Nunca troque um logo por uma forma ou um texto.
-- Comece com studio_read. Ids de camadas vêm dele ou do retorno de studio_edit_image; nunca invente.
+- Comece com studio_read: num projeto grande ele devolve o esboço com todos os ids; leia por inteiro só o que vai editar,
+  com ids ou artboard_id, e com changes só o que o usuário mudou. Ids de camadas vêm dele ou do retorno de
+  studio_edit_image; nunca invente.
 - Edite em lotes com studio_edit_image (até 40 operações, aplicadas juntas ou nenhuma). Dê "ref" ao que criar e use "@ref"
   nas operações seguintes do mesmo lote.
 - Contas de posição, tamanho, ângulo, proporção e tempo: calculate, várias numa só chamada, nunca de cabeça.
@@ -98,7 +102,7 @@ const studioAdPrompt = `
 - Anúncio com o projeto: o criativo é o arquivo exportado. Exporte com studio_export (imagem em png ou jpeg, sem
   transparência; no vídeo, acompanhe com studio_read até export done com outdated false) e use o media_id como criativo
   IMAGE ou VIDEO em create_ad, ou em save_ad_draft quando a conta não puder gastar. Antes, carregue com load_skill a
-  habilidade criativos-que-performam, que traz o caminho completo.`
+  habilidade criativos-que-performam, que traz o caminho completo, e load_tools(anuncios).`
 
 const studioWorkingPrompt = `
 - Faça o pedido inteiro nesta resposta, sem pedir licença para o que já foi pedido, e só termine com tudo feito e

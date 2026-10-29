@@ -46,6 +46,18 @@ func TestSettingsReplaceASectionAndClearIt(t *testing.T) {
 	}
 }
 
+func TestSettingsSetTheFaviconAndStructuredDataOfTheSite(t *testing.T) {
+	r := newRig(t)
+	res := NewSiteSettingsTool(r.deps).Execute(context.Background(), r.cc, args(t, `{"section":"site","value":"{\"favicon_media_id\":\"m-1\",\"structured_data\":true}"}`))
+	identity := r.storage.settings.Settings.Site
+	if res.Status != copilot.StatusOK || identity.FaviconMediaID != "m-1" || !identity.StructuredData {
+		t.Fatalf("got %+v %+v", res, identity)
+	}
+	if pages := r.storage.settings.Settings.Pages; pages["/"].Title == "" {
+		t.Fatal("other sections stay as they were")
+	}
+}
+
 func TestSettingsRefuseUnknownSectionsAndInvalidValues(t *testing.T) {
 	r := newRig(t)
 	tool := NewSiteSettingsTool(r.deps)

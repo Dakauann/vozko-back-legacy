@@ -20,10 +20,21 @@ describe("tailwind", () => {
     const valid = await classValidator("theme.css", styles);
     expect(valid("py-24")).toBe(true);
     expect(valid("md:py-24")).toBe(true);
+    expect(valid("max-lg:py-24")).toBe(true);
+    expect(valid("max-md:text-[#0f766e80]")).toBe(true);
     expect(valid("bg-brand")).toBe(true);
     expect(valid("hero")).toBe(true);
     expect(valid("not-a-class")).toBe(false);
     expect(valid("md:hero")).toBe(false);
+  });
+
+  test("puts the desktop first overrides after the base class and before the mobile first screens, as the editor resolves them", async () => {
+    const css = await compileCss("theme.css", styles, ["py-1", "max-lg:py-8", "max-md:py-7", "md:py-3"]);
+    const at = (name: string) => css.indexOf(`.${name.replace(":", "\\:")}`);
+    expect(at("py-1")).toBeGreaterThan(-1);
+    expect(at("py-1")).toBeLessThan(at("max-lg:py-8"));
+    expect(at("max-lg:py-8")).toBeLessThan(at("max-md:py-7"));
+    expect(at("max-md:py-7")).toBeLessThan(at("md:py-3"));
   });
 
   test("plugins and outside stylesheets are refused", async () => {

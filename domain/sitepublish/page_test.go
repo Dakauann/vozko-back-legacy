@@ -21,12 +21,13 @@ func page(t *testing.T, route, source string) site.RenderedPage {
 
 func TestFormIDsComeFromEveryVzFormInTheSource(t *testing.T) {
 	project := site.NewProject(site.StackReact, map[string]string{
-		"src/pages/Home.tsx":  `<vz-form id="contato"><form></form></vz-form><VzForm/><vz-form class="x" id='orcamento-2'>`,
-		"src/pages/About.tsx": `<vz-form id="contato">`,
-		"src/pages/Lead.tsx":  `<form data-vz-form="lead-1">`,
-		"index.html":          `<vz-form id="Bad Id">`,
+		"src/pages/Home.tsx":   `<vz-form id="contato"><form></form></vz-form><VzForm/><vz-form class="x" id='orcamento-2'>`,
+		"src/pages/About.tsx":  `<vz-form id="contato">`,
+		"src/pages/Lead.tsx":   `<form data-vz-form="lead-1">`,
+		"src/pages/Agenda.tsx": `<vz-booking class="mt-8" booking="agenda"></vz-booking><vz-booking booking="Bad Id">`,
+		"index.html":           `<vz-form id="Bad Id">`,
 	})
-	if got := FormIDs(project); !reflect.DeepEqual(got, []string{"contato", "lead-1", "orcamento-2"}) {
+	if got := FormIDs(project); !reflect.DeepEqual(got, []string{"agenda", "contato", "lead-1", "orcamento-2"}) {
 		t.Fatalf("got %v", got)
 	}
 }
@@ -53,6 +54,7 @@ func TestNeedsRuntimeForPlatformElements(t *testing.T) {
 		`<html><body><vz-whatsapp channel="x">Fale</vz-whatsapp></body></html>`: true,
 		`<html><body><a href="/x" data-vz-cta>Comprar</a></body></html>`:        true,
 		`<html><body><form data-vz-form="lead"></form></body></html>`:           true,
+		`<html><body><vz-booking booking="agenda"></vz-booking></body></html>`:  true,
 	}
 	for source, want := range cases {
 		if got := NeedsRuntime(page(t, "/", source).Document); got != want {

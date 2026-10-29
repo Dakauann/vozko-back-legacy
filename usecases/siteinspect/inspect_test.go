@@ -136,3 +136,15 @@ func TestASnapshotLargerThanTheTotalBudgetIsRefused(t *testing.T) {
 		t.Fatalf("a snapshot inside the budget passes: %v", err)
 	}
 }
+
+func TestInspectListsTheRenderedFormsOfEachRoute(t *testing.T) {
+	withForm := `<!doctype html><html><head><title>x</title>` + stamp + `</head><body><form data-vz-form="contato" data-vz-node="pages/index.html#0"><input data-vz-node="pages/index.html#5" type="tel" name="lead.phone"></form></body></html>`
+	documents := &fakeDocuments{pages: map[string]string{"/": withForm, "/obrigado": thanks}}
+	r := Service{Previews: previewing()}.Inspect(context.Background(), view(), documents)
+	if len(r.Routes) != 2 || len(r.Routes[0].Forms) != 1 || r.Routes[0].Forms[0].ID != "contato" || len(r.Routes[0].Forms[0].Fields) != 1 || r.Routes[0].Forms[0].Fields[0].Name != "lead.phone" {
+		t.Fatalf("routes %+v", r.Routes)
+	}
+	if len(r.Routes[1].Forms) != 0 {
+		t.Fatalf("thanks %+v", r.Routes[1].Forms)
+	}
+}

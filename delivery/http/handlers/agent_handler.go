@@ -198,13 +198,15 @@ func (h *AgentHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Description	Salva os campos do rascunho do agente: nome, descrição, prompt, modelo, avatar, etiquetas, metadados, mídias, bases de conhecimento, RAG, variáveis e o estado ativo. Conversas seguem usando a versão publicada até a próxima publicação.
 // @Description
 // @Description	As ferramentas não vão neste corpo: cada uma é salva em /agents/{id}/tools. Um corpo com `internalTools` responde 400 `agent_tools_moved` sem salvar nada. Servidores MCP também são ferramentas (tipo `mcp_source`, com as ferramentas permitidas): um corpo com `mcpCollectionIds` responde 400 `agent_mcp_collections_moved`.
+// @Description
+// @Description	`variables` são as variáveis iniciais que o agente usa: o nome técnico (letras sem acento, números e _, até 64, sem repetir; lead_name, lead_number e campaign_name são da plataforma) e o valor padrão (sem padrão, a variável é obrigatória). Mandar `variables` substitui a lista inteira; uma lista vazia tira todas. O nome amigável, a descrição e o tipo moram na declaração do workspace (/conversation-variables), a mesma de fluxos, campanhas e transferências; um nome não declarado vale como texto. Até 50 variáveis.
 // @Tags			Agentes
 // @Accept			json
 // @Produce		json
 // @Param			id		path		string				true	"ID do agente"
 // @Param			request	body		updateAgentRequest	true	"Campos do agente"
 // @Success		200		{object}	agent.Agent
-// @Failure		400		{object}	response.ErrorResponse	"agent_tools_moved, agent_mcp_collections_moved, agent_invalid_body, agent_name_required"
+// @Failure		400		{object}	response.ErrorResponse	"agent_tools_moved, agent_mcp_collections_moved, agent_invalid_body, agent_name_required, agent_variable_name_invalid, agent_variable_name_reserved, agent_variable_duplicate ou agent_variable_too_many"
 // @Failure		403		{object}	response.ErrorResponse	"agent_forbidden"
 // @Failure		404		{object}	response.ErrorResponse	"agent_not_found"
 // @Failure		422		{object}	response.ErrorResponse	"agent_not_activatable"

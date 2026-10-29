@@ -16,6 +16,7 @@ attendance_backlog
 attendance_live
 attendance_metrics
 attendance_rework
+attendance_service_messages
 attendance_stages
 attendance_team
 attendance_trend
@@ -139,6 +140,7 @@ list_workflows
 list_workspace_invites
 list_workspace_members
 load_skill
+load_tools
 member_activity
 move_conversation_funnel
 move_conversation_stage

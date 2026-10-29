@@ -24,6 +24,7 @@ func RegisterProtectedRoutes(
 	wc.HandleFunc("/widgets/{id}", ac(res, workspace_domain.ActionRead, h.Get)).Methods(http.MethodGet)
 	wc.HandleFunc("/widgets/{id}", ac(res, workspace_domain.ActionUpdate, h.Update)).Methods(http.MethodPut)
 	wc.HandleFunc("/widgets/{id}", ac(res, workspace_domain.ActionDelete, h.Delete)).Methods(http.MethodDelete)
+	wc.HandleFunc("/widgets/{id}/usage", ac(res, workspace_domain.ActionRead, h.Usage)).Methods(http.MethodGet)
 	wc.HandleFunc("/widgets/{id}/identity-secret", ac(res, workspace_domain.ActionUpdate, h.RevealSecret)).Methods(http.MethodGet)
 	wc.HandleFunc("/widgets/{id}/identity-secret", ac(res, workspace_domain.ActionUpdate, h.RotateSecret)).Methods(http.MethodPost)
 

@@ -1,6 +1,7 @@
 import { Patcher, type Splice } from "./patcher";
 
 interface Block {
+  start: number;
   open: number;
   close: number;
 }
@@ -53,7 +54,7 @@ function themeBlocks(css: string): Block[] {
     if (open < 0 || (semicolon >= 0 && semicolon < open)) continue;
     const close = matchingBrace(css, open);
     if (close < 0) continue;
-    blocks.push({ open, close });
+    blocks.push({ start: i, open, close });
     i = close;
   }
   return blocks;
@@ -120,6 +121,10 @@ function declarationIndent(css: string, block: Block): string {
   const inner = css.slice(block.open + 1, block.close);
   const match = /\n([ \t]+)--/.exec(inner);
   return match ? match[1] : "  ";
+}
+
+export function themeSource(css: string): string {
+  return themeBlocks(css).map((block) => css.slice(block.start, block.close + 1)).join("\n");
 }
 
 export function setThemeToken(css: string, name: string, value: string): CssEdit {

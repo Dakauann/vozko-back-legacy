@@ -178,7 +178,7 @@ func (s *Service) mappingFor(ctx context.Context, a Actor, list campaignaudience
 	if err != nil {
 		return mapped{}, err
 	}
-	prepared, err := ch.Prepare(ctx, a, view.Params)
+	prepared, _, err := s.prepare(ctx, ch, a, view.Params)
 	if err != nil {
 		return mapped{}, err
 	}

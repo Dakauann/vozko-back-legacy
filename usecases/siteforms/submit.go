@@ -22,6 +22,7 @@ type Visitor struct {
 type SubmitResult struct {
 	SubmissionID string
 	Success      sitesubmission.SuccessAction
+	Booked       *Booked
 }
 
 func (s *Service) publishedOrigins(ctx context.Context, projectID string) (pfdomain.OriginAllowList, error) {
@@ -93,9 +94,16 @@ func (s *Service) Challenge(ctx context.Context, formKey string, v Visitor) (pfd
 }
 
 func (s *Service) Submit(ctx context.Context, formKey string, v Visitor, raw []byte) (SubmitResult, error) {
+	return s.submit(ctx, formKey, v, raw, false)
+}
+
+func (s *Service) submit(ctx context.Context, formKey string, v Visitor, raw []byte, booking bool) (SubmitResult, error) {
 	form, err := s.admitted(ctx, formKey, v.Origin)
 	if err != nil {
 		return SubmitResult{}, err
+	}
+	if form != nil && (form.Booking != nil) != booking {
+		return SubmitResult{}, sitesubmission.ErrFormUnknown
 	}
 	if err := s.limitVisitor("submit", formKey, v); err != nil {
 		return SubmitResult{}, err
@@ -116,7 +124,11 @@ func (s *Service) Submit(ctx context.Context, formKey string, v Visitor, raw []b
 		return SubmitResult{}, sitesubmission.ErrBotSuspected
 	}
 	if form == nil {
-		return SubmitResult{Success: sitesubmission.SuccessFor(nil, "")}, nil
+		result := SubmitResult{Success: sitesubmission.SuccessFor(nil, "")}
+		if booking {
+			result.Booked = previewBooked(body)
+		}
+		return result, nil
 	}
 	if err := publicform.Allow(s.d.PerForm, formKey); err != nil {
 		return SubmitResult{}, err
@@ -131,23 +143,34 @@ func (s *Service) Submit(ctx context.Context, formKey string, v Visitor, raw []b
 		return SubmitResult{}, err
 	}
 	if existing != nil {
-		return SubmitResult{SubmissionID: existing.ID, Success: success}, nil
+		return SubmitResult{SubmissionID: existing.ID, Success: success, Booked: bookedOf(*form, existing.Fields)}, nil
 	}
 	record := s.record(*form, body, values, v)
+	var eventID string
+	if booking {
+		if eventID, err = s.reserve(ctx, *form, values, &record); err != nil {
+			return SubmitResult{}, err
+		}
+	}
 	outcome, err := s.writeLead(ctx, *form, record, values)
 	if err != nil {
+		s.release(ctx, *form, eventID)
 		return SubmitResult{}, err
 	}
 	record.LeadID = outcome.LeadID
 	effects := effectsOf(*form, record, outcome, values, v)
 	stored, created, err := s.d.Submissions.Create(ctx, record, effects)
 	if err != nil {
+		s.release(ctx, *form, eventID)
 		return SubmitResult{}, err
+	}
+	if !created {
+		s.release(ctx, *form, eventID)
 	}
 	if created && !effects.Finished() {
 		s.startEffects(ctx, stored.ID)
 	}
-	return SubmitResult{SubmissionID: stored.ID, Success: success}, nil
+	return SubmitResult{SubmissionID: stored.ID, Success: success, Booked: bookedOf(*form, stored.Fields)}, nil
 }
 
 func effectsOf(form ActiveForm, record sitesubmission.Submission, outcome formlead.Outcome, values siteform.Values, v Visitor) sitesubmission.EffectRun {

@@ -47,7 +47,7 @@ func (c *Container) studioPresets() *studio_usecase.PresetService {
 }
 
 func (c *Container) studioHandler() *studiohttp.Handler {
-	return studiohttp.NewHandler(c.studioService(), c.studioCapabilities(), c.studioExports(), c.studioPresets()).WithLibraryAssets(c.studioLibraryAssets())
+	return studiohttp.NewHandler(c.studioService(), c.studioCapabilities(), c.studioExports(), c.studioPresets()).WithLibraryAssets(c.studioLibraryAssets()).WithPerception(c.studioPerception())
 }
 
 type libraryAssetMedia struct {
@@ -70,10 +70,14 @@ func (c *Container) studioLibraryAssets() *studio_usecase.LibraryAssetService {
 
 func (c *Container) studioTools() []copilot.Tool {
 	media := c.mediaGeneration().Service
-	deps := studiotools.StudioDeps{Projects: c.studioService(), Media: media, Jobs: media, Presets: c.studioPresets(), Links: c.studioShortLinks(), Library: c.useCases.getMedia}
+	deps := studiotools.StudioDeps{Projects: c.studioService(), Media: media, Jobs: media, Presets: c.studioPresets(), Links: c.studioShortLinks(), Library: c.useCases.getMedia, Perception: c.studioPerception()}
 	return append(studiotools.StudioTools(deps), studiotools.NewNewStudioProjectTool(deps))
 }
 
 func (c *Container) studioShortLinks() studiotools.StudioShortLinks {
 	return studiotools.StudioShortLinks{Create: c.useCases.createShortLink, Get: c.useCases.getShortLink, Delete: c.useCases.deleteShortLink, BaseURL: c.cfg.ShortLinkBaseURL, Permissions: c.useCases.checkWsAccess}
+}
+
+func (c *Container) studioPerception() *studio_usecase.PerceptionService {
+	return studio_usecase.NewPerceptionService()
 }

@@ -1,6 +1,7 @@
 ---
 name: remarketing
 description: Anunciar de novo para quem já conhece o negócio (visitou o site, interagiu no Instagram ou no Facebook, assistiu vídeos, conversou ou é cliente): fontes, janelas de tempo, exclusões e frequência; carregue antes de montar campanhas para públicos personalizados.
+surface: ads
 ---
 
 # Remarketing

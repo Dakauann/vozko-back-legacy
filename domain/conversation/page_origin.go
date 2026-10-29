@@ -67,6 +67,24 @@ func (o PageOrigin) Complete() bool {
 	return true
 }
 
+type PageOriginView struct {
+	ProjectID   string    `json:"projectId"`
+	ProjectName string    `json:"projectName,omitempty"`
+	Route       string    `json:"route"`
+	URL         string    `json:"url,omitempty"`
+	Reference   string    `json:"reference"`
+	ArrivedAt   time.Time `json:"arrivedAt"`
+}
+
+type PageProject struct {
+	Name string
+	Live bool
+}
+
+type PageOriginReader interface {
+	PageOrigin(ctx context.Context, entryID string, entryType shared.EntryType) (*PageOriginView, error)
+}
+
 type PageReferenceTarget struct {
 	WorkspaceID string
 	ProjectID   string

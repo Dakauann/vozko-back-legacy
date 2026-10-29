@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
 	"vozko/domain/readiness"
 
 	"vozko/domain/ai"
@@ -52,6 +51,7 @@ type Driver struct {
 	adopt      func(projectID string) error
 	checkpoint func(text string) error
 	viewNote   string
+	loaded     map[string]bool
 }
 
 const msgProjectUnbound = "o projeto foi criado, mas esta conversa não pôde ser ligada a ele agora, então o editor não entrou nesta resposta. " +
@@ -72,6 +72,9 @@ func (d *Driver) show(view copilot.View) bool {
 }
 
 func (d *Driver) take(res copilot.Result) copilot.Result {
+	if load, ok := res.Data.(areaLoad); ok && res.Status == copilot.StatusOK {
+		return d.loadAreas(res, load)
+	}
 	if res.Status != copilot.StatusOK || res.Opening == nil {
 		return res
 	}
@@ -104,7 +107,9 @@ func (d *Driver) Drain(ctx context.Context, sess *agentloop.Session) []ai.Messag
 
 func NewDriver(cc copilot.Context, model string, reg *Registry, access AccessChecker, funds FundsChecker, newID IDGenerator) *Driver {
 	cc.Model = model
-	return &Driver{cc: cc, model: model, registry: reg, access: access, funds: funds, newID: newID}
+	d := &Driver{cc: cc, model: model, registry: reg, access: access, funds: funds, newID: newID, loaded: map[string]bool{}}
+	d.load(defaultAreas(cc.View)...)
+	return d
 }
 
 func (d *Driver) Admit(context.Context) error {
@@ -128,7 +133,7 @@ func (d *Driver) Tools() []tools.Definition {
 func (d *Driver) permittedDefinitions() []tools.Definition {
 	defs := make([]tools.Definition, 0)
 	for _, t := range d.registry.Tools() {
-		if d.cc.View.Offers(t) && d.permitTool(t) == nil {
+		if d.cc.View.Offers(t) && !d.withheld(t) && d.permitTool(t) == nil {
 			defs = append(defs, copilot.DefinitionOn(t, d.cc.View))
 		}
 	}
@@ -136,7 +141,7 @@ func (d *Driver) permittedDefinitions() []tools.Definition {
 }
 
 func (d *Driver) SystemPrompt() string {
-	return systemPrompt(d.cc.View, time.Now())
+	return systemPrompt(d.cc.View)
 }
 
 func (d *Driver) Reground(iter, maxIter, noMutationStreak int) string {
@@ -201,6 +206,9 @@ func (d *Driver) dispatch(ctx context.Context, call ai.ToolCall, emit agentloop.
 		return agentloop.StepResult{Result: fmt.Sprintf(
 			"PERMISSÃO NEGADA: o usuário não tem permissão para %s:%s neste workspace. Não tente contornar.",
 			m.Resource, m.Action)}
+	}
+	if d.withheld(tool) {
+		d.load(d.registry.areas.of(call.Name))
 	}
 	if copilot.NeedsApprovalFor(tool, d.cc.Mode, call.Arguments) {
 		return d.propose(ctx, tool, call, emit)

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"vozko/domain/site"
+	"vozko/domain/siteform"
 )
 
 type Effect string
@@ -40,6 +41,18 @@ type EffectValues struct {
 	Email      string `json:"email,omitempty"`
 	Consent    bool   `json:"consent,omitempty"`
 	EmailOptIn bool   `json:"email_opt_in,omitempty"`
+}
+
+func (v EffectValues) For(field string) string {
+	switch field {
+	case siteform.TargetPhone:
+		return v.Phone
+	case siteform.TargetEmail:
+		return v.Email
+	case siteform.TargetName:
+		return v.Name
+	}
+	return ""
 }
 
 type EffectPlan struct {

@@ -15,24 +15,36 @@ type Assignment struct {
 }
 
 func Fit(model Model, file googlesheet.Spreadsheet, account string) (Assignment, error) {
+	return FitPinned(model, file, account, nil)
+}
+
+func FitPinned(model Model, file googlesheet.Spreadsheet, account string, pins map[string]string) (Assignment, error) {
 	targets, err := model.targets()
 	if err != nil {
 		return Assignment{}, err
 	}
-	switch {
-	case len(file.Sheets) == 0:
-		return Assignment{}, refuse(CodeFileNotFound)
-	case IsModelFile(model, file):
-		return Assignment{}, refuse(CodeModelFile)
-	case account == "" || file.Oldest().AccountID != account:
-		return Assignment{}, refuse(CodeFileOtherAccount)
+	if err := eligible(file, account); err != nil {
+		return Assignment{}, err
 	}
 	f := newFitting(targets, file)
+	if err := f.pin(model, pins); err != nil {
+		return Assignment{}, err
+	}
 	tabs, err := f.assign()
 	if err != nil {
 		return Assignment{}, err
 	}
 	return Assignment{SpreadsheetID: file.ID, Tabs: tabs}, nil
+}
+
+func eligible(file googlesheet.Spreadsheet, account string) error {
+	switch {
+	case len(file.Sheets) == 0:
+		return refuse(CodeFileNotFound)
+	case account == "" || file.Oldest().AccountID != account:
+		return refuse(CodeFileOtherAccount)
+	}
+	return nil
 }
 
 type fitting struct {
@@ -65,6 +77,58 @@ func newFitting(targets []target, file googlesheet.Spreadsheet) *fitting {
 		}
 	}
 	return f
+}
+
+func (f *fitting) pin(model Model, pins map[string]string) error {
+	models := make([]string, 0, len(pins))
+	for id := range pins {
+		models = append(models, id)
+	}
+	sort.Strings(models)
+	for _, id := range models {
+		if model.sheet(id) == nil {
+			return &Misfit{Code: CodeModelMissing, ModelSheetID: id}
+		}
+		tg, used := f.target(id)
+		if !used {
+			continue
+		}
+		sheet, ok := f.byID[pins[id]]
+		if !ok {
+			return &Misfit{Code: CodeTabNotFound, ModelSheetID: id, ModelTab: tg.model.Title}
+		}
+		if problem, refused := f.refused[id][sheet.ID]; refused {
+			return &Misfit{Code: CodeTabMissing, ModelSheetID: id, ModelTab: tg.model.Title, Problems: []Problem{problem}}
+		}
+		f.candidates[id] = []*googlesheet.Sheet{sheet}
+		f.refused[id] = map[string]Problem{}
+	}
+	return nil
+}
+
+func (f *fitting) target(modelID string) (target, bool) {
+	for _, tg := range f.targets {
+		if tg.model.ID == modelID {
+			return tg, true
+		}
+	}
+	return target{}, false
+}
+
+func (f *fitting) choices() []TabChoice {
+	out := make([]TabChoice, 0, len(f.targets))
+	for _, tg := range f.targets {
+		choice := TabChoice{ModelSheetID: tg.model.ID, ModelTab: tg.model.Title}
+		for _, sheet := range f.file.Sheets {
+			option := TabOption{SheetID: sheet.ID, Title: sheet.Title}
+			if problem, refused := f.refused[tg.model.ID][sheet.ID]; refused {
+				option.Problem = &problem
+			}
+			choice.Options = append(choice.Options, option)
+		}
+		out = append(out, choice)
+	}
+	return out
 }
 
 func (f *fitting) assign() (map[string]string, error) {
@@ -208,12 +272,11 @@ func (f *fitting) verifyLinks() error {
 }
 
 func (f *fitting) modelTitle(id string) string {
-	for _, tg := range f.targets {
-		if tg.model.ID == id {
-			return tg.model.Title
-		}
+	tg, ok := f.target(id)
+	if !ok {
+		return ""
 	}
-	return ""
+	return tg.model.Title
 }
 
 func (f *fitting) check(tg target, sheet *googlesheet.Sheet) *Problem {

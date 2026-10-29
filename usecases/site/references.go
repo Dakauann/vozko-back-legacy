@@ -2,13 +2,16 @@ package site_usecase
 
 import (
 	"context"
+	"errors"
 
+	"vozko/domain/customfield"
 	"vozko/domain/emailinbox"
 	"vozko/domain/pipeline"
 	"vozko/domain/shared"
 	"vozko/domain/site"
 	"vozko/domain/stage"
 	uw "vozko/domain/unofficial_whatsapp"
+	"vozko/domain/webchat"
 	businessphone "vozko/domain/whatsapp/business_phone"
 	"vozko/domain/workflow"
 	"vozko/domain/workspace"
@@ -50,6 +53,16 @@ type ReferenceDeps struct {
 		FindByID(ctx context.Context, workspaceID, id string) (*emailinbox.Inbox, error)
 		ListByWorkspace(ctx context.Context, workspaceID string) ([]*emailinbox.Inbox, error)
 	}
+	Widgets interface {
+		webchat.SiteWidgetFinder
+		ListByWorkspace(ctx context.Context, in webchat.ListWidgetsInput) (*shared.PaginatedResult[*webchat.Widget], error)
+	}
+	Calendars interface {
+		Connected(ctx context.Context, workspaceID string) (bool, error)
+	}
+	LeadFields interface {
+		ListByObject(workspaceID string, objectType customfield.ObjectType) ([]*customfield.Definition, error)
+	}
 }
 
 type WorkspaceReferences struct {
@@ -60,7 +73,7 @@ var _ FormReferences = (*WorkspaceReferences)(nil)
 
 func NewWorkspaceReferences(deps ReferenceDeps) (*WorkspaceReferences, error) {
 	if deps.Pipelines == nil || deps.Stages == nil || deps.Members == nil || deps.Departments == nil ||
-		deps.Workflows == nil || deps.Phones == nil || deps.PhoneList == nil || deps.Instances == nil || deps.Inboxes == nil {
+		deps.Workflows == nil || deps.Phones == nil || deps.PhoneList == nil || deps.Instances == nil || deps.Inboxes == nil || deps.Widgets == nil || deps.Calendars == nil || deps.LeadFields == nil {
 		return nil, ErrMissingDependency
 	}
 	return &WorkspaceReferences{deps: deps}, nil
@@ -95,6 +108,14 @@ func (r *WorkspaceReferences) check(ctx context.Context, workspaceID string, for
 		return ErrFormChannelUnknown
 	}
 	return nil
+}
+
+func (r *WorkspaceReferences) CheckWebchat(ctx context.Context, workspaceID, ref string) error {
+	_, err := webchat.FindSiteWidget(ctx, r.deps.Widgets, workspaceID, ref)
+	if errors.Is(err, webchat.ErrWidgetNotFound) {
+		return ErrWebchatWidgetUnknown
+	}
+	return err
 }
 
 func (r *WorkspaceReferences) funnel(workspaceID, id string) bool {

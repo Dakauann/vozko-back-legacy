@@ -249,3 +249,22 @@ func TestValidate_RequiresATimezone(t *testing.T) {
 	})
 	assert.ErrorIs(t, s.Validate(), ErrNoLocation)
 }
+
+func TestSegmentsListTheOpenWindowsOfACivilDaySkippingHolidays(t *testing.T) {
+	loc, err := time.LoadLocation("America/Sao_Paulo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	holiday := time.Date(2026, 11, 2, 0, 0, 0, 0, loc)
+	s := NewWithHolidays(loc, map[time.Weekday][]Interval{
+		time.Wednesday: {{StartMin: 14 * 60, EndMin: 15 * 60}, {StartMin: 9 * 60, EndMin: 11 * 60}},
+		time.Monday:    {{StartMin: 9 * 60, EndMin: 10 * 60}},
+	}, []time.Time{holiday})
+	got := s.Segments(time.Date(2026, 10, 28, 23, 0, 0, 0, time.UTC))
+	if len(got) != 2 || got[0][0].Hour() != 9 || got[1][1].Hour() != 15 || got[0][0].Location() != loc {
+		t.Fatalf("segments = %v", got)
+	}
+	if s.Segments(holiday.Add(10*time.Hour)) != nil {
+		t.Fatal("a holiday had open windows")
+	}
+}

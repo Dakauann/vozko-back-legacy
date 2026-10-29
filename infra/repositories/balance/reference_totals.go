@@ -17,7 +17,13 @@ SELECT
 	COALESCE(ROUND(SUM((CASE WHEN type = 'debit' THEN amount ELSE -amount END)::numeric * exchange_rate_micros / 1000000)), 0)::bigint AS billing_micros,
 	COUNT(*) AS transactions,
 	COUNT(*) FILTER (WHERE type = 'debit') AS debits,
-	COALESCE(BOOL_OR(exchange_rate_micros <= 0), false) AS missing_rate
+	COALESCE(BOOL_OR(exchange_rate_micros <= 0), false) AS missing_rate,
+	COALESCE(ROUND(SUM((CASE WHEN type = 'debit' THEN amount ELSE -amount END)::numeric * exchange_rate_micros / 1000000) FILTER (WHERE EXISTS (
+		SELECT 1 FROM ai_usage_records usage
+		WHERE usage.workspace_id = balance_transactions.workspace_id
+			AND usage.input_tokens + usage.output_tokens = 0
+			AND usage.reference_id = CASE WHEN balance_transactions.is_refund THEN substr(balance_transactions.reference_id, 8) ELSE balance_transactions.reference_id END
+	))), 0)::bigint AS generation_billing_micros
 FROM balance_transactions
 WHERE workspace_id = ?
 	AND (
@@ -31,6 +37,8 @@ type referenceTotalsRow struct {
 	Transactions  int
 	Debits        int
 	MissingRate   bool
+
+	GenerationBillingMicros int64
 }
 
 func (r *BalanceRepositoryImpl) TotalsUnder(workspaceID, referencePrefix string) (balance.ReferenceTotals, error) {
@@ -45,6 +53,8 @@ func (r *BalanceRepositoryImpl) TotalsUnder(workspaceID, referencePrefix string)
 		Transactions:  row.Transactions,
 		Debits:        row.Debits,
 		MissingRate:   row.MissingRate,
+
+		GenerationBillingMicros: row.GenerationBillingMicros,
 	}, nil
 }
 

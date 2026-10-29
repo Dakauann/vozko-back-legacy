@@ -1,6 +1,7 @@
 ---
 name: otimizacao-e-diagnostico
 description: Como ler os resultados, diagnosticar problemas e otimizar anúncios publicados sem atrapalhar o aprendizado; carregue antes de avaliar desempenho ou sugerir mudanças.
+surface: ads
 ---
 
 # Otimização e diagnóstico

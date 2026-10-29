@@ -27,6 +27,7 @@ func (c *Container) campaignAudienceModule() *campaignaudiencewiring.Module {
 		Shared:      c.redisProvider.SharedState(),
 		EmailsSeen:  c.emailHygiene().Service,
 		Values:      c.variableDeclarations(),
+		SheetFiles:  c.sheetVariables(),
 	})
 	if err != nil {
 		log.Fatalf("[campaign-audience] %v", err)
@@ -60,6 +61,7 @@ func (c *Container) addUnofficialAudience(instances uwc.CampaignInstanceUseCase)
 	c.campaignAudienceModule()
 	deps := c.campaignAudienceDeps()
 	deps.Instances = instances
+	deps.Automation = c.campaignAutomation().WithoutSheets()
 	unofficial, err := campaignaudience_usecase.NewUnofficialChannel(deps)
 	if err != nil {
 		log.Fatalf("[campaign-audience] unofficial channel: %v", err)

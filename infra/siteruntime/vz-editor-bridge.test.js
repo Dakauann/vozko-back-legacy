@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 
 import fixture from "./testdata/bridge_messages.json";
-import { acceptEditorMessage, decodeEditorMessage, decodeFrameMessage, editorOriginFrom, elementPath, isInlineOnly, itemIndex, pinPoint, revisionOf, revisionsFrom, sanitizeInline } from "./vz-editor-bridge.js";
+import liveRules from "./testdata/live_rules.json";
+import { acceptEditorMessage, decodeEditorMessage, decodeFrameMessage, editorOriginFrom, elementPath, INHERITED_STYLES, isInlineOnly, PLATFORM_TAGS, itemIndex, liveAttrRefused, liveClassRefused, pinPoint, revisionOf, revisionsFrom, sanitizeInline } from "./vz-editor-bridge.js";
 
 function text(value) {
   return { nodeType: 3, nodeName: "#text", nodeValue: value, childNodes: [] };
@@ -131,4 +132,15 @@ test("refuses capture replies larger than the protocol allows", () => {
   const html = (length) => ({ type: "vz:captured", id: "d", kind: "document", html: "x".repeat(length) });
   expect(decodeFrameMessage(html(1_572_864))).not.toBeNull();
   expect(decodeFrameMessage(html(1_572_865))).toBeNull();
+});
+
+test("live preview rules match the shared fixture the Go edit rules also read", () => {
+  for (const rule of liveRules.attributes) expect([rule.name, liveAttrRefused(rule.name, rule.value)]).toEqual([rule.name, !rule.live]);
+  for (const rule of liveRules.classes) expect([rule.value, liveClassRefused(rule.value)]).toEqual([rule.value, !rule.live]);
+  for (const rule of [...liveRules.attributes, ...liveRules.classes]) expect(rule.live && !rule.edit).toBe(false);
+});
+
+test("knows the platform blocks the backend inserts, by the shared fixture", () => {
+  expect([...PLATFORM_TAGS]).toEqual(liveRules.elements.map((e) => e.tag));
+  expect([...INHERITED_STYLES].sort()).toEqual(["color", "font-family", "font-size", "font-style", "font-weight", "letter-spacing", "line-height", "text-align", "text-transform"]);
 });

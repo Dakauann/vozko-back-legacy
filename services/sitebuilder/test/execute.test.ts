@@ -169,6 +169,27 @@ describe("execute on the html stack", () => {
     expect(content).toBe('<section class="hero py-20">\n  <h1 class="text-4xl">Oi</h1>\n  <p>Texto</p>\n  <img src="/media/a.webp" alt="Foto">\n  <footer>Fim</footer>\n</section>\n');
   });
 
+  test("move into an element puts it last inside and refuses moving an element into itself", async () => {
+    const withBox: Project = { ...htmlProject, files: { ...htmlProject.files, [page]: { content: '<section class="hero py-20">\n  <h1 class="text-4xl">Oi</h1>\n  <div class="grid"></div>\n</section>\n', rev: 3 } } };
+    const content = await final(request(withBox, [{ op: "move", node: node(withBox, page, "<h1"), rev: 3, into: node(withBox, page, "<div") }]), page);
+    expect(content).toBe('<section class="hero py-20">\n  <div class="grid"><h1 class="text-4xl">Oi</h1></div>\n</section>\n');
+    const nested = await execute(request(withBox, [{ op: "move", node: `${page}#0`, rev: 3, into: node(withBox, page, "<div") }]));
+    expect(nested).toEqual({ failures: [{ index: 0, code: "position_invalid", field: "into" }] });
+    const voided = await execute(request(htmlProject, [{ op: "move", node: node(htmlProject, page, "<h1"), rev: 3, into: node(htmlProject, page, "<img") }]));
+    expect(voided).toEqual({ failures: [{ index: 0, code: "position_invalid", field: "into" }] });
+  });
+
+  test("insert_section copies an element from another page at its own revision", async () => {
+    const twoPages: Project = { ...htmlProject, files: { ...htmlProject.files, "pages/obrigado.html": { content: "<main>\n  <h1>Obrigado</h1>\n</main>\n", rev: 5 } } };
+    const content = await final(
+      request(twoPages, [{ op: "insert_section", at: { into: node(twoPages, "pages/obrigado.html", "<main") }, rev: 5, source: node(twoPages, page, "<p>"), source_rev: 3 }]),
+      "pages/obrigado.html",
+    );
+    expect(content).toBe("<main>\n  <h1>Obrigado</h1>\n  <p>Texto</p>\n</main>\n");
+    const gone = await execute(request(twoPages, [{ op: "insert_section", at: { page: "pages/obrigado.html" }, rev: 5, source: `${page}#7`, source_rev: 3 }]));
+    expect(gone).toEqual({ failures: [{ index: 0, code: "node_stale", field: "source" }] });
+  });
+
   test("theme token and knob", async () => {
     const out = await steps(
       request(htmlProject, [
@@ -315,6 +336,50 @@ describe("execute on the react stack", () => {
     const content = out[1].files![hero];
     expect(content).toContain('<img src="https://cdn.example/m1.webp" alt="Foto" />');
     expect(content).toContain('<h1 className="text-4xl" tabIndex="0">');
+  });
+
+  test("a jsx copy into another file refuses, naming them, the identifiers the target file does not have", async () => {
+    const pages: Project = {
+      ...reactProject,
+      files: {
+        ...reactProject.files,
+        "src/pages/Sobre.jsx": { content: 'import { Star } from "lucide-react";\nconst planos = [{ nome: "Básico" }];\nexport default function Sobre({ titulo }) {\n  return (\n    <main>\n      <ul>{planos.map((plano) => <li key={plano.nome}><Star className="size-4" />{plano.nome} {titulo}</li>)}</ul>\n      <p className="text-sm">{Math.round(2.4)} anos</p>\n    </main>\n  );\n}\n', rev: 4 },
+      },
+    };
+    const list = node(pages, "src/pages/Sobre.jsx", "<ul>");
+    const refused = await execute(request(pages, [{ op: "insert_section", at: { page: home }, rev: 2, source: list, source_rev: 4 }]));
+    expect(refused).toEqual({ failures: [{ index: 0, code: "copy_reference_missing", field: "source", detail: "Star, planos, titulo" }] });
+    const plain = await final(request(pages, [{ op: "insert_section", at: { page: home }, rev: 2, source: node(pages, "src/pages/Sobre.jsx", "<p "), source_rev: 4 }]), home);
+    expect(plain).toContain("{Math.round(2.4)} anos</p>");
+    const inside = await final(request(pages, [{ op: "insert_section", at: { after: list }, rev: 4, source: list, source_rev: 4 }]), "src/pages/Sobre.jsx");
+    expect(inside.match(/planos\.map/g)).toHaveLength(2);
+  });
+
+  test("a jsx copy may use what the target file imports, declares or receives where it lands", async () => {
+    const pages: Project = {
+      ...reactProject,
+      files: {
+        ...reactProject.files,
+        "src/pages/Sobre.jsx": { content: 'export default function Sobre() {\n  return (\n    <main>\n      <Hero title={items[0].title} />\n    </main>\n  );\n}\n', rev: 4 },
+      },
+    };
+    const content = await final(request(pages, [{ op: "insert_section", at: { into: node(reactProject, home, "<main") }, rev: 2, source: node(pages, "src/pages/Sobre.jsx", "<Hero"), source_rev: 4 }]), home);
+    expect(content).toContain("<Hero title={items[0].title} />");
+  });
+
+  test("an icon component instance takes class edits on its literal className and refuses a computed one", async () => {
+    const icons: Project = { ...reactProject, files: { ...reactProject.files, "src/pages/Home.jsx": { content: 'import { Stethoscope } from "lucide-react";\nexport default function Home() {\n  return (\n    <main>\n      <span className="grid size-10"><Stethoscope className="size-6 text-brand" /></span>\n      <Stethoscope className={size} />\n    </main>\n  );\n}\n', rev: 2 } } };
+    const icon = node(icons, home, "<Stethoscope className=\"size");
+    const content = await final(request(icons, [{ op: "set_classes", node: icon, rev: 2, add: ["size-8"], remove: ["size-6"] }]), home);
+    expect(content).toContain('<Stethoscope className="text-brand size-8" />');
+    const computed = await execute(request(icons, [{ op: "set_classes", node: node(icons, home, "<Stethoscope className={"), rev: 2, add: ["size-8"] }]));
+    expect(computed).toEqual({ failures: [{ index: 0, code: "node_invalid", field: "node" }] });
+  });
+
+  test("insert_section copies html markup into a react page as jsx", async () => {
+    const mixed: Project = { ...reactProject, files: { ...reactProject.files, "src/pages/Sobre.jsx": { content: 'export default function Sobre() {\n  return (\n    <main>\n      <label htmlFor="x" className="block">Nome</label>\n    </main>\n  );\n}\n', rev: 4 } } };
+    const content = await final(request(mixed, [{ op: "insert_section", at: { page: home }, rev: 2, source: node(mixed, "src/pages/Sobre.jsx", "<label"), source_rev: 4 }]), home);
+    expect(content).toContain('<label htmlFor="x" className="block">Nome</label>');
   });
 
   test("insert_section converts html and remove refuses the returned root", async () => {

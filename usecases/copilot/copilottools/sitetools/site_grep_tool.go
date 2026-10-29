@@ -41,7 +41,7 @@ func (t *siteGrepTool) Meta() copilot.Meta { return readMeta() }
 
 func (t *siteGrepTool) Definition() tools.Definition {
 	return copilottools.Definition("site_grep",
-		"Procura um texto literal em todos os arquivos da página aberta e devolve cada linha encontrada como caminho:linha: texto, até 40 linhas.",
+		"Procura um texto literal em todos os arquivos do site aberto e devolve cada linha encontrada como caminho:linha: texto, até 40 linhas.",
 		siteGrepArgs{})
 }
 

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	ads "vozko/domain/advertising"
+	"vozko/domain/calendar"
 	"vozko/domain/conversation"
 	"vozko/domain/emailconsent"
 	"vozko/domain/lead"
@@ -14,6 +15,7 @@ import (
 	"vozko/domain/siteform"
 	"vozko/domain/sitesubmission"
 	wo "vozko/domain/whatsapp_outreach"
+	calendar_usecase "vozko/usecases/calendar"
 	emailconsent_usecase "vozko/usecases/emailconsent"
 	"vozko/usecases/emailinbox"
 	"vozko/usecases/formlead"
@@ -39,6 +41,7 @@ type ActiveForm struct {
 	Manifest     siteform.Manifest
 	Settings     site.FormSettings
 	SuccessURL   string
+	Booking      *site.Booking
 }
 
 type Activation struct {
@@ -47,6 +50,12 @@ type Activation struct {
 	DeploymentID string
 	Forms        []ActiveForm
 	Widgets      []string
+}
+
+type BookingCalendar interface {
+	Busy(ctx context.Context, workspaceID string, from, to time.Time) ([]calendar.Slot, error)
+	Reserve(ctx context.Context, req calendar_usecase.BookingRequest) (calendar.Reservation, error)
+	Release(ctx context.Context, workspaceID, googleEventID string) error
 }
 
 type FormStore interface {

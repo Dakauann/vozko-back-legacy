@@ -1146,7 +1146,7 @@ func newWorld(t *testing.T) *world {
 	w.lists, w.created = audiencetest.NewLists(), &createdEmailLeads{w: w}
 	aud, err := campaignaudience_usecase.New(campaignaudience_usecase.Deps{
 		Selections: selectionCounts{w}, Lists: w.lists, Sheets: sheetText{}, Phones: noPhones{}, Emails: knownEmails{w},
-		EmailLeads: w.created, EmailsSeen: &hygienetest.SeenEmails{}, Definitions: noDefinitions{}, Gate: freeGate{}, Flight: audiencetest.Flight(audiencetest.NewState()), Values: variabledecltest.Static{}, Now: func() time.Time { return now },
+		EmailLeads: w.created, EmailsSeen: &hygienetest.SeenEmails{}, Definitions: noDefinitions{}, Gate: freeGate{}, Flight: audiencetest.Flight(audiencetest.NewState()), Values: variabledecltest.Static{}, SheetFiles: audiencetest.NoSpreadsheets{}, Now: func() time.Time { return now },
 	})
 	if err != nil {
 		t.Fatal(err)

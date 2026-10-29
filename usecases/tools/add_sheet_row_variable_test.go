@@ -2,53 +2,64 @@ package tools_usecase
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"vozko/domain/agenttool"
+	"vozko/domain/automationneeds"
 	"vozko/domain/shared"
+	"vozko/domain/tools"
+	"vozko/domain/variabledecl"
 	"vozko/domain/workflow"
 )
 
-type conversationSheetsStub struct {
-	files map[string]workflow.SheetFile
-	err   error
-	asked string
+type declaredSheets struct {
+	catalog variabledecl.Catalog
 }
 
-func (c *conversationSheetsStub) AgentSheetFiles(_ context.Context, _, _ string, _ shared.EntryType, agentID string) (map[string]workflow.SheetFile, error) {
-	c.asked = agentID
-	return c.files, c.err
+func (declaredSheets) AgentSheetFiles(context.Context, string, string, shared.EntryType, string) (map[string]workflow.SheetFile, error) {
+	return nil, errors.New("not used")
 }
 
-func variableConfig() map[string]interface{} {
-	config := agentConfig()
-	config[addSheetRowVariableKey] = "{{campvars.planilha}}"
-	return config
+func (d declaredSheets) Label(_ context.Context, _ string, needs automationneeds.Needs) automationneeds.Needs {
+	return needs.Labeled(d.catalog)
 }
 
-func TestAnAgentWritesToTheSpreadsheetOfTheConversationAndNeverToTheModel(t *testing.T) {
-	stub := &sheetRowsStub{sheet: sheetForTool(t)}
-	conversations := &conversationSheetsStub{files: map[string]workflow.SheetFile{"planilha": {SpreadsheetID: "sp-centro", Tabs: map[string]string{"sheet-1": "centro-1"}}}}
-	result, err := NewAddSheetRowTool(stub, conversations).ExecuteWithConfig(context.Background(), variableConfig(), map[string]interface{}{"produto": "Pizza"})
-	if err != nil || result.IsError || len(stub.enqueued) != 1 || stub.enqueued[0].SheetID != "centro-1" || conversations.asked != "agent-1" {
-		t.Fatalf("result = %+v, %v, enqueued %+v", result, err, stub.enqueued)
+func sheetVariableBinding(variable string) map[string]interface{} {
+	return map[string]interface{}{addSheetRowConfigKey: "sheet-1", addSheetRowVariableKey: variable}
+}
+
+func TestAPerConversationSheetMustBeADeclaredPlanilhaOfTheTabModel(t *testing.T) {
+	sheet := sheetForTool(t)
+	sheet.SpreadsheetID = "sp-model"
+	conversations := declaredSheets{catalog: variabledecl.NewCatalog([]variabledecl.Declaration{
+		{Name: "franquia", Label: "Planilha da franquia", Type: variabledecl.Type{Kind: variabledecl.KindSheet, Settings: map[string]string{variabledecl.SettingModel: "sp-model"}}},
+		{Name: "outra", Label: "Outra planilha", Type: variabledecl.Type{Kind: variabledecl.KindSheet, Settings: map[string]string{variabledecl.SettingModel: "sp-other"}}},
+		{Name: "valor", Label: "Valor", Type: variabledecl.Type{Kind: variabledecl.KindNumber}},
+	})}
+	validator := NewAddSheetRowTool(&sheetRowsStub{sheet: sheet}, conversations).(tools.BindingValidator)
+	if err := validator.ValidateBinding(context.Background(), "ws-1", sheetVariableBinding("{{campvars.franquia}}")); err != nil {
+		t.Fatal(err)
 	}
-	for name, sheets := range map[string]ConversationSheets{
-		"no spreadsheet for the conversation": &conversationSheetsStub{err: context.Canceled},
-		"another variable":                    &conversationSheetsStub{files: map[string]workflow.SheetFile{"outra": {Tabs: map[string]string{"sheet-1": "x"}}}},
-		"no tab for the model":                &conversationSheetsStub{files: map[string]workflow.SheetFile{"planilha": {Tabs: map[string]string{}}}},
-		"not wired":                           nil,
-	} {
-		refused := &sheetRowsStub{sheet: sheetForTool(t)}
-		result, err := NewAddSheetRowTool(refused, sheets).ExecuteWithConfig(context.Background(), variableConfig(), map[string]interface{}{"produto": "Pizza"})
-		if err != nil || !result.IsError || result.ErrorCode != workflow.CodeSheetVariableUnresolved || len(refused.enqueued) != 0 {
-			t.Fatalf("%s = %+v, %v", name, result, err)
+	if err := validator.ValidateBinding(context.Background(), "ws-1", map[string]interface{}{addSheetRowConfigKey: "sheet-1"}); err != nil {
+		t.Fatalf("a fixed sheet needs no variable: %v", err)
+	}
+	for _, variable := range []string{"{{campvars.outra}}", "{{campvars.valor}}", "{{campvars.livre}}"} {
+		problem, ok := tools.ProblemOf(validator.ValidateBinding(context.Background(), "ws-1", sheetVariableBinding(variable)))
+		if !ok || problem.Code != agenttool.CodeSheetVariableInvalid {
+			t.Fatalf("%s: problem = %+v %v", variable, problem, ok)
 		}
 	}
+	if problem, ok := tools.ProblemOf(validator.ValidateBinding(context.Background(), "ws-1", sheetVariableBinding("12"))); !ok || problem.Code != agenttool.CodeSheetVariableInvalid {
+		t.Fatalf("unreadable variable = %+v %v", problem, ok)
+	}
 }
 
-func TestTheAgentToolOffersTheChoiceOfAPlanilhaPerConversation(t *testing.T) {
-	field, ok := NewAddSheetRowTool(&sheetRowsStub{sheet: sheetForTool(t)}, nil).Definition().ConfigSchema[addSheetRowVariableKey]
-	if !ok || field.OptionsSource != ConversationSheetVariablesOptionsSource || field.Required {
-		t.Fatalf("field = %+v", field)
+func TestAPerConversationSheetFailsClosedWithoutTheDeclarations(t *testing.T) {
+	sheet := sheetForTool(t)
+	sheet.SpreadsheetID = "sp-model"
+	err := NewAddSheetRowTool(&sheetRowsStub{sheet: sheet}, nil).(tools.BindingValidator).ValidateBinding(context.Background(), "ws-1", sheetVariableBinding("{{campvars.franquia}}"))
+	if _, isProblem := tools.ProblemOf(err); err == nil || isProblem {
+		t.Fatalf("err = %v; a check that cannot run is an outage, never a pass", err)
 	}
 }

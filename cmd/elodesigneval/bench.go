@@ -232,7 +232,7 @@ func (s benchSession) runJob(ctx context.Context, bridge editorChannel, job benc
 	if err != nil {
 		return run, err
 	}
-	registry, err := evalRegistry(projectKind)
+	registry, err := evalRegistry(projectKind, job.Perception)
 	if err != nil {
 		return run, err
 	}

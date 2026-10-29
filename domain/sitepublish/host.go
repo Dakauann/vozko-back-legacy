@@ -41,6 +41,10 @@ func (a Addresses) domain() string {
 	return hostname.Normalize(a.Domain)
 }
 
+func (a Addresses) PagesDomain() string {
+	return a.domain()
+}
+
 func (a Addresses) PreviewHost(token string) string {
 	return previewLabelPrefix + token + "." + a.domain()
 }
@@ -77,10 +81,18 @@ func (a Addresses) Within(host string) bool {
 }
 
 func (a Addresses) PreviewOrigin(origin string) bool {
+	_, ok := a.PreviewOriginHost(origin)
+	return ok
+}
+
+func (a Addresses) PreviewOriginHost(origin string) (string, bool) {
 	u, err := url.Parse(origin)
 	if err != nil || u.Path != "" || u.RawQuery != "" || u.User != nil {
-		return false
+		return "", false
 	}
-	_, ok := a.PreviewToken(u.Hostname())
-	return ok && a.Origins.Of(u.Hostname()) == strings.ToLower(u.Scheme+"://"+u.Host)
+	host := hostname.Normalize(u.Hostname())
+	if _, ok := a.PreviewToken(host); !ok || a.Origins.Of(host) != strings.ToLower(u.Scheme+"://"+u.Host) {
+		return "", false
+	}
+	return host, true
 }

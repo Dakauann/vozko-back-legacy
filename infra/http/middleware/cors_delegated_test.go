@@ -25,7 +25,7 @@ func TestCORSLeavesDelegatedRoutesToTheirOwnRule(t *testing.T) {
 	rr = httptest.NewRecorder()
 	reached = false
 	handler.ServeHTTP(rr, other)
-	if reached || rr.Header().Get("Access-Control-Allow-Origin") != "*" {
-		t.Fatalf("other routes keep the shared rule: %d %v", rr.Code, rr.Header())
+	if reached || rr.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatalf("other routes keep the shared rule and never approve another site: %d %v", rr.Code, rr.Header())
 	}
 }

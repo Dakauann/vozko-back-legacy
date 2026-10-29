@@ -58,3 +58,14 @@ func TestLabeledNeedsUseTheDeclarationsAndTheSystemLabels(t *testing.T) {
 		t.Fatalf("undeclared = %+v", got[1])
 	}
 }
+
+func TestTheDeclaredDescriptionWinsOverTheOneAnAgentKeptForItself(t *testing.T) {
+	catalog := variabledecl.NewCatalog([]variabledecl.Declaration{
+		{Name: "matricula", Label: "Matrícula", Description: "Número do aluno", Type: variabledecl.Type{Kind: variabledecl.KindNumber}},
+		{Name: "turno", Label: "Turno", Type: variabledecl.Type{Kind: variabledecl.KindText}},
+	})
+	got := Needs{{Name: "matricula", Description: "matrícula antiga"}, {Name: "turno", Description: "Período"}, {Name: "livre", Description: "Do agente"}}.Labeled(catalog)
+	if got[0].Description != "Número do aluno" || got[1].Description != "Período" || got[2].Description != "Do agente" {
+		t.Fatalf("descriptions = %q %q %q", got[0].Description, got[1].Description, got[2].Description)
+	}
+}

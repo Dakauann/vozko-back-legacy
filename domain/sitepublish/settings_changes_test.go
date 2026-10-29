@@ -92,7 +92,7 @@ func TestSettingsChangesCoverConsentAndSEO(t *testing.T) {
 	current := publishedSettings()
 	current.Consent = site.Consent{Banner: false, Text: "Usamos cookies", Categories: []site.ConsentCategory{site.ConsentAnalytics}}
 	current.Pages = map[string]site.PageMeta{"/": {Title: "Bolos da Ana", NoIndex: true}, "/contato": {Description: "Fale"}}
-	current.Site = site.Identity{FaviconMediaID: "m1"}
+	current.Site = site.Identity{FaviconMediaID: "m1", WebchatWidget: "pk_chat"}
 	got := DiffSettings(publishedSettings(), true, current)
 	if got.Consent == nil || !reflect.DeepEqual(got.Consent.Fields, []string{FieldBanner, FieldCategories}) || got.Consent.Before.Banner != true {
 		t.Fatalf("consent %+v", got.Consent)
@@ -105,7 +105,7 @@ func TestSettingsChangesCoverConsentAndSEO(t *testing.T) {
 	if !reflect.DeepEqual(got.Pages, want) {
 		t.Fatalf("pages %+v", got.Pages)
 	}
-	if got.Site == nil || !reflect.DeepEqual(got.Site.Fields, []string{FieldFavicon}) {
+	if got.Site == nil || !reflect.DeepEqual(got.Site.Fields, []string{FieldFavicon, FieldWebchat}) {
 		t.Fatalf("site %+v", got.Site)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"vozko/domain/agent"
 	"vozko/domain/agenttool"
 	"vozko/domain/ai"
+	"vozko/domain/automationneeds"
 	"vozko/domain/lint"
 	"vozko/domain/tools"
 	"vozko/domain/workspacesecret"
@@ -32,10 +33,11 @@ type HostClassifier interface {
 }
 
 type ValidatorDeps struct {
-	Registry tools.Service
-	Secrets  SecretNames
-	Hosts    HostClassifier
-	Models   ai.ModelCatalog
+	Registry  tools.Service
+	Secrets   SecretNames
+	Hosts     HostClassifier
+	Models    ai.ModelCatalog
+	Variables automationneeds.ValueRules
 }
 
 type Validator struct {
@@ -68,7 +70,7 @@ func (v *Validator) Validate(ctx context.Context, a *agent.Agent, stored []agent
 		DefinitionChars: chars,
 	})
 	for _, check := range []func(context.Context, *agent.Agent, map[string]tools.Definition, int) (agenttool.Report, error){
-		v.checkSecrets, v.checkHosts, v.checkBindings, v.checkModel,
+		v.checkSecrets, v.checkHosts, v.checkBindings, v.checkModel, v.checkVariables,
 	} {
 		found, err := check(ctx, a, defs, chars)
 		if err != nil {
@@ -243,6 +245,27 @@ func (v *Validator) checkModel(ctx context.Context, a *agent.Agent, _ map[string
 		report.Issues = append(report.Issues, agenttool.Issue{Code: agenttool.CodeToolsExceedContext, Severity: lint.SeverityBlocking,
 			Message: fmt.Sprintf("Prompt e ferramentas somam cerca de %d tokens (estimativa), mais do que a janela de %d do modelo", needed, model.ContextLength),
 			Hint:    "Escolha um modelo com janela maior ou reduza as ferramentas."})
+	}
+	return report, nil
+}
+
+func (v *Validator) checkVariables(ctx context.Context, a *agent.Agent, _ map[string]tools.Definition, _ int) (agenttool.Report, error) {
+	var report agenttool.Report
+	defaults := a.VariableDefaults()
+	if len(defaults) == 0 {
+		return report, nil
+	}
+	if v.deps.Variables == nil {
+		return report, fmt.Errorf("os tipos das variáveis iniciais não estão disponíveis")
+	}
+	rejected, err := automationneeds.RejectedDefaults(ctx, v.deps.Variables, a.WorkspaceID, defaults)
+	if err != nil {
+		return report, fmt.Errorf("os tipos das variáveis iniciais não puderam ser lidos")
+	}
+	for _, need := range rejected {
+		report.Issues = append(report.Issues, agenttool.Issue{Code: agenttool.CodeVariableDefaultInvalid, Severity: lint.SeverityBlocking, Field: need.Name,
+			Message: fmt.Sprintf("O valor padrão de %s não está no formato desse dado", need.Display()),
+			Hint:    "Abra Variáveis iniciais e corrija o valor padrão."})
 	}
 	return report, nil
 }

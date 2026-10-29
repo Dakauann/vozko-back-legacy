@@ -4,9 +4,12 @@ import (
 	"context"
 	"strings"
 
+	"vozko/domain/customfield"
 	"vozko/domain/pipeline"
 	"vozko/domain/shared"
+	"vozko/domain/siteform"
 	uw "vozko/domain/unofficial_whatsapp"
+	"vozko/domain/webchat"
 	businessphone "vozko/domain/whatsapp/business_phone"
 )
 
@@ -32,6 +35,10 @@ type ReferenceCatalog struct {
 	Departments       []ReferenceItem  `json:"departments"`
 	Workflows         []ReferenceItem  `json:"workflows"`
 	EmailInboxes      []ReferenceItem  `json:"email_inboxes"`
+	WebchatWidgets    []ReferenceItem  `json:"webchat_widgets"`
+	GoogleCalendar    bool             `json:"google_calendar_connected"`
+	BookingBlocks     []ReferenceItem  `json:"booking_blocks"`
+	LeadFields        []ReferenceItem  `json:"lead_fields"`
 }
 
 func capped[T any](items []T) []T {
@@ -58,7 +65,7 @@ func (r *WorkspaceReferences) Catalog(ctx context.Context, workspaceID string) (
 	}
 	out := ReferenceCatalog{
 		WhatsAppNumbers: []ReferenceItem{}, UnofficialNumbers: []ReferenceItem{}, Funnels: []ReferenceItem{}, Stages: []StageReference{},
-		Members: []ReferenceItem{}, Departments: []ReferenceItem{}, Workflows: []ReferenceItem{}, EmailInboxes: []ReferenceItem{},
+		Members: []ReferenceItem{}, Departments: []ReferenceItem{}, Workflows: []ReferenceItem{}, EmailInboxes: []ReferenceItem{}, WebchatWidgets: []ReferenceItem{}, BookingBlocks: []ReferenceItem{}, LeadFields: []ReferenceItem{},
 	}
 	page := shared.QueryOptions{Pagination: shared.Pagination{Page: 1, PageSize: maxCatalogItems}}
 	phones, err := r.deps.PhoneList.List(workspaceID, businessphone.ListInput{Options: page})
@@ -133,8 +140,27 @@ func (r *WorkspaceReferences) Catalog(ctx context.Context, workspaceID string) (
 			out.EmailInboxes = append(out.EmailInboxes, ReferenceItem{ID: i.ID, Name: labelled(i.Name, i.Address.String())})
 		}
 	}
+	widgets, err := r.deps.Widgets.ListByWorkspace(ctx, webchat.ListWidgetsInput{WorkspaceID: workspaceID, Options: page})
+	if err != nil {
+		return ReferenceCatalog{}, err
+	}
+	for _, w := range widgets.Items {
+		if w != nil && w.WorkspaceID == workspaceID && w.PublicKey != "" {
+			out.WebchatWidgets = append(out.WebchatWidgets, ReferenceItem{ID: w.PublicKey, Name: w.Name})
+		}
+	}
+	defs, err := r.deps.LeadFields.ListByObject(workspaceID, customfield.ObjectLead)
+	if err != nil {
+		return ReferenceCatalog{}, err
+	}
+	for _, target := range siteform.CustomTargets(defs) {
+		out.LeadFields = append(out.LeadFields, ReferenceItem{ID: target.Target, Name: target.Label})
+	}
+	connected, err := r.deps.Calendars.Connected(ctx, workspaceID)
+	out.GoogleCalendar = err == nil && connected
 	out.WhatsAppNumbers, out.UnofficialNumbers, out.Funnels = capped(out.WhatsAppNumbers), capped(out.UnofficialNumbers), capped(out.Funnels)
 	out.Stages, out.Members, out.Departments = capped(out.Stages), capped(out.Members), capped(out.Departments)
-	out.Workflows, out.EmailInboxes = capped(out.Workflows), capped(out.EmailInboxes)
+	out.Workflows, out.EmailInboxes, out.WebchatWidgets = capped(out.Workflows), capped(out.EmailInboxes), capped(out.WebchatWidgets)
+	out.LeadFields = capped(out.LeadFields)
 	return out, nil
 }

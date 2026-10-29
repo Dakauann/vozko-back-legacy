@@ -48,3 +48,24 @@ func ErrorCode(err error) string {
 	}
 	return CodeCalendarFailed
 }
+
+type Reservation struct {
+	GoogleEventID string
+	MeetingLink   string
+	Conflict      *CalendarEvent
+}
+
+func (c ConflictCheck) Reserve(workspaceID string, guard Slot, event *CalendarEvent, createMeet bool, sendUpdates string) (Reservation, error) {
+	conflict, err := c.Conflict(workspaceID, guard.Start, guard.End)
+	if err != nil {
+		return Reservation{}, err
+	}
+	if conflict != nil {
+		return Reservation{Conflict: conflict}, ErrSlotConflict
+	}
+	googleEventID, meetingLink, err := c.Google.CreateGoogleEvent(c.AccessToken, event, createMeet, sendUpdates)
+	if err != nil {
+		return Reservation{}, fmt.Errorf("google calendar create: %w", err)
+	}
+	return Reservation{GoogleEventID: googleEventID, MeetingLink: meetingLink}, nil
+}

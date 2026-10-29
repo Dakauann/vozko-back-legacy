@@ -210,6 +210,7 @@ func (c *Container) sitePublishing() *sitePublishModule {
 		Reversals:       invoice_repository.NewOpenReversals(c.db),
 		Locks:           c.redisProvider.SharedState(),
 		Counters:        c.redisProvider.SharedState(),
+		Calendars:       c.siteBookingCalendar(),
 		Now:             time.Now,
 		NewID:           uuid.NewString,
 	}, sitepublish_usecase.Config{

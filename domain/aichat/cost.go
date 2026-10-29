@@ -10,23 +10,34 @@ func ChargeReference(threadID string) string {
 }
 
 type ThreadUsage struct {
-	Available bool
-	Calls     int
-	Tokens    aiusage.Tokens
+	Available     bool
+	Calls         int
+	Tokens        aiusage.Tokens
+	ContextTokens int64
+}
+
+func (u ThreadUsage) NewInputTokens() int64 {
+	return max(0, u.Tokens.Input-u.Tokens.CacheRead-u.Tokens.CacheWrite)
+}
+
+func (u ThreadUsage) ProcessedTokens() int64 {
+	return u.Tokens.Total()
 }
 
 type ThreadCost struct {
-	Available    bool
-	AmountMicros int64
-	Currency     string
-	Usage        ThreadUsage
+	Available        bool
+	AmountMicros     int64
+	ModelMicros      int64
+	GenerationMicros int64
+	Currency         string
+	Usage            ThreadUsage
 }
 
 func usageOf(charges balance.ReferenceTotals, usage *aiusage.Totals) ThreadUsage {
 	if usage == nil || !usage.Covers(charges.Debits) {
 		return ThreadUsage{}
 	}
-	return ThreadUsage{Available: true, Calls: usage.Calls, Tokens: usage.Tokens}
+	return ThreadUsage{Available: true, Calls: usage.Calls, Tokens: usage.Tokens, ContextTokens: usage.LatestInput}
 }
 
 func CostOf(thread *Thread, charges balance.ReferenceTotals, usage *aiusage.Totals) ThreadCost {
@@ -38,6 +49,8 @@ func CostOf(thread *Thread, charges balance.ReferenceTotals, usage *aiusage.Tota
 	if !charges.MissingRate {
 		cost.Available = true
 		cost.AmountMicros = charges.BillingMicros
+		cost.GenerationMicros = charges.GenerationBillingMicros
+		cost.ModelMicros = charges.BillingMicros - charges.GenerationBillingMicros
 	}
 	return cost
 }

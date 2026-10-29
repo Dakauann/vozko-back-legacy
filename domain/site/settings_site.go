@@ -12,11 +12,15 @@ import (
 type Identity struct {
 	FaviconMediaID string `json:"favicon_media_id,omitempty"`
 	StructuredData bool   `json:"structured_data,omitempty"`
+	WebchatWidget  string `json:"webchat_widget,omitempty"`
 }
 
 func (i Identity) validate() error {
 	if i.FaviconMediaID != "" && !referenceID.MatchString(i.FaviconMediaID) {
 		return settingsError("the favicon is not a media id")
+	}
+	if i.WebchatWidget != "" && !referenceID.MatchString(i.WebchatWidget) {
+		return settingsError("the chat is not a widget reference")
 	}
 	return nil
 }

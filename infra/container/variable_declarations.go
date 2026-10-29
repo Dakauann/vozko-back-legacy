@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 
+	"vozko/domain/automationneeds"
 	"vozko/domain/conversation"
 	"vozko/domain/shared"
 	"vozko/domain/sheetfit"
@@ -26,7 +27,12 @@ func (c *Container) variableDeclarations() *variabledecl_usecase.Service {
 	if err != nil {
 		log.Fatalf("[variable-declarations] %v", err)
 	}
-	service, err := variabledecl_usecase.NewService(variabledecl_repository.New(c.db), registry)
+	service, err := variabledecl_usecase.NewService(variabledecl_usecase.ServiceDeps{
+		Repo:        variabledecl_repository.New(c.db),
+		Registry:    registry,
+		Automations: variabledecl_repository.NewAutomations(c.db),
+		Permissions: builtPermissions{c: c},
+	})
 	if err != nil {
 		log.Fatalf("[variable-declarations] %v", err)
 	}
@@ -46,6 +52,17 @@ func (c *Container) sheetVariables() *sheetvariable.Service {
 	return service
 }
 
+type builtPermissions struct {
+	c *Container
+}
+
+func (p builtPermissions) HasWorkspacePermission(userID, workspaceID, resource, action string, isSystemAdmin bool) bool {
+	if p.c.services.conversationAuthImpl == nil {
+		return false
+	}
+	return p.c.services.conversationAuthImpl.HasWorkspacePermission(userID, workspaceID, resource, action, isSystemAdmin)
+}
+
 type builtSheetFiles struct {
 	c *Container
 }
@@ -57,8 +74,20 @@ func (b builtSheetFiles) FitWorkspace(ctx context.Context, workspaceID string) (
 	return b.c.googleSheets.Manager.FitWorkspace(ctx, workspaceID)
 }
 
-type conversationSheets struct {
+type automationVariableRules struct {
 	c *Container
+}
+
+func (r automationVariableRules) Rejected(ctx context.Context, workspaceID string, values map[string]string) ([]string, error) {
+	return r.c.automationNeeds().service.Rejected(ctx, workspaceID, values)
+}
+
+func (r automationVariableRules) Label(ctx context.Context, workspaceID string, needs automationneeds.Needs) automationneeds.Needs {
+	return r.c.automationNeeds().service.Label(ctx, workspaceID, needs)
+}
+
+type conversationSheets struct {
+	automationVariableRules
 }
 
 func (s conversationSheets) AgentSheetFiles(ctx context.Context, workspaceID, entryID string, entryType shared.EntryType, agentID string) (map[string]workflow.SheetFile, error) {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
 	"vozko/domain/site"
@@ -23,7 +24,7 @@ const (
 	retireManifestsSQL    = `UPDATE site_form_manifests SET active = false WHERE project_id = ? AND active`
 	retireEmbedsSQL       = `UPDATE site_widget_embeds SET active = false WHERE project_id = ? AND active`
 	insertEmbedSQL        = `INSERT INTO site_widget_embeds (deployment_id, widget_id, workspace_id, project_id, active, created_at) VALUES (?, ?, ?, ?, true, ?) ON CONFLICT (deployment_id, widget_id) DO UPDATE SET active = true`
-	selectActiveFormSQL   = `SELECT workspace_id, project_id, deployment_id, form_key, form_id, manifest, settings, success_url FROM site_form_manifests WHERE form_key = ? AND active LIMIT 1`
+	selectActiveFormSQL   = `SELECT workspace_id, project_id, deployment_id, form_key, form_id, manifest, settings, success_url, booking FROM site_form_manifests WHERE form_key = ? AND active LIMIT 1`
 	selectEmbedProjectSQL = `SELECT DISTINCT project_id FROM site_widget_embeds WHERE workspace_id = ? AND widget_id = ? AND active ORDER BY project_id`
 )
 
@@ -81,9 +82,15 @@ func (s *FormStore) Activate(ctx context.Context, a siteforms.Activation) error 
 		if err != nil {
 			return err
 		}
+		var booking datatypes.JSON
+		if form.Booking != nil {
+			if booking, err = json.Marshal(form.Booking); err != nil {
+				return err
+			}
+		}
 		rows = append(rows, schema.SiteFormManifest{
 			ID: uuid.NewString(), WorkspaceID: a.WorkspaceID, ProjectID: a.ProjectID, DeploymentID: a.DeploymentID,
-			FormKey: form.FormKey, FormID: form.FormID, Manifest: manifest, Settings: settings, SuccessURL: form.SuccessURL, Active: true, CreatedAt: now,
+			FormKey: form.FormKey, FormID: form.FormID, Manifest: manifest, Settings: settings, SuccessURL: form.SuccessURL, Booking: booking, Active: true, CreatedAt: now,
 		})
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -133,9 +140,13 @@ func (s *FormStore) ActiveForm(ctx context.Context, formKey string) (*siteforms.
 	if err := strictjson.Decode(row.Settings, &settings); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrStoredFormInvalid, err)
 	}
+	booking, err := storedBooking(row.FormID, row.Booking)
+	if err != nil {
+		return nil, err
+	}
 	return &siteforms.ActiveForm{
 		WorkspaceID: row.WorkspaceID, ProjectID: row.ProjectID, DeploymentID: row.DeploymentID, FormKey: row.FormKey,
-		FormID: row.FormID, Manifest: manifest, Settings: settings, SuccessURL: row.SuccessURL,
+		FormID: row.FormID, Manifest: manifest, Settings: settings, SuccessURL: row.SuccessURL, Booking: booking,
 	}, nil
 }
 
@@ -145,4 +156,18 @@ func (s *FormStore) ProjectsEmbedding(ctx context.Context, workspaceID, widgetID
 		return nil, err
 	}
 	return projects, nil
+}
+
+func storedBooking(formID string, raw datatypes.JSON) (*site.Booking, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var booking site.Booking
+	if err := strictjson.Decode(raw, &booking); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrStoredFormInvalid, err)
+	}
+	if err := (site.Settings{Bookings: map[string]site.Booking{formID: booking}}).Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrStoredFormInvalid, err)
+	}
+	return &booking, nil
 }

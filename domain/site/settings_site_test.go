@@ -27,6 +27,8 @@ func TestSiteIdentityRefusesAnythingButAMediaIDAndABoolean(t *testing.T) {
 		"unknown field":      `{"site":{"json_ld":"{}"}}`,
 		"favicon url":        `{"site":{"favicon_media_id":"https://evil.example/x.ico"}}`,
 		"favicon with space": `{"site":{"favicon_media_id":"med 1"}}`,
+		"chat as markup":     `{"site":{"webchat_widget":"<vz-webchat>"}}`,
+		"chat as a url":      `{"site":{"webchat_widget":"https://evil.example/loader.js"}}`,
 	}
 	for name, raw := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -68,5 +70,12 @@ func TestOrganizationDataIsBuiltFromTrustedValuesOnly(t *testing.T) {
 				t.Fatalf("got %v", err)
 			}
 		})
+	}
+}
+
+func TestSiteIdentityPlacesTheWorkspaceChatByItsWidget(t *testing.T) {
+	s, err := DecodeSettings([]byte(`{"site":{"webchat_widget":"pk_Chat-1"}}`))
+	if err != nil || s.Site.WebchatWidget != "pk_Chat-1" {
+		t.Fatalf("got %+v %v", s.Site, err)
 	}
 }

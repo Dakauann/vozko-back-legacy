@@ -1,6 +1,7 @@
 ---
 name: anuncios-para-whatsapp
 description: Anúncios que levam para o WhatsApp (mensagem pronta, perguntas prontas, primeira resposta, conversões para a Meta); carregue antes de criar ou avaliar um anúncio de conversa.
+surface: ads
 ---
 
 # Anúncios que levam para o WhatsApp

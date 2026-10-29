@@ -76,14 +76,33 @@ type MisfitResponse struct {
 	Candidates   []FitCandidateResponse `json:"candidates,omitempty"`
 }
 
+type FitTabOptionResponse struct {
+	SheetID string              `json:"sheetId" example:"9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d"`
+	Title   string              `json:"title" example:"Pagamentos Centro"`
+	Fits    bool                `json:"fits"`
+	Chosen  bool                `json:"chosen"`
+	Value   string              `json:"value" example:"{\"spreadsheet_id\":\"1AbC\",\"tabs\":{\"3b9f4c2e\":\"9a1b2c3d\"}}"`
+	Problem *FitProblemResponse `json:"problem,omitempty"`
+}
+
+type FitTabChoiceResponse struct {
+	ModelSheetID string                 `json:"modelSheetId" example:"3b9f4c2e-1d7a-4e5b-9c8d-2a1f0e3d4c5b"`
+	ModelTab     string                 `json:"modelTab" example:"Pagamentos"`
+	Options      []FitTabOptionResponse `json:"options"`
+}
+
 type FileFitResponse struct {
-	SpreadsheetID string           `json:"spreadsheetId" example:"1AbC"`
-	Title         string           `json:"title" example:"Franquia Centro"`
-	URL           string           `json:"url" example:"https://docs.google.com/spreadsheets/d/1AbC/edit"`
-	Status        string           `json:"status" enums:"active,needs_attention"`
-	Fits          bool             `json:"fits"`
-	Tabs          []FitTabResponse `json:"tabs"`
-	Misfit        *MisfitResponse  `json:"misfit,omitempty"`
+	SpreadsheetID string                 `json:"spreadsheetId" example:"1AbC"`
+	Title         string                 `json:"title" example:"Franquia Centro"`
+	URL           string                 `json:"url" example:"https://docs.google.com/spreadsheets/d/1AbC/edit"`
+	Status        string                 `json:"status" enums:"active,needs_attention"`
+	Fits          bool                   `json:"fits"`
+	Choosable     bool                   `json:"choosable"`
+	Chosen        bool                   `json:"chosen"`
+	Value         string                 `json:"value" example:"1AbC"`
+	Tabs          []FitTabResponse       `json:"tabs"`
+	Choices       []FitTabChoiceResponse `json:"choices"`
+	Misfit        *MisfitResponse        `json:"misfit,omitempty"`
 }
 
 type FileFitListResponse struct {
@@ -104,7 +123,7 @@ type misfitRefusal struct {
 }
 
 // @Summary		Conferir quais arquivos servem para um modelo
-// @Description	Confere cada arquivo de planilhas do workspace contra as abas do arquivo modelo (o do caminho) e os usos informados: em qual aba modelo cada passo grava (add_row grava linhas, export exporta mensagens) e quais colunas preenche (mapping, chave da coluna para o texto). Um arquivo serve quando tem uma aba para cada aba modelo usada e para cada aba de destino de link, com as colunas preenchidas presentes, ativas, preenchidas pelo fluxo e do mesmo tipo, as opções de escolha do modelo, nenhuma coluna obrigatória que o fluxo não preenche, colunas de mensagem nas abas de exportação e links apontando para as abas do próprio arquivo. tabs diz qual aba do arquivo recebe cada aba modelo. Quando não serve, misfit traz o código e, para a aba modelo sem par, o primeiro problema de cada aba do arquivo, começando pela aba de mesmo nome. Uma aba que precisa de atenção não impede a escolha; status mostra isso. O próprio modelo vem com sheet_fit_model_file, e arquivos de outra conta Google com sheet_fit_file_other_account. Os que servem vêm primeiro.
+// @Description	Confere cada arquivo de planilhas do workspace contra as abas do arquivo modelo (o do caminho) e os usos informados: em qual aba modelo cada passo grava (add_row grava linhas, export exporta mensagens) e quais colunas preenche (mapping, chave da coluna para o texto). Um arquivo serve quando tem uma aba para cada aba modelo usada e para cada aba de destino de link, com as colunas preenchidas presentes, ativas, preenchidas pelo fluxo e do mesmo tipo, as opções de escolha do modelo, nenhuma coluna obrigatória que o fluxo não preenche, colunas de mensagem nas abas de exportação e links apontando para as abas do próprio arquivo. tabs diz qual aba do arquivo recebe cada aba modelo. choices lista, para cada aba modelo, todas as abas do arquivo com fits e, quando não serve, o problema; choosable diz se o arquivo pode ser escolhido aba por aba (quando cada aba modelo tem ao menos uma aba que serve). value é o valor do arquivo com as abas escolhidas automaticamente, e o value de cada aba de choices é o valor que escolhe aquela aba para aquela aba modelo, mantendo as outras abas já escolhidas; chosen marca o arquivo e as abas do valor sendo conferido. Quando não serve, misfit traz o código e, para a aba modelo sem par, o primeiro problema de cada aba do arquivo, começando pela aba de mesmo nome. Uma aba que precisa de atenção não impede a escolha; status mostra isso. O próprio modelo também pode receber as linhas; arquivos de outra conta Google vêm com sheet_fit_file_other_account. Os que servem vêm primeiro.
 // @Tags			Google Planilhas
 // @Accept			json
 // @Produce		json
@@ -171,7 +190,8 @@ func (h *ModelFitHandler) Copy(w http.ResponseWriter, r *http.Request) {
 func FileFitOf(fit gsuc.FileFit) FileFitResponse {
 	out := FileFitResponse{
 		SpreadsheetID: fit.File.ID, Title: fit.File.Title(), URL: fit.File.URL(), Status: string(fit.File.Status()),
-		Fits: fit.Misfit == nil, Tabs: fitTabs(fit.File, fit.Assignment.Tabs),
+		Fits: fit.Misfit == nil, Choosable: fit.Choosable(), Chosen: fit.Chosen, Value: sheetfit.Choice{SpreadsheetID: fit.File.ID}.Value(),
+		Tabs: fitTabs(fit.File, fit.Assignment.Tabs), Choices: fitChoices(fit),
 	}
 	if fit.Misfit != nil {
 		out.Misfit = toMisfitResponse(fit.Misfit)
@@ -193,12 +213,36 @@ func fitTabs(file googlesheet.Spreadsheet, tabs map[string]string) []FitTabRespo
 	return out
 }
 
+func fitChoices(fit gsuc.FileFit) []FitTabChoiceResponse {
+	out := make([]FitTabChoiceResponse, 0, len(fit.Tabs))
+	for _, tab := range fit.Tabs {
+		choice := FitTabChoiceResponse{ModelSheetID: tab.ModelSheetID, ModelTab: tab.ModelTab, Options: make([]FitTabOptionResponse, 0, len(tab.Options))}
+		for _, option := range tab.Options {
+			item := FitTabOptionResponse{
+				SheetID: option.SheetID, Title: option.Title, Fits: option.Problem == nil,
+				Chosen: fit.Choice.Tabs[tab.ModelSheetID] == option.SheetID, Value: fit.Choice.With(tab.ModelSheetID, option.SheetID).Value(),
+			}
+			if option.Problem != nil {
+				problem := toProblemResponse(*option.Problem)
+				item.Problem = &problem
+			}
+			choice.Options = append(choice.Options, item)
+		}
+		out = append(out, choice)
+	}
+	return out
+}
+
+func toProblemResponse(problem sheetfit.Problem) FitProblemResponse {
+	return FitProblemResponse{
+		Code: problem.Code, SheetID: problem.SheetID, Tab: problem.Tab, Column: problem.Column, Option: problem.Option, ModelTab: problem.ModelTab,
+	}
+}
+
 func toMisfitResponse(misfit *sheetfit.Misfit) *MisfitResponse {
 	out := &MisfitResponse{Code: misfit.Code, ModelSheetID: misfit.ModelSheetID, ModelTab: misfit.ModelTab}
 	for _, problem := range misfit.Problems {
-		out.Problems = append(out.Problems, FitProblemResponse{
-			Code: problem.Code, SheetID: problem.SheetID, Tab: problem.Tab, Column: problem.Column, Option: problem.Option, ModelTab: problem.ModelTab,
-		})
+		out.Problems = append(out.Problems, toProblemResponse(problem))
 	}
 	for _, candidate := range misfit.Candidates {
 		out.Candidates = append(out.Candidates, FitCandidateResponse{SheetID: candidate.SheetID, Title: candidate.Title})

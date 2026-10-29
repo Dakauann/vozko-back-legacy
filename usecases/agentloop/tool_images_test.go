@@ -42,22 +42,27 @@ func TestRun_ToolImagesReachTheModelRightAfterTheirResults(t *testing.T) {
 	}
 }
 
-func TestRun_OnlyTheMostRecentToolImagesStayInContext(t *testing.T) {
+func TestRun_EveryToolImageStaysUntilTheAnswerEnds(t *testing.T) {
 	look := aiTurn{tcs: []ai.ToolCall{tcall("look")}}
 	prov := &fakeAI{turns: []aiTurn{look, look, look, {tcs: []ai.ToolCall{tcall("finish")}}}}
 	drv := &fakeDriver{dispatchFn: func(call ai.ToolCall) StepResult {
 		return StepResult{Result: "ok", Images: []string{"data:image/jpeg;base64,AAAA"}, Signature: call.ID}
 	}}
-	run(t, prov, drv, Config{FinishToolName: "finish", RepeatedTurnStop: 10})
+	_, _, sess := run(t, prov, drv, Config{FinishToolName: "finish", RepeatedTurnStop: 10})
 	messages := imageMessages(prov.inputs[3].Messages)
 	if len(messages) != 3 {
 		t.Fatalf("expected three image notes, got %d", len(messages))
 	}
-	if len(messages[0].Images) != 0 || messages[0].Content != toolImagesCleared {
-		t.Fatalf("the oldest images must be cleared, got %+v", messages[0])
+	for i, m := range messages {
+		if len(m.Images) != 1 || m.Content != toolImagesNote {
+			t.Fatalf("capture %d was edited in place, got %+v", i+1, m)
+		}
 	}
-	if len(messages[1].Images) != 1 || len(messages[2].Images) != 1 {
-		t.Fatal("the two most recent captures must stay")
+	assertAppendOnly(t, prov.inputs)
+	for _, m := range imageMessages(sess.Turn) {
+		if len(m.Images) != 0 || m.Content != toolImagesNotKept {
+			t.Fatalf("the record keeps where the images were, never the pixels, got %+v", m)
+		}
 	}
 }
 

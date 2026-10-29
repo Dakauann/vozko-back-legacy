@@ -101,7 +101,8 @@ func newSiteWorld(t *testing.T) *siteWorld {
 		OneShot: &e2eSpent{seen: map[string]bool{}}, PerIP: e2eOpenLimiter{}, PerForm: e2eOpenLimiter{}, PerPreview: e2eOpenLimiter{},
 		Leads: leads, EmailOptIns: e2eOptIns{}, Roulette: e2eRoulette{}, LeadOwners: e2eOwners{}, Deals: e2eDeals{}, LeadDeals: e2eNoDeals{},
 		Official: w.official, Unofficial: e2eUnofficial{}, Email: e2eEmail{}, Notices: &e2eNotices{}, Conversions: e2eConversions{},
-		Links: w.links, Numbers: e2eNumbers{e2eFollowPhone: "5511999990000"}, References: &e2eReferences{},
+		Links: w.links, Numbers: e2eNumbers{e2eFollowPhone: "5511999990000"}, References: &e2eReferences{}, Automations: e2eAutomations{},
+		Calendar: e2eCalendar{}, Slots: e2eMemo{}, BookingLock: e2eBookingLock{}, LeadFields: e2eLeadFields{},
 		Config: siteforms.Config{
 			ChallengeKey: []byte(e2eSigningKey), IPHashKey: sitesubmission.IPHashKey(e2eSigningKey),
 			Addresses: sitepublish.Addresses{Domain: e2ePublic}, ShortLinkBase: "https://vzk.to",
@@ -129,14 +130,14 @@ func newSiteWorld(t *testing.T) *siteWorld {
 		Addresses: sitepublish.Addresses{Domain: e2ePublic}, SigningKey: e2eSigningKey, APIOrigin: e2eAPI, Runtime: siteRuntimeFiles(),
 	}, sitebuild.Deps{
 		Builder: w.builder, Cache: &e2eCache{items: map[string]any{}}, Media: e2eNoMedia{}, Sections: w.sections,
-		WhatsApp: c.siteFormsForPublish(), Workspaces: names, Now: w.now,
+		WhatsApp: c.siteFormsForPublish(), Widgets: e2eNoWidgets{}, Workspaces: names, Now: w.now,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	editor := siteBuildEditor{service: w.build}
 	w.storage, err = site_usecase.NewService(site_usecase.Deps{
-		Store: w.store, Executor: editor, Previewer: editor, References: e2eAnyReference{}, Forms: c.siteFormsForPublish(), Retirement: e2eRetirement{world: w}, Published: sitePublishedRevisions{deployments: w.deployments},
+		Store: w.store, Executor: editor, Previewer: editor, References: e2eAnyReference{}, Bindings: c.siteFormsForPublish(), Forms: c.siteFormsForPublish(), Retirement: e2eRetirement{world: w}, Published: sitePublishedRevisions{deployments: w.deployments},
 		Media: w.library, Numbers: e2eNumbers{e2eFollowPhone: "5511999990000"}, Hostnames: w.hostnames, Previews: &e2ePreviewCache{},
 	})
 	if err != nil {
@@ -152,7 +153,7 @@ func newSiteWorld(t *testing.T) *siteWorld {
 		Renderer: w.renderer, Forms: c.siteFormsForPublish(), Hosting: sitehosting.New(w.objects, directory), Media: e2eNoMedia{}, CustomHostnames: e2eNoCustomHostnames{},
 		Access: e2eAllow{}, Subscriptions: e2eActive{}, Entitlements: e2eEntitlements{}, Widgets: e2eNoWidgets{},
 		Deployments: w.deployments, Hostnames: w.hostnames, Abuse: &e2eAbuse{}, Alerts: &e2eNotices{}, Thumbnails: thumbnails, Locks: &e2eLocks{held: map[string]bool{}}, Counters: e2eCounters{}, NewID: uuid.NewString,
-		DNS: e2eNoDNS{}, Reversals: e2eNoReversals{},
+		DNS: e2eNoDNS{}, Reversals: e2eNoReversals{}, Calendars: e2eCalendar{},
 	}, sitepublish_usecase.Config{
 		Addresses: sitepublish.Addresses{Domain: e2ePublic}, APIOrigin: e2eAPI, CNAMETarget: "sites." + e2ePublic,
 		ApplicationDomains: []string{"vozko.test"}, BrandWords: []string{"vozko"},

@@ -31,6 +31,8 @@ type PageFormLister interface {
 type Reader interface {
 	SubmissionReader
 	PageFormLister
+	AutomationDesk
+	FormTargetLister
 }
 
 type Handler struct {
@@ -49,6 +51,9 @@ func RegisterProtectedRoutes(protected *mux.Router, h *Handler, ac AccessControl
 	}
 	protected.HandleFunc(submissionsList, ac(workspace_domain.ResourceSiteSubmissions, workspace_domain.ActionRead, h.List)).Methods(http.MethodGet)
 	protected.HandleFunc(pageFormsList, ac(workspace_domain.ResourceSites, workspace_domain.ActionRead, h.PageForms)).Methods(http.MethodGet)
+	protected.HandleFunc(formTargetsList, ac(workspace_domain.ResourceSites, workspace_domain.ActionRead, h.FormTargets)).Methods(http.MethodGet)
+	protected.HandleFunc(formAutomations, ac(workspace_domain.ResourceSites, workspace_domain.ActionRead, h.Automations)).Methods(http.MethodGet)
+	protected.HandleFunc(formAutomations, ac(workspace_domain.ResourceWorkflows, workspace_domain.ActionCreate, h.ScaffoldAutomation)).Methods(http.MethodPost)
 }
 
 type SubmissionResponse struct {

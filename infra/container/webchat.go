@@ -69,7 +69,11 @@ func (c *Container) initWebchatRuntime(history conversation_domain.MessageHistor
 	}, c.automationNeeds().receptive)
 	moderation := wcuc.NewModeration(bundle.Conversations, bundle.Visitors,
 		c.services.conversationAuthImpl, bundle.Broker, c.services.conversationHub)
-	bundle.Management = webchathttp.NewHandler(widgets, moderation, bundle.PublicBase)
+	usage, err := wcuc.NewUsage(bundle.Widgets, c.siteEmbedOrigins())
+	if err != nil {
+		log.Fatalf("[webchat] %v", err)
+	}
+	bundle.Management = webchathttp.NewHandler(widgets, moderation, usage, bundle.PublicBase)
 
 	if bundle.PublicBase == "" {
 		return
@@ -94,9 +98,11 @@ func (c *Container) initWebchatRuntime(history conversation_domain.MessageHistor
 		Assignments:   c.services.assignmentService,
 		Automation: conversation_usecase.NewInboundAutomation(
 			c.useCases.triggerEvaluator, c.mustChannelAIReply(), c.services.analysisScheduler, c.repositories.conversation, c.services.automationGate),
-		Events:      bundle.Broker,
-		Operators:   c.services.conversationHub,
-		SiteOrigins: c.siteEmbedOrigins(),
+		Events:         bundle.Broker,
+		Operators:      c.services.conversationHub,
+		SiteOrigins:    c.siteEmbedOrigins(),
+		Previews:       sitePreviewGrants{c: c},
+		PreviewEditors: c.cfg.CORSTrustedOrigins,
 	})
 	public, err := webchathttp.NewPublicHandler(visitors, bundle.Broker, bundle.PublicBase, []byte(siteRuntimeFiles()[siteruntime.PowFile]))
 	if err != nil {

@@ -21,8 +21,15 @@ func TestSectionsListsTheLibraryWithTitlesInFourLanguages(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if len(body.Sections) != 12 || body.Sections[0].Key != "hero" || body.Sections[0].Title.PT == "" || body.Sections[0].Title.DE == "" {
+	if len(body.Sections) != 25 || body.Sections[0].Key != "hero" || body.Sections[0].Title.PT == "" || body.Sections[0].Title.DE == "" {
 		t.Fatalf("got %+v", body)
+	}
+	groups := map[string]string{}
+	for _, section := range body.Sections {
+		groups[section.Key] = section.Group
+	}
+	if groups["hero"] != "sections" || groups["form-contato"] != "forms" || groups["campo-email"] != "fields" || groups["botao"] != "buttons" || groups["imagem"] != "media" || groups["botao-whatsapp"] != "platform" || groups["snippet-faixa"] != "saved" {
+		t.Fatalf("groups %v", groups)
 	}
 	if stacks := body.Sections[0].Stacks; len(stacks) != 2 || stacks[0] != "html" || stacks[1] != "react" {
 		t.Fatalf("stacks %v", stacks)

@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
 
+import contract from "./testdata/runtime_contract.json";
+
 import {
   attribution,
   consentSignals,
@@ -10,6 +12,7 @@ import {
   popupDue,
   readConsent,
   sendSubmission,
+  TRAP_NAME,
   successAction,
   writeConsent,
 } from "./vz-runtime.js";
@@ -119,7 +122,7 @@ test("submits after solving a fresh challenge and waiting the minimum fill time"
   const api = fakeApi([{ status: 200, body: challenge }, { status: 201, body: { id: "s1", success: { kind: "message", message: "Até já!" } } }]);
   const run = submission({ fetch: api.fetch });
   const outcome = await sendSubmission(run);
-  expect(outcome).toEqual({ ok: true, success: { kind: "message", message: "Até já!" } });
+  expect(outcome).toEqual({ ok: true, id: "s1", success: { kind: "message", message: "Até já!" } });
   expect(api.calls.map((c) => [c.method, c.url])).toEqual([
     ["POST", `${API}/public/sites/forms/fk_123/challenge`],
     ["POST", `${API}/public/sites/forms/fk_123/submissions`],
@@ -134,7 +137,7 @@ test("reuses a challenge solved while the visitor was typing and does not wait a
   const api = fakeApi([{ status: 201, body: { id: "s1" } }]);
   const run = submission({ fetch: api.fetch });
   const outcome = await sendSubmission({ ...run, proof: { challenge, nonce: "n9", fetchedAt: NOW - 20_000 } });
-  expect(outcome).toEqual({ ok: true, success: { kind: "message" } });
+  expect(outcome).toEqual({ ok: true, id: "s1", success: { kind: "message" } });
   expect(api.calls).toHaveLength(1);
   expect(api.calls[0].body.nonce).toBe("n9");
   expect(run.waits).toEqual([]);
@@ -228,4 +231,8 @@ test("gives each visitor their own evergreen deadline and keeps it", () => {
   expect(first).toBe(NOW + 30 * 60_000);
   expect(evergreenDeadline(storage, "vz-countdown:oferta", 30, NOW + 5000)).toBe(first);
   expect(evergreenDeadline(brokenStorage(), "vz-countdown:oferta", 30, NOW)).toBe(NOW + 30 * 60_000);
+});
+
+test("the trap field matches the name the form inspector ignores", () => {
+  expect(TRAP_NAME).toBe(contract.trapField);
 });

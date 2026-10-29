@@ -60,7 +60,7 @@ function project(value: unknown): Project {
 
 const operationFields = [
   "op", "path", "to", "content", "old", "new", "replace_all", "node", "rev", "item", "text", "name", "value", "add", "remove",
-  "breakpoint", "media_id", "alt", "before", "after", "at", "html", "library_key", "ref",
+  "breakpoint", "media_id", "alt", "before", "after", "into", "at", "html", "library_key", "ref", "source", "source_rev",
 ] as const;
 
 function placement(value: unknown, where: string): Placement {
@@ -74,7 +74,7 @@ function operation(value: unknown, where: string): Operation {
   const raw = object(value, where, operationFields);
   if (typeof raw.op !== "string" || !operationKinds.includes(raw.op as Operation["op"])) fail(`${where}.op`, "is not a known operation");
   const out: Operation = { op: raw.op as Operation["op"] };
-  for (const key of ["path", "to", "content", "old", "new", "node", "text", "name", "breakpoint", "media_id", "alt", "before", "after", "html", "library_key", "ref"] as const) {
+  for (const key of ["path", "to", "content", "old", "new", "node", "text", "name", "breakpoint", "media_id", "alt", "before", "after", "into", "html", "library_key", "ref", "source"] as const) {
     if (raw[key] !== undefined) out[key] = string(raw[key], `${where}.${key}`);
   }
   if (raw.replace_all !== undefined) {
@@ -82,6 +82,7 @@ function operation(value: unknown, where: string): Operation {
     out.replace_all = raw.replace_all;
   }
   if (raw.rev !== undefined) out.rev = integer(raw.rev, `${where}.rev`, 1);
+  if (raw.source_rev !== undefined) out.source_rev = integer(raw.source_rev, `${where}.source_rev`, 1);
   if (raw.item !== undefined) out.item = integer(raw.item, `${where}.item`, 0);
   if (raw.value !== undefined) {
     if (typeof raw.value !== "string" && (typeof raw.value !== "number" || !Number.isFinite(raw.value))) fail(`${where}.value`, "must be a string or a number");
@@ -193,6 +194,13 @@ function favicon(value: unknown): string | undefined {
   return text;
 }
 
+function webchat(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  const text = string(value, "shell.webchat");
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(text)) fail("shell.webchat", "must be a widget reference");
+  return text;
+}
+
 function structuredData(value: unknown): unknown[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) fail("shell.structured_data", "must be a list");
@@ -203,7 +211,7 @@ function structuredData(value: unknown): unknown[] | undefined {
 }
 
 function shell(value: unknown): ShellInput {
-  const raw = object(value, "shell", ["api", "forms", "variant", "pages", "integrations", "loaders", "consent_text", "primary_origin", "favicon", "structured_data"]);
+  const raw = object(value, "shell", ["api", "forms", "variant", "pages", "integrations", "loaders", "consent_text", "primary_origin", "favicon", "structured_data", "webchat"]);
   const api = string(raw.api, "shell.api");
   if (!/^https:\/\/[a-z0-9.-]+(:\d+)?$/.test(api) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(api)) fail("shell.api", "must be an https origin");
   return {
@@ -217,6 +225,7 @@ function shell(value: unknown): ShellInput {
     primary_origin: origin(raw.primary_origin),
     favicon: favicon(raw.favicon),
     structured_data: structuredData(raw.structured_data),
+    webchat: webchat(raw.webchat),
   };
 }
 

@@ -38,3 +38,13 @@ func (c *Container) adOriginRecorder() *conversationad.Recorder {
 func (c *Container) adOriginReader() conversation_domain.AdOriginReader {
 	return conversationad.NewReader(c.adOrigins(), c.repositories.conversationMedia)
 }
+
+func (c *Container) pageOriginReader(entries conversationad.EntryWorkspaces) conversation_domain.PageOriginReader {
+	return conversationad.NewPageReader(
+		conversation_repository.NewPageOriginRepository(c.db),
+		entries,
+		conversation_repository.NewPageProjects(c.db),
+		c.siteHostnameReader(),
+		siteOrigins(c.cfg.Sites),
+	)
+}

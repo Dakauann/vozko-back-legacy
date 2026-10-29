@@ -25,7 +25,7 @@ function reply(status, body) {
 
 const challenge = (token) => reply(200, { id: token, token, bits: 8, expiresAt: "2026-10-28T12:02:00Z" });
 
-function setup({ html = FORM, url = PAGE_URL, lang = "pt-BR", forms = { contato: "fk_contato" }, responses = [], stored = {}, cookie = "", referrer = "" } = {}) {
+function setup({ html = FORM, url = PAGE_URL, lang = "pt-BR", forms = { contato: "fk_contato" }, responses = [], stored = {}, cookie = "", referrer = "", preview = false } = {}) {
   const window = new Window({ url, settings: { navigator: { userAgent: "test" } } });
   opened.push(window);
   const doc = window.document;
@@ -33,6 +33,7 @@ function setup({ html = FORM, url = PAGE_URL, lang = "pt-BR", forms = { contato:
   root.lang = lang;
   root.setAttribute("data-vz-api", API);
   root.setAttribute("data-vz-forms", JSON.stringify(forms));
+  if (preview) root.setAttribute("data-vz-preview", "");
   for (const [key, value] of Object.entries(stored)) window.localStorage.setItem(key, value);
   if (cookie) doc.cookie = cookie;
   if (referrer) Object.defineProperty(doc, "referrer", { value: referrer });
@@ -78,6 +79,15 @@ function focusIn(page, element) {
 
 const status = (page) => page.doc.querySelector("[data-vz-status]");
 const traps = (form) => form.querySelectorAll('input[name="vz_website"]').length;
+
+test("a preview counts nothing, while a published page sends its visit", async () => {
+  const preview = setup({ preview: true });
+  await tick(5);
+  expect(await preview.payloads()).toEqual([]);
+  const published = setup();
+  await tick(5);
+  expect((await published.payloads()).map((p) => p.event)).toContain("view");
+});
 
 test("attaches once to custom element forms and plain markup forms, even when React replaces or moves them", async () => {
   const page = setup({ html: '<vz-form id="contato"><form><input name="lead.name"></form></vz-form>' + FORM });
@@ -334,4 +344,76 @@ test("counts views, CTA clicks and WhatsApp clicks without any identifier", asyn
   expect(payloads[2]).toMatchObject({ event: "whatsapp", target: "https://vzk.to/abc" });
   const serialized = JSON.stringify(payloads);
   for (const secret of ["FBCLID1", "GCLID1", "SECRETFBP", "SECRETFBC", "SECRETIG", "fbclid", "gclid", "fbp", "fbc"]) expect(serialized).not.toContain(secret);
+});
+
+function listen(page, type) {
+  const seen = [];
+  page.window.addEventListener(type, (event) => seen.push(event.detail));
+  return seen;
+}
+
+test("a submitted form signals the lead with the server submission id for consent gated pixels", async () => {
+  const page = setup({ responses: [challenge("t1"), reply(201, { id: "sub-42", success: { kind: "message" } })] });
+  const leads = listen(page, "vz:lead");
+  await submit(page);
+  expect(leads).toEqual([{ eventId: "sub-42", form: "contato" }]);
+
+  const refused = setup({ responses: [challenge("t1"), reply(422, { code: "submission_fields_invalid", details: { "lead.phone": "invalid" } })] });
+  const none = listen(refused, "vz:lead");
+  await submit(refused);
+  expect(none).toEqual([]);
+});
+
+test("a WhatsApp click and a WhatsApp success signal a contact", async () => {
+  const page = setup({ html: '<a data-vz-whatsapp href="https://vzk.to/abc">WhatsApp</a>' });
+  const contacts = listen(page, "vz:contact");
+  await tick();
+  page.doc.querySelector("[data-vz-whatsapp]").click();
+  expect(contacts).toEqual([{ target: "https://vzk.to/abc" }]);
+
+  const success = setup({ responses: [challenge("t1"), reply(201, { id: "s1", success: { kind: "whatsapp", url: "https://wa.me/5511999990000?text=oi" } })] });
+  const after = listen(success, "vz:contact");
+  await submit(success);
+  expect(after).toEqual([{ target: "https://wa.me/5511999990000?text=oi" }]);
+});
+
+test("a published chat loads the workspace webchat loader once with the widget public key", async () => {
+  const page = setup({ html: '<vz-webchat widget="wc" data-vz-webchat-key="pk_Abc-1"></vz-webchat><vz-webchat widget="wc2" data-vz-webchat-key="pk_other"></vz-webchat>' });
+  await tick();
+  const loaders = page.doc.querySelectorAll("script[data-vz-webchat]");
+  expect(loaders.length).toBe(1);
+  expect(loaders[0].getAttribute("src")).toBe(API + "/public/webchat/loader.js");
+  expect(loaders[0].getAttribute("data-key")).toBe("pk_Abc-1");
+});
+
+test("a chat without a resolved key, with a forged key or on a bad api origin loads nothing", async () => {
+  for (const html of ['<vz-webchat widget="wc"></vz-webchat>', '<vz-webchat data-vz-webchat-key="bad key&quot;"></vz-webchat>']) {
+    const page = setup({ html });
+    await tick();
+    expect(page.doc.querySelectorAll("script").length).toBe(0);
+  }
+  const page = setup({ html: "<main></main>" });
+  page.doc.documentElement.setAttribute("data-vz-api", "http://evil.example");
+  page.doc.querySelector("main").innerHTML = '<vz-webchat data-vz-webchat-key="pk_2"></vz-webchat>';
+  await tick();
+  expect(page.doc.querySelectorAll("script").length).toBe(0);
+});
+
+test("a preview chat loads the same live loader so the server can answer it as a demo", async () => {
+  const page = setup({ html: '<vz-webchat widget="wc" data-vz-webchat-key="pk_1"></vz-webchat>', lang: "en" });
+  await tick();
+  const chat = page.doc.querySelector("vz-webchat");
+  const loaders = page.doc.querySelectorAll("script[data-vz-webchat]");
+  expect(loaders.length).toBe(1);
+  expect(loaders[0].getAttribute("src")).toBe(API + "/public/webchat/loader.js");
+  expect(loaders[0].getAttribute("data-key")).toBe("pk_1");
+  expect(chat.getAttribute("role")).toBe(null);
+  expect(chat.innerHTML).toBe("");
+});
+
+test("a hand written preview marker loads nothing", async () => {
+  const page = setup({ html: '<vz-webchat widget="wc" data-vz-webchat-preview="pk_1"></vz-webchat>' });
+  await tick();
+  expect(page.doc.querySelectorAll("script").length).toBe(0);
+  expect(page.doc.querySelector("vz-webchat").innerHTML).toBe("");
 });

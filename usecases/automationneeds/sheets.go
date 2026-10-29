@@ -82,7 +82,7 @@ type SheetCandidates struct {
 	Candidates []sheetfit.Candidate
 }
 
-func (s *Service) SheetCandidates(ctx context.Context, workspaceID string, target *conversation.Automation, name string) (SheetCandidates, error) {
+func (s *Service) SheetCandidates(ctx context.Context, workspaceID string, target *conversation.Automation, name, chosen string) (SheetCandidates, error) {
 	catalog, err := s.declarations.Catalog(ctx, workspaceID)
 	if err != nil {
 		return SheetCandidates{}, fmt.Errorf("%w: %w", domain.ErrUnreadable, err)
@@ -104,7 +104,7 @@ func (s *Service) SheetCandidates(ctx context.Context, workspaceID string, targe
 			}
 		}
 	}
-	out.Candidates, err = s.sheets.Candidates(ctx, workspaceID, d.Type, uses)
+	out.Candidates, err = s.sheets.Candidates(ctx, workspaceID, d.Type, uses, chosen)
 	if err != nil {
 		var misfit *sheetfit.Misfit
 		if errors.As(err, &misfit) {
@@ -115,8 +115,8 @@ func (s *Service) SheetCandidates(ctx context.Context, workspaceID string, targe
 	return out, nil
 }
 
-func (q *Queries) SheetCandidates(ctx context.Context, workspaceID string, target *conversation.Automation, name string) (SheetCandidates, error) {
-	return q.d.Service.SheetCandidates(ctx, workspaceID, target, name)
+func (q *Queries) SheetCandidates(ctx context.Context, workspaceID string, target *conversation.Automation, name, chosen string) (SheetCandidates, error) {
+	return q.d.Service.SheetCandidates(ctx, workspaceID, target, name, chosen)
 }
 
 type SheetLaunch struct {

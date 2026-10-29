@@ -20,9 +20,9 @@ import (
 
 const maxImportBytes = 10 << 20
 
-// @Summary		Exportar oportunidades (CSV)
-// @Description	Exporta as oportunidades de um pipeline do workspace em formato CSV, respeitando o escopo de departamento do usuário. As colunas incluem id, título, valor (em unidades maiores), moeda, status, etapa, responsável, lead, origem, data de fechamento, data de criação e uma coluna por campo personalizado.
-// @Tags			Oportunidades
+// @Summary		Exportar negociações (CSV)
+// @Description	Exporta as negociações de um pipeline do workspace em formato CSV, respeitando o escopo de departamento do usuário. As colunas incluem id, título, valor (em unidades maiores), moeda, status, etapa, responsável, lead, origem, data de fechamento, data de criação e uma coluna por campo personalizado.
+// @Tags			Negociações
 // @Produce		json
 // @Param			pipelineId	query	string	true	"ID do pipeline"
 // @Param			format		query	string	false	"Formato (csv ou pdf)"
@@ -64,7 +64,7 @@ func (h *OpportunityHandler) Export(w http.ResponseWriter, r *http.Request) {
 
 	params, err := json.Marshal(report_renderers.OpportunitiesParams{
 		PipelineID: pipelineID,
-		Label:      "oportunidades",
+		Label:      "negociacoes",
 	})
 	if err != nil {
 		response.WriteError(w, http.StatusInternalServerError, "Failed to prepare the export", nil)
@@ -99,9 +99,9 @@ func (h *OpportunityHandler) Export(w http.ResponseWriter, r *http.Request) {
 	response.WriteSuccess(w, http.StatusAccepted, job)
 }
 
-// @Summary		Importar oportunidades (CSV)
-// @Description	Cria uma oportunidade por linha válida a partir de um CSV enviado como upload multipart (campo 'file') ou como corpo bruto. Com dryRun=true nada é criado e cada linha é apenas validada. O parâmetro pipelineId é o pipeline padrão para linhas que omitem a coluna pipeline_id. A resposta é um relatório com total, criados, ignorados, erros por linha e indicador de truncamento.
-// @Tags			Oportunidades
+// @Summary		Importar negociações (CSV)
+// @Description	Cria uma negociação por linha válida a partir de um CSV enviado como upload multipart (campo 'file') ou como corpo bruto. Com dryRun=true nada é criado e cada linha é apenas validada. O parâmetro pipelineId é o pipeline padrão para linhas que omitem a coluna pipeline_id. A resposta é um relatório com total, criados, ignorados, erros por linha e indicador de truncamento.
+// @Tags			Negociações
 // @Accept			multipart/form-data
 // @Produce		json
 // @Param			dryRun		query		bool	false	"Quando true, apenas valida sem criar"

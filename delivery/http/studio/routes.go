@@ -27,4 +27,5 @@ func RegisterProtectedRoutes(protected *mux.Router, h *Handler, ac AccessControl
 	protected.HandleFunc("/studio/animation-presets/{id}", ac(media, workspace_domain.ActionDelete, h.DeletePreset)).Methods(http.MethodDelete)
 	protected.HandleFunc("/studio/library/items/{itemId}/import", ac(media, workspace_domain.ActionCreate, h.ImportLibraryAsset)).Methods(http.MethodPost)
 	protected.HandleFunc("/studio/capabilities/{sessionId}", ac(media, workspace_domain.ActionRead, h.ReportCapabilities)).Methods(http.MethodPut)
+	protected.HandleFunc("/studio/perception/analyze", ac(media, workspace_domain.ActionRead, h.AnalyzePerception)).Methods(http.MethodPost)
 }

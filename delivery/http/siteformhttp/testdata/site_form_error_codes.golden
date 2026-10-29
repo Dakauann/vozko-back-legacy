@@ -1,10 +1,15 @@
+booking_slot_taken
+booking_unavailable
 challenge_expired
 challenge_invalid
 challenge_reused
 challenge_unsolved
+form_id_invalid
 form_unavailable
 form_unknown
 internal_error
+no_default_deal_funnel
+project_not_found
 rate_limited
 submission_fields_invalid
 submission_invalid

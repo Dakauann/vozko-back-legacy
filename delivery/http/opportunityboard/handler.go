@@ -24,9 +24,9 @@ func NewOpportunityBoardHandler(service *oppboard_usecase.Service, names actor.N
 	return &OpportunityBoardHandler{service: service, names: names}
 }
 
-// @Summary		Quadro de oportunidades
-// @Description	Renderiza o funil de oportunidades do workspace agrupado por etapa, responsável ou campo personalizado. Cada coluna traz a contagem de oportunidades e a soma dos valores (em reais do cliente). Respeita o escopo de departamento do usuário.
-// @Tags			Oportunidades
+// @Summary		Quadro de negociações
+// @Description	Renderiza o funil de negociações do workspace agrupado por etapa, responsável ou campo personalizado. Cada coluna traz a contagem de negociações e a soma dos valores (em reais do cliente). Respeita o escopo de departamento do usuário.
+// @Tags			Negociações
 // @Produce		json
 // @Param			pipelineId	query		string	false	"ID do pipeline a exibir"
 // @Param			groupBy		query		string	false	"Eixo de agrupamento das colunas ('stage', 'owner' ou 'custom')"
@@ -34,9 +34,9 @@ func NewOpportunityBoardHandler(service *oppboard_usecase.Service, names actor.N
 // @Param			filter		query		string	false	"Filtro compartilhado (JSON crmfilter, opcionalmente em base64)"
 // @Param			owners		query		string	false	"Colunas do eixo de responsáveis (JSON, opcionalmente em base64)"
 // @Param			options		query		string	false	"Colunas do eixo de campo personalizado (JSON, opcionalmente em base64)"
-// @Param			sortField	query		string	false	"Campo de ordenação das oportunidades"
+// @Param			sortField	query		string	false	"Campo de ordenação das negociações"
 // @Param			sortOrder	query		string	false	"Direção da ordenação ('asc' ou 'desc')"
-// @Param			page		query		int		false	"Página das oportunidades por coluna"
+// @Param			page		query		int		false	"Página das negociações por coluna"
 // @Param			pageSize	query		int		false	"Tamanho da página (máximo 200)"
 // @Success		200	{object}	oppboard_usecase.Board
 // @Failure		400	{object}	response.ErrorResponse
@@ -93,9 +93,9 @@ func (h *OpportunityBoardHandler) Board(w http.ResponseWriter, r *http.Request) 
 	response.WriteSuccess(w, http.StatusOK, board)
 }
 
-// @Summary		Lista de oportunidades
-// @Description	Lista plana das oportunidades do workspace sobre o mesmo filtro do funil, com ordenação e paginação. Respeita o escopo de departamento do usuário. Retorna as oportunidades e o total de correspondências.
-// @Tags			Oportunidades
+// @Summary		Lista de negociações
+// @Description	Lista plana das negociações do workspace sobre o mesmo filtro do funil, com ordenação e paginação. Respeita o escopo de departamento do usuário. Retorna as negociações e o total de correspondências.
+// @Tags			Negociações
 // @Produce		json
 // @Param			filter		query		string	false	"Filtro compartilhado (JSON crmfilter, opcionalmente em base64)"
 // @Param			sortField	query		string	false	"Campo de ordenação"

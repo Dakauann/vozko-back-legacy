@@ -1,6 +1,7 @@
 ---
 name: testes-e-atribuicao
 description: Como a Meta atribui resultados aos anúncios (janelas de clique e visualização) e como montar testes A/B confiáveis; carregue antes de comparar anúncios, montar testes ou explicar diferenças entre a Meta e o CRM.
+surface: ads
 ---
 
 # Testes e atribuição

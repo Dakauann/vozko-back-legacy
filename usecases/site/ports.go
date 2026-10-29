@@ -152,4 +152,10 @@ type PreviewCache interface {
 
 type FormReferences interface {
 	Check(ctx context.Context, workspaceID, formID string, form site.FormSettings) error
+	CheckWebchat(ctx context.Context, workspaceID, ref string) error
+}
+
+type FormBindings interface {
+	KeysFor(ctx context.Context, workspaceID, projectID string, formIDs []string) (map[string]string, error)
+	WorkflowBound(ctx context.Context, workspaceID, projectID, formID, workflowID string) (bool, error)
 }

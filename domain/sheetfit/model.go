@@ -39,16 +39,6 @@ func (m Model) sheet(id string) *googlesheet.Sheet {
 	return nil
 }
 
-func (m Model) spreadsheets() []string {
-	var out []string
-	for _, sheet := range m.Sheets {
-		if !slices.Contains(out, sheet.SpreadsheetID) {
-			out = append(out, sheet.SpreadsheetID)
-		}
-	}
-	return out
-}
-
 func (m Model) Check() error {
 	_, err := m.targets()
 	return err
@@ -139,10 +129,6 @@ func WholeModel(sheets []*googlesheet.Sheet) Model {
 		}
 	}
 	return model
-}
-
-func IsModelFile(model Model, file googlesheet.Spreadsheet) bool {
-	return slices.Contains(model.spreadsheets(), file.ID)
 }
 
 type Workspace struct {

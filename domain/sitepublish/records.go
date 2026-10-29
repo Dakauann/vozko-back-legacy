@@ -22,6 +22,7 @@ type FormsSnapshot struct {
 	Manifests []siteform.Manifest          `json:"manifests,omitempty"`
 	Settings  map[string]site.FormSettings `json:"settings,omitempty"`
 	Widgets   []string                     `json:"widgets,omitempty"`
+	Bookings  map[string]site.Booking      `json:"bookings,omitempty"`
 }
 
 type DeploymentRecord struct {

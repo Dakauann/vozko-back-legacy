@@ -13,24 +13,34 @@ import (
 	"github.com/gorilla/mux"
 
 	"vozko/domain/auth"
+	"vozko/domain/automationneeds"
+	"vozko/domain/conversation"
 	domain "vozko/domain/variabledecl"
 	workspace_domain "vozko/domain/workspace"
 	"vozko/infra/http/middleware"
+	variabledecl_usecase "vozko/usecases/variabledecl"
 )
 
 type fakeDeclarations struct {
 	rows     []domain.Declaration
+	locks    map[string][]automationneeds.DeclarationUser
 	saved    []domain.Declaration
 	savedBy  string
+	editor   variabledecl_usecase.Editor
 	err      error
 	registry *domain.Registry
 }
 
-func (f *fakeDeclarations) List(context.Context, string) ([]domain.Declaration, error) {
-	return f.rows, f.err
+func (f *fakeDeclarations) Editable(_ context.Context, _ string, editor variabledecl_usecase.Editor) ([]variabledecl_usecase.EditableDeclaration, error) {
+	f.editor = editor
+	out := make([]variabledecl_usecase.EditableDeclaration, 0, len(f.rows))
+	for _, d := range f.rows {
+		out = append(out, variabledecl_usecase.EditableDeclaration{Declaration: d, LockedBy: f.locks[d.Name]})
+	}
+	return out, f.err
 }
 
-func (f *fakeDeclarations) Save(_ context.Context, _ string, by string, d domain.Declaration) (domain.Declaration, error) {
+func (f *fakeDeclarations) Save(_ context.Context, _ string, editor variabledecl_usecase.Editor, d domain.Declaration) (domain.Declaration, error) {
 	if f.err != nil {
 		return domain.Declaration{}, f.err
 	}
@@ -39,11 +49,14 @@ func (f *fakeDeclarations) Save(_ context.Context, _ string, by string, d domain
 		return domain.Declaration{}, err
 	}
 	f.saved = append(f.saved, checked)
-	f.savedBy = by
+	f.savedBy = editor.Requester.UserID
 	return checked, nil
 }
 
-func (f *fakeDeclarations) Delete(context.Context, string, string) error { return f.err }
+func (f *fakeDeclarations) Delete(_ context.Context, _ string, editor variabledecl_usecase.Editor, _ string) error {
+	f.editor = editor
+	return f.err
+}
 
 func (f *fakeDeclarations) Registry() *domain.Registry { return f.registry }
 
@@ -58,8 +71,12 @@ func newFake(t *testing.T) *fakeDeclarations {
 
 type gate struct{ asked []string }
 
-func (g *gate) ac(r workspace_domain.Resource, a workspace_domain.Action, next http.HandlerFunc) http.HandlerFunc {
-	g.asked = append(g.asked, string(r)+":"+string(a))
+func (g *gate) anyOf(grants []workspace_domain.PermissionEntry, next http.HandlerFunc) http.HandlerFunc {
+	names := make([]string, len(grants))
+	for i, grant := range grants {
+		names[i] = string(grant.Resource) + ":" + string(grant.Action)
+	}
+	g.asked = append(g.asked, strings.Join(names, "|"))
 	return next
 }
 
@@ -67,7 +84,7 @@ func serve(t *testing.T, f *fakeDeclarations, method, target, body string) *http
 	t.Helper()
 	router := mux.NewRouter()
 	g := &gate{}
-	RegisterRoutes(router, NewHandler(f), g.ac)
+	RegisterRoutes(router, NewHandler(f), g.anyOf)
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
 	ctx := context.WithValue(req.Context(), middleware.WorkspaceIDContextKey, "ws-1")
 	ctx = context.WithValue(ctx, middleware.ClaimsContextKey, &auth.Claims{UserID: "u-1"})
@@ -92,10 +109,10 @@ func codeOf(t *testing.T, rec *httptest.ResponseRecorder) string {
 	return body.Code
 }
 
-func TestRoutesAskForTheWorkflowPermissions(t *testing.T) {
+func TestRoutesLetWorkflowAndAgentEditorsShareTheCatalog(t *testing.T) {
 	g := &gate{}
-	RegisterRoutes(mux.NewRouter(), NewHandler(newFake(t)), g.ac)
-	want := []string{"workflows:read", "workflows:update", "workflows:update"}
+	RegisterRoutes(mux.NewRouter(), NewHandler(newFake(t)), g.anyOf)
+	want := []string{"workflows:read|agents:read", "workflows:update|agents:update", "workflows:update|agents:update"}
 	if strings.Join(g.asked, ",") != strings.Join(want, ",") {
 		t.Fatalf("asked = %v, want %v", g.asked, want)
 	}
@@ -165,5 +182,47 @@ func TestUnreadableAndMissingAreCoded(t *testing.T) {
 	f.err = nil
 	if rec := serve(t, f, http.MethodDelete, "/conversation-variables/x", ""); rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d", rec.Code)
+	}
+}
+
+func TestListSaysWhichDeclarationsThisPersonCanOnlyRead(t *testing.T) {
+	f := newFake(t)
+	f.rows = []domain.Declaration{{Name: "livre", Label: "Livre", Type: domain.Type{Kind: domain.KindText}}, {Name: "turno", Label: "Turno", Type: domain.Type{Kind: domain.KindText}}}
+	f.locks = map[string][]automationneeds.DeclarationUser{"turno": {{Link: automationneeds.Link{Automation: conversation.Automation{Kind: conversation.AutomationAgent, ID: "a1"}, Name: "Cobrador"}}}}
+	rec := serve(t, f, http.MethodGet, "/conversation-variables", "")
+	var got ListResponse
+	decode(t, rec, &got)
+	livre, turno := got.Declarations[0], got.Declarations[1]
+	if !livre.Editable || len(livre.LockedBy) != 0 || livre.LockedBy == nil {
+		t.Fatalf("livre = %+v", livre)
+	}
+	if turno.Editable || len(turno.LockedBy) != 1 || turno.LockedBy[0].Kind != "agent" || turno.LockedBy[0].Name != "Cobrador" {
+		t.Fatalf("turno = %+v", turno)
+	}
+	if f.editor.Requester.UserID != "u-1" {
+		t.Fatalf("editor = %+v", f.editor)
+	}
+}
+
+func TestAChangeTheGrantsDoNotCoverNamesWhatUsesTheDeclaration(t *testing.T) {
+	f := newFake(t)
+	f.err = &variabledecl_usecase.ChangeForbidden{Name: "turno", Users: []automationneeds.DeclarationUser{{Link: automationneeds.Link{Automation: conversation.Automation{Kind: conversation.AutomationWorkflow, ID: "w1"}, Name: "Matrículas"}}}}
+	for _, method := range []string{http.MethodPut, http.MethodDelete} {
+		rec := serve(t, f, method, "/conversation-variables/turno", `{"label":"Turno","type":{"kind":"text"}}`)
+		var body struct {
+			Code    string `json:"code"`
+			Details struct {
+				Name  string `json:"name"`
+				Users []struct {
+					Kind string `json:"kind"`
+					ID   string `json:"id"`
+					Name string `json:"name"`
+				} `json:"users"`
+			} `json:"details"`
+		}
+		decode(t, rec, &body)
+		if rec.Code != http.StatusForbidden || body.Code != "variable_change_forbidden" || body.Details.Name != "turno" || len(body.Details.Users) != 1 || body.Details.Users[0].Name != "Matrículas" || body.Details.Users[0].Kind != "workflow" {
+			t.Fatalf("%s: status %d body %s", method, rec.Code, rec.Body.String())
+		}
 	}
 }

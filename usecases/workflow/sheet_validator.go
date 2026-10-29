@@ -7,7 +7,6 @@ import (
 
 	"vozko/domain/automationneeds"
 	"vozko/domain/googlesheet"
-	"vozko/domain/variabledecl"
 	"vozko/domain/workflow"
 )
 
@@ -101,11 +100,11 @@ func (v *googleSheetValidator) checkVariable(n *workflow.Node, model *googleshee
 		return fmt.Errorf("%w: node %q: os dados da conversa não puderam ser lidos", workflow.ErrValidationUnavailable, n.ID)
 	}
 	labeled := v.declarations.Label(context.Background(), v.workspaceID, automationneeds.Needs{{Name: name}})
-	if len(labeled) != 1 || !labeled[0].Declared || labeled[0].Type.Kind != variabledecl.KindSheet {
-		return fmt.Errorf("%w: node %q: %q não é um dado da conversa do tipo Planilha", workflow.ErrNodeSheetVariableInvalid, n.ID, name)
-	}
-	if labeled[0].Type.Settings[variabledecl.SettingModel] != model.SpreadsheetID {
+	switch err := automationneeds.SheetModelProblem(labeled, model.SpreadsheetID); {
+	case errors.Is(err, automationneeds.ErrSheetModelMismatch):
 		return fmt.Errorf("%w: node %q: a aba %q não é da planilha modelo de %s", workflow.ErrNodeSheetVariableInvalid, n.ID, model.Title, labeled[0].Display())
+	case err != nil:
+		return fmt.Errorf("%w: node %q: %q não é um dado da conversa do tipo Planilha", workflow.ErrNodeSheetVariableInvalid, n.ID, name)
 	}
 	return nil
 }

@@ -11,19 +11,20 @@ import (
 
 func TestErrorCodeMapsEverySentinel(t *testing.T) {
 	cases := map[error]string{
-		ErrStackInvalid:        "stack_invalid",
-		ErrPathInvalid:         "path_invalid",
-		ErrManifestInvalid:     "site_json_invalid",
-		ErrKnobsInvalid:        "knobs_invalid",
-		ErrKnobValueInvalid:    "knob_value_invalid",
-		ErrSettingsInvalid:     "settings_invalid",
-		ErrFormChannelRequired: "form_channel_required",
-		ErrDesignSystemInvalid: "design_system_invalid",
-		ErrRedirectInvalid:     "redirect_invalid",
-		ErrStepsInvalid:        "steps_invalid",
-		ErrBatchMalformed:      "batch_malformed",
-		ErrEditRefused:         "edit_refused",
-		sitehtml.ErrMalformed:  "html_invalid",
+		ErrStackInvalid:          "stack_invalid",
+		ErrPathInvalid:           "path_invalid",
+		ErrManifestInvalid:       "site_json_invalid",
+		ErrKnobsInvalid:          "knobs_invalid",
+		ErrKnobValueInvalid:      "knob_value_invalid",
+		ErrSettingsInvalid:       "settings_invalid",
+		ErrFormChannelRequired:   "form_channel_required",
+		ErrFormDealOwnerRequired: "form_deal_owner_required",
+		ErrDesignSystemInvalid:   "design_system_invalid",
+		ErrRedirectInvalid:       "redirect_invalid",
+		ErrStepsInvalid:          "steps_invalid",
+		ErrBatchMalformed:        "batch_malformed",
+		ErrEditRefused:           "edit_refused",
+		sitehtml.ErrMalformed:    "html_invalid",
 	}
 	for err, code := range cases {
 		if got := ErrorCode(fmt.Errorf("wrapped: %w", err)); got != code {

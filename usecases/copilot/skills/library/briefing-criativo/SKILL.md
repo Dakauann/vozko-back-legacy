@@ -1,6 +1,7 @@
 ---
 name: briefing-criativo
 description: Como validar o brief antes de criar uma peça nova no Estúdio (vídeo de anúncio, motion design, imagem ou carrossel): o que descobrir sozinha no projeto, na marca e na conversa, o que perguntar num só cartão do studio_ask, quando pular as perguntas e como confirmar o plano antes de criar; carregue antes de começar qualquer peça do zero.
+surface: ads
 ---
 
 # Briefing criativo

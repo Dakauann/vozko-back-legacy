@@ -335,7 +335,7 @@ func BuiltinDefinitions() []NodeDefinition {
 				{Key: "form.<campo>", Description: "Resposta de cada campo pela chave do campo; campos sensíveis chegam mascarados"},
 			},
 			Guidance: NodeGuidance{
-				When: "Inicia o fluxo a cada resposta enviada a um formulário do WhatsApp, por exemplo para etiquetar a conversa, criar uma oportunidade ou avisar a equipe.",
+				When: "Inicia o fluxo a cada resposta enviada a um formulário do WhatsApp, por exemplo para etiquetar a conversa, criar uma negociação ou avisar a equipe.",
 				Behavior: "Cada resposta inicia a sua própria execução, mesmo quando a mesma pessoa responde o formulário de novo. " +
 					"Disponibiliza {{form_id}}, {{form_response_id}} e {{form.<chave_do_campo>}} com o valor exibido de cada resposta (campos sensíveis mascarados). " +
 					"Só dispara para os formulários escolhidos; sem formulário escolhido o fluxo não pode ser publicado.",

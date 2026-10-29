@@ -54,3 +54,48 @@ func TestErrorCodeNamesSlotConflicts(t *testing.T) {
 		t.Fatal(ErrorCode(ErrSlotConflict))
 	}
 }
+
+type bookingCalendar struct {
+	listingCalendar
+	created []*CalendarEvent
+	meet    bool
+	updates string
+	failure error
+}
+
+func (b *bookingCalendar) CreateGoogleEvent(_ string, event *CalendarEvent, meet bool, updates string) (string, string, error) {
+	if b.failure != nil {
+		return "", "", b.failure
+	}
+	b.created, b.meet, b.updates = append(b.created, event), meet, updates
+	return "g-1", "https://meet.google.com/abc", nil
+}
+
+func TestReserveCreatesTheEventOnlyWhenTheGuardedSlotIsFree(t *testing.T) {
+	start := time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
+	slot := Slot{Start: start, End: start.Add(time.Hour)}
+	guard := Slot{Start: start.Add(-15 * time.Minute), End: slot.End.Add(15 * time.Minute)}
+	event := &CalendarEvent{Title: "Avaliação", StartTime: slot.Start, EndTime: slot.End}
+
+	free := &bookingCalendar{listingCalendar: listingCalendar{events: []*CalendarEvent{{Title: "antes", StartTime: guard.Start.Add(-time.Hour), EndTime: guard.Start}}}}
+	reserved, err := ConflictCheck{Google: free}.Reserve("ws", guard, event, true, "all")
+	if err != nil || reserved.GoogleEventID != "g-1" || reserved.MeetingLink == "" || len(free.created) != 1 || !free.meet || free.updates != "all" {
+		t.Fatalf("reserved = %+v, %v, %+v", reserved, err, free)
+	}
+
+	busy := &bookingCalendar{listingCalendar: listingCalendar{events: []*CalendarEvent{{Title: "café", StartTime: slot.End, EndTime: slot.End.Add(10 * time.Minute)}}}}
+	reserved, err = ConflictCheck{Google: busy}.Reserve("ws", guard, event, false, "none")
+	if !errors.Is(err, ErrSlotConflict) || reserved.Conflict == nil || reserved.Conflict.Title != "café" || len(busy.created) != 0 {
+		t.Fatalf("reserved = %+v, %v", reserved, err)
+	}
+
+	down := &bookingCalendar{listingCalendar: listingCalendar{err: errors.New("google down")}}
+	if _, err := (ConflictCheck{Google: down}).Reserve("ws", guard, event, false, "none"); !errors.Is(err, ErrConflictCheckUnavailable) || len(down.created) != 0 {
+		t.Fatalf("err = %v", err)
+	}
+
+	failing := &bookingCalendar{failure: errors.New("quota")}
+	if _, err := (ConflictCheck{Google: failing}).Reserve("ws", guard, event, false, "none"); err == nil || errors.Is(err, ErrSlotConflict) {
+		t.Fatalf("err = %v", err)
+	}
+}

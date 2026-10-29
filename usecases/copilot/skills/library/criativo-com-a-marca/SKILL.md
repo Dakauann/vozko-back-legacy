@@ -1,6 +1,7 @@
 ---
 name: criativo-com-a-marca
 description: Como gerar imagens de anúncio novas a partir das referências do cliente (logo, fotos, prints, estilo) com generate_image; carregue antes de criar qualquer imagem de anúncio.
+surface: ads
 ---
 
 # Criativo com a marca do cliente

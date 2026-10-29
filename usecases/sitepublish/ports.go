@@ -136,6 +136,11 @@ type ActivateForms struct {
 	Manifests    []siteform.Manifest
 	Settings     map[string]site.FormSettings
 	Widgets      []string
+	Bookings     map[string]site.Booking
+}
+
+type BookingCalendars interface {
+	Connected(ctx context.Context, workspaceID string) (bool, error)
 }
 
 type Forms interface {
@@ -270,6 +275,7 @@ type Deps struct {
 	Thumbnails      Thumbnails
 	Locks           Locks
 	Counters        Counters
+	Calendars       BookingCalendars
 	Now             func() time.Time
 	NewID           func() string
 }

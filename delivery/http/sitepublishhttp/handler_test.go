@@ -271,7 +271,7 @@ func TestDomainSlotsAnswersUsedAndAllowed(t *testing.T) {
 	r, _ := router(NewHandler(&fakePublisher{}, fakeAnalytics{}, sitepublish.Addresses{Domain: "paginas.test"}))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, request(http.MethodGet, "/sites/domain-slots", ""))
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"used":2`) || !strings.Contains(w.Body.String(), `"allowed":3`) {
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"used":2`) || !strings.Contains(w.Body.String(), `"allowed":3`) || !strings.Contains(w.Body.String(), `"platformDomain":"paginas.test"`) {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
 }

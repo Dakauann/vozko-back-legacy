@@ -82,3 +82,28 @@ func TestTotalsUnderAReferenceTreatWildcardsLiterally(t *testing.T) {
 		t.Fatalf("no charges add up to zero, got %+v %v", empty, err)
 	}
 }
+
+func TestTotalsUnderAReferenceSeparateMediaGenerationsFromModelCalls(t *testing.T) {
+	db := sendCapIntegrationDB(t)
+	ws := seedWorkspace(t, db, "elo", 10_000_000)
+	usage := []schema.AIUsageRecord{
+		{ReferenceID: "aichat:th-1:call", WorkspaceID: ws, Model: "m", Billed: true, InputTokens: 9_000, OutputTokens: 100},
+		{ReferenceID: "aichat:th-1:image", WorkspaceID: ws, Model: "imagen", Billed: true},
+		{ReferenceID: "aichat:th-1:video", WorkspaceID: ws, Model: "veo", Billed: true},
+	}
+	if err := db.Create(&usage).Error; err != nil {
+		t.Fatal(err)
+	}
+	record(t, db, ws, "debit", "aichat:th-1:call", 100_000, 5_000_000, false)
+	record(t, db, ws, "debit", "aichat:th-1:image", 40_000, 5_000_000, false)
+	record(t, db, ws, "debit", "aichat:th-1:video", 60_000, 5_000_000, false)
+	record(t, db, ws, "credit", "refund:aichat:th-1:video", 60_000, 5_000_000, true)
+
+	totals, err := NewRepository(db).(balance.ReferenceTotaler).TotalsUnder(ws, "aichat:th-1:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if totals.BillingMicros != 700_000 || totals.GenerationBillingMicros != 200_000 {
+		t.Fatalf("totals = %+v, want 700000 billed of which 200000 for generations", totals)
+	}
+}

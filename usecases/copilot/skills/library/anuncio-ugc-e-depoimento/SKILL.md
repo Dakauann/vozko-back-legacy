@@ -1,6 +1,7 @@
 ---
 name: anuncio-ugc-e-depoimento
 description: Como editar anúncios no estilo conteúdo de criador (UGC) e vídeos de depoimento que convencem (fala para a câmera, produto na mão cedo, prova específica, nome e contexto, nada inventado); carregue antes de editar um UGC, um depoimento ou uma prova social.
+surface: ads
 ---
 
 # Anúncio estilo UGC e depoimento

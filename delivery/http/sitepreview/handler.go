@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"vozko/domain/site"
 	"vozko/domain/sitepublish"
 	"vozko/usecases/sitebuild"
 )
@@ -52,14 +53,14 @@ func NewHandler(server Server, origins Origins) (*Handler, error) {
 	}
 	csp := strings.Join([]string{
 		"default-src 'self'",
-		"script-src 'self'",
+		"script-src 'self' " + api + site.WebchatLoaderPath,
 		"style-src 'self' 'unsafe-inline'",
 		"img-src 'self' data: blob: https:",
 		"font-src 'self' data: https:",
 		"media-src 'self' blob: https:",
 		"connect-src 'self' " + api + " " + media,
 		"form-action 'self' " + api,
-		"frame-src 'none'",
+		"frame-src " + api + site.WebchatFramePath,
 		"worker-src 'self' blob:",
 		"object-src 'none'",
 		"base-uri 'none'",

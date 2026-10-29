@@ -60,22 +60,22 @@ type Deps struct {
 }
 
 const (
-	siteNotHere       = "esta ferramenta só funciona com uma página aberta no editor de páginas"
-	siteNoEditor      = "o editor de páginas não está ligado a esta conversa; peça ao usuário para abrir a Elo de dentro do editor da página"
-	siteGone          = "a página aberta não foi encontrada neste workspace; peça ao usuário para reabrir a página"
-	siteArchived      = "a página está arquivada e não muda; o usuário precisa restaurá-la em Páginas"
-	siteSuspended     = "a página está suspensa e não muda por aqui"
+	siteNotHere       = "esta ferramenta só funciona com um site aberto no editor de sites"
+	siteNoEditor      = "o editor de sites não está ligado a esta conversa; peça ao usuário para abrir a Elo de dentro do editor do site"
+	siteGone          = "o site aberto não foi encontrado neste workspace; peça ao usuário para reabrir o site"
+	siteArchived      = "o site está arquivado e não muda; o usuário precisa restaurá-lo em Meus sites"
+	siteSuspended     = "o site está suspenso e não muda por aqui"
 	siteNoThread      = "esta conversa não foi identificada, então nada foi feito; tente de novo"
-	siteUnavailable   = "o serviço de páginas não está disponível agora; tente de novo em instantes"
-	siteEditorAwaited = "A aba da página deve estar em segundo plano ou adormecida. Não peça ao usuário para avisar nem para deixar a aba aberta: quando o editor voltar a responder, o app avisa você nesta resposta ou retoma a conversa sozinho. Não repita o pedido agora; siga com o que não depende do editor ou encerre dizendo o que está pronto e o que falta."
+	siteUnavailable   = "o serviço de sites não está disponível agora; tente de novo em instantes"
+	siteEditorAwaited = "A aba do site deve estar em segundo plano ou adormecida. Não peça ao usuário para avisar nem para deixar a aba aberta: quando o editor voltar a responder, o app avisa você nesta resposta ou retoma a conversa sozinho. Não repita o pedido agora; siga com o que não depende do editor ou encerre dizendo o que está pronto e o que falta."
 	siteUnreadable    = "o editor devolveu uma resposta que não pôde ser lida"
 )
 
 var editorWords = screencall.Words{
 	Silent:      "o editor não respondeu a tempo. " + siteEditorAwaited,
-	Expired:     "o editor não respondeu a tempo e não mostrou este lote; ele já está guardado na página e aparece quando a aba recarregar. " + siteEditorAwaited,
-	Unconfirmed: "o editor começou a mostrar este lote e não confirmou; o lote já está guardado na página: confira com site_read antes de repetir qualquer coisa. " + siteEditorAwaited,
-	Absent:      "nenhuma aba com esta página aberta respondeu; o que foi guardado na página aparece quando a aba recarregar",
+	Expired:     "o editor não respondeu a tempo e não mostrou este lote; ele já está guardado no site e aparece quando a aba recarregar. " + siteEditorAwaited,
+	Unconfirmed: "o editor começou a mostrar este lote e não confirmou; o lote já está guardado no site: confira com site_read antes de repetir qualquer coisa. " + siteEditorAwaited,
+	Absent:      "nenhuma aba com este site aberto respondeu; o que foi guardado no site aparece quando a aba recarregar",
 	Refused:     "o editor recusou o pedido",
 }
 

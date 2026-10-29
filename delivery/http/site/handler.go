@@ -172,7 +172,7 @@ func (h *Handler) writeConflict(w http.ResponseWriter, r *http.Request, workspac
 		writeError(w, err, "Failed to load the page")
 		return
 	}
-	httpx.WriteVersionConflict(w, "A página foi salva em outra aba ou por outra pessoa", presentDetail(current))
+	httpx.WriteVersionConflict(w, "O site foi salvo em outra aba ou por outra pessoa", presentDetail(current))
 }
 
 func (h *Handler) fail(w http.ResponseWriter, r *http.Request, workspaceID, id string, err error, fallback string) {

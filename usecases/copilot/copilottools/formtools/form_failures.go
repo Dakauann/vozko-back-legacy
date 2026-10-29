@@ -61,7 +61,7 @@ var refusals = []refusal{
 	{wf.ErrMetaRejected, copilot.StatusError, "a Meta recusou o formulário; veja os problemas no construtor"},
 	{conversation.ErrSendOutcomeUnknown, copilot.StatusError, "o WhatsApp pode ter entregue o formulário, mas a resposta se perdeu; confira a conversa antes de enviar de novo"},
 	{conversation.ErrUnauthorized, copilot.StatusDenied, "o usuário não tem acesso a esta conversa"},
-	{workflow_usecase.ErrNoDefaultDealFunnel, copilot.StatusError, "o workspace não tem um funil de oportunidades padrão, que a automação do formulário usa; defina um funil padrão e tente de novo"},
+	{workflow_usecase.ErrNoDefaultDealFunnel, copilot.StatusError, "o workspace não tem um funil de negociações padrão, que a automação do formulário usa; defina um funil padrão e tente de novo"},
 	{report.ErrNotAllowed, copilot.StatusDenied, "o usuário não tem permissão para exportar as respostas deste formulário"},
 	{report.ErrInvalidParams, copilot.StatusError, "os dados da exportação são inválidos; confira o formulário e o período"},
 	{report.ErrKindNotOffered, copilot.StatusError, "esta exportação não está disponível por aqui"},

@@ -1,6 +1,7 @@
 package conversation_usecase
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -22,10 +23,11 @@ type historyReader struct {
 	authorizer conversation.ConversationAuthorizer
 	history    HistorySource
 	ads        conversation.AdOriginReader
+	pages      conversation.PageOriginReader
 }
 
-func NewHistoryReader(authorizer conversation.ConversationAuthorizer, history HistorySource, ads conversation.AdOriginReader) conversation.HistoryReader {
-	return &historyReader{authorizer: authorizer, history: history, ads: ads}
+func NewHistoryReader(authorizer conversation.ConversationAuthorizer, history HistorySource, ads conversation.AdOriginReader, pages conversation.PageOriginReader) conversation.HistoryReader {
+	return &historyReader{authorizer: authorizer, history: history, ads: ads, pages: pages}
 }
 
 func (r *historyReader) ReadHistory(q conversation.HistoryQuery) (conversation.HistoryPage, error) {
@@ -63,7 +65,7 @@ func (r *historyReader) ReadHistory(q conversation.HistoryQuery) (conversation.H
 	if err != nil {
 		return conversation.HistoryPage{}, fmt.Errorf("history of %s: %w", q.EntryID, err)
 	}
-	return conversation.HistoryPage{Messages: messages, HasMore: hasMore, Total: total, AdOrigin: r.adOrigin(q)}, nil
+	return conversation.HistoryPage{Messages: messages, HasMore: hasMore, Total: total, AdOrigin: r.adOrigin(q), PageOrigin: r.pageOrigin(q)}, nil
 }
 
 func (r *historyReader) adOrigin(q conversation.HistoryQuery) *conversation.AdOrigin {
@@ -73,6 +75,18 @@ func (r *historyReader) adOrigin(q conversation.HistoryQuery) *conversation.AdOr
 	origin, err := r.ads.AdOrigin(q.EntryID, q.EntryType)
 	if err != nil {
 		log.Printf("[history] ad origin of %s:%s unavailable: %v", q.EntryType, q.EntryID, err)
+		return nil
+	}
+	return origin
+}
+
+func (r *historyReader) pageOrigin(q conversation.HistoryQuery) *conversation.PageOriginView {
+	if r.pages == nil {
+		return nil
+	}
+	origin, err := r.pages.PageOrigin(context.Background(), q.EntryID, q.EntryType)
+	if err != nil {
+		log.Printf("[history] page origin of %s:%s unavailable: %v", q.EntryType, q.EntryID, err)
 		return nil
 	}
 	return origin

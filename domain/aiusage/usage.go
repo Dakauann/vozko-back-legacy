@@ -25,9 +25,10 @@ func (r Record) IsModelCall() bool {
 }
 
 type Totals struct {
-	Calls  int
-	Billed int
-	Tokens Tokens
+	Calls       int
+	Billed      int
+	Tokens      Tokens
+	LatestInput int64
 }
 
 func (t Totals) Covers(charges int) bool {

@@ -8,5 +8,6 @@ func SnippetSection(snippet site.DesignSnippet) SectionInfo {
 		Title:  SectionTitle{PT: snippet.Name, EN: snippet.Name, ES: snippet.Name, DE: snippet.Name},
 		Stacks: snippetStacks(snippet.Stack),
 		Kind:   SectionSnippet,
+		Group:  GroupSaved,
 	}
 }

@@ -201,7 +201,7 @@ func (r *OpportunitiesRenderer) Render(
 	return report.Artifact{
 		Data:        buffer.Bytes(),
 		ContentType: report.FormatCSV.ContentType(),
-		Filename:    report.Filename("csv", "oportunidades", params.Label),
+		Filename:    report.Filename("csv", "negociacoes", params.Label),
 		RowCount:    int64(rows),
 	}, nil
 }

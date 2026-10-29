@@ -67,8 +67,8 @@ var RolePresets = []RolePreset{
 	{
 		Key:         PresetManager,
 		Name:        "Gerente",
-		Description: "Conduz a operação: tudo do supervisor, mais metas, relatórios, funis, oportunidades, leads e convites para a equipe.",
-		Highlights:  []string{"Metas e relatórios", "Funis e oportunidades", "Convida a equipe"},
+		Description: "Conduz a operação: tudo do supervisor, mais metas, relatórios, funis, negociações, leads e convites para a equipe.",
+		Highlights:  []string{"Metas e relatórios", "Funis e negociações", "Convida a equipe"},
 		Capabilities: append(append([]CapabilityKey{}, supervisorCapabilities...),
 			"attendance.targets_edit", "attendance.campaign_report", "reports.view", "reports.create",
 			"funnels.create", "funnels.edit", "labels.create", "labels.edit",
@@ -89,8 +89,8 @@ var RolePresets = []RolePreset{
 	{
 		Key:         PresetSales,
 		Name:        "Vendedor",
-		Description: "Atende e vende: tudo do operador, mais oportunidades, cadastro de leads e reabertura de conversas.",
-		Highlights:  []string{"Oportunidades", "Cadastra leads", "Reabre conversas"},
+		Description: "Atende e vende: tudo do operador, mais negociações, cadastro de leads e reabertura de conversas.",
+		Highlights:  []string{"Negociações", "Cadastra leads", "Reabre conversas"},
 		Capabilities: append(append([]CapabilityKey{}, operatorCapabilities...),
 			"deals.view", "deals.create", "deals.edit",
 			"leads.import", "inbox.reopen",
@@ -99,7 +99,7 @@ var RolePresets = []RolePreset{
 	{
 		Key:         PresetAnalyst,
 		Name:        "Analista",
-		Description: "Acompanha resultados sem alterar nada: conversas, funis, oportunidades, métricas, campanhas, anúncios e relatórios.",
+		Description: "Acompanha resultados sem alterar nada: conversas, funis, negociações, métricas, campanhas, anúncios e relatórios.",
 		Highlights:  []string{"Somente leitura", "Métricas e relatórios", "Campanhas e anúncios"},
 		Capabilities: []CapabilityKey{
 			"inbox.view", "inbox.view_others", "inbox.analysis",

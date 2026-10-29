@@ -700,6 +700,7 @@ type rig struct {
 	dns         *fakeDNS
 	reversals   *fakeReversals
 	entitled    *fakeEntitlements
+	calendars   *fakeCalendars
 }
 
 const homeHTML = `<!doctype html><html lang="pt-BR" data-vz-api="https://api.vozko.test"><head><title>Loja da Ana</title><script type="module" src="/assets/index-5XKZ3QJ2.js"></script><script type="module" src="/assets/vz-runtime-ABCD1234.js"></script></head><body><h1>Bolos caseiros</h1><img src="https://cdn.vozko.test/media/bolo.webp" alt="Bolo de cenoura"><a href="https://wa.me/5511999999999">Fale conosco</a></body></html>`
@@ -748,6 +749,7 @@ func newRig(t *testing.T) *rig {
 		counters:    &fakeCounters{counts: map[string]int64{}},
 		dns:         &fakeDNS{txt: map[string][]string{}},
 		reversals:   &fakeReversals{},
+		calendars:   &fakeCalendars{connected: true},
 	}
 	r.deployments.projects, r.deployments.abuse = r.projects, r.abuse
 	r.build(t, 10)
@@ -763,9 +765,9 @@ func (r *rig) build(t *testing.T, allowedDomains int) {
 		Hosting: r.hosting, Media: r.media, CustomHostnames: r.cloudflare, Access: r.access, Subscriptions: r.subs,
 		Entitlements: r.entitled, DNS: r.dns, Reversals: r.reversals, Widgets: r.widgets, Deployments: r.deployments,
 		Hostnames: r.hostnames, Abuse: r.abuse, Alerts: r.alerts, Thumbnails: r.thumbnails, Locks: r.locks,
-		Counters: r.counters,
-		Now:      func() time.Time { return time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC) },
-		NewID:    func() string { n++; return fmt.Sprintf("00000000-0000-4000-8000-%012d", n) },
+		Counters: r.counters, Calendars: r.calendars,
+		Now:   func() time.Time { return time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC) },
+		NewID: func() string { n++; return fmt.Sprintf("00000000-0000-4000-8000-%012d", n) },
 	}, Config{
 		Addresses: sitepublish.Addresses{Domain: "paginas.test"}, APIOrigin: "https://api.vozko.test", CNAMETarget: "sites.paginas.test",
 		ApplicationDomains: []string{"vozko.test"}, BrandWords: []string{"Vozko"},

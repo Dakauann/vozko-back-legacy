@@ -18,18 +18,18 @@ type DealDesk interface {
 func dealPipelinePicker() workflow.ConfigField {
 	return workflow.ConfigField{
 		Key:           "pipeline_id",
-		Label:         "Funil de oportunidades",
+		Label:         "Funil de negociações",
 		Type:          "select",
 		OptionsSource: "opportunity_pipelines",
 		Required:      true,
-		Description:   "O funil de oportunidades onde fica a oportunidade desta conversa.",
+		Description:   "O funil de negociações onde fica a negociação desta conversa.",
 	}
 }
 
 func dealStagePicker(description string) workflow.ConfigField {
 	return workflow.ConfigField{
 		Key:           "stage_id",
-		Label:         "Etapa da oportunidade",
+		Label:         "Etapa da negociação",
 		Type:          "select",
 		OptionsSource: "opportunity_stages",
 		Description:   description,
@@ -39,7 +39,7 @@ func dealStagePicker(description string) workflow.ConfigField {
 func dealIDField(description string) workflow.ConfigField {
 	return workflow.ConfigField{
 		Key:         "opportunity_id",
-		Label:       "ID da oportunidade",
+		Label:       "ID da negociação",
 		Type:        "text",
 		Placeholder: "{{no_anterior.opportunity_id}}",
 		Description: description,
@@ -99,14 +99,14 @@ func (e *manageOpportunityExecutor) Definition() workflow.NodeDefinition {
 		TestBehavior: workflow.NodeTestWritesData,
 		Category:     workflow.NodeCategoryAction,
 		Scopes:       []workflow.NodeScope{workflow.NodeScopeShared},
-		Label:        "Gerenciar Oportunidade",
-		Description:  "Cria ou atualiza oportunidades da conversa: valor, etapa, ganho ou perda.",
+		Label:        "Gerenciar Negociação",
+		Description:  "Cria ou atualiza negociações da conversa: valor, etapa, ganho ou perda.",
 		Icon:         "CurrencyDollar",
 		Guidance: workflow.NodeGuidance{
-			When: "Para registrar a venda da conversa no funil de oportunidades, por exemplo depois que um agente confirma o fechamento.",
-			Behavior: "Sem ID da oportunidade, o nó age na única oportunidade aberta da conversa neste funil; com mais de uma aberta, segue pela saída Erro. " +
-				"Criar nova oportunidade sempre abre outra, para quando a conversa trata mais de um contrato. " +
-				"Mover, atualizar valor e marcar como perdido nunca criam oportunidade. O fluxo fica registrado como responsável e autor. " +
+			When: "Para registrar a venda da conversa no funil de negociações, por exemplo depois que um agente confirma o fechamento.",
+			Behavior: "Sem ID da negociação, o nó age na única negociação aberta da conversa neste funil; com mais de uma aberta, segue pela saída Erro. " +
+				"Criar nova negociação sempre abre outra, para quando a conversa trata mais de um contrato. " +
+				"Mover, atualizar valor e marcar como perdido nunca criam negociação. O fluxo fica registrado como responsável e autor. " +
 				"Ganho exige valor; perdido exige motivo.",
 		},
 		Outputs: []workflow.HandleDefinition{
@@ -114,33 +114,33 @@ func (e *manageOpportunityExecutor) Definition() workflow.NodeDefinition {
 			{ID: "erro", Label: "Erro", Optional: true},
 		},
 		OutputKeys: []workflow.OutputKeyDefinition{
-			{Key: "success", Description: "true quando a oportunidade foi registrada", Label: "Deu certo", Type: workflow.VariableTypeBoolean},
-			{Key: "created", Description: "true quando a oportunidade foi criada agora", Label: "Criada agora", Type: workflow.VariableTypeBoolean},
-			{Key: "opportunity_id", Description: "ID da oportunidade", Label: "ID da oportunidade", Type: workflow.VariableTypeText},
-			{Key: "status", Description: "Situação da oportunidade: open, won ou lost", Label: "Situação", Type: workflow.VariableTypeText},
-			{Key: "stage_id", Description: "ID da etapa da oportunidade", Label: "ID da etapa", Type: workflow.VariableTypeText},
-			{Key: "title", Description: "Título da oportunidade", Label: "Título", Type: workflow.VariableTypeText},
+			{Key: "success", Description: "true quando a negociação foi registrada", Label: "Deu certo", Type: workflow.VariableTypeBoolean},
+			{Key: "created", Description: "true quando a negociação foi criada agora", Label: "Criada agora", Type: workflow.VariableTypeBoolean},
+			{Key: "opportunity_id", Description: "ID da negociação", Label: "ID da negociação", Type: workflow.VariableTypeText},
+			{Key: "status", Description: "Situação da negociação: open, won ou lost", Label: "Situação", Type: workflow.VariableTypeText},
+			{Key: "stage_id", Description: "ID da etapa da negociação", Label: "ID da etapa", Type: workflow.VariableTypeText},
+			{Key: "title", Description: "Título da negociação", Label: "Título", Type: workflow.VariableTypeText},
 			{Key: "value_cents", Description: "Valor em centavos", Label: "Valor em centavos", Type: workflow.VariableTypeNumber},
 			{Key: "value", Description: "Valor na unidade da moeda", Label: "Valor", Type: workflow.VariableTypeNumber},
-			{Key: "currency", Description: "Moeda da oportunidade", Label: "Moeda", Type: workflow.VariableTypeText},
-			{Key: "error", Description: "Motivo quando a oportunidade não pôde ser registrada", Label: "Erro", Type: workflow.VariableTypeText},
+			{Key: "currency", Description: "Moeda da negociação", Label: "Moeda", Type: workflow.VariableTypeText},
+			{Key: "error", Description: "Motivo quando a negociação não pôde ser registrada", Label: "Erro", Type: workflow.VariableTypeText},
 		},
 		DefaultConfig: map[string]interface{}{
 			"pipeline_id": "",
 			"action":      string(opportunity_usecase.EntryCreate),
-			"title":       "Oportunidade da conversa",
+			"title":       "Negociação da conversa",
 			"value":       "",
 		},
 		ConfigSchema: []workflow.ConfigField{
 			dealPipelinePicker(),
 			{Key: "action", Label: "Ação", Type: "select", Options: actions, Required: true},
-			withRules(dealIDField("Opcional. Vazio: a única oportunidade aberta da conversa neste funil. Com mais de uma aberta, informe o ID vindo de um passo anterior."),
+			withRules(dealIDField("Opcional. Vazio: a única negociação aberta da conversa neste funil. Com mais de uma aberta, informe o ID vindo de um passo anterior."),
 				whenAction(opportunity_usecase.EntryCreate, opportunity_usecase.EntryUpdateValue, opportunity_usecase.EntryMove, opportunity_usecase.EntryWin, opportunity_usecase.EntryLose), nil),
-			withRules(dealStagePicker("Etapa onde a oportunidade fica. Obrigatória para mover."),
+			withRules(dealStagePicker("Etapa onde a negociação fica. Obrigatória para mover."),
 				whenAction(opportunity_usecase.EntryCreate, opportunity_usecase.EntryCreateNew, opportunity_usecase.EntryMove), whenAction(opportunity_usecase.EntryMove)),
-			withRules(workflow.ConfigField{Key: "title", Label: "Título", Type: "text", Placeholder: "Plano Pro", Description: "Título usado quando a oportunidade é criada."},
+			withRules(workflow.ConfigField{Key: "title", Label: "Título", Type: "text", Placeholder: "Plano Pro", Description: "Título usado quando a negociação é criada."},
 				whenAction(opportunity_usecase.EntryCreate, opportunity_usecase.EntryCreateNew), nil),
-			withRules(workflow.ConfigField{Key: "value", Label: "Valor", Type: "text", Placeholder: "{{last.value}}", Description: "Número com ponto decimal, ex.: 1500.50. Aceita variáveis. Ganho exige valor quando a oportunidade ainda não tem."},
+			withRules(workflow.ConfigField{Key: "value", Label: "Valor", Type: "text", Placeholder: "{{last.value}}", Description: "Número com ponto decimal, ex.: 1500.50. Aceita variáveis. Ganho exige valor quando a negociação ainda não tem."},
 				whenAction(opportunity_usecase.EntryCreate, opportunity_usecase.EntryCreateNew, opportunity_usecase.EntryUpdateValue, opportunity_usecase.EntryWin), whenAction(opportunity_usecase.EntryUpdateValue)),
 			withRules(workflow.ConfigField{Key: "lost_reason", Label: "Motivo da perda", Type: "text", Description: "Aceita variáveis."},
 				whenAction(opportunity_usecase.EntryLose), whenAction(opportunity_usecase.EntryLose)),
@@ -150,7 +150,7 @@ func (e *manageOpportunityExecutor) Definition() workflow.NodeDefinition {
 
 var dealActionLabels = map[opportunity_usecase.EntryAction]string{
 	opportunity_usecase.EntryCreate:      "Criar ou atualizar",
-	opportunity_usecase.EntryCreateNew:   "Criar nova oportunidade",
+	opportunity_usecase.EntryCreateNew:   "Criar nova negociação",
 	opportunity_usecase.EntryUpdateValue: "Atualizar valor",
 	opportunity_usecase.EntryMove:        "Mover de etapa",
 	opportunity_usecase.EntryWin:         "Marcar como ganho",
@@ -165,7 +165,7 @@ func (e *manageOpportunityExecutor) Execute(ctx *workflow.NodeContext) (*workflo
 	}
 	edges := ctx.Graph.OutgoingEdges(ctx.Node.ID)
 	if e.deals == nil {
-		return failDeal(edges, "oportunidades indisponíveis neste contexto (ex.: simulação)"), nil
+		return failDeal(edges, "negociações indisponíveis neste contexto (ex.: simulação)"), nil
 	}
 
 	values := writeValuesOf(ctx)
@@ -209,27 +209,27 @@ func failDeal(edges []workflow.Edge, reason string) *workflow.NodeResult {
 }
 
 var nodeRefusals = map[opportunity_usecase.Refusal]string{
-	opportunity_usecase.RefusalWonWithoutValue:     "oportunidade ganha precisa de valor: preencha o campo Valor do nó",
-	opportunity_usecase.RefusalNoOpenDeal:          "a conversa não tem oportunidade aberta neste funil: use Criar ou atualizar para abrir uma",
-	opportunity_usecase.RefusalLostReasonMissing:   "oportunidade perdida precisa de motivo: preencha o campo Motivo da perda do nó",
-	opportunity_usecase.RefusalTitleMissing:        "preencha o Título da oportunidade no nó",
-	opportunity_usecase.RefusalStageInvalid:        "a etapa escolhida não é do funil do nó: escolha outra no campo Etapa da oportunidade",
+	opportunity_usecase.RefusalWonWithoutValue:     "negociação ganha precisa de valor: preencha o campo Valor do nó",
+	opportunity_usecase.RefusalNoOpenDeal:          "a conversa não tem negociação aberta neste funil: use Criar ou atualizar para abrir uma",
+	opportunity_usecase.RefusalLostReasonMissing:   "negociação perdida precisa de motivo: preencha o campo Motivo da perda do nó",
+	opportunity_usecase.RefusalTitleMissing:        "preencha o Título da negociação no nó",
+	opportunity_usecase.RefusalStageInvalid:        "a etapa escolhida não é do funil do nó: escolha outra no campo Etapa da negociação",
 	opportunity_usecase.RefusalAmountInvalid:       "valor inválido: use um número positivo com ponto decimal, ex.: 1500.50",
-	opportunity_usecase.RefusalCurrencyUnsupported: "a moeda da oportunidade não é suportada",
-	opportunity_usecase.RefusalPipelineInvalid:     "o funil escolhido não existe mais ou não é um funil de oportunidades completo (aberto, ganho e perdido)",
+	opportunity_usecase.RefusalCurrencyUnsupported: "a moeda da negociação não é suportada",
+	opportunity_usecase.RefusalPipelineInvalid:     "o funil escolhido não existe mais ou não é um funil de negociações completo (aberto, ganho e perdido)",
 	opportunity_usecase.RefusalRequiredFields:      "o funil exige campos personalizados obrigatórios que o fluxo não preenche",
-	opportunity_usecase.RefusalAmbiguousDeal:       "a conversa tem mais de uma oportunidade aberta neste funil: informe o ID da oportunidade no nó",
-	opportunity_usecase.RefusalDealNotLinked:       "o ID da oportunidade não pertence a esta conversa neste funil",
-	opportunity_usecase.RefusalDealClosed:          "a oportunidade informada já foi encerrada",
-	opportunity_usecase.RefusalDealIDOnNewDeal:     "Criar nova oportunidade não usa ID da oportunidade: deixe o campo vazio",
-	opportunity_usecase.RefusalDealChanged:         "a oportunidade foi alterada ao mesmo tempo por outra pessoa ou automação; nada foi sobrescrito",
+	opportunity_usecase.RefusalAmbiguousDeal:       "a conversa tem mais de uma negociação aberta neste funil: informe o ID da negociação no nó",
+	opportunity_usecase.RefusalDealNotLinked:       "o ID da negociação não pertence a esta conversa neste funil",
+	opportunity_usecase.RefusalDealClosed:          "a negociação informada já foi encerrada",
+	opportunity_usecase.RefusalDealIDOnNewDeal:     "Criar nova negociação não usa ID da negociação: deixe o campo vazio",
+	opportunity_usecase.RefusalDealChanged:         "a negociação foi alterada ao mesmo tempo por outra pessoa ou automação; nada foi sobrescrito",
 }
 
 func dealFailure(err error) string {
 	if refusal, ok := opportunity_usecase.RefusalOf(err); ok {
 		return nodeRefusals[refusal]
 	}
-	return fmt.Sprintf("falha ao registrar a oportunidade: %v", err)
+	return fmt.Sprintf("falha ao registrar a negociação: %v", err)
 }
 
 const (
@@ -253,13 +253,13 @@ func (e *checkOpportunityExecutor) Definition() workflow.NodeDefinition {
 		TestBehavior: workflow.NodeTestReadsData,
 		Category:     workflow.NodeCategoryCondition,
 		Scopes:       []workflow.NodeScope{workflow.NodeScopeShared},
-		Label:        "Verificar Oportunidade",
-		Description:  "Verifica as oportunidades da conversa: se existem, se há mais de uma aberta, a situação ou a etapa.",
+		Label:        "Verificar Negociação",
+		Description:  "Verifica as negociações da conversa: se existem, se há mais de uma aberta, a situação ou a etapa.",
 		Icon:         "CurrencyDollar",
 		Guidance: workflow.NodeGuidance{
-			When: "Para seguir caminhos diferentes conforme a conversa já tenha uma oportunidade, ela esteja ganha ou em uma etapa.",
-			Behavior: "Considera a oportunidade do ID informado ou a única oportunidade aberta da conversa no funil; sem aberta, a última encerrada. " +
-				"Com mais de uma aberta e sem ID, verificar situação ou etapa interrompe a execução. A saída lista todas as oportunidades para usar em um Loop.",
+			When: "Para seguir caminhos diferentes conforme a conversa já tenha uma negociação, ela esteja ganha ou em uma etapa.",
+			Behavior: "Considera a negociação do ID informado ou a única negociação aberta da conversa no funil; sem aberta, a última encerrada. " +
+				"Com mais de uma aberta e sem ID, verificar situação ou etapa interrompe a execução. A saída lista todas as negociações para usar em um Loop.",
 		},
 		Outputs: []workflow.HandleDefinition{
 			{ID: "true", Label: "Sim"},
@@ -267,24 +267,24 @@ func (e *checkOpportunityExecutor) Definition() workflow.NodeDefinition {
 		},
 		OutputKeys: []workflow.OutputKeyDefinition{
 			{Key: "matched", Description: "true quando a verificação foi atendida", Label: "Verificação atendida", LabelKey: "output_matched_check", Type: workflow.VariableTypeBoolean},
-			{Key: "opportunity_id", Description: "ID da oportunidade (vazio se não há)", Label: "ID da oportunidade", Type: workflow.VariableTypeText},
-			{Key: "status", Description: "Situação da oportunidade: open, won ou lost", Label: "Situação", Type: workflow.VariableTypeText},
-			{Key: "stage_id", Description: "ID da etapa da oportunidade", Label: "ID da etapa", Type: workflow.VariableTypeText},
+			{Key: "opportunity_id", Description: "ID da negociação (vazio se não há)", Label: "ID da negociação", Type: workflow.VariableTypeText},
+			{Key: "status", Description: "Situação da negociação: open, won ou lost", Label: "Situação", Type: workflow.VariableTypeText},
+			{Key: "stage_id", Description: "ID da etapa da negociação", Label: "ID da etapa", Type: workflow.VariableTypeText},
 			{Key: "value_cents", Description: "Valor em centavos", Label: "Valor em centavos", Type: workflow.VariableTypeNumber},
 			{Key: "value", Description: "Valor na unidade da moeda", Label: "Valor", Type: workflow.VariableTypeNumber},
-			{Key: "open_count", Description: "Quantidade de oportunidades abertas da conversa no funil", Label: "Oportunidades abertas", Type: workflow.VariableTypeNumber},
-			{Key: "opportunities", Description: "Lista das oportunidades da conversa no funil, abertas primeiro", Label: "Oportunidades", Type: workflow.VariableTypeList},
+			{Key: "open_count", Description: "Quantidade de negociações abertas da conversa no funil", Label: "Negociações abertas", Type: workflow.VariableTypeNumber},
+			{Key: "opportunities", Description: "Lista das negociações da conversa no funil, abertas primeiro", Label: "Negociações", Type: workflow.VariableTypeList},
 		},
 		DefaultConfig: map[string]interface{}{"pipeline_id": "", "check": dealCheckExists},
 		ConfigSchema: []workflow.ConfigField{
 			dealPipelinePicker(),
 			{Key: "check", Label: "Verificar", Type: "select", Required: true, Options: []workflow.ConfigFieldOption{
-				{Value: dealCheckExists, Label: "Tem oportunidade"},
-				{Value: dealCheckSeveralOpen, Label: "Tem mais de uma oportunidade aberta"},
-				{Value: dealCheckStatus, Label: "Situação da oportunidade é"},
-				{Value: dealCheckStage, Label: "Oportunidade está na etapa"},
+				{Value: dealCheckExists, Label: "Tem negociação"},
+				{Value: dealCheckSeveralOpen, Label: "Tem mais de uma negociação aberta"},
+				{Value: dealCheckStatus, Label: "Situação da negociação é"},
+				{Value: dealCheckStage, Label: "Negociação está na etapa"},
 			}},
-			withRules(dealIDField("Opcional. Vazio: a única oportunidade aberta da conversa neste funil ou, sem aberta, a última encerrada."),
+			withRules(dealIDField("Opcional. Vazio: a única negociação aberta da conversa neste funil ou, sem aberta, a última encerrada."),
 				whenCheck(dealCheckExists, dealCheckStatus, dealCheckStage), nil),
 			withRules(workflow.ConfigField{Key: "status", Label: "Situação", Type: "select", Options: []workflow.ConfigFieldOption{
 				{Value: string(opportunity.StatusOpen), Label: "Aberto"},

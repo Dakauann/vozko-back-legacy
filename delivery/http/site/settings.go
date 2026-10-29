@@ -11,7 +11,7 @@ import (
 )
 
 // @Summary		Ler configurações da página
-// @Description	SEO por rota, integrações, formulários (funil, etapa, responsável, fluxo, canal de acompanhamento, ação de sucesso), redirecionamentos e consentimento, com a versão que vai no If-Match.
+// @Description	SEO por rota, integrações, formulários (funil, etapa, responsável, fluxo, canal de acompanhamento, ação de sucesso), blocos de agendamento, redirecionamentos e consentimento, com a versão que vai no If-Match.
 // @Tags			Páginas
 // @Produce		json
 // @Param			id	path		string	true	"id da página"
@@ -33,7 +33,7 @@ func (h *Handler) Settings(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Salvar configurações da página
-// @Description	Substitui o documento de configurações inteiro a partir da versão do If-Match. Campos desconhecidos e valores fora das regras respondem 422; funil, etapa, responsável, fluxo e canal de acompanhamento precisam ser deste workspace, e um formulário com fluxo precisa de canal (form_channel_required).
+// @Description	Substitui o documento de configurações inteiro a partir da versão do If-Match. Campos desconhecidos e valores fora das regras respondem 422; funil, etapa, responsável, fluxo e canal de acompanhamento precisam ser deste workspace, e um formulário com fluxo precisa de canal (form_channel_required). O fluxo precisa ser uma automação cujo gatilho é este formulário (form_workflow_not_bound; veja GET /sites/projects/{id}/forms/{formId}/automations); um formulário com funil precisa de responsável ou de fluxo (form_deal_owner_required); `site.webchat_widget` é a chave pública ou o id de um chat do site deste workspace (webchat_widget_unknown) e coloca o chat em todas as páginas. `bookings` guarda os blocos de agendamento (vz-booking) por id: duration_minutes (5 a 480, de 5 em 5), buffer_minutes (0 a 240), notice_minutes (até 30 dias), horizon_days (1 a 90), hours (fuso e janelas por dia da semana, como o horário de atendimento), title com a variável {nome}, meet, fields (email, message) e consent_text; cada regra quebrada tem seu código (booking_duration_invalid, booking_buffer_invalid, booking_notice_invalid, booking_horizon_invalid, booking_hours_invalid, booking_title_invalid, booking_consent_invalid, booking_fields_invalid). Para onde vai o lead de um bloco fica em `forms` com o mesmo id. Salvar reserva a chave pública de cada formulário e de cada bloco de agendamento, então eles já aparecem no gatilho dos fluxos antes de publicar.
 // @Tags			Páginas
 // @Accept			json
 // @Produce		json

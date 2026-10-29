@@ -1,6 +1,7 @@
 package conversation_usecase
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -50,7 +51,7 @@ func historyQuery() conversation.HistoryQuery {
 func TestReadHistory_DeniesWhenTheViewerCannotSeeTheConversation(t *testing.T) {
 	access := &accessStub{allow: false}
 	history := &historyStub{}
-	_, err := NewHistoryReader(access, history, nil).ReadHistory(historyQuery())
+	_, err := NewHistoryReader(access, history, nil, nil).ReadHistory(historyQuery())
 	if !errors.Is(err, conversation.ErrUnauthorized) {
 		t.Fatalf("err = %v, want ErrUnauthorized", err)
 	}
@@ -63,7 +64,7 @@ func TestReadHistory_DeniesWhenTheViewerCannotSeeTheConversation(t *testing.T) {
 }
 
 func TestReadHistory_FailsClosedWithoutAnAuthorizer(t *testing.T) {
-	_, err := NewHistoryReader(nil, &historyStub{}, nil).ReadHistory(historyQuery())
+	_, err := NewHistoryReader(nil, &historyStub{}, nil, nil).ReadHistory(historyQuery())
 	if !errors.Is(err, conversation.ErrUnauthorized) {
 		t.Fatalf("err = %v, want ErrUnauthorized", err)
 	}
@@ -72,7 +73,7 @@ func TestReadHistory_FailsClosedWithoutAnAuthorizer(t *testing.T) {
 func TestReadHistory_RejectsAnUnviewableEntryType(t *testing.T) {
 	q := historyQuery()
 	q.EntryType = "nope"
-	_, err := NewHistoryReader(&accessStub{allow: true}, &historyStub{}, nil).ReadHistory(q)
+	_, err := NewHistoryReader(&accessStub{allow: true}, &historyStub{}, nil, nil).ReadHistory(q)
 	if !errors.Is(err, conversation.ErrEntryTypeInvalid) {
 		t.Fatalf("err = %v, want ErrEntryTypeInvalid", err)
 	}
@@ -82,7 +83,7 @@ func TestReadHistory_ReadsTheLatestPageWithAClampedSize(t *testing.T) {
 	history := &historyStub{}
 	q := historyQuery()
 	q.Limit = 10_000
-	page, err := NewHistoryReader(&accessStub{allow: true}, history, nil).ReadHistory(q)
+	page, err := NewHistoryReader(&accessStub{allow: true}, history, nil, nil).ReadHistory(q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +100,7 @@ func TestReadHistory_ReadsBeforeACursor(t *testing.T) {
 	cursor := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	q := historyQuery()
 	q.Before = &cursor
-	page, err := NewHistoryReader(&accessStub{allow: true}, history, nil).ReadHistory(q)
+	page, err := NewHistoryReader(&accessStub{allow: true}, history, nil, nil).ReadHistory(q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +125,7 @@ func (a *adOriginStub) AdOrigin(string, shared.EntryType) (*conversation.AdOrigi
 
 func TestReadHistory_TheFirstPageCarriesTheAdTheContactCameFrom(t *testing.T) {
 	ads := &adOriginStub{origin: &conversation.AdOrigin{Title: "Promoção"}}
-	page, err := NewHistoryReader(&accessStub{allow: true}, &historyStub{}, ads).ReadHistory(historyQuery())
+	page, err := NewHistoryReader(&accessStub{allow: true}, &historyStub{}, ads, nil).ReadHistory(historyQuery())
 	if err != nil || page.AdOrigin == nil || page.AdOrigin.Title != "Promoção" {
 		t.Fatalf("page=%+v err=%v", page, err)
 	}
@@ -132,14 +133,14 @@ func TestReadHistory_TheFirstPageCarriesTheAdTheContactCameFrom(t *testing.T) {
 	cursor := time.Now()
 	q := historyQuery()
 	q.Before = &cursor
-	older, _ := NewHistoryReader(&accessStub{allow: true}, &historyStub{}, ads).ReadHistory(q)
+	older, _ := NewHistoryReader(&accessStub{allow: true}, &historyStub{}, ads, nil).ReadHistory(q)
 	if older.AdOrigin != nil || ads.asked != 1 {
 		t.Fatalf("older pages do not repeat the ad: %+v asked=%d", older.AdOrigin, ads.asked)
 	}
 }
 
 func TestReadHistory_AnUnreadableAdNeverHidesTheMessages(t *testing.T) {
-	page, err := NewHistoryReader(&accessStub{allow: true}, &historyStub{}, &adOriginStub{err: errors.New("db down")}).ReadHistory(historyQuery())
+	page, err := NewHistoryReader(&accessStub{allow: true}, &historyStub{}, &adOriginStub{err: errors.New("db down")}, nil).ReadHistory(historyQuery())
 	if err != nil || len(page.Messages) != 1 || page.AdOrigin != nil {
 		t.Fatalf("page=%+v err=%v", page, err)
 	}
@@ -147,7 +148,7 @@ func TestReadHistory_AnUnreadableAdNeverHidesTheMessages(t *testing.T) {
 
 func TestReadHistory_NoAdIsAskedForWhenAccessIsDenied(t *testing.T) {
 	ads := &adOriginStub{origin: &conversation.AdOrigin{Title: "Promoção"}}
-	if _, err := NewHistoryReader(&accessStub{allow: false}, &historyStub{}, ads).ReadHistory(historyQuery()); err == nil || ads.asked != 0 {
+	if _, err := NewHistoryReader(&accessStub{allow: false}, &historyStub{}, ads, nil).ReadHistory(historyQuery()); err == nil || ads.asked != 0 {
 		t.Fatalf("err=%v asked=%d", err, ads.asked)
 	}
 }
@@ -164,7 +165,7 @@ func TestReadHistory_ReadsAfterACursorForTheCatchUpPage(t *testing.T) {
 	q := historyQuery()
 	q.After = &cursor
 	q.Limit = 10_000
-	page, err := NewHistoryReader(&accessStub{allow: true}, history, nil).ReadHistory(q)
+	page, err := NewHistoryReader(&accessStub{allow: true}, history, nil, nil).ReadHistory(q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +184,7 @@ func TestReadHistory_RefusesTwoCursorsAtOnce(t *testing.T) {
 	cursor := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	q := historyQuery()
 	q.Before, q.After = &cursor, &cursor
-	_, err := NewHistoryReader(&accessStub{allow: true}, &historyStub{}, nil).ReadHistory(q)
+	_, err := NewHistoryReader(&accessStub{allow: true}, &historyStub{}, nil, nil).ReadHistory(q)
 	if !errors.Is(err, conversation.ErrHistoryCursorConflict) {
 		t.Fatalf("err = %v, want ErrHistoryCursorConflict", err)
 	}
@@ -194,10 +195,51 @@ func TestReadHistory_ChecksAccessBeforeReadingAfterACursor(t *testing.T) {
 	cursor := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	q := historyQuery()
 	q.After = &cursor
-	if _, err := NewHistoryReader(&accessStub{allow: false}, history, nil).ReadHistory(q); !errors.Is(err, conversation.ErrUnauthorized) {
+	if _, err := NewHistoryReader(&accessStub{allow: false}, history, nil, nil).ReadHistory(q); !errors.Is(err, conversation.ErrUnauthorized) {
 		t.Fatalf("err = %v, want ErrUnauthorized", err)
 	}
 	if history.afterLimit != 0 {
 		t.Fatal("history was read before access was granted")
+	}
+}
+
+type pageOriginStub struct {
+	origin *conversation.PageOriginView
+	err    error
+	asked  int
+}
+
+func (p *pageOriginStub) PageOrigin(context.Context, string, shared.EntryType) (*conversation.PageOriginView, error) {
+	p.asked++
+	return p.origin, p.err
+}
+
+func TestReadHistory_TheFirstPageCarriesThePageTheContactCameFrom(t *testing.T) {
+	pages := &pageOriginStub{origin: &conversation.PageOriginView{ProjectID: "p1", ProjectName: "Loja", Route: "/oferta"}}
+	page, err := NewHistoryReader(&accessStub{allow: true}, &historyStub{}, nil, pages).ReadHistory(historyQuery())
+	if err != nil || page.PageOrigin == nil || page.PageOrigin.ProjectName != "Loja" {
+		t.Fatalf("page=%+v err=%v", page, err)
+	}
+
+	cursor := time.Now()
+	q := historyQuery()
+	q.Before = &cursor
+	older, _ := NewHistoryReader(&accessStub{allow: true}, &historyStub{}, nil, pages).ReadHistory(q)
+	if older.PageOrigin != nil || pages.asked != 1 {
+		t.Fatalf("older pages do not repeat the page origin: %+v asked=%d", older.PageOrigin, pages.asked)
+	}
+}
+
+func TestReadHistory_AnUnreadablePageOriginNeverHidesTheMessages(t *testing.T) {
+	page, err := NewHistoryReader(&accessStub{allow: true}, &historyStub{}, nil, &pageOriginStub{err: errors.New("db down")}).ReadHistory(historyQuery())
+	if err != nil || len(page.Messages) != 1 || page.PageOrigin != nil {
+		t.Fatalf("page=%+v err=%v", page, err)
+	}
+}
+
+func TestReadHistory_NoPageOriginIsAskedForWhenAccessIsDenied(t *testing.T) {
+	pages := &pageOriginStub{origin: &conversation.PageOriginView{ProjectID: "p1"}}
+	if _, err := NewHistoryReader(&accessStub{allow: false}, &historyStub{}, nil, pages).ReadHistory(historyQuery()); err == nil || pages.asked != 0 {
+		t.Fatalf("err=%v asked=%d", err, pages.asked)
 	}
 }

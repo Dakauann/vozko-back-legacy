@@ -3,6 +3,7 @@ package site
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -110,5 +111,45 @@ func TestAFormWorkflowNeedsAFollowUpChannel(t *testing.T) {
 	}
 	if _, err := DecodeSettings([]byte(`{"forms":{"contato":{"follow_up":{"kind":"email","id":"inbox_1"}}}}`)); err != nil {
 		t.Fatalf("a follow up channel without a workflow is allowed: %v", err)
+	}
+}
+
+func TestAFormFunnelNeedsSomeoneToOwnTheDealOnlyWhenTheFormIsWritten(t *testing.T) {
+	for _, raw := range []string{
+		`{"forms":{"contato":{"funnel_id":"f_1"}}}`,
+		`{"forms":{"contato":{"funnel_id":"f_1","owner":{"kind":"unassigned"}}}}`,
+	} {
+		legacy, err := DecodeSettings([]byte(raw))
+		if err != nil {
+			t.Fatalf("%s: stored settings must stay readable: %v", raw, err)
+		}
+		err = legacy.Forms["contato"].CheckDealOwner("contato")
+		if !errors.Is(err, ErrSettingsInvalid) || !errors.Is(err, ErrFormDealOwnerRequired) || ErrorCode(err) != CodeFormDealOwnerRequired {
+			t.Fatalf("%s: got %v (%s)", raw, err, ErrorCode(err))
+		}
+	}
+	for _, raw := range []string{
+		`{"forms":{"contato":{"funnel_id":"f_1","owner":{"kind":"user","id":"u_1"}}}}`,
+		`{"forms":{"contato":{"funnel_id":"f_1","owner":{"kind":"roulette","id":"d_1"}}}}`,
+		`{"forms":{"contato":{"funnel_id":"f_1","workflow_id":"wf_1","follow_up":{"kind":"whatsapp","id":"ch_1"}}}}`,
+		`{"forms":{"contato":{"owner":{"kind":"unassigned"}}}}`,
+	} {
+		if _, err := DecodeSettings([]byte(raw)); err != nil {
+			t.Fatalf("%s: got %v", raw, err)
+		}
+	}
+}
+
+func TestAFormKeepsAFriendlyName(t *testing.T) {
+	s, err := DecodeSettings([]byte(`{"forms":{"contato":{"name":"Fale conosco"}}}`))
+	if err != nil || s.Forms["contato"].Name != "Fale conosco" {
+		t.Fatalf("got %+v %v", s.Forms, err)
+	}
+	long := strings.Repeat("a", MaxFormNameRunes+1)
+	for _, name := range []string{" Fale", "Fale ", "Fale\nconosco", long, "   "} {
+		raw, _ := json.Marshal(map[string]any{"forms": map[string]any{"contato": map[string]string{"name": name}}})
+		if _, err := DecodeSettings(raw); !errors.Is(err, ErrSettingsInvalid) {
+			t.Errorf("%q: got %v", name, err)
+		}
 	}
 }

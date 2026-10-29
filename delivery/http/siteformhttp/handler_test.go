@@ -25,17 +25,19 @@ import (
 )
 
 type fakeForms struct {
-	allowed   bool
-	allowErr  error
-	challenge pfdomain.Challenge
-	result    siteforms.SubmitResult
-	err       error
-	visitor   siteforms.Visitor
-	body      []byte
-	page      siteforms.SubmissionPage
-	query     siteforms.SubmissionQuery
-	pageForms []siteforms.PageForm
-	workspace string
+	allowed     bool
+	allowErr    error
+	challenge   pfdomain.Challenge
+	result      siteforms.SubmitResult
+	err         error
+	visitor     siteforms.Visitor
+	body        []byte
+	page        siteforms.SubmissionPage
+	query       siteforms.SubmissionQuery
+	pageForms   []siteforms.PageForm
+	automations siteforms.FormAutomations
+	targets     siteforms.FormTargets
+	workspace   string
 }
 
 func (f *fakeForms) AllowedOrigin(context.Context, string, string) (bool, error) {
@@ -57,7 +59,7 @@ func (f *fakeForms) Submissions(_ context.Context, q siteforms.SubmissionQuery) 
 	return f.page, f.err
 }
 
-func publicServer(forms *fakeForms) *mux.Router {
+func publicServer(forms PublicForms) *mux.Router {
 	r := mux.NewRouter()
 	RegisterPublicRoutes(r, NewPublicHandler(forms))
 	return r

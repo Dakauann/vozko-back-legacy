@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	openrouter "github.com/revrost/go-openrouter"
-
 	"vozko/domain/ai"
 	"vozko/domain/tools"
 )
@@ -32,15 +30,6 @@ func loopInput(model string) ai.GenerateInput {
 		AsOf:              turnStart,
 		VolatileTail:      1,
 	}
-}
-
-func marked(content openrouter.Content) bool {
-	for _, part := range content.Multi {
-		if part.CacheControl != nil {
-			return true
-		}
-	}
-	return false
 }
 
 func TestThePromptPrefixStaysTheSameForEveryCallOfATurn(t *testing.T) {

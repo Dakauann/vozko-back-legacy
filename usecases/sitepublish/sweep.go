@@ -199,7 +199,7 @@ func (s *Service) applyState(ctx context.Context, rec sitepublish.HostnameRecord
 	}
 	if state.SSLFailing && rec.Status != sitepublish.HostnameActive {
 		return rec, s.alert(ctx, rec, sslEpisodeKey(rec.ID), "O certificado do domínio "+rec.Hostname+" não foi emitido",
-			"Não conseguimos emitir o certificado de segurança de "+rec.Hostname+". Confira os registros DNS indicados na página de domínios. Enquanto isso, o domínio não exibe a página."+detail(state.Errors))
+			"Não conseguimos emitir o certificado de segurança de "+rec.Hostname+". Confira os registros DNS indicados na página de domínios. Enquanto isso, o domínio não exibe o site."+detail(state.Errors))
 	}
 	return rec, s.Alerts.Resolve(ctx, rec.WorkspaceID, sslEpisodeKey(rec.ID))
 }
@@ -273,7 +273,7 @@ func (s *Service) markFailed(ctx context.Context, rec sitepublish.HostnameRecord
 		log.Printf("[sitepublish] hostname %s failed and its provider record waits for the sweep: %v", rec.Hostname, err)
 	}
 	return s.alert(ctx, rec, failedEpisodeKey(rec.ID), "O domínio "+rec.Hostname+" parou de funcionar",
-		"O domínio "+rec.Hostname+" não aponta mais para a página e foi tirado do ar. Confira o DNS no seu provedor e use Verificar de novo na página de domínios quando estiver pronto."+detail(reasons))
+		"O domínio "+rec.Hostname+" não aponta mais para o site e foi tirado do ar. Confira o DNS no seu provedor e use Verificar de novo na página de domínios quando estiver pronto."+detail(reasons))
 }
 
 func (s *Service) alert(ctx context.Context, rec sitepublish.HostnameRecord, key, title, body string) error {

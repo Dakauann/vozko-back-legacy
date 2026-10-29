@@ -23,6 +23,17 @@ description: Formulários e WhatsApp na página: campos que convertem, o contrat
 - E-mails de marketing pedem um checkbox separado name="email_opt_in", desmarcado.
 - A página precisa de um link para a política de privacidade (rota /privacidade com os dados reais da empresa); sem ele, privacy_link_missing. Veja lgpd-em-paginas.
 
+## Mudar um formulário que já existe
+Leia antes com site_read (o nó de cada campo, do label e da linha que envolve o campo) e edite com site_edit, campo a campo:
+- Ligar um campo ao CRM: set_attr no input com name (lead.name, lead.phone, lead.email, consent, email_opt_in ou field.<chave>) e, se o tipo não servir, set_attr com type. lead.name aceita text; lead.phone aceita tel ou text; lead.email só email; consent e email_opt_in só checkbox. Os campos personalizados do lead deste workspace estão em lead_fields de site_read com references: use o id dele (field.<chave>) e o rótulo como texto do label. Nunca invente uma chave; sem o campo, pergunte ou use outro.
+- Obrigatório: set_attr com name "required" e value "" liga; sem value, desliga. consent é sempre obrigatório.
+- Rótulo: set_text no elemento de texto do label (o span dentro dele, ou o label separado com for). Nunca set_text num label que envolve o input: o input some junto.
+- Novo campo: insert_section com html de uma linha completa, depois da última linha de campo (at.after) e antes do botão, no mesmo estilo das outras linhas: <label class="..."><span>Seu WhatsApp</span><input type="tel" name="lead.phone" autocomplete="tel" required class="..."></label>.
+- Reordenar: move com a linha do campo (o label ou o bloco que envolve só aquele campo) before ou after de outra linha.
+- Tirar um campo: remove na linha inteira, nunca só no input (o label ficaria sozinho).
+- Nome do formulário para a equipe: site_settings, seção forms, form_id do formulário, com "name" (uma linha, até 80 caracteres, como "Fale conosco"). É esse nome que aparece no painel, nos envios e no gatilho dos fluxos; o id do código nunca aparece para as pessoas. Ao trocar a seção forms de um formulário, mande também o que já estava salvo.
+Depois de mudar campos, confira open_gaps: identidade (telefone ou e-mail), consentimento e o campo que o canal de acompanhamento usa (lead.phone para WhatsApp, lead.email para e-mail).
+
 ## Para onde vai o lead
 Configure com site_settings, seção forms e form_id igual ao data-vz-form:
 - funnel_id e stage_id: o funil e a etapa onde o lead entra.

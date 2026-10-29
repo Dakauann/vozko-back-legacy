@@ -14,6 +14,7 @@ import (
 	"vozko/domain/siteform"
 	"vozko/domain/sitepublish"
 	"vozko/domain/sitesubmission"
+	whatsappform_usecase "vozko/usecases/whatsappform"
 )
 
 type world struct {
@@ -38,6 +39,10 @@ type world struct {
 	links       *links
 	refs        *references
 	svc         *Service
+	automations *automationDesk
+	calendar    *calendarDesk
+	lock        *lockDesk
+	leadFields  *leadFieldShelf
 	ids         int
 	clock       time.Time
 	deferred    []func()
@@ -52,12 +57,15 @@ func newWorld(t *testing.T) *world {
 		ipLimit: &limiter{}, formLimit: &limiter{}, previewLim: &limiter{}, leads: &leadDesk{}, optIns: &optIns{}, roulette: &roulette{pick: "user-7"},
 		owners: &owners{}, deals: &deals{}, leadDeals: &leadDeals{}, official: &officialEntries{}, unofficial: &unofficialStarts{}, email: &emailOpens{},
 		notices: &notices{}, conversions: &conversions{}, links: &links{}, refs: &references{}, clock: testNow,
+		automations: &automationDesk{byForm: map[string][]whatsappform_usecase.FormAutomation{}},
+		calendar:    &calendarDesk{}, lock: &lockDesk{}, leadFields: &leadFieldShelf{},
 	}
 	svc, err := New(Deps{
 		Forms: w.forms, Submissions: w.subs, Effects: w.effects, Hostnames: w.hosts, Projects: projects{"p1": "w1"}, OneShot: &spent{},
 		PerIP: w.ipLimit, PerForm: w.formLimit, PerPreview: w.previewLim, Leads: w.leads, EmailOptIns: w.optIns, Roulette: w.roulette, LeadOwners: w.owners,
 		Deals: w.deals, LeadDeals: w.leadDeals, Official: w.official, Unofficial: w.unofficial, Email: w.email, Notices: w.notices, Conversions: w.conversions,
-		Links: w.links, Numbers: numbers{"n1": "5584999990000"}, References: w.refs,
+		Links: w.links, Numbers: numbers{"n1": "5584999990000"}, References: w.refs, Automations: w.automations,
+		Calendar: w.calendar, Slots: &memoShelf{items: map[string][]byte{}}, BookingLock: w.lock, LeadFields: w.leadFields,
 		Config: Config{ChallengeKey: []byte("challenge-key-for-tests-0123456789"), IPHashKey: sitesubmission.IPHashKey("ip-secret-for-tests-0123456789abc"), Addresses: sitepublish.Addresses{Domain: "paginas.vozko.dev"}, ShortLinkBase: "https://vz.co"},
 		Now:    func() time.Time { return w.clock },
 		NewID:  func() string { w.ids++; return "sub-" + strconv.Itoa(w.ids) },

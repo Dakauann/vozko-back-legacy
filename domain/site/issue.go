@@ -48,17 +48,22 @@ type Issue struct {
 }
 
 var gapCodes = map[string]bool{
-	CodeAltMissing:           true,
-	CodeLinkEmpty:            true,
-	CodeConsentRequired:      true,
-	CodePrivacyLinkMissing:   true,
-	CodeFormIdentityMissing:  true,
-	CodeConsentBannerMissing: true,
-	CodeInvisibleWithoutJS:   true,
+	CodeAltMissing:                  true,
+	CodeLinkEmpty:                   true,
+	CodeConsentRequired:             true,
+	CodePrivacyLinkMissing:          true,
+	CodeFormIdentityMissing:         true,
+	CodeConsentBannerMissing:        true,
+	CodeInvisibleWithoutJS:          true,
+	CodeFormDealOwnerRequired:       true,
+	CodeFormFollowUpFieldMissing:    true,
+	CodeBookingUnconfigured:         true,
+	CodeBookingIDTaken:              true,
+	CodeBookingCalendarDisconnected: true,
 }
 
 func GapCodes() []string {
-	return []string{CodeAltMissing, CodeLinkEmpty, CodeConsentRequired, CodePrivacyLinkMissing, CodeFormIdentityMissing, CodeConsentBannerMissing, CodeInvisibleWithoutJS}
+	return []string{CodeAltMissing, CodeLinkEmpty, CodeConsentRequired, CodePrivacyLinkMissing, CodeFormIdentityMissing, CodeConsentBannerMissing, CodeInvisibleWithoutJS, CodeFormDealOwnerRequired, CodeFormFollowUpFieldMissing, CodeBookingUnconfigured, CodeBookingIDTaken, CodeBookingCalendarDisconnected}
 }
 
 func IsGap(code string) bool {

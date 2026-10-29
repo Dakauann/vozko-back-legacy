@@ -1,6 +1,10 @@
 package tooltest
 
-import "vozko/domain/tools"
+import (
+	"encoding/json"
+
+	"vozko/domain/tools"
+)
 
 func paramChars(name string, p tools.Parameter) int {
 	total := len(name) + len(p.Description)
@@ -25,4 +29,12 @@ func SchemaChars(def tools.Definition) int {
 		total += paramChars(name, p)
 	}
 	return total
+}
+
+func WireChars(def tools.Definition) int {
+	raw, err := json.Marshal(def.JSONSchema())
+	if err != nil {
+		return 0
+	}
+	return len(def.Name) + len(def.Description) + len(raw)
 }

@@ -277,6 +277,7 @@ func autoMigratedModels() [][]any {
 			&schema.AutomationSwitchOff{},
 			&schema.ConversationPersonalMark{},
 			&schema.PersonalInboxPreference{},
+			&schema.TutorialProgress{},
 			&schema.ConversationNote{},
 			&schema.TeamChatThread{},
 			&schema.TeamChatMember{},

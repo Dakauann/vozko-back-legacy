@@ -30,12 +30,13 @@ type SheetFilesResponse struct {
 }
 
 // @Summary		Planilhas que podem ser escolhidas para um dado do tipo Planilha
-// @Description	Lista as planilhas do workspace com a conferência de cada uma para o dado da conversa variable, que precisa ser do tipo Planilha. Com kind e id, a conferência usa exatamente os passos e ferramentas daquela automação que gravam nesse dado, seguindo agentes, subfluxos e fluxos chamados (exact=true); sem eles, ou quando a automação não grava nesse dado, a planilha precisa ter todas as abas e colunas do modelo (exact=false). Cada item traz fits, as abas que recebem cada aba do modelo e, quando não serve, misfit com o código e os problemas. A planilha modelo nunca serve como valor. Campanha, passagem da conversa, transferência, dados do teste e painel da conversa usam esta lista; mostra só nomes e conferência.
+// @Description	Lista as planilhas do workspace com a conferência de cada uma para o dado da conversa variable, que precisa ser do tipo Planilha. Com kind e id, a conferência usa exatamente os passos e ferramentas daquela automação que gravam nesse dado, seguindo agentes, subfluxos e fluxos chamados (exact=true); sem eles, ou quando a automação não grava nesse dado, a planilha precisa ter todas as abas e colunas do modelo (exact=false). Cada item traz fits, as abas que recebem cada aba do modelo (tabs) e, quando não serve, misfit com o código e os problemas. choices lista, para cada aba do modelo, todas as abas da planilha com fits e, quando não serve, o problema; choosable diz se a planilha pode ser escolhida aba por aba, mesmo quando a escolha automática não decide (mais de uma aba serve). O valor de um dado do tipo Planilha é o ID da planilha (abas escolhidas automaticamente) ou o JSON {"spreadsheet_id","tabs"} com a aba escolhida para cada aba do modelo; as abas não escolhidas seguem a escolha automática. Com value, a planilha desse valor é conferida com as abas escolhidas nele. A planilha modelo nunca serve como valor. Campanha, passagem da conversa, transferência, dados do teste e painel da conversa usam esta lista; mostra só nomes e conferência.
 // @Tags			Automações
 // @Produce		json
 // @Param			variable	query		string	true	"Nome técnico do dado do tipo Planilha"
 // @Param			kind		query		string	false	"agent ou workflow (junto com id)"	Enums(agent, workflow)
 // @Param			id			query		string	false	"ID do agente ou do fluxo (junto com kind)"
+// @Param			value		query		string	false	"Valor sendo escolhido, no formato salvo no dado"
 // @Success		200			{object}	SheetFilesResponse
 // @Failure		400			{object}	response.ErrorResponse	"conversation_variable_invalid: kind sem id; conversation_variable_not_sheet: o dado não é do tipo Planilha"
 // @Failure		422			{object}	response.ErrorResponse	"automation_needs_not_found"
@@ -57,7 +58,7 @@ func (h *Handler) SheetFiles(w http.ResponseWriter, r *http.Request) {
 		}
 		target = &conversation.Automation{Kind: conversation.AutomationKind(kind), ID: id}
 	}
-	listed, err := h.queries.SheetCandidates(r.Context(), workspaceID, target, q.Get("variable"))
+	listed, err := h.queries.SheetCandidates(r.Context(), workspaceID, target, q.Get("variable"), q.Get("value"))
 	if err != nil {
 		writeError(w, err)
 		return

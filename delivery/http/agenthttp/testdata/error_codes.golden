@@ -41,5 +41,6 @@ agent_tools_moved
 agent_tools_required
 agent_variable_duplicate
 agent_variable_name_invalid
+agent_variable_name_reserved
 agent_variable_too_many
 agent_version_not_found

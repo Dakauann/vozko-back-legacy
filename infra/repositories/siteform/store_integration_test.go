@@ -12,6 +12,7 @@ import (
 	"vozko/domain/site"
 	"vozko/domain/siteform"
 	"vozko/domain/sitesubmission"
+	"vozko/domain/working_hours"
 	"vozko/infra/database"
 	"vozko/infra/database/schema"
 	"vozko/infra/repositories/repotest"
@@ -68,6 +69,24 @@ func TestFormKeysManifestsAndEmbedsAgainstPostgres(t *testing.T) {
 	projects, err := store.ProjectsEmbedding(ctx, ws, widget)
 	if err != nil || len(projects) != 1 || projects[0] != project {
 		t.Fatalf("projects %v %v", projects, err)
+	}
+	booking := site.Booking{
+		DurationMinutes: 30, HorizonDays: 7, Title: "Avaliação com {nome}", ConsentText: "Aceito",
+		Hours: working_hours.Spec{Timezone: "America/Sao_Paulo", Days: map[string][]working_hours.Window{"mon": {{Start: "09:00", End: "12:00"}}}},
+	}
+	err = store.Activate(ctx, siteforms.Activation{WorkspaceID: ws, ProjectID: project, DeploymentID: uuid.NewString(), Forms: []siteforms.ActiveForm{
+		{FormKey: "key-contato-1", FormID: "contato", Manifest: manifest},
+		{FormKey: "key-agenda-1", FormID: "agenda", Manifest: booking.Manifest("agenda"), Booking: &booking},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain, err := store.ActiveForm(ctx, "key-contato-1"); err != nil || plain == nil || plain.Booking != nil {
+		t.Fatalf("plain form %+v %v", plain, err)
+	}
+	booked, err := store.ActiveForm(ctx, "key-agenda-1")
+	if err != nil || booked == nil || booked.Booking == nil || booked.Booking.DurationMinutes != 30 || booked.Booking.Hours.Timezone != "America/Sao_Paulo" {
+		t.Fatalf("booking form %+v %v", booked, err)
 	}
 	if foreign, _ := store.ProjectsEmbedding(ctx, other, widget); len(foreign) != 0 {
 		t.Fatalf("another workspace sees the embed: %v", foreign)

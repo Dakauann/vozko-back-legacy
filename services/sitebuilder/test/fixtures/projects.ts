@@ -9,6 +9,7 @@ export const runtime: Record<string, string> = {
   "pow.js": readFileSync(new URL("pow.js", runtimeDir), "utf8"),
   "vz-editor-bridge.js": readFileSync(new URL("vz-editor-bridge.js", runtimeDir), "utf8"),
   "vz-screenshot.js": readFileSync(new URL("vz-screenshot.js", runtimeDir), "utf8"),
+  "vz-tailwind-browser.js": readFileSync(new URL("vz-tailwind-browser.js", runtimeDir), "utf8"),
 };
 
 function project(stack: Project["stack"], files: Record<string, string>): Project {

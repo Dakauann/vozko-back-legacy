@@ -103,23 +103,23 @@ func (s *Service) Resolve(ctx context.Context, workspaceID string, t variabledec
 	if err != nil {
 		return workflow.SheetFile{}, err
 	}
-	file, ok := ws.File(strings.TrimSpace(value))
-	if !ok {
-		return workflow.SheetFile{}, &sheetfit.Misfit{Code: sheetfit.CodeFileNotFound}
-	}
-	assignment, err := sheetfit.Fit(model, file, ws.Account)
+	assignment, err := fitValue(ws, model, value)
 	if err != nil {
 		return workflow.SheetFile{}, err
 	}
 	return workflow.SheetFile{SpreadsheetID: assignment.SpreadsheetID, Tabs: assignment.Tabs}, nil
 }
 
-func (s *Service) Candidates(ctx context.Context, workspaceID string, t variabledecl.Type, uses []sheetfit.Use) ([]sheetfit.Candidate, error) {
+func (s *Service) Candidates(ctx context.Context, workspaceID string, t variabledecl.Type, uses []sheetfit.Use, chosen string) ([]sheetfit.Candidate, error) {
 	ws, model, err := s.model(ctx, workspaceID, t, uses)
 	if err != nil {
 		return nil, err
 	}
-	return sheetfit.Candidates(ws, model)
+	choice, err := sheetfit.ParseChoice(chosen)
+	if err != nil {
+		choice = sheetfit.Choice{}
+	}
+	return sheetfit.Candidates(ws, model, choice)
 }
 
 func (s *Service) model(ctx context.Context, workspaceID string, t variabledecl.Type, uses []sheetfit.Use) (sheetfit.Workspace, sheetfit.Model, error) {
@@ -146,12 +146,20 @@ func wholeFit(ws sheetfit.Workspace, modelID, value string) error {
 	if !ok {
 		return &sheetfit.Misfit{Code: sheetfit.CodeModelMissing}
 	}
-	file, ok := ws.File(value)
-	if !ok {
-		return &sheetfit.Misfit{Code: sheetfit.CodeFileNotFound}
-	}
-	_, err := sheetfit.Fit(sheetfit.WholeModel(model.Sheets), file, ws.Account)
+	_, err := fitValue(ws, sheetfit.WholeModel(model.Sheets), value)
 	return err
+}
+
+func fitValue(ws sheetfit.Workspace, model sheetfit.Model, value string) (sheetfit.Assignment, error) {
+	choice, err := sheetfit.ParseChoice(value)
+	if err != nil {
+		return sheetfit.Assignment{}, err
+	}
+	file, ok := ws.File(choice.SpreadsheetID)
+	if !ok {
+		return sheetfit.Assignment{}, &sheetfit.Misfit{Code: sheetfit.CodeFileNotFound}
+	}
+	return sheetfit.FitPinned(model, file, ws.Account, choice.Tabs)
 }
 
 func modelOf(t variabledecl.Type) string {

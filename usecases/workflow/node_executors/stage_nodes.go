@@ -60,7 +60,7 @@ func (e *moveStageExecutor) Definition() workflow.NodeDefinition {
 			When: "Para avançar a conversa no funil conforme o fluxo (ex.: qualificado, proposta enviada, ganho) ou para levá-la a uma etapa de outro funil de conversas.",
 			Behavior: "A conversa vai exatamente para a etapa escolhida. Se ela está em outro funil, muda para o funil dessa etapa, " +
 				"como quem usa \"mover para funil\" no CRM; uma conversa ainda sem etapa entra no funil da etapa escolhida. " +
-				"Já estando na etapa, não muda nada. Só etapas de funis de conversa servem; etapas de funis de oportunidades são recusadas. " +
+				"Já estando na etapa, não muda nada. Só etapas de funis de conversa servem; etapas de funis de negociações são recusadas. " +
 				"pipeline_changed diz se a conversa trocou de funil, from_pipeline_id e from_pipeline_name dizem de onde ela saiu.",
 			Examples: []string{
 				"Cobrança paga: mover para \"pagamento efetuado\" do funil Altiva, mesmo que a conversa esteja no funil Atendimento.",
@@ -172,7 +172,7 @@ func moveFailure(err error) string {
 	case errors.Is(err, errMoverUnavailable):
 		return "mover etapa indisponível neste contexto"
 	case errors.Is(err, stage.ErrStageNotConversationFunnel):
-		return "a etapa escolhida é de um funil de oportunidades: uma conversa só vai para etapas de funis de conversa"
+		return "a etapa escolhida é de um funil de negociações: uma conversa só vai para etapas de funis de conversa"
 	case errors.Is(err, stage.ErrTagNotFound), errors.Is(err, stage.ErrUnauthorized):
 		return "a etapa escolhida não existe mais neste workspace: escolha outra no campo Etapa do nó"
 	}

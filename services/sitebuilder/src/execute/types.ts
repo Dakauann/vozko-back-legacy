@@ -41,10 +41,13 @@ export interface Operation {
   alt?: string;
   before?: string;
   after?: string;
+  into?: string;
   at?: Placement;
   html?: string;
   library_key?: string;
   ref?: string;
+  source?: string;
+  source_rev?: number;
 }
 
 export interface FileBase {

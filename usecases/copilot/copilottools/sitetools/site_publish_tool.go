@@ -26,16 +26,16 @@ const (
 	publishFirst       = "primeira publicação"
 	publishNoChanges   = "nada mudou desde a última publicação"
 	publishUnknown     = "não foi possível comparar com a última publicação"
-	publishPlatform    = "o subdomínio da página na plataforma"
+	publishPlatform    = "o subdomínio do site na plataforma"
 	publishNoGaps      = "nenhuma"
 	publishGapsUnread  = "não lidas: "
-	publishHeld        = "a página foi construída, mas ficou retida para revisão antes de entrar no ar; avise o usuário que a equipe revisa e que ele recebe um aviso"
-	publishLive        = "a página está no ar"
-	publishGapsOpen    = "nada foi publicado: a página tem pendências que impedem publicar: %s. Corrija o que depende de você e peça ao usuário o que só ele tem"
-	publishBlocked     = "nada foi publicado: a página quebra uma regra de publicação: %s"
-	publishBuildFailed = "nada foi publicado: a página não compila: %s"
+	publishHeld        = "o site foi construído, mas ficou retido para revisão antes de entrar no ar; avise o usuário que a equipe revisa e que ele recebe um aviso"
+	publishLive        = "o site está no ar"
+	publishGapsOpen    = "nada foi publicado: o site tem pendências que impedem publicar: %s. Corrija o que depende de você e peça ao usuário o que só ele tem"
+	publishBlocked     = "nada foi publicado: o site quebra uma regra de publicação: %s"
+	publishBuildFailed = "nada foi publicado: o site não compila: %s"
 	publishFailed      = "nada foi publicado (%s); tente de novo em instantes"
-	publishStale       = "nada foi publicado: a página mudou depois que o cartão de aprovação foi mostrado; leia a página de novo e proponha publicar outra vez"
+	publishStale       = "nada foi publicado: o site mudou depois que o cartão de aprovação foi mostrado; leia o site de novo e proponha publicar outra vez"
 	publishPinTTL      = 24 * time.Hour
 	publishPinPrefix   = "site:publish:pin:"
 	fieldAddresses     = "addresses"
@@ -48,16 +48,16 @@ var publishWords = []struct {
 	err   error
 	words string
 }{
-	{sitepublish_usecase.ErrAccessDenied, "o usuário não tem permissão para publicar páginas"},
+	{sitepublish_usecase.ErrAccessDenied, "o usuário não tem permissão para publicar sites"},
 	{sitepublish_usecase.ErrSubscriptionInactive, "a assinatura do workspace não está ativa"},
-	{sitepublish_usecase.ErrUnderReview, "a página está em revisão"},
-	{sitepublish_usecase.ErrSiteSuspended, "a página está suspensa"},
-	{sitepublish_usecase.ErrPrerenderFailed, "a página não pôde ser renderizada"},
+	{sitepublish_usecase.ErrUnderReview, "o site está em revisão"},
+	{sitepublish_usecase.ErrSiteSuspended, "o site está suspenso"},
+	{sitepublish_usecase.ErrPrerenderFailed, "o site não pôde ser renderizado"},
 	{sitepublish_usecase.ErrFormKeyMissing, "um formulário ficou sem chave pública"},
 	{sitepublish_usecase.ErrFormsUnavailable, "os formulários não puderam ser ativados"},
 	{sitepublish_usecase.ErrMediaUnavailable, "uma imagem da biblioteca não pôde ser copiada"},
 	{sitepublish_usecase.ErrHostingUnavailable, "a hospedagem está indisponível"},
-	{sitepublish_usecase.ErrPublishInProgress, "a página já está sendo publicada"},
+	{sitepublish_usecase.ErrPublishInProgress, "o site já está sendo publicado"},
 }
 
 type sitePublishArgs struct {
@@ -81,8 +81,8 @@ func (t *sitePublishTool) NeedsApproval(copilot.Mode) bool { return true }
 
 func (t *sitePublishTool) Definition() tools.Definition {
 	return copilottools.Definition("site_publish",
-		"Propõe publicar a página aberta: o usuário vê um cartão com os endereços, o que mudou desde a última publicação (arquivos e configurações) e as pendências, e aprova. Sempre pede aprovação, em qualquer modo. "+
-			"Publique só com open_gaps vazio. O retorno diz se a página entrou no ar, os endereços e o id da publicação.",
+		"Propõe publicar o site aberto: o usuário vê um cartão com os endereços, o que mudou desde a última publicação (arquivos e configurações) e as pendências, e aprova. Sempre pede aprovação, em qualquer modo. "+
+			"Publique só com open_gaps vazio. O retorno diz se o site entrou no ar, os endereços e o id da publicação.",
 		sitePublishArgs{})
 }
 

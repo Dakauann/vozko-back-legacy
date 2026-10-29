@@ -41,6 +41,8 @@ const (
 	CodeWorkflowNotCallable       = "tool_workflow_not_callable"
 	CodeSheetInvalid              = "tool_sheet_invalid"
 	CodeSheetNoInputColumns       = "tool_sheet_no_input_columns"
+	CodeSheetVariableInvalid      = "tool_sheet_variable_invalid"
+	CodeVariableDefaultInvalid    = "agent_variable_default_invalid"
 	CodeDepartmentInvalid         = "tool_department_invalid"
 	CodeKnowledgeBaseInvalid      = "tool_knowledge_base_invalid"
 	CodeMCPSourceInvalid          = "tool_mcp_source_invalid"

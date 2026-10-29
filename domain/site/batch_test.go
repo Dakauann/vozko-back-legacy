@@ -3,6 +3,7 @@ package site
 import (
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 )
@@ -151,7 +152,17 @@ func TestPrepareBatchRefusesInvalidValues(t *testing.T) {
 		"move no anchor":       {`{"op":"move","node":"pages/index.html#0","rev":1}`, "0:position_invalid:before"},
 		"move onto itself":     {`{"op":"move","node":"pages/index.html#0","rev":1,"after":"pages/index.html#0"}`, "0:position_invalid:after"},
 		"move across files":    {`{"op":"move","node":"pages/index.html#0","rev":1,"after":"pages/obrigado.html#0"}`, "0:position_invalid:after"},
+		"move into itself":     {`{"op":"move","node":"pages/index.html#0","rev":1,"into":"pages/index.html#0"}`, "0:position_invalid:into"},
+		"move into other file": {`{"op":"move","node":"pages/index.html#0","rev":1,"into":"pages/obrigado.html#0"}`, "0:position_invalid:into"},
+		"move into and after":  {`{"op":"move","node":"pages/index.html#24","rev":1,"into":"pages/index.html#0","after":"pages/index.html#0"}`, "0:position_invalid:before"},
 		"insert no position":   {`{"op":"insert_section","html":"<p>a</p>"}`, "0:field_required:at"},
+		"copy with html":       {`{"op":"insert_section","at":{"page":"pages/index.html"},"rev":1,"html":"<p>a</p>","source":"pages/obrigado.html#0","source_rev":1}`, "0:field_invalid:source"},
+		"copy no source rev":   {`{"op":"insert_section","at":{"page":"pages/index.html"},"rev":1,"source":"pages/obrigado.html#0"}`, "0:field_required:source_rev"},
+		"copy future rev":      {`{"op":"insert_section","at":{"page":"pages/index.html"},"rev":1,"source":"pages/obrigado.html#0","source_rev":2}`, "0:rev_invalid:source_rev"},
+		"copy zero rev":        {`{"op":"insert_section","at":{"page":"pages/index.html"},"rev":1,"source":"pages/obrigado.html#0","source_rev":0}`, "0:rev_invalid:source_rev"},
+		"copy from stylesheet": {`{"op":"insert_section","at":{"page":"pages/index.html"},"rev":1,"source":"theme.css#0","source_rev":1}`, "0:node_invalid:source"},
+		"copy missing file":    {`{"op":"insert_section","at":{"page":"pages/index.html"},"rev":1,"source":"pages/x.html#0","source_rev":1}`, "0:path_not_found:source"},
+		"copy unknown ref":     {`{"op":"insert_section","at":{"page":"pages/index.html"},"rev":1,"source":"@fantasma"}`, "0:ref_unknown:source"},
 		"insert two positions": {`{"op":"insert_section","at":{"before":"pages/index.html#0","page":"pages/index.html"},"rev":1,"html":"<p>a</p>"}`, "0:position_invalid:at"},
 		"insert html and key":  {`{"op":"insert_section","at":{"page":"pages/index.html"},"rev":1,"html":"<p>a</p>","library_key":"faq"}`, "0:field_invalid:library_key"},
 		"insert nothing":       {`{"op":"insert_section","at":{"page":"pages/index.html"},"rev":1}`, "0:field_required:html"},
@@ -174,6 +185,41 @@ func TestPrepareBatchRefusesInvalidValues(t *testing.T) {
 				t.Fatalf("got  %s\nwant %s", got, c.want)
 			}
 		})
+	}
+}
+
+func TestPrepareBatchMovesIntoAContainerAndCopiesMarkupAcrossPages(t *testing.T) {
+	batch, refused := prepare(t, htmlProject(), `[
+	  {"op":"move","node":"pages/index.html#24","rev":1,"into":"pages/index.html#0"},
+	  {"op":"insert_section","at":{"after":"pages/obrigado.html#0"},"rev":1,"source":"pages/index.html#24","source_rev":1,"ref":"copia"},
+	  {"op":"insert_section","at":{"page":"pages/index.html"},"rev":2,"source":"@copia"}
+	]`)
+	if refused != nil {
+		t.Fatalf("got %s", failures(refused))
+	}
+	if batch.Operations[0].Into != "pages/index.html#0" || batch.Operations[1].Source != "pages/index.html#24" || batch.Operations[1].SourceRev != 1 {
+		t.Fatalf("got %+v", batch.Operations)
+	}
+	encoded, err := json.Marshal(batch.Operations[1])
+	if err != nil || string(encoded) != `{"op":"insert_section","rev":1,"at":{"after":"pages/obrigado.html#0"},"ref":"copia","source":"pages/index.html#24","source_rev":1}` {
+		t.Fatalf("got %s %v", encoded, err)
+	}
+	moved, _ := json.Marshal(batch.Operations[0])
+	if string(moved) != `{"op":"move","node":"pages/index.html#24","rev":1,"into":"pages/index.html#0"}` {
+		t.Fatalf("got %s", moved)
+	}
+}
+
+func TestStaleRevsAskForTheCopiedFileAtItsOwnRevision(t *testing.T) {
+	p := htmlProject()
+	p.Files["pages/obrigado.html"] = File{Content: p.Files["pages/obrigado.html"].Content, Rev: 4}
+	batch, refused := prepare(t, p, `[{"op":"insert_section","at":{"page":"pages/index.html"},"rev":1,"source":"pages/obrigado.html#0","source_rev":2}]`)
+	if refused != nil {
+		t.Fatalf("got %s", failures(refused))
+	}
+	got := batch.StaleRevs(p)
+	if len(got) != 1 || len(got["pages/obrigado.html"]) != 1 || got["pages/obrigado.html"][0] != 2 {
+		t.Fatalf("got %+v", got)
 	}
 }
 
@@ -240,5 +286,75 @@ func TestEveryOperationKindHasAFamily(t *testing.T) {
 	}
 	if len(OperationKinds()) != 14 || families[FamilyCode] != 4 || families[FamilyVisual] != 8 || families[FamilyTheme] != 2 {
 		t.Fatalf("got %v", families)
+	}
+}
+
+func TestPrepareBatchAcceptsTheResponsiveClassesTheInspectorWrites(t *testing.T) {
+	classes := []string{
+		"flex", "inline-flex", "grid", "hidden", "flex-col", "flex-row-reverse", "flex-wrap", "justify-between", "items-center", "grid-cols-3", "gap-6",
+		"mx-auto", "-mt-4", "mb-8", "h-screen", "min-h-svh", "aspect-video", "object-cover",
+		"uppercase", "italic", "underline", "border-2", "border-dashed", "rounded-2xl",
+		"shadow-2xl", "shadow-2xs", "opacity-75", "blur-md", "blur-none",
+		"rotate-3", "-rotate-45", "skew-x-6", "-skew-y-3", "scale-105", "scale-50", "translate-x-4", "-translate-y-1/2", "origin-top-left",
+	}
+	for _, breakpoint := range []string{"", "md", "xl"} {
+		for _, class := range classes {
+			op := map[string]any{"op": "set_classes", "node": "pages/index.html#0", "rev": 1, "add": []string{class}}
+			if breakpoint != "" {
+				op["breakpoint"] = breakpoint
+			}
+			raw, _ := json.Marshal([]any{op})
+			if _, refused := prepare(t, htmlProject(), string(raw)); refused != nil {
+				t.Fatalf("%s at %q refused: %s", class, breakpoint, failures(refused))
+			}
+		}
+	}
+}
+
+func TestPrepareBatchKeepsRefusingUnsafeClassesFromTheInspector(t *testing.T) {
+	for _, class := range []string{"rotate-3 hidden", "x\"><script>", "md:rotate-3", strings.Repeat("a", maxClassLength+1), "a{b}"} {
+		raw, _ := json.Marshal([]any{map[string]any{"op": "set_classes", "node": "pages/index.html#0", "rev": 1, "add": []string{class}, "breakpoint": "md"}})
+		if _, refused := prepare(t, htmlProject(), string(raw)); failures(refused) != "0:class_invalid:add" {
+			t.Fatalf("%q got %s", class, failures(refused))
+		}
+	}
+}
+
+type liveRuleCase struct {
+	Name  string  `json:"name"`
+	Value *string `json:"value"`
+	Edit  bool    `json:"edit"`
+	Live  bool    `json:"live"`
+}
+
+func TestEditRulesMatchTheLivePreviewFixture(t *testing.T) {
+	raw, err := os.ReadFile("../../infra/siteruntime/testdata/live_rules.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Attributes []liveRuleCase `json:"attributes"`
+		Classes    []liveRuleCase `json:"classes"`
+	}
+	if err := json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range fixture.Attributes {
+		op, _ := json.Marshal([]any{map[string]any{"op": "set_attr", "node": "pages/index.html#0", "rev": 1, "name": c.Name, "value": c.Value}})
+		_, refused := prepare(t, htmlProject(), string(op))
+		if (refused == nil) != c.Edit {
+			t.Errorf("set_attr %s=%v: accepted %v, fixture says %v", c.Name, *c.Value, refused == nil, c.Edit)
+		}
+		if c.Live && !c.Edit {
+			t.Errorf("%s: the live preview may never allow what an edit refuses", c.Name)
+		}
+	}
+	for _, c := range fixture.Classes {
+		if validClass(*c.Value) != c.Edit {
+			t.Errorf("class %q: valid %v, fixture says %v", *c.Value, validClass(*c.Value), c.Edit)
+		}
+		if c.Live && !c.Edit {
+			t.Errorf("class %q: the live preview may never allow what an edit refuses", *c.Value)
+		}
 	}
 }

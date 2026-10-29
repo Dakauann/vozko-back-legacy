@@ -21,10 +21,10 @@ import (
 
 const (
 	lookLimit       = 90 * time.Second
-	lookBlind       = "o modelo desta conversa não enxerga imagens, então nada foi visto; diga isso ao usuário sem descrever a página e sugira trocar, no seletor de modelos, para um modelo com visão"
-	lookNoRoute     = "route %q não é uma rota desta página; as rotas estão no mapa (site_read)"
-	lookNoPreview   = "a prévia da página não está disponível agora, então nada foi visto; tente de novo em instantes"
-	lookBuildFails  = "a página não compila, então nada foi visto; corrija com site_edit: %s"
+	lookBlind       = "o modelo desta conversa não enxerga imagens, então nada foi visto; diga isso ao usuário sem descrever o site e sugira trocar, no seletor de modelos, para um modelo com visão"
+	lookNoRoute     = "route %q não é uma rota deste site; as rotas estão no mapa (site_read)"
+	lookNoPreview   = "a prévia do site não está disponível agora, então nada foi visto; tente de novo em instantes"
+	lookBuildFails  = "o site não compila, então nada foi visto; corrija com site_edit: %s"
 	lookStale       = "focus_node não está mais na página; leia de novo e use um node atual"
 	lookBadFocus    = "focus_node não é um node; use um node do mapa (site_read) ou dos marks"
 	lookNoImage     = "o editor não devolveu uma imagem legível da página; tente de novo"

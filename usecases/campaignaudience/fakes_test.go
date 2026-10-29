@@ -10,7 +10,10 @@ import (
 	"sync"
 	"time"
 	"vozko/domain/automationneeds"
+	"vozko/domain/sheetfit"
+	"vozko/domain/variabledecl"
 	"vozko/domain/variabledecl/variabledecltest"
+	"vozko/domain/workflow"
 
 	"vozko/domain/campaignaudience"
 	"vozko/domain/customfield"
@@ -224,6 +227,29 @@ func (c *fakeChannel) Prepare(_ context.Context, _ Actor, params Params) (Prepar
 	}}, nil
 }
 
+type sheetFitCall struct {
+	kind  variabledecl.Kind
+	uses  []sheetfit.Use
+	value string
+}
+
+type fakeSheetFits struct {
+	misfits map[string]string
+	err     error
+	calls   []sheetFitCall
+}
+
+func (f *fakeSheetFits) Resolve(_ context.Context, _ string, t variabledecl.Type, uses []sheetfit.Use, value string) (workflow.SheetFile, error) {
+	f.calls = append(f.calls, sheetFitCall{kind: t.Kind, uses: uses, value: value})
+	if f.err != nil {
+		return workflow.SheetFile{}, f.err
+	}
+	if code := f.misfits[value]; code != "" {
+		return workflow.SheetFile{}, &sheetfit.Misfit{Code: code}
+	}
+	return workflow.SheetFile{SpreadsheetID: value}, nil
+}
+
 type world struct {
 	service    *Service
 	selections *fakeSelections
@@ -235,6 +261,8 @@ type world struct {
 	gate       *openGate
 	state      *audiencetest.State
 	seen       *hygienetest.SeenEmails
+	values     *variabledecltest.Static
+	fits       *fakeSheetFits
 	ids        int
 }
 
@@ -249,6 +277,8 @@ func newWorld(t interface{ Fatal(...any) }) *world {
 		gate:       &openGate{},
 		state:      audiencetest.NewState(),
 		seen:       &hygienetest.SeenEmails{},
+		values:     &variabledecltest.Static{},
+		fits:       &fakeSheetFits{},
 	}
 	service, err := New(Deps{
 		Selections:  w.selections,
@@ -263,7 +293,8 @@ func newWorld(t interface{ Fatal(...any) }) *world {
 		Channels:    []Channel{w.channel, w.email},
 		Gate:        w.gate,
 		Flight:      audiencetest.Flight(w.state),
-		Values:      variabledecltest.Static{},
+		Values:      w.values,
+		SheetFiles:  w.fits,
 		Now:         func() time.Time { return testNow },
 		NewID: func() string {
 			w.ids++

@@ -20,7 +20,10 @@ type Service struct {
 	httpClient *http.Client
 }
 
-var _ calendar.GoogleCalendarAPI = (*Service)(nil)
+var (
+	_ calendar.GoogleCalendarAPI = (*Service)(nil)
+	_ calendar.BusyReader        = (*Service)(nil)
+)
 
 func NewService() *Service {
 	return &Service{httpClient: &http.Client{Timeout: 10 * time.Second}}
@@ -756,4 +759,67 @@ func mapGoogleListItemToEvent(item googleListItem) *calendar.CalendarEvent {
 	}
 
 	return ev
+}
+
+const primaryCalendar = "primary"
+
+type freeBusyRequest struct {
+	TimeMin string           `json:"timeMin"`
+	TimeMax string           `json:"timeMax"`
+	Items   []freeBusyItemID `json:"items"`
+}
+
+type freeBusyItemID struct {
+	ID string `json:"id"`
+}
+
+type freeBusyResponse struct {
+	Calendars map[string]struct {
+		Busy []struct {
+			Start string `json:"start"`
+			End   string `json:"end"`
+		} `json:"busy"`
+		Errors []json.RawMessage `json:"errors"`
+	} `json:"calendars"`
+}
+
+func (s *Service) FreeBusy(accessToken string, from, to time.Time) ([]calendar.Slot, error) {
+	body, err := json.Marshal(freeBusyRequest{TimeMin: from.UTC().Format(time.RFC3339), TimeMax: to.UTC().Format(time.RFC3339), Items: []freeBusyItemID{{ID: primaryCalendar}}})
+	if err != nil {
+		return nil, fmt.Errorf("marshal free busy: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, calendarAPIURL+"/freeBusy", strings.NewReader(string(body)))
+	if err != nil {
+		return nil, fmt.Errorf("create free busy request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	res, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("google calendar free busy request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		var errBody json.RawMessage
+		json.NewDecoder(res.Body).Decode(&errBody)
+		return nil, fmt.Errorf("google calendar free busy failed (%d): %s", res.StatusCode, string(errBody))
+	}
+	var parsed freeBusyResponse
+	if err := json.NewDecoder(res.Body).Decode(&parsed); err != nil {
+		return nil, fmt.Errorf("decode free busy response: %w", err)
+	}
+	primary, ok := parsed.Calendars[primaryCalendar]
+	if !ok || len(primary.Errors) > 0 {
+		return nil, fmt.Errorf("google calendar free busy could not read the calendar")
+	}
+	busy := make([]calendar.Slot, 0, len(primary.Busy))
+	for _, b := range primary.Busy {
+		start, errStart := time.Parse(time.RFC3339, b.Start)
+		end, errEnd := time.Parse(time.RFC3339, b.End)
+		if errStart != nil || errEnd != nil {
+			return nil, fmt.Errorf("google calendar free busy returned an unreadable interval")
+		}
+		busy = append(busy, calendar.Slot{Start: start, End: end})
+	}
+	return busy, nil
 }

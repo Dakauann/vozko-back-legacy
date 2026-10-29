@@ -718,7 +718,7 @@ func (h *Handler) Automations(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Criar automação para o formulário
-// @Description	Cria um fluxo de automação desligado, já ligado ao formulário: quando ele é respondido, adiciona uma etiqueta, cria um negócio no funil padrão e avisa o responsável. Você edita e liga no editor de fluxos. Exige `whatsapp_forms:read` e `workflows:create`.
+// @Description	Cria um fluxo de automação desligado, já ligado ao formulário: quando ele é respondido, adiciona uma etiqueta, cria uma negociação no funil padrão e avisa o responsável. Você edita e liga no editor de fluxos. Exige `whatsapp_forms:read` e `workflows:create`.
 // @Tags			Formulários do WhatsApp
 // @Produce		json
 // @Param			formId	path		string	true	"ID do formulário (UUID)"

@@ -48,15 +48,15 @@ func (q *Queries) FlowVariables(ctx context.Context, workspaceID, workflowID str
 	if err != nil {
 		return nil, err
 	}
-	catalog, err := q.d.Service.declarations.Catalog(ctx, workspaceID)
+	labels, err := q.labels(ctx, workspaceID)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", domain.ErrUnreadable, err)
+		return nil, err
 	}
-	labels := Labels{catalog: catalog, registry: q.d.Service.declarations.Registry()}
+	voice := draft.Type == workflow.WorkflowTypeVoice
 	nodes := draft.Graph.CampaignVarNodes()
 	row := func(need domain.Need, required, used bool) FlowVariable {
 		_, inFlow := draft.Graph.VariableUse(need.Name)
-		out := FlowVariable{Need: need, Required: required, InFlow: inFlow, Used: used, FilledBy: fillersOf(draft, need, required)}
+		out := FlowVariable{Need: need, Required: required, InFlow: inFlow, Used: used, FilledBy: fillersOf(voice, need, required)}
 		for _, id := range nodes[need.Name] {
 			out.Nodes = append(out.Nodes, NodeRef{ID: id, Name: nodeName(draft, id)})
 		}
@@ -85,12 +85,20 @@ func (q *Queries) FlowVariables(ctx context.Context, workspaceID, workflowID str
 	return rows, nil
 }
 
-func fillersOf(draft *workflow.Workflow, need domain.Need, required bool) []Filler {
+func (q *Queries) labels(ctx context.Context, workspaceID string) (Labels, error) {
+	catalog, err := q.d.Service.declarations.Catalog(ctx, workspaceID)
+	if err != nil {
+		return Labels{}, fmt.Errorf("%w: %w", domain.ErrUnreadable, err)
+	}
+	return Labels{catalog: catalog, registry: q.d.Service.declarations.Registry()}, nil
+}
+
+func fillersOf(voice bool, need domain.Need, required bool) []Filler {
 	var out []Filler
 	if need.Default != "" && !required {
 		out = append(out, Filler{Kind: FilledByDefault, Value: need.Default})
 	}
-	if draft.Type == workflow.WorkflowTypeVoice {
+	if voice {
 		return out
 	}
 	return append(out, Filler{Kind: FilledByCampaign}, Filler{Kind: FilledByHandOff}, Filler{Kind: FilledByTransfer})

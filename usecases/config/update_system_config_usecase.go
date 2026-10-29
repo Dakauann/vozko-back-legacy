@@ -27,10 +27,6 @@ func (uc *updateSystemConfigUseCase) Execute(ctx context.Context, userID string,
 		return nil, err
 	}
 
-	if input.BaseSystemPrompt != nil {
-		existing.BaseSystemPrompt = strings.TrimSpace(*input.BaseSystemPrompt)
-	}
-
 	if input.MaxConcurrentCalls != nil && *input.MaxConcurrentCalls > 0 {
 		existing.MaxConcurrentCalls = *input.MaxConcurrentCalls
 	}

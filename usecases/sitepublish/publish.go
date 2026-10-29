@@ -5,14 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"mime"
 	"path"
 	"regexp"
 	"slices"
 	"sort"
 	"strings"
-
-	"github.com/google/uuid"
 
 	"vozko/domain/media"
 	"vozko/domain/site"
@@ -315,7 +314,7 @@ type builtSite struct {
 
 func (s *Service) build(ctx context.Context, snap ProjectSnapshot, rec *sitepublish.DeploymentRecord) (builtSite, []site.RenderedPage, error) {
 	formIDs := sitepublish.FormIDs(snap.Project)
-	for id := range snap.Settings.Forms {
+	for _, id := range slices.Concat(slices.Collect(maps.Keys(snap.Settings.Forms)), slices.Collect(maps.Keys(snap.Settings.Bookings))) {
 		if !slices.Contains(formIDs, id) {
 			formIDs = append(formIDs, id)
 		}
@@ -355,7 +354,7 @@ func (s *Service) build(ctx context.Context, snap ProjectSnapshot, rec *sitepubl
 			return builtSite{}, nil, fmt.Errorf("%w: %s still has the site origin placeholder", ErrBuildFailed, p)
 		}
 	}
-	routes, err := s.renderRoutes(ctx, snap.ID, candidate, out.bodies)
+	routes, err := s.renderRoutes(ctx, snap.WorkspaceID, snap.ID, candidate, out.bodies)
 	if err != nil {
 		return builtSite{}, nil, err
 	}
@@ -372,13 +371,19 @@ func (s *Service) build(ctx context.Context, snap ProjectSnapshot, rec *sitepubl
 		out.routes[r.route] = r.file
 	}
 	checked := site.CheckPages(pages)
-	manifests := checked.Manifests
 	if structural, _ := site.Split(checked.Issues); len(structural) > 0 {
 		return builtSite{}, nil, &IssuesFailure{Kind: ErrPublishBlocked, Issues: structural}
 	}
-	if gaps := checked.OpenGaps(pages, snap.Settings); len(gaps) > 0 {
+	gaps := checked.OpenGaps(pages, snap.Settings)
+	if len(gaps) == 0 {
+		if gaps, err = s.calendarGaps(ctx, snap.WorkspaceID, site.BookingIDs(pages)); err != nil {
+			return builtSite{}, nil, err
+		}
+	}
+	if len(gaps) > 0 {
 		return builtSite{}, nil, &IssuesFailure{Kind: ErrGapsOpen, Issues: gaps}
 	}
+	manifests, bookings := withBookings(checked.Manifests, site.BookingIDs(pages), snap.Settings.Bookings)
 	for _, m := range manifests {
 		if keys[m.ID] == "" {
 			return builtSite{}, nil, fmt.Errorf("%w: %s", ErrFormKeyMissing, m.ID)
@@ -413,7 +418,7 @@ func (s *Service) build(ctx context.Context, snap ProjectSnapshot, rec *sitepubl
 	}
 	rec.Files = out.files
 	rec.Checks = site.RenderedChecks(pages)
-	rec.Forms = sitepublish.FormsSnapshot{Manifests: manifests, Settings: formSettings(snap.Settings, manifests), Widgets: widgets}
+	rec.Forms = sitepublish.FormsSnapshot{Manifests: manifests, Settings: formSettings(snap.Settings, manifests), Widgets: widgets, Bookings: bookings}
 	rec.Redirects = snap.Settings.Redirects
 	rec.Settings = snap.Settings
 	rec.Outbound = outbound
@@ -477,6 +482,37 @@ func (s *Service) destinations(ctx context.Context, snap ProjectSnapshot, manife
 	return out, nil
 }
 
+func (s *Service) calendarGaps(ctx context.Context, workspaceID string, bookings []string) ([]site.Issue, error) {
+	if len(bookings) == 0 {
+		return nil, nil
+	}
+	connected, err := s.Calendars.Connected(ctx, workspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: the booking calendar could not be checked: %w", ErrFormsUnavailable, err)
+	}
+	if connected {
+		return nil, nil
+	}
+	return []site.Issue{{Code: site.CodeBookingCalendarDisconnected, Detail: bookings[0]}}, nil
+}
+
+func withBookings(manifests []siteform.Manifest, ids []string, settings map[string]site.Booking) ([]siteform.Manifest, map[string]site.Booking) {
+	out := slices.Clone(manifests)
+	bookings := map[string]site.Booking{}
+	for _, id := range ids {
+		booking, ok := settings[id]
+		if !ok {
+			continue
+		}
+		out = append(out, booking.Manifest(id))
+		bookings[id] = booking
+	}
+	if len(bookings) == 0 {
+		return out, nil
+	}
+	return out, bookings
+}
+
 func formSettings(settings site.Settings, manifests []siteform.Manifest) map[string]site.FormSettings {
 	out := map[string]site.FormSettings{}
 	for _, m := range manifests {
@@ -497,16 +533,18 @@ func contentTypeOf(p, declared string) string {
 	return "application/octet-stream"
 }
 
+func (s *Service) widget(ctx context.Context, workspaceID, ref string) (*webchat.Widget, error) {
+	widget, err := webchat.FindSiteWidget(ctx, s.Widgets, workspaceID, ref)
+	if errors.Is(err, webchat.ErrWidgetNotFound) {
+		return nil, fmt.Errorf("%w: %s", ErrWidgetUnknown, ref)
+	}
+	return widget, err
+}
+
 func (s *Service) widgetIDs(ctx context.Context, workspaceID string, refs []string) ([]string, error) {
 	ids := make([]string, 0, len(refs))
 	for _, ref := range refs {
-		widget, err := s.Widgets.FindByPublicKey(ctx, ref)
-		if errors.Is(err, webchat.ErrWidgetNotFound) && uuid.Validate(ref) == nil {
-			widget, err = s.Widgets.FindByID(ctx, workspaceID, ref)
-		}
-		if errors.Is(err, webchat.ErrWidgetNotFound) || (err == nil && (widget == nil || widget.WorkspaceID != workspaceID)) {
-			return nil, fmt.Errorf("%w: %s", ErrWidgetUnknown, ref)
-		}
+		widget, err := s.widget(ctx, workspaceID, ref)
 		if err != nil {
 			return nil, err
 		}
@@ -517,7 +555,17 @@ func (s *Service) widgetIDs(ctx context.Context, workspaceID string, refs []stri
 	return ids, nil
 }
 
-func (s *Service) renderRoutes(ctx context.Context, projectID string, candidate Candidate, bodies map[string][]byte) ([]routeFile, error) {
+func (s *Service) linkWebchat(ctx context.Context, workspaceID, html string) (string, error) {
+	return sitepublish.LinkWebchat(html, func(ref string) (string, bool, error) {
+		widget, err := s.widget(ctx, workspaceID, ref)
+		if err != nil {
+			return "", false, err
+		}
+		return widget.PublicKey, true, nil
+	})
+}
+
+func (s *Service) renderRoutes(ctx context.Context, workspaceID, projectID string, candidate Candidate, bodies map[string][]byte) ([]routeFile, error) {
 	if len(candidate.Routes) == 0 {
 		return nil, fmt.Errorf("%w: the build has no routes", ErrBuildFailed)
 	}
@@ -554,6 +602,9 @@ func (s *Service) renderRoutes(ctx context.Context, projectID string, candidate 
 		}
 		html, err := s.linkWhatsApp(ctx, projectID, r.Route, html)
 		if err != nil {
+			return nil, err
+		}
+		if html, err = s.linkWebchat(ctx, workspaceID, html); err != nil {
 			return nil, err
 		}
 		entry := routeFile{route: r.Route, file: file, interactive: r.Interactive}

@@ -6,7 +6,6 @@ import (
 
 type SystemConfigResponse struct {
 	ID                     string  `json:"id"`
-	BaseSystemPrompt       string  `json:"baseSystemPrompt"`
 	MaxConcurrentCalls     int     `json:"maxConcurrentCalls"`
 	WorkTimeEnabled        bool    `json:"workTimeEnabled"`
 	WorkTimeStart          string  `json:"workTimeStart"`
@@ -19,7 +18,6 @@ type SystemConfigResponse struct {
 func toSystemConfigResponse(c *config.SystemConfig) SystemConfigResponse {
 	return SystemConfigResponse{
 		ID:                     c.ID,
-		BaseSystemPrompt:       c.BaseSystemPrompt,
 		MaxConcurrentCalls:     c.MaxConcurrentCalls,
 		WorkTimeEnabled:        c.WorkTimeEnabled,
 		WorkTimeStart:          c.WorkTimeStart,

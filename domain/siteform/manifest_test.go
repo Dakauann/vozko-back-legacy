@@ -160,3 +160,15 @@ func TestManifestsRoundTripThroughStrictJSON(t *testing.T) {
 		}
 	}
 }
+
+func TestExtractIgnoresTheRuntimeTrapFieldButNoLookalike(t *testing.T) {
+	source := `<form data-vz-form="contato"><input name="lead.phone" type="tel"><div aria-hidden="true"><input type="text" name="` + TrapField + `" tabindex="-1"></div></form>`
+	manifests, problems := Extract(parse(t, source))
+	if len(problems) != 0 || len(manifests) != 1 || len(manifests[0].Fields) != 1 || manifests[0].Fields[0].Name != TargetPhone {
+		t.Fatalf("got %+v %+v", manifests, problems)
+	}
+	_, problems = Extract(parse(t, `<form data-vz-form="contato"><input name="vz_website2"></form>`))
+	if len(problems) != 1 || problems[0].Code != CodeFormFieldUnknown {
+		t.Fatalf("got %+v", problems)
+	}
+}

@@ -9,7 +9,10 @@ import (
 	"strings"
 )
 
-const WebchatFramePath = "/public/webchat/"
+const (
+	WebchatFramePath  = "/public/webchat/"
+	WebchatLoaderPath = "/public/webchat/loader.js"
+)
 
 var ErrContentPolicyInvalid = errors.New("site: a content policy source is invalid")
 
@@ -141,7 +144,9 @@ func ContentPolicyFor(integrations []IntegrationKind, apiOrigin string, webchat 
 	}
 	p.Frame = EmbedFrames()
 	if webchat {
-		p.Frame = appendUnique(p.Frame, strings.TrimSuffix(apiOrigin, "/")+WebchatFramePath)
+		api := strings.TrimSuffix(apiOrigin, "/")
+		p.Frame = appendUnique(p.Frame, api+WebchatFramePath)
+		p.Script = appendUnique(p.Script, api+WebchatLoaderPath)
 	}
 	return p
 }

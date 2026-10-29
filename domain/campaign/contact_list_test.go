@@ -414,3 +414,23 @@ func TestAHandTypedRowFeedsTheAutomationFromItsOwnValues(t *testing.T) {
 		t.Fatalf("metadata = %v", got)
 	}
 }
+
+func TestAFixedKeyIsNeverReadFromTheListNorShownAsAColumn(t *testing.T) {
+	list := readPhones(t, "telefone;nome;planilha_de_gravacao;Unidade\n5511900010142;Maria;sp-outra;Centro\n")
+	targets := []ListTarget{{Key: "planilha_de_gravacao", Fixed: true}, {Key: "unidade", Column: "Unidade"}}
+	mapping := MapList(list.Layout, ContactPhone, targets, nil)
+	row := list.Rows[0]
+	if got := mapping.Cells(row); !reflect.DeepEqual(got, []string{"", "Centro"}) {
+		t.Fatalf("cells = %q", got)
+	}
+	if got := mapping.Metadata(row); !reflect.DeepEqual(got, map[string]any{"unidade": "Centro"}) {
+		t.Fatalf("metadata = %#v", got)
+	}
+	if !reflect.DeepEqual(mapping.MetadataColumns, []MetadataColumn{{Key: "unidade", Label: "Unidade"}}) {
+		t.Fatalf("columns = %+v", mapping.MetadataColumns)
+	}
+	edited := ListRow{Contact: row.Contact, Metadata: map[string]any{"planilha_de_gravacao": "sp-digitada", "unidade": "Norte"}}
+	if got := mapping.Metadata(edited); !reflect.DeepEqual(got, map[string]any{"unidade": "Norte"}) {
+		t.Fatalf("edited metadata = %#v", got)
+	}
+}

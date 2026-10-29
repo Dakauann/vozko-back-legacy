@@ -28,16 +28,138 @@ func compactingConfig() Config {
 	return Config{FinishToolName: "finish", IterateUntilDone: true, NoProgressStop: 100, ModelLimits: ai.ModelInfo{ContextLength: 40_000}}
 }
 
-func TestTheCeilingLeavesTheLargerOfTenPercentOrTheMinimumReserve(t *testing.T) {
-	cases := map[int64]int{40_000: 24_000, 200_000: 180_000, 1_000_000: 900_000, 20_000: 18_000}
+func TestCompactionFiresAtTheWorkingBudgetOfTheModel(t *testing.T) {
+	cases := map[int64]int{20_000: 18_000, 40_000: 24_000, 128_000: 112_000, 200_000: 180_000, 1_000_000: 200_000, 2_000_000: 200_000}
 	for window, want := range cases {
 		got, ok := Config{ModelLimits: ai.ModelInfo{ContextLength: window}}.compactionCeiling()
 		if !ok || got != want {
-			t.Errorf("window %d: ceiling %d, want %d", window, got, want)
+			t.Errorf("window %d: compacts at %d, want %d", window, got, want)
 		}
 	}
 	if _, ok := (Config{}).compactionCeiling(); ok {
 		t.Error("an unknown window never compacts")
+	}
+}
+
+func TestAMillionTokenWindowCompactsMidAnswerOnceTheRealUsageReachesTheBudget(t *testing.T) {
+	cfg := compactingConfig()
+	cfg.ModelLimits = ai.ModelInfo{ContextLength: 1_000_000}
+	prov := &fakeAI{turns: []aiTurn{
+		{tcs: []ai.ToolCall{tcall("read")}, usage: &ai.Usage{PromptTokens: 150_000, CompletionTokens: 2_000, CachedTokens: 140_000}},
+		{tcs: []ai.ToolCall{tcall("look")}, usage: &ai.Usage{PromptTokens: 195_000, CompletionTokens: 5_000, CachedTokens: 150_000}},
+		{fullText: filledSummary},
+		{fullText: "pronto"},
+	}}
+	drv := &checkpointDriver{fakeDriver: reading()}
+	out, _, sess := runWith(t, prov, drv, cfg)
+	if out.Halt != nil || len(prov.inputs) != 4 {
+		t.Fatalf("outcome %+v after %d calls, want one summary between the steps", out, len(prov.inputs))
+	}
+	if prov.inputs[1].ToolChoice == "none" || prov.inputs[2].ToolChoice != "none" {
+		t.Fatal("150 mil tokens stay under the budget; the summary comes only after the call that reached 200 mil")
+	}
+	if len(drv.saved) != 1 || !isCheckpoint(sess.History[0]) {
+		t.Fatalf("saved %d checkpoints, history opens with %q", len(drv.saved), sess.History[0].Content)
+	}
+}
+
+func bulkyExchanges(n, chars int) []ai.Message {
+	var h []ai.Message
+	for i := 0; i < n; i++ {
+		h = append(h,
+			ai.Message{Role: ai.RoleUser, Content: fmt.Sprintf("pedido %d", i)},
+			ai.Message{Role: ai.RoleAssistant, Content: fmt.Sprintf("resposta %d ", i) + strings.Repeat("x", chars)},
+		)
+	}
+	return h
+}
+
+func TestASummaryRequestLongerThanTheWindowIsFlattenedAndDropsTheOldest(t *testing.T) {
+	cfg := compactingConfig()
+	cfg.CompactKeepTokens = 1_000
+	prov := &fakeAI{turns: []aiTurn{{fullText: filledSummary}, {fullText: "pronto"}}}
+	drv := &checkpointDriver{fakeDriver: reading()}
+	sess := &Session{History: bulkyExchanges(10, 20_000)}
+	e := Engine{AI: prov}
+	out := e.Run(t.Context(), (&capture{}).emit, drv, cfg, sess, "continue")
+	if out.Halt != nil {
+		t.Fatalf("outcome %+v", out)
+	}
+	summary := prov.inputs[0]
+	ceiling, _ := cfg.ModelLimits.ContextCeiling()
+	if size := estimateRequest(drv, summary.Messages); size > ceiling {
+		t.Fatalf("the summary request has %d tokens, over the %d the model takes", size, ceiling)
+	}
+	if len(summary.Messages) != 2 || summary.Messages[0].Role != ai.RoleUser {
+		t.Fatalf("the summary request must be the flattened conversation and the summary prompt, got %d messages", len(summary.Messages))
+	}
+	flat := summary.Messages[0].Content
+	if strings.Contains(flat, "[Usuário]: pedido 0\n") || !strings.Contains(flat, "[Usuário]: pedido 8") || !strings.Contains(flat, "parte mais antiga da conversa ficou de fora") {
+		t.Fatalf("the oldest exchanges are dropped and the newest summarized ones kept: %.300s", flat)
+	}
+	if !strings.Contains(summary.Messages[1].Content, "resumo estruturado") {
+		t.Fatal("the summary prompt stays last")
+	}
+}
+
+func TestASummaryRequestThatFitsKeepsTheConversationAsItWasForTheCache(t *testing.T) {
+	cfg := compactingConfig()
+	cfg.CompactKeepTokens = 1_000
+	cfg.ModelLimits = ai.ModelInfo{ContextLength: 1_000_000}
+	prov := &fakeAI{turns: []aiTurn{{fullText: filledSummary}, {fullText: "pronto"}}}
+	sess := &Session{History: bulkyExchanges(4, 240_000)}
+	e := Engine{AI: prov}
+	e.Run(t.Context(), (&capture{}).emit, &checkpointDriver{fakeDriver: reading()}, cfg, sess, "continue")
+	summary := prov.inputs[0].Messages
+	if len(summary) < 3 || summary[0].Content != "pedido 0" {
+		t.Fatalf("a summary request that fits reuses the conversation messages, got %d messages starting %.40q", len(summary), summary[0].Content)
+	}
+}
+
+func TestASummaryTheProviderRejectsAsTooLongIsRetriedSmaller(t *testing.T) {
+	cfg := compactingConfig()
+	cfg.CompactKeepTokens = 1_000
+	overflow := fmt.Errorf("%w: prompt is too long", ai.ErrContextOverflow)
+	prov := &fakeAI{turns: []aiTurn{
+		{errEvent: overflow},
+		{errEvent: overflow},
+		{fullText: filledSummary},
+		{fullText: "pronto"},
+	}}
+	drv := &checkpointDriver{fakeDriver: reading()}
+	sess := &Session{History: bulkyExchanges(6, 8_000)}
+	e := Engine{AI: prov}
+	out := e.Run(t.Context(), (&capture{}).emit, drv, cfg, sess, "continue")
+	if out.Halt != nil || len(drv.saved) != 1 {
+		t.Fatalf("outcome %+v saved %d, want the reply to go on after a smaller summary", out, len(drv.saved))
+	}
+	first, retried := prov.inputs[1], prov.inputs[2]
+	if retried.ToolChoice != "none" || estimateRequest(drv, retried.Messages) >= estimateRequest(drv, first.Messages) {
+		t.Fatal("the retried summary request must be smaller than the one the provider refused")
+	}
+	if containsText(retried.Messages, "[Usuário]: pedido 0\n") || !containsText(retried.Messages, "[Usuário]: pedido 4") {
+		t.Fatal("the retry drops the oldest exchanges and keeps the newest summarized ones")
+	}
+}
+
+func TestASummaryThatNeverFitsStopsTheReply(t *testing.T) {
+	cfg := compactingConfig()
+	cfg.CompactKeepTokens = 1_000
+	overflow := fmt.Errorf("%w: prompt is too long", ai.ErrContextOverflow)
+	turns := []aiTurn{{errEvent: overflow}}
+	for range maxOverflowCompactions + 1 {
+		turns = append(turns, aiTurn{errEvent: overflow})
+	}
+	prov := &fakeAI{turns: turns}
+	drv := &checkpointDriver{fakeDriver: reading()}
+	sess := &Session{History: bulkyExchanges(6, 8_000)}
+	e := Engine{AI: prov}
+	out := e.Run(t.Context(), (&capture{}).emit, drv, cfg, sess, "continue")
+	if !errors.Is(out.Halt, ErrCompactionFailed) || len(drv.saved) != 0 {
+		t.Fatalf("outcome %+v saved %d, want the reply stopped", out, len(drv.saved))
+	}
+	if len(prov.inputs) != maxOverflowCompactions+2 {
+		t.Fatalf("%d calls, want the summary tried %d times", len(prov.inputs), maxOverflowCompactions+1)
 	}
 }
 
@@ -75,10 +197,11 @@ func TestAFullContextIsSummarizedIntoACheckpointAndTheReplyGoesOn(t *testing.T) 
 func TestTheNewestExchangesStayVerbatimInsideTheCheckpoint(t *testing.T) {
 	cfg := compactingConfig()
 	cfg.CompactKeepTokens = 1_000
+	cfg.ModelLimits = ai.ModelInfo{ContextLength: 1_000_000}
 	prov := &fakeAI{turns: []aiTurn{{fullText: filledSummary}, {fullText: "pronto"}}}
 	sess := &Session{History: []ai.Message{
 		{Role: ai.RoleUser, Content: "primeiro pedido"},
-		{Role: ai.RoleAssistant, Content: "feito " + strings.Repeat("antigo ", 15_000)},
+		{Role: ai.RoleAssistant, Content: "feito " + strings.Repeat("antigo ", 115_000)},
 		{Role: ai.RoleUser, Content: "segundo pedido"},
 		{Role: ai.RoleAssistant, Content: "também feito"},
 	}}

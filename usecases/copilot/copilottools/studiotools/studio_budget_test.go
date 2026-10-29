@@ -36,12 +36,12 @@ func studioViewTools(t *testing.T, kind copilot.StudioKind) []tools.Definition {
 }
 
 var studioSchemaBudgets = map[string]int{
-	"studio_edit_video":     10500,
-	"studio_edit_image":     7200,
+	"studio_edit_video":     5400,
+	"studio_edit_image":     4100,
 	"studio_op_guide":       600,
 	"load_skill":            17500,
 	"studio_look":           3000,
-	"studio_read":           900,
+	"studio_read":           1100,
 	"studio_export":         2600,
 	"studio_library_search": 1900,
 }

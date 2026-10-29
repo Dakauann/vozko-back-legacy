@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"vozko/domain/emailinbox"
+	"vozko/domain/customfield"
 	"vozko/domain/pipeline"
 	"vozko/domain/site"
 	"vozko/domain/stage"
@@ -105,11 +106,23 @@ func newReferences(t *testing.T) *WorkspaceReferences {
 		PhoneList:   refPhoneList{"p1": wsA, "p2": wsB},
 		Instances:   refInstances{"i1": wsA, "i2": wsB},
 		Inboxes:     refInboxes{"e1": wsA, "e2": wsB},
+		Widgets:     refWidgets{"c1": wsA, "c2": wsB},
+		Calendars:   refCalendars{wsA: true},
+		LeadFields:  refLeadFields{wsA: {{Key: "cidade", Label: "Cidade", Type: customfield.TypeText, ObjectType: customfield.ObjectLead}, {Key: "cpf", Label: "CPF", Type: customfield.TypeText, ObjectType: customfield.ObjectLead, Sensitive: true}}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return refs
+}
+
+type refLeadFields map[string][]*customfield.Definition
+
+func (r refLeadFields) ListByObject(workspaceID string, objectType customfield.ObjectType) ([]*customfield.Definition, error) {
+	if objectType != customfield.ObjectLead {
+		return nil, errors.New("only lead fields")
+	}
+	return r[workspaceID], nil
 }
 
 func TestFormReferencesMustBelongToTheWorkspace(t *testing.T) {

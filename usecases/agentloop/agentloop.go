@@ -89,7 +89,6 @@ type Config struct {
 	CompactKeepTokens  int
 	CostCeilingMicros  int64
 	GraceInstruction   string
-	KeepToolImages     int
 	ProviderRetries    int
 	ProviderRetryBase  time.Duration
 }
@@ -125,9 +124,6 @@ func (c Config) withDefaults() Config {
 	if c.CompactKeepTokens <= 0 {
 		c.CompactKeepTokens = defaultCompactKeepTokens
 	}
-	if c.KeepToolImages <= 0 {
-		c.KeepToolImages = 2
-	}
 	if c.ProviderRetries <= 0 {
 		c.ProviderRetries = 3
 	}
@@ -154,6 +150,10 @@ func UserRequest(prompt string) string {
 
 func Interjection(prompt string) string {
 	return interjectionPrefix + prompt
+}
+
+func Interjected(m ai.Message) bool {
+	return m.Role == ai.RoleUser && strings.HasPrefix(m.Content, interjectionPrefix)
 }
 
 func (c Config) request(drv Driver, messages []ai.Message) ai.GenerateInput {
@@ -189,14 +189,15 @@ func (c Config) allows(iter int) bool {
 	return c.IterateUntilDone || iter <= c.MaxIterations
 }
 
-
 type Session struct {
 	History      []ai.Message
 	Turn         []ai.Message
 	PromptImages []string
 	Frame        func(string) string
+	RecordPrompt bool
 	TokensUsed   int
 	CostMicros   int64
+	replayed     int
 }
 
 type OutcomeKind int
@@ -256,7 +257,7 @@ const (
 	truncatedReplyNudge   = "Sua resposta anterior foi cortada pelo limite de saída antes de você agir. Planeje menos e aja em passos menores: uma cena ou um lote de até 8 operações por vez."
 	truncatedCallResult   = "CHAMADA CORTADA: a resposta passou do limite de saída e os argumentos chegaram incompletos, então nada foi executado. Refaça em partes menores (por exemplo, lotes de até 12 operações)."
 	toolImagesNote        = "[Imagens devolvidas pelas ferramentas acima]"
-	toolImagesCleared     = toolImagesNote + " (removidas para liberar espaço; capture de novo se precisar)"
+	toolImagesNotKept     = toolImagesNote + " (não ficam guardadas depois da resposta; capture de novo se precisar)"
 )
 
 func sessionEndReason(err error) string {
@@ -306,8 +307,13 @@ func (e *Engine) Run(ctx context.Context, emit Emit, drv Driver, cfg Config, ses
 	if frame == nil {
 		frame = UserRequest
 	}
-	sess.History = append(sess.History, ai.Message{Role: ai.RoleUser, Content: frame(prompt), Images: sess.PromptImages})
-	sess.History = trimHistory(sess.History, cfg.historyCap())
+	sess.replayed = len(sess.History)
+	opening := ai.Message{Role: ai.RoleUser, Content: frame(prompt), Images: sess.PromptImages}
+	if sess.RecordPrompt {
+		sess.record(cfg.historyCap(), opening)
+	} else {
+		sess.extend(cfg.historyCap(), opening)
+	}
 
 	for iter := 1; cfg.allows(iter); iter++ {
 		if ctx.Err() != nil {
@@ -323,7 +329,7 @@ func (e *Engine) Run(ctx context.Context, emit Emit, drv Driver, cfg Config, ses
 		}
 		if inbox, ok := drv.(Inbox); ok {
 			if arrived := inbox.Drain(ctx, sess); len(arrived) > 0 {
-				sess.History = trimHistory(append(sess.History, arrived...), cfg.historyCap())
+				sess.record(cfg.historyCap(), arrived...)
 			}
 		}
 
@@ -333,12 +339,13 @@ func (e *Engine) Run(ctx context.Context, emit Emit, drv Driver, cfg Config, ses
 				return compactionHalt(err)
 			}
 			measured = contextMeasure{}
+			sess.replayed = 0
 		}
 
 		msgs := append(append([]ai.Message(nil), sess.History...),
 			ai.Message{Role: ai.RoleUser, Content: drv.Reground(iter, cfg.MaxIterations, noMutationStreak)})
 
-		out, err := e.generate(ctx, emit, cfg, cfg.request(drv, msgs))
+		out, err := e.generate(ctx, emit, cfg, sess.request(cfg, drv, msgs))
 		if err != nil {
 			if ctx.Err() != nil {
 				return Outcome{Kind: OutcomeDone, Valid: false, Summary: sessionEndReason(ctx.Err())}
@@ -349,6 +356,7 @@ func (e *Engine) Run(ctx context.Context, emit Emit, drv Driver, cfg Config, ses
 					return compactionHalt(err)
 				}
 				measured = contextMeasure{}
+				sess.replayed = 0
 				continue
 			}
 			log.Printf("%s %s%v", cfg.LogPrefix, providerErrPrefix, err)
@@ -384,7 +392,7 @@ func (e *Engine) Run(ctx context.Context, emit Emit, drv Driver, cfg Config, ses
 					return Outcome{Kind: OutcomeDone, Valid: false, Summary: reasonEmptyTurn, Halt: ErrOutputTruncated}
 				}
 				if out.FinishReason == "length" {
-					sess.History = append(sess.History, ai.Message{Role: ai.RoleUser, Content: truncatedReplyNudge})
+					sess.record(cfg.historyCap(), ai.Message{Role: ai.RoleUser, Content: truncatedReplyNudge})
 				}
 				continue
 			}
@@ -525,8 +533,9 @@ func (e *Engine) graceAnswer(ctx context.Context, emit Emit, drv Driver, cfg Con
 	if strings.TrimSpace(cfg.GraceInstruction) == "" || ctx.Err() != nil {
 		return stop
 	}
-	msgs := append(append([]ai.Message(nil), sess.History...), ai.Message{Role: ai.RoleUser, Content: cfg.GraceInstruction})
-	request := cfg.request(drv, msgs)
+	instruction := ai.Message{Role: ai.RoleUser, Content: cfg.GraceInstruction}
+	msgs := append(append([]ai.Message(nil), sess.History...), instruction)
+	request := sess.request(cfg, drv, msgs)
 	request.ToolChoice = "none"
 	out, err := e.generate(ctx, emit, cfg, request)
 	if err != nil {
@@ -539,7 +548,7 @@ func (e *Engine) graceAnswer(ctx context.Context, emit Emit, drv Driver, cfg Con
 	if content == "" {
 		return stop
 	}
-	sess.record(cfg.historyCap(), ai.Message{Role: ai.RoleAssistant, Content: content, Reasoning: out.Message.Reasoning})
+	sess.record(cfg.historyCap(), instruction, ai.Message{Role: ai.RoleAssistant, Content: content, Reasoning: out.Message.Reasoning})
 	return Outcome{Kind: OutcomeIdle, Valid: stop.Valid, Summary: stop.Summary}
 }
 
@@ -696,29 +705,39 @@ func (s *Session) TakeTurn() []ai.Message {
 	return turn
 }
 
+func (s *Session) extend(maxHistory int, msgs ...ai.Message) {
+	grown := append(s.History, msgs...)
+	s.History = trimHistory(grown, maxHistory)
+	if len(s.History) < len(grown) {
+		s.replayed = 0
+	}
+}
+
 func (s *Session) record(maxHistory int, msgs ...ai.Message) {
-	s.History = trimHistory(append(s.History, msgs...), maxHistory)
-	s.Turn = append(s.Turn, msgs...)
+	s.extend(maxHistory, msgs...)
+	for _, m := range msgs {
+		s.Turn = append(s.Turn, KeptForm(m))
+	}
+}
+
+func (s *Session) request(cfg Config, drv Driver, messages []ai.Message) ai.GenerateInput {
+	in := cfg.request(drv, messages)
+	in.ReplayedHistory = s.replayed
+	return in
+}
+
+func KeptForm(m ai.Message) ai.Message {
+	if m.Role == ai.RoleUser && m.Content == toolImagesNote && len(m.Images) > 0 {
+		return ai.Message{Role: ai.RoleUser, Content: toolImagesNotKept}
+	}
+	return m
 }
 
 func attachToolImages(sess *Session, cfg Config, images []string) {
 	if len(images) == 0 {
 		return
 	}
-	sess.History = append(sess.History, ai.Message{Role: ai.RoleUser, Content: toolImagesNote, Images: images})
-	sess.History = trimHistory(sess.History, cfg.historyCap())
-	kept := 0
-	for i := len(sess.History) - 1; i >= 0; i-- {
-		m := sess.History[i]
-		if m.Role != ai.RoleUser || len(m.Images) == 0 || !strings.HasPrefix(m.Content, toolImagesNote) {
-			continue
-		}
-		if kept < cfg.KeepToolImages {
-			kept++
-			continue
-		}
-		sess.History[i] = ai.Message{Role: ai.RoleUser, Content: toolImagesCleared}
-	}
+	sess.record(cfg.historyCap(), ai.Message{Role: ai.RoleUser, Content: toolImagesNote, Images: images})
 }
 
 func trimHistory(h []ai.Message, max int) []ai.Message {

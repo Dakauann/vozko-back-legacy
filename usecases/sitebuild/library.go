@@ -34,22 +34,49 @@ type SectionInfo struct {
 	Title  SectionTitle
 	Stacks []site.Stack
 	Kind   SectionKind
+	Group  SectionGroup
 }
+
+type SectionGroup string
+
+const (
+	GroupSections SectionGroup = "sections"
+	GroupForms    SectionGroup = "forms"
+	GroupFields   SectionGroup = "fields"
+	GroupButtons  SectionGroup = "buttons"
+	GroupMedia    SectionGroup = "media"
+	GroupPlatform SectionGroup = "platform"
+	GroupSaved    SectionGroup = "saved"
+)
 
 var sectionCatalog = []struct {
 	key   string
+	group SectionGroup
 	title SectionTitle
 }{
-	{"hero", SectionTitle{PT: "Topo com chamada", EN: "Hero", ES: "Portada", DE: "Hero-Bereich"}},
-	{"beneficios", SectionTitle{PT: "Benefícios", EN: "Benefits", ES: "Beneficios", DE: "Vorteile"}},
-	{"depoimentos", SectionTitle{PT: "Depoimentos", EN: "Testimonials", ES: "Testimonios", DE: "Kundenstimmen"}},
-	{"faq", SectionTitle{PT: "Perguntas frequentes", EN: "FAQ", ES: "Preguntas frecuentes", DE: "Häufige Fragen"}},
-	{"precos", SectionTitle{PT: "Planos e preços", EN: "Pricing", ES: "Planes y precios", DE: "Preise"}},
-	{"formulario", SectionTitle{PT: "Formulário de contato", EN: "Contact form", ES: "Formulario de contacto", DE: "Kontaktformular"}},
-	{"cta-whatsapp", SectionTitle{PT: "Chamada para o WhatsApp", EN: "WhatsApp call to action", ES: "Llamada a WhatsApp", DE: "WhatsApp-Aufruf"}},
-	{"galeria", SectionTitle{PT: "Galeria", EN: "Gallery", ES: "Galería", DE: "Galerie"}},
-	{"equipe", SectionTitle{PT: "Equipe", EN: "Team", ES: "Equipo", DE: "Team"}},
-	{"rodape", SectionTitle{PT: "Rodapé", EN: "Footer", ES: "Pie de página", DE: "Fußzeile"}},
+	{"hero", GroupSections, SectionTitle{PT: "Topo com chamada", EN: "Hero", ES: "Portada", DE: "Hero-Bereich"}},
+	{"beneficios", GroupSections, SectionTitle{PT: "Benefícios", EN: "Benefits", ES: "Beneficios", DE: "Vorteile"}},
+	{"depoimentos", GroupSections, SectionTitle{PT: "Depoimentos", EN: "Testimonials", ES: "Testimonios", DE: "Kundenstimmen"}},
+	{"faq", GroupSections, SectionTitle{PT: "Perguntas frequentes", EN: "FAQ", ES: "Preguntas frecuentes", DE: "Häufige Fragen"}},
+	{"precos", GroupSections, SectionTitle{PT: "Planos e preços", EN: "Pricing", ES: "Planes y precios", DE: "Preise"}},
+	{"formulario", GroupForms, SectionTitle{PT: "Orçamento", EN: "Quote", ES: "Presupuesto", DE: "Angebot"}},
+	{"form-contato", GroupForms, SectionTitle{PT: "Contato", EN: "Contact", ES: "Contacto", DE: "Kontakt"}},
+	{"form-agendamento", GroupForms, SectionTitle{PT: "Agendamento", EN: "Appointment request", ES: "Solicitud de cita", DE: "Terminanfrage"}},
+	{"cta-whatsapp", GroupSections, SectionTitle{PT: "Chamada para o WhatsApp", EN: "WhatsApp call to action", ES: "Llamada a WhatsApp", DE: "WhatsApp-Aufruf"}},
+	{"galeria", GroupSections, SectionTitle{PT: "Galeria", EN: "Gallery", ES: "Galería", DE: "Galerie"}},
+	{"equipe", GroupSections, SectionTitle{PT: "Equipe", EN: "Team", ES: "Equipo", DE: "Team"}},
+	{"rodape", GroupSections, SectionTitle{PT: "Rodapé", EN: "Footer", ES: "Pie de página", DE: "Fußzeile"}},
+	{"campo-texto", GroupFields, SectionTitle{PT: "Texto", EN: "Text", ES: "Texto", DE: "Text"}},
+	{"campo-whatsapp", GroupFields, SectionTitle{PT: "WhatsApp", EN: "WhatsApp", ES: "WhatsApp", DE: "WhatsApp"}},
+	{"campo-email", GroupFields, SectionTitle{PT: "E-mail", EN: "Email", ES: "Correo", DE: "E-Mail"}},
+	{"campo-selecao", GroupFields, SectionTitle{PT: "Seleção", EN: "Dropdown", ES: "Selección", DE: "Auswahl"}},
+	{"campo-caixa", GroupFields, SectionTitle{PT: "Caixa de marcar", EN: "Checkbox", ES: "Casilla", DE: "Kontrollkästchen"}},
+	{"botao", GroupButtons, SectionTitle{PT: "Botão", EN: "Button", ES: "Botón", DE: "Schaltfläche"}},
+	{"botao-contorno", GroupButtons, SectionTitle{PT: "Botão com contorno", EN: "Outline button", ES: "Botón con borde", DE: "Umrandete Schaltfläche"}},
+	{"link-texto", GroupButtons, SectionTitle{PT: "Link", EN: "Link", ES: "Enlace", DE: "Link"}},
+	{"imagem", GroupMedia, SectionTitle{PT: "Imagem", EN: "Image", ES: "Imagen", DE: "Bild"}},
+	{"video", GroupMedia, SectionTitle{PT: "Vídeo", EN: "Video", ES: "Vídeo", DE: "Video"}},
+	{"botao-whatsapp", GroupPlatform, SectionTitle{PT: "Botão de WhatsApp", EN: "WhatsApp button", ES: "Botón de WhatsApp", DE: "WhatsApp-Schaltfläche"}},
 }
 
 var sectionStacks = []site.Stack{site.StackHTML, site.StackReact}
@@ -79,7 +106,7 @@ func newLibrary(files fs.FS) (*Library, error) {
 			return nil, fmt.Errorf("sitebuild: the section %s has no source", entry.key)
 		}
 		lib.sources[entry.key] = string(raw)
-		lib.infos = append(lib.infos, SectionInfo{Key: entry.key, Title: entry.title, Stacks: slices.Clone(sectionStacks), Kind: SectionFromLibrary})
+		lib.infos = append(lib.infos, SectionInfo{Key: entry.key, Title: entry.title, Stacks: slices.Clone(sectionStacks), Kind: SectionFromLibrary, Group: entry.group})
 	}
 	for _, file := range entries {
 		if _, ok := lib.sources[strings.TrimSuffix(path.Base(file), ".html")]; !ok {
@@ -100,7 +127,7 @@ func (l *Library) Section(stack site.Stack, key string) (string, bool) {
 func (l *Library) List() []SectionInfo {
 	out := make([]SectionInfo, len(l.infos))
 	for i, info := range l.infos {
-		out[i] = SectionInfo{Key: info.Key, Title: info.Title, Stacks: slices.Clone(info.Stacks), Kind: info.Kind}
+		out[i] = SectionInfo{Key: info.Key, Title: info.Title, Stacks: slices.Clone(info.Stacks), Kind: info.Kind, Group: info.Group}
 	}
 	return out
 }

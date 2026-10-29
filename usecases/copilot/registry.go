@@ -11,6 +11,7 @@ import (
 type Registry struct {
 	byName  map[string]copilot.Tool
 	ordered []copilot.Tool
+	areas   toolAreas
 }
 
 func NewRegistry(ts ...copilot.Tool) *Registry {
@@ -20,6 +21,10 @@ func NewRegistry(ts ...copilot.Tool) *Registry {
 			continue
 		}
 		r.byName[t.Definition().Name] = t
+	}
+	r.areas = newToolAreas(r.Get)
+	if len(r.areas.areas) > 0 {
+		r.byName[loadToolsName] = newLoadToolsTool(r.areas)
 	}
 	for _, t := range r.byName {
 		r.ordered = append(r.ordered, t)

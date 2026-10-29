@@ -305,7 +305,7 @@ func (h *StageHandler) Reorder(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Associar etapa a uma conversa
-// @Description	Move uma conversa ou chamada (entryType 'voice' ou 'whatsapp') para uma etapa. Notifica os operadores em tempo real e registra o evento na conversa. Uma etapa de funil de oportunidades é recusada com 409 e code stage_not_conversation_funnel.
+// @Description	Move uma conversa ou chamada (entryType 'voice' ou 'whatsapp') para uma etapa. Notifica os operadores em tempo real e registra o evento na conversa. Uma etapa de funil de negociações é recusada com 409 e code stage_not_conversation_funnel.
 // @Tags			Etapas
 // @Accept			json
 // @Produce		json
@@ -321,7 +321,7 @@ func (h *StageHandler) AssignEntryStage(w http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary		Mover conversa para outro funil
-// @Description	Move a conversa para uma etapa de OUTRO funil. Rota separada de /stages/entries porque exige uma permissão distinta (stages:transfer): mover um card entre as colunas do próprio funil é atendimento comum, tirar a conversa do quadro de uma equipe e colocá-la no de outra não é. Uma etapa de funil de oportunidades é recusada com 409 e code stage_not_conversation_funnel; o evento da conversa registra o funil de origem e o de destino.
+// @Description	Move a conversa para uma etapa de OUTRO funil. Rota separada de /stages/entries porque exige uma permissão distinta (stages:transfer): mover um card entre as colunas do próprio funil é atendimento comum, tirar a conversa do quadro de uma equipe e colocá-la no de outra não é. Uma etapa de funil de negociações é recusada com 409 e code stage_not_conversation_funnel; o evento da conversa registra o funil de origem e o de destino.
 // @Tags			Etapas
 // @Accept			json
 // @Produce		json
@@ -528,7 +528,7 @@ func (h *StageHandler) handleDomainError(w http.ResponseWriter, err error) {
 			"Esta etapa pertence a outro funil. Mova a conversa de funil para usá-la.", nil)
 	case errors.Is(err, stagedomain.ErrStageNotConversationFunnel):
 		response.WriteErrorWithCode(w, http.StatusConflict, stagedomain.MoveRefusalCode(err),
-			"Esta etapa é de um funil de oportunidades. Uma conversa só vai para etapas de funis de conversa.", nil)
+			"Esta etapa é de um funil de negociações. Uma conversa só vai para etapas de funis de conversa.", nil)
 	case errors.Is(err, stagedomain.ErrEntryAccess):
 		response.WriteError(w, http.StatusForbidden, "You don't have access to this conversation", nil)
 	case errors.Is(err, stagedomain.ErrUnauthorized):

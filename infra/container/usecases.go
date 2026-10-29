@@ -180,7 +180,7 @@ func (c *Container) initUseCases(consumeWhatsappTemplateUC balance_domain.Consum
 		tools_usecase.NewScheduleMeetingToolUseCase(c.repositories.calendar, c.services.googleCalendar, calendarAccess),
 		tools_usecase.NewRescheduleMeetingToolUseCase(rescheduleEventUC),
 		tools_usecase.NewSearchKnowledgeBaseToolUseCase(ragService, c.repositories.ragKnowledgeBase),
-		tools_usecase.NewAddSheetRowTool(c.sheetRows(), conversationSheets{c: c}),
+		tools_usecase.NewAddSheetRowTool(c.sheetRows(), conversationSheets{automationVariableRules{c: c}}),
 	}
 	toolHandlers = append(toolHandlers, c.consentToolHandlers()...)
 	if c.mcpRegistry != nil {

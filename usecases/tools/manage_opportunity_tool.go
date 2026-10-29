@@ -91,7 +91,7 @@ func conversationIdentity(owners ConversationOwners) func(context.Context, map[s
 		owner, err := owners.ConversationOwner(configString(config, "__workspace_id"), configString(config, "__entry_id"), configString(config, "__entry_type"))
 		if err != nil {
 			log.Printf("[AutoManageOpportunity] owner lookup failed: %v", err)
-			return dealIdentity{}, "Não foi possível identificar o responsável pela conversa agora. Nenhuma oportunidade foi alterada."
+			return dealIdentity{}, "Não foi possível identificar o responsável pela conversa agora. Nenhuma negociação foi alterada."
 		}
 		if owner == "" {
 			if agentID := configString(config, "__agent_id"); agentID != "" {
@@ -99,7 +99,7 @@ func conversationIdentity(owners ConversationOwners) func(context.Context, map[s
 			}
 		}
 		if owner == "" {
-			return dealIdentity{}, "A conversa não tem responsável nem agente de IA. Nenhuma oportunidade foi registrada."
+			return dealIdentity{}, "A conversa não tem responsável nem agente de IA. Nenhuma negociação foi registrada."
 		}
 		return dealIdentity{author: actor.SystemID, owner: owner}, ""
 	}
@@ -116,8 +116,8 @@ func autoDealSettings(config map[string]interface{}) opportunitySettings {
 func autoDealDefinition() tools.Definition {
 	def := agentDealDefinition()
 	def.Name = AutoManageOpportunityToolName
-	def.DisplayName = "Oportunidades automáticas"
-	def.DisplayDescription = "Registra e atualiza as oportunidades da conversa a partir da análise automática. O responsável pela conversa fica como dono da oportunidade."
+	def.DisplayName = "Negociações automáticas"
+	def.DisplayDescription = "Registra e atualiza as negociações da conversa a partir da análise automática. O responsável pela conversa fica como dono da negociação."
 	def.Visibility = []tools.ToolVisibility{tools.VisibilityAnalysis}
 	def.Category = tools.CategoryAgentUtility
 	def.ConfigSchema = nil
@@ -142,21 +142,21 @@ func agentDealDefinition() tools.Definition {
 
 	return tools.Definition{
 		Name:               ManageOpportunityToolName,
-		DisplayName:        "Gerenciar Oportunidade da Conversa",
-		DisplayDescription: "Cria e atualiza as oportunidades desta conversa no funil de oportunidades: valor, etapa, ganho ou perda. A IA fica como responsável pelas oportunidades que criar.",
-		Description: `Gerencia as oportunidades de venda desta conversa neste funil. Uma conversa pode tratar mais de um contrato, cada um com sua oportunidade.
+		DisplayName:        "Gerenciar Negociação da Conversa",
+		DisplayDescription: "Cria e atualiza as negociações desta conversa no funil de negociações: valor, etapa, ganho ou perda. A IA fica como responsável pelas negociações que criar.",
+		Description: `Gerencia as negociações desta conversa neste funil. Uma conversa pode tratar mais de um contrato, cada um com sua negociação.
 
 AÇÕES:
-- get: lista as oportunidades da conversa com o id de cada uma. Use antes de alterar quando não souber qual oportunidade é.
-- create: abre a oportunidade quando o cliente demonstra intenção real de compra ou atualiza a oportunidade aberta. Informe "title" e, se souber, "value".
-- create_new: abre OUTRA oportunidade, para um contrato diferente dos que já existem. Não use "opportunity_id".
+- get: lista as negociações da conversa com o id de cada uma. Use antes de alterar quando não souber qual negociação é.
+- create: abre a negociação quando o cliente demonstra intenção real de compra ou atualiza a negociação aberta. Informe "title" e, se souber, "value".
+- create_new: abre OUTRA negociação, para um contrato diferente dos que já existem. Não use "opportunity_id".
 - update_value: atualiza o valor negociado em "value".
-- move: move a oportunidade para a etapa "stage".
+- move: move a negociação para a etapa "stage".
 - win: marca como ganho quando o cliente CONFIRMA a compra. Exige "value" com o valor fechado.
 - lose: marca como perdido quando o cliente desiste. Exige "lost_reason".
 
-"opportunity_id" escolhe a oportunidade. Sem ele, a ação vale para a única oportunidade aberta da conversa; com mais de uma aberta, a ferramenta recusa e devolve a lista para você escolher.
-"value" é um número na moeda da oportunidade, com ponto decimal (ex.: 1500.50). NUNCA invente valores: use apenas o que foi combinado na conversa.`,
+"opportunity_id" escolhe a negociação. Sem ele, a ação vale para a única negociação aberta da conversa; com mais de uma aberta, a ferramenta recusa e devolve a lista para você escolher.
+"value" é um número na moeda da negociação, com ponto decimal (ex.: 1500.50). NUNCA invente valores: use apenas o que foi combinado na conversa.`,
 		Parameters: map[string]tools.Parameter{
 			tools.CurrentPositionParameter: tools.CurrentPosition(),
 			"action": {
@@ -166,15 +166,15 @@ AÇÕES:
 			},
 			"opportunity_id": {
 				Type:        "string",
-				Description: "Id exato de uma oportunidade retornada por get. Obrigatório quando a conversa tem mais de uma oportunidade aberta.",
+				Description: "Id exato de uma negociação retornada por get. Obrigatório quando a conversa tem mais de uma negociação aberta.",
 			},
 			"title": {
 				Type:        "string",
-				Description: "Título curto da oportunidade, como o produto ou plano negociado.",
+				Description: "Título curto da negociação, como o produto ou plano negociado.",
 			},
 			"value": {
 				Type:        "number",
-				Description: "Valor da oportunidade na unidade da moeda, com ponto decimal (ex.: 1500.50).",
+				Description: "Valor da negociação na unidade da moeda, com ponto decimal (ex.: 1500.50).",
 			},
 			"stage": {
 				Type:        "string",
@@ -191,17 +191,17 @@ AÇÕES:
 		ConfigSchema: map[string]tools.ConfigParameter{
 			"pipeline_id": {
 				Type:               "string",
-				Description:        "Funil de oportunidades onde a IA cria e move a oportunidade da conversa.",
-				DisplayName:        "Funil de oportunidades",
-				DisplayDescription: "Funil de oportunidades onde a IA registra a oportunidade desta conversa.",
+				Description:        "Funil de negociações onde a IA cria e move a negociação da conversa.",
+				DisplayName:        "Funil de negociações",
+				DisplayDescription: "Funil de negociações onde a IA registra a negociação desta conversa.",
 				OptionsSource:      OpportunityPipelinesSource,
 				Required:           true,
 			},
 			"allowed_actions": {
 				Type:               "array",
-				Description:        "Ações que a IA pode executar na oportunidade.",
+				Description:        "Ações que a IA pode executar na negociação.",
 				DisplayName:        "Ações permitidas",
-				DisplayDescription: "O que a IA pode fazer com as oportunidades. Abrir outra oportunidade e marcar como ganho ficam desligados até você permitir.",
+				DisplayDescription: "O que a IA pode fazer com as negociações. Abrir outra negociação e marcar como ganho ficam desligados até você permitir.",
 				Default:            defaults,
 				Options:            actionOptions,
 			},
@@ -209,7 +209,7 @@ AÇÕES:
 				Type:               "string",
 				Description:        "Moeda dos valores informados pela IA.",
 				DisplayName:        "Moeda",
-				DisplayDescription: "Moeda das oportunidades criadas pela IA.",
+				DisplayDescription: "Moeda das negociações criadas pela IA.",
 				Options:            currencyOptions(),
 			},
 		},
@@ -219,8 +219,8 @@ AÇÕES:
 }
 
 var entryActionLabels = map[opportunity_usecase.EntryAction]string{
-	opportunity_usecase.EntryCreate:      "Criar oportunidade",
-	opportunity_usecase.EntryCreateNew:   "Abrir outra oportunidade",
+	opportunity_usecase.EntryCreate:      "Criar negociação",
+	opportunity_usecase.EntryCreateNew:   "Abrir outra negociação",
 	opportunity_usecase.EntryUpdateValue: "Atualizar valor",
 	opportunity_usecase.EntryMove:        "Mover de etapa",
 	opportunity_usecase.EntryWin:         "Marcar como ganho",
@@ -342,7 +342,7 @@ func (t *manageOpportunityTool) ExecuteWithConfig(ctx context.Context, config ma
 	}
 	settings := t.variant.settings(config)
 	if settings.pipelineID == "" {
-		return refuse("A ferramenta está sem funil de oportunidades configurado. Avise um administrador."), nil
+		return refuse("A ferramenta está sem funil de negociações configurado. Avise um administrador."), nil
 	}
 
 	name, _ := params["action"].(string)
@@ -386,7 +386,7 @@ func (t *manageOpportunityTool) ExecuteWithConfig(ctx context.Context, config ma
 		target := paramString(params, "stage")
 		stageID, found := openStageID(stages, target)
 		if !found {
-			return refuse(fmt.Sprintf("Etapa %q não encontrada entre as etapas abertas do funil: %s. Para encerrar a oportunidade use win ou lose.",
+			return refuse(fmt.Sprintf("Etapa %q não encontrada entre as etapas abertas do funil: %s. Para encerrar a negociação use win ou lose.",
 				target, strings.Join(openStageNames(stages), ", "))), nil
 		}
 		cmd.StageID = stageID
@@ -406,7 +406,7 @@ func (t *manageOpportunityTool) ExecuteWithConfig(ctx context.Context, config ma
 		verb = "criada"
 	}
 	return tools.ExecutionResult{
-		Result:            fmt.Sprintf("Oportunidade %s. %s", verb, summary),
+		Result:            fmt.Sprintf("Negociação %s. %s", verb, summary),
 		ContextUpdateText: summary,
 	}, nil
 }
@@ -425,7 +425,7 @@ func DescribeEntryDeals(deals OpportunityManager, workspaceID, pipelineID, entry
 		return "", err
 	}
 	if len(list) == 0 {
-		return "Esta conversa ainda não tem oportunidade neste funil.", nil
+		return "Esta conversa ainda não tem negociação neste funil.", nil
 	}
 	stages, err := deals.PipelineStages(workspaceID, pipelineID)
 	if err != nil {
@@ -435,7 +435,7 @@ func DescribeEntryDeals(deals OpportunityManager, workspaceID, pipelineID, entry
 	for _, deal := range list {
 		lines = append(lines, fmt.Sprintf("- id %s: %s", deal.ID, describeDeal(deal, stages)))
 	}
-	return "Oportunidades desta conversa:\n" + strings.Join(lines, "\n"), nil
+	return "Negociações desta conversa:\n" + strings.Join(lines, "\n"), nil
 }
 
 func refuse(message string) tools.ExecutionResult {
@@ -473,7 +473,7 @@ func describeDeal(deal *opportunity.Opportunity, stages []*stage.Stage) string {
 			stageName = st.Name
 		}
 	}
-	return fmt.Sprintf("Oportunidade %q na etapa %q, valor %s, status %s.",
+	return fmt.Sprintf("Negociação %q na etapa %q, valor %s, status %s.",
 		deal.Title, stageName, formatAmount(deal.Currency, deal.ValueCents), dealStatusLabels[deal.Status])
 }
 
@@ -488,20 +488,20 @@ func formatAmount(currency string, cents int64) string {
 }
 
 var toolRefusals = map[opportunity_usecase.Refusal]string{
-	opportunity_usecase.RefusalWonWithoutValue:     "Para marcar a oportunidade como ganha, informe em \"value\" o valor fechado com o cliente.",
-	opportunity_usecase.RefusalNoOpenDeal:          "Esta conversa não tem oportunidade aberta neste funil. Use create para abrir uma.",
+	opportunity_usecase.RefusalWonWithoutValue:     "Para marcar a negociação como ganha, informe em \"value\" o valor fechado com o cliente.",
+	opportunity_usecase.RefusalNoOpenDeal:          "Esta conversa não tem negociação aberta neste funil. Use create para abrir uma.",
 	opportunity_usecase.RefusalLostReasonMissing:   "Informe em \"lost_reason\" o motivo da perda.",
-	opportunity_usecase.RefusalTitleMissing:        "Informe em \"title\" um título para a oportunidade.",
+	opportunity_usecase.RefusalTitleMissing:        "Informe em \"title\" um título para a negociação.",
 	opportunity_usecase.RefusalStageInvalid:        "Informe em \"stage\" uma etapa aberta do funil configurado.",
 	opportunity_usecase.RefusalAmountInvalid:       "O valor deve ser um número positivo com ponto decimal, por exemplo 1500.50.",
 	opportunity_usecase.RefusalCurrencyUnsupported: "A moeda configurada na ferramenta não é suportada. Avise um administrador.",
-	opportunity_usecase.RefusalPipelineInvalid:     "O funil de oportunidades configurado para esta ferramenta é inválido. Avise um administrador.",
+	opportunity_usecase.RefusalPipelineInvalid:     "O funil de negociações configurado para esta ferramenta é inválido. Avise um administrador.",
 	opportunity_usecase.RefusalRequiredFields:      "O funil exige campos personalizados que a IA não preenche. Avise um administrador.",
-	opportunity_usecase.RefusalAmbiguousDeal:       "Esta conversa tem mais de uma oportunidade aberta. Repita a ação informando em \"opportunity_id\" o id da oportunidade certa:",
-	opportunity_usecase.RefusalDealNotLinked:       "Esse \"opportunity_id\" não é de uma oportunidade desta conversa. Use get para ver os ids.",
-	opportunity_usecase.RefusalDealClosed:          "Essa oportunidade já foi encerrada e não pode mais ser alterada pela IA.",
-	opportunity_usecase.RefusalDealIDOnNewDeal:     "create_new abre uma oportunidade nova: não informe \"opportunity_id\".",
-	opportunity_usecase.RefusalDealChanged:         "A oportunidade acabou de ser alterada por outra pessoa ou automação. Use get para ver o estado atual antes de tentar de novo.",
+	opportunity_usecase.RefusalAmbiguousDeal:       "Esta conversa tem mais de uma negociação aberta. Repita a ação informando em \"opportunity_id\" o id da negociação certa:",
+	opportunity_usecase.RefusalDealNotLinked:       "Esse \"opportunity_id\" não é de uma negociação desta conversa. Use get para ver os ids.",
+	opportunity_usecase.RefusalDealClosed:          "Essa negociação já foi encerrada e não pode mais ser alterada pela IA.",
+	opportunity_usecase.RefusalDealIDOnNewDeal:     "create_new abre uma negociação nova: não informe \"opportunity_id\".",
+	opportunity_usecase.RefusalDealChanged:         "A negociação acabou de ser alterada por outra pessoa ou automação. Use get para ver o estado atual antes de tentar de novo.",
 }
 
 func opportunityRefusal(err error) string {
@@ -509,7 +509,7 @@ func opportunityRefusal(err error) string {
 		return toolRefusals[refusal]
 	}
 	log.Printf("[ManageOpportunity] unexpected error: %v", err)
-	return "Não foi possível registrar a oportunidade agora. Tente novamente mais tarde."
+	return "Não foi possível registrar a negociação agora. Tente novamente mais tarde."
 }
 
 var _ tools.ContextualHandler = (*manageOpportunityTool)(nil)

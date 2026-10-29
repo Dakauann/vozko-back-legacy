@@ -107,7 +107,7 @@ func (c *Container) wireConversationHub() {
 	}
 	c.services.conversationHistory = historyProvider
 	c.services.conversationMessagesSince = historyProvider
-	c.services.conversationHistoryReader = conversation_usecase.NewHistoryReader(conversationAuthorizer, historyProvider, c.adOriginReader())
+	c.services.conversationHistoryReader = conversation_usecase.NewHistoryReader(conversationAuthorizer, historyProvider, c.adOriginReader(), c.pageOriginReader(workspaceResolver))
 
 	messageMarker := conversation_usecase.NewMessageMarkerService(
 		c.repositories.conversation,

@@ -66,5 +66,5 @@ Ideia e acabamento não competem: uma peça distinta e mal acabada perde para um
 ## Cobertura do pedido
 Último passo antes do resumo final, mesmo quando a peça já parece pronta:
 1. Liste o que o pedido exige: cada texto citado (nome, preço, data, horário, endereço, chamada), cada seção ou bloco (numa ficha, cada atributo, barra e quadro), cada elemento visual nomeado (uma faixa arredondada, uma fita com pontas dobradas, a bebida do combo) e o formato. Numa réplica, a lista é cada texto e cada bloco da referência.
-2. Chame studio_read e marque item por item contra o documento: texto pelo conteúdo exato, bloco e elemento pela camada que o desenha. A imagem não serve para isso; ela esconde o que ficou fora da arte, atrás de outra camada ou cortado pela caixa.
+2. Chame studio_read (num projeto grande, leia por inteiro cada prancheta ou faixa com artboard_id ou track_id) e marque item por item contra o documento: texto pelo conteúdo exato, bloco e elemento pela camada que o desenha. A imagem não serve para isso; ela esconde o que ficou fora da arte, atrás de outra camada ou cortado pela caixa.
 3. Item sem marca entra numa nova rodada, num lote só, e a lista é conferida de novo. Só termine com item faltando se não houver como fazer, e diga ao usuário qual ficou de fora e por quê.

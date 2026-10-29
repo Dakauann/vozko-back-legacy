@@ -550,6 +550,36 @@ func (f *fakeReferences) Check(_ context.Context, workspaceID, formID string, fo
 	return nil
 }
 
+func (f *fakeReferences) CheckWebchat(_ context.Context, workspaceID, ref string) error {
+	f.seen = append(f.seen, workspaceID+"/webchat:"+ref)
+	return f.refuse["webchat"]
+}
+
+type fakeBindings struct {
+	bound map[string]bool
+	keyed []string
+	err   error
+}
+
+func (f *fakeBindings) KeysFor(_ context.Context, _, projectID string, formIDs []string) (map[string]string, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	f.keyed = append(f.keyed, projectID+":"+strings.Join(formIDs, ","))
+	out := map[string]string{}
+	for _, id := range formIDs {
+		out[id] = "key-" + id
+	}
+	return out, nil
+}
+
+func (f *fakeBindings) WorkflowBound(_ context.Context, _, _, formID, workflowID string) (bool, error) {
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.bound[formID+"/"+workflowID], nil
+}
+
 type clock struct{ now time.Time }
 
 func (c *clock) Now() time.Time { return c.now }

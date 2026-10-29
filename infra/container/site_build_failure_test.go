@@ -30,7 +30,7 @@ func brokenBuildWorld(t *testing.T) (*siteWorld, *sitebuild.Service, *site_useca
 		Addresses: sitepublish.Addresses{Domain: e2ePublic}, SigningKey: e2eSigningKey, APIOrigin: e2eAPI, Runtime: siteRuntimeFiles(),
 	}, sitebuild.Deps{
 		Builder: brokenSiteBuilder{w.builder}, Cache: &e2eCache{items: map[string]any{}}, Media: e2eNoMedia{}, Sections: w.sections,
-		WhatsApp: c.siteFormsForPublish(), Workspaces: e2eWorkspaces{e2eWorkspace: "Clínica Sorriso"}, Now: w.now,
+		WhatsApp: c.siteFormsForPublish(), Widgets: e2eNoWidgets{}, Workspaces: e2eWorkspaces{e2eWorkspace: "Clínica Sorriso"}, Now: w.now,
 	})
 	if err != nil {
 		t.Fatal(err)

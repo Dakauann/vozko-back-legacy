@@ -31,7 +31,7 @@ import (
 
 const (
 	challengeKeyPrefix = "sites:form:challenge:"
-	whatsAppLinkTitle  = "WhatsApp da página"
+	whatsAppLinkTitle  = "WhatsApp do site"
 )
 
 var (
@@ -77,6 +77,11 @@ type Deps struct {
 	Links       ShortLinks
 	Numbers     WhatsAppNumbers
 	References  PageReferenceStore
+	Automations AutomationCatalog
+	Calendar    BookingCalendar
+	Slots       cache.Memo
+	BookingLock cache.Locker
+	LeadFields  LeadFieldDefinitions
 	Config      Config
 	Now         func() time.Time
 	NewID       func() string
@@ -96,7 +101,8 @@ func New(d Deps) (*Service, error) {
 		"email opt ins": d.EmailOptIns == nil, "roulette": d.Roulette == nil, "lead owners": d.LeadOwners == nil, "deals": d.Deals == nil, "lead deals": d.LeadDeals == nil,
 		"official whatsapp": d.Official == nil, "unofficial whatsapp": d.Unofficial == nil, "email": d.Email == nil,
 		"notices": d.Notices == nil, "conversions": d.Conversions == nil, "short links": d.Links == nil, "numbers": d.Numbers == nil,
-		"references": d.References == nil, "challenge key": len(d.Config.ChallengeKey) == 0, "ip hash key": len(d.Config.IPHashKey) == 0,
+		"references": d.References == nil, "automations": d.Automations == nil,
+		"booking calendar": d.Calendar == nil, "booking slots": d.Slots == nil, "booking lock": d.BookingLock == nil, "lead fields": d.LeadFields == nil, "challenge key": len(d.Config.ChallengeKey) == 0, "ip hash key": len(d.Config.IPHashKey) == 0,
 		"platform domain": strings.TrimSpace(d.Config.Addresses.Domain) == "", "short link base": strings.TrimSpace(d.Config.ShortLinkBase) == "",
 	}
 	for name, missing := range required {
@@ -161,6 +167,7 @@ type ActivateInput struct {
 	Manifests    []siteform.Manifest
 	Settings     map[string]site.FormSettings
 	Widgets      []string
+	Bookings     map[string]site.Booking
 }
 
 func (s *Service) Activate(ctx context.Context, in ActivateInput) error {
@@ -179,6 +186,9 @@ func (s *Service) Activate(ctx context.Context, in ActivateInput) error {
 	for _, m := range in.Manifests {
 		settings := in.Settings[m.ID]
 		form := ActiveForm{WorkspaceID: in.WorkspaceID, ProjectID: in.ProjectID, DeploymentID: in.DeploymentID, FormKey: keys[m.ID], FormID: m.ID, Manifest: m, Settings: settings}
+		if booking, ok := in.Bookings[m.ID]; ok {
+			form.Booking = &booking
+		}
 		if settings.Success != nil && settings.Success.Kind == site.SuccessWhatsApp {
 			link, err := s.WhatsAppLink(ctx, in.ProjectID, settings.Success.Channel, "", "")
 			if err != nil {
@@ -277,10 +287,11 @@ func (s *Service) numberOf(ctx context.Context, workspaceID, numberRef string) (
 type EmbedOrigins struct {
 	Forms     FormStore
 	Hostnames HostnameReader
+	Origins   sitepublish.Origins
 }
 
 func (s *Service) WidgetOrigins(ctx context.Context, workspaceID, widgetID string) ([]string, error) {
-	return EmbedOrigins{Forms: s.d.Forms, Hostnames: s.d.Hostnames}.WidgetOrigins(ctx, workspaceID, widgetID)
+	return EmbedOrigins{Forms: s.d.Forms, Hostnames: s.d.Hostnames, Origins: s.cfg.Addresses.Origins}.WidgetOrigins(ctx, workspaceID, widgetID)
 }
 
 func (e EmbedOrigins) WidgetOrigins(ctx context.Context, workspaceID, widgetID string) ([]string, error) {
@@ -295,7 +306,7 @@ func (e EmbedOrigins) WidgetOrigins(ctx context.Context, workspaceID, widgetID s
 			return nil, err
 		}
 		for _, host := range hosts {
-			origins = append(origins, "https://"+strings.ToLower(host))
+			origins = append(origins, e.Origins.Of(host))
 		}
 	}
 	return slices.Compact(slices.Sorted(slices.Values(origins))), nil

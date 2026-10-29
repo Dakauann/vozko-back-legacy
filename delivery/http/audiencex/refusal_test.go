@@ -62,6 +62,10 @@ func TestEveryAudienceErrorIsACodedRefusalNeverA500(t *testing.T) {
 		{template.ErrTemplateNotSendable, http.StatusUnprocessableEntity, "send_template_unavailable"},
 		{uw.ErrInstanceOutsideDepartment, http.StatusUnprocessableEntity, "send_instance_unavailable"},
 		{cache.ErrGateBusy, http.StatusServiceUnavailable, "audience_busy"},
+		{audience.ErrSheetLiteralOnly, http.StatusBadRequest, "audience_variable_sheet_literal_only"},
+		{audience.ErrSheetRequired, http.StatusUnprocessableEntity, "audience_sheet_required"},
+		{audience.ErrSheetUnfit, http.StatusUnprocessableEntity, "audience_sheet_unfit"},
+		{campaign.ErrSheetsOfficialOnly, http.StatusUnprocessableEntity, "campaign_sheet_variables_official_only"},
 	}
 	for _, tc := range cases {
 		status, b := refused(t, tc.err)
@@ -111,5 +115,23 @@ func TestTheAudienceRequestBecomesTheDomainSpec(t *testing.T) {
 	var none *AudienceRequest
 	if none.Request("user-1", false) != nil {
 		t.Fatal("no recipients make no request")
+	}
+}
+
+func TestARefusalCausedByOneVariableNamesIt(t *testing.T) {
+	err := audience.ValidateVariables([]audience.Variable{{Key: "planilha", Missing: audience.MissingText}})
+	rec := httptest.NewRecorder()
+	if !WriteRefusal(rec, err) {
+		t.Fatalf("%v was not refused", err)
+	}
+	var b struct {
+		Code    string            `json:"code"`
+		Details map[string]string `json:"details"`
+	}
+	if e := json.Unmarshal(rec.Body.Bytes(), &b); e != nil {
+		t.Fatal(e)
+	}
+	if rec.Code != http.StatusBadRequest || b.Code != "audience_text_required" || b.Details["variable"] != "planilha" {
+		t.Fatalf("refusal = %d %+v", rec.Code, b)
 	}
 }

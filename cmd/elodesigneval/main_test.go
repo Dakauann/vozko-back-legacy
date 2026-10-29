@@ -13,7 +13,7 @@ import (
 )
 
 func TestTheEvalOffersTheOperationGuideBesideTheCompactEditTool(t *testing.T) {
-	registry, err := evalRegistry(studio.KindImage)
+	registry, err := evalRegistry(studio.KindImage, perceptionOn)
 	if err != nil {
 		t.Fatal(err)
 	}

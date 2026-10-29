@@ -119,3 +119,18 @@ func runInbox(prov *fakeAI, drv Driver, cfg Config) Outcome {
 	e := Engine{AI: prov}
 	return e.Run(context.Background(), (&capture{}).emit, drv, cfg, &Session{}, "faça X")
 }
+
+func TestOnlyAMessageFramedAsAnInterjectionReadsAsOne(t *testing.T) {
+	if !Interjected(ai.Message{Role: ai.RoleUser, Content: Interjection("use azul")}) {
+		t.Fatal("a delivered message must be recognised by its frame")
+	}
+	for _, m := range []ai.Message{
+		{Role: ai.RoleUser, Content: UserRequest(Interjection("use azul"))},
+		{Role: ai.RoleUser, Content: AppNotice("o editor abriu")},
+		{Role: ai.RoleAssistant, Content: Interjection("use azul")},
+	} {
+		if Interjected(m) {
+			t.Fatalf("%+v is not an interjection", m)
+		}
+	}
+}

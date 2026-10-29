@@ -49,7 +49,7 @@ func (m *Manager) FitFiles(ctx context.Context, in FitFilesInput) ([]FileFit, er
 	if ws.Account == "" {
 		return nil, googleaccount.ErrNotConnected
 	}
-	return sheetfit.Candidates(ws, model)
+	return sheetfit.Candidates(ws, model, sheetfit.Choice{})
 }
 
 func modelOf(files []googlesheet.Spreadsheet, spreadsheetID string, uses []sheetfit.Use) (sheetfit.Model, error) {

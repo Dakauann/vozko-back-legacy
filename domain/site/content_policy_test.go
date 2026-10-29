@@ -48,7 +48,7 @@ func TestContentPolicyComesFromTheIntegrationsAndTheEmbeds(t *testing.T) {
 		t.Fatalf("frames %v", policy.Frame)
 	}
 	withChat := ContentPolicyFor(nil, "https://api.vozko.test", true)
-	if !slices.Contains(withChat.Frame, "https://api.vozko.test/public/webchat/") || len(withChat.Script) != 0 {
+	if !slices.Contains(withChat.Frame, "https://api.vozko.test/public/webchat/") || !slices.Equal(withChat.Script, []string{"https://api.vozko.test/public/webchat/loader.js"}) {
 		t.Fatalf("webchat frame %+v", withChat)
 	}
 	if err := withChat.Validate(); err != nil {

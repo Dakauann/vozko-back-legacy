@@ -1,6 +1,7 @@
 ---
 name: estrategia-de-campanha
 description: Objetivo, estrutura, orçamento e fase de aprendizado de uma campanha na Meta; carregue antes de planejar ou montar qualquer anúncio.
+surface: ads
 ---
 
 # Estratégia de campanha na Meta (prática atual, 2025 e 2026)

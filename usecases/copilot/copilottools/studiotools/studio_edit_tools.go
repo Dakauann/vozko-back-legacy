@@ -408,6 +408,7 @@ type studioEditTool struct {
 	args     any
 	allowed  []string
 	compact  func() tools.Definition
+	names    func() studioOpNames
 }
 
 var (
@@ -426,6 +427,9 @@ func NewStudioEditImageTool(deps StudioDeps) copilot.Tool {
 func newStudioEditTool(t *studioEditTool) *studioEditTool {
 	t.compact = sync.OnceValue(func() tools.Definition {
 		return compactEditDefinition(t.Definition(), t.intro, t.outro, t.families, t.core)
+	})
+	t.names = sync.OnceValue(func() studioOpNames {
+		return newStudioOpNames(t.studioScope.kind, t.families, t.operationOrder(), t.core)
 	})
 	return t
 }
@@ -457,14 +461,8 @@ func (t *studioEditTool) Definition() tools.Definition {
 func (t *studioEditTool) DefinitionOn(copilot.View) tools.Definition { return t.compact() }
 
 func (t *studioEditTool) operationOrder() []string {
-	var op reflect.Type
-	if t.studioScope.kind == copilot.StudioImage {
-		op = reflect.TypeOf(studioImageOperation{})
-	} else {
-		op = reflect.TypeOf(studioVideoOperation{})
-	}
 	var names []string
-	for _, f := range reflect.VisibleFields(op) {
+	for _, f := range reflect.VisibleFields(t.opType()) {
 		if name := copilottools.JSONName(f); name != "" {
 			names = append(names, name)
 		}
@@ -529,10 +527,14 @@ func (t *studioEditTool) Execute(ctx context.Context, cc copilot.Context, args m
 		}
 		return screencall.Result(cc, err)
 	}
+	reply.Data = t.deps.withChecks(reply.Data)
 	return copilot.Result{Status: copilot.StatusOK, Data: screencall.Data(reply)}
 }
 
 func (t *studioEditTool) operations(args map[string]interface{}) (any, error) {
+	if err := t.refuseUnknownFields(args); err != nil {
+		return nil, err
+	}
 	if t.studioScope.kind == copilot.StudioImage {
 		var a studioImageEditArgs
 		if err := copilottools.DecodeArgs(args, &a); err != nil {

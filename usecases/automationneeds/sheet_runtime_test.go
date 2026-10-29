@@ -16,9 +16,10 @@ import (
 )
 
 type fakeSheetFiles struct {
-	down bool
-	seen []string
-	uses []sheetfit.Use
+	down   bool
+	seen   []string
+	uses   []sheetfit.Use
+	chosen string
 }
 
 func (f *fakeSheetFiles) Resolve(_ context.Context, _ string, t variabledecl.Type, uses []sheetfit.Use, value string) (workflow.SheetFile, error) {
@@ -178,11 +179,11 @@ func TestAnAgentReadsTheSpreadsheetOfItsConversation(t *testing.T) {
 	}
 }
 
-func (f *fakeSheetFiles) Candidates(_ context.Context, _ string, t variabledecl.Type, uses []sheetfit.Use) ([]sheetfit.Candidate, error) {
+func (f *fakeSheetFiles) Candidates(_ context.Context, _ string, t variabledecl.Type, uses []sheetfit.Use, chosen string) ([]sheetfit.Candidate, error) {
 	if f.down {
 		return nil, errors.New("sheets down")
 	}
-	f.uses = uses
+	f.uses, f.chosen = uses, chosen
 	return []sheetfit.Candidate{{File: googlesheet.Spreadsheet{ID: "sp-centro"}}}, nil
 }
 
@@ -190,19 +191,20 @@ func TestThePickerListsFilesForTheExactUsesOfTheAutomation(t *testing.T) {
 	files := &fakeSheetFiles{}
 	s := sheetService(t, fakeValues{}, "", files)
 	target := ref(conversation.AutomationWorkflow, "franquias")
-	got, err := s.SheetCandidates(context.Background(), "ws", &target, "planilha")
-	if err != nil || !got.Exact || len(files.uses) != 1 || files.uses[0].ModelSheetID != "model-pag" || len(got.Candidates) != 1 || got.Variable.Label != "Planilha da franquia" {
+	chosen := sheetfit.Choice{SpreadsheetID: "sp-centro", Tabs: map[string]string{"model-pag": "sp-centro-pag"}}.Value()
+	got, err := s.SheetCandidates(context.Background(), "ws", &target, "planilha", chosen)
+	if err != nil || !got.Exact || files.chosen != chosen || len(files.uses) != 1 || files.uses[0].ModelSheetID != "model-pag" || len(got.Candidates) != 1 || got.Variable.Label != "Planilha da franquia" {
 		t.Fatalf("SheetCandidates = %+v, %v, uses %+v", got, err, files.uses)
 	}
-	whole, err := s.SheetCandidates(context.Background(), "ws", nil, "planilha")
+	whole, err := s.SheetCandidates(context.Background(), "ws", nil, "planilha", "")
 	if err != nil || whole.Exact || files.uses != nil {
 		t.Fatalf("without an automation = %+v, %v, uses %+v", whole, err, files.uses)
 	}
-	if _, err := s.SheetCandidates(context.Background(), "ws", nil, "matricula"); !errors.Is(err, ErrNotASheet) {
+	if _, err := s.SheetCandidates(context.Background(), "ws", nil, "matricula", ""); !errors.Is(err, ErrNotASheet) {
 		t.Fatalf("not a Planilha = %v", err)
 	}
 	broken := sheetService(t, fakeValues{}, "", &fakeSheetFiles{down: true})
-	if _, err := broken.SheetCandidates(context.Background(), "ws", nil, "planilha"); !errors.Is(err, domain.ErrUnreadable) {
+	if _, err := broken.SheetCandidates(context.Background(), "ws", nil, "planilha", ""); !errors.Is(err, domain.ErrUnreadable) {
 		t.Fatalf("unreadable = %v", err)
 	}
 }

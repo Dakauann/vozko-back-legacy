@@ -3,7 +3,6 @@ package agent
 import (
 	"encoding/json"
 	"errors"
-	"regexp"
 	"strings"
 	"time"
 
@@ -11,8 +10,6 @@ import (
 )
 
 const maxAgentVariables = 50
-
-var variableNamePattern = regexp.MustCompile(`^\w+$`)
 
 var (
 	ErrAgentNameRequired            = errors.New("agent name is required")
@@ -30,7 +27,8 @@ var (
 	ErrAgentInternalToolsRequired   = errors.New("agent internal tools are required")
 	ErrAgentKnowledgeBaseNoAccess   = errors.New("knowledge base does not belong to this workspace")
 	ErrAgentToolVisibilityInvalid   = errors.New("agent tool visibility is invalid")
-	ErrAgentVariableNameInvalid     = errors.New("agent variable names must contain only letters, digits, and underscores")
+	ErrAgentVariableNameInvalid     = errors.New("agent variable names must contain only letters, digits, and underscores, up to 64")
+	ErrAgentVariableNameReserved    = errors.New("agent variables cannot use lead_name, lead_number or campaign_name, which the platform fills")
 	ErrAgentVariableDuplicate       = errors.New("agent variable names must be unique")
 	ErrAgentVariableTooMany         = errors.New("agent must not have more than 50 variables")
 	ErrAgentRequiredVariableMissing = errors.New("required agent variable is missing from entry metadata")
@@ -265,26 +263,16 @@ func (a *Agent) Normalize() {
 		a.Metadata = make(map[string]string)
 	}
 
-	if len(a.Variables) > 0 {
-		seen := make(map[string]struct{}, len(a.Variables))
-		uniq := make([]AgentVariable, 0, len(a.Variables))
-		for _, v := range a.Variables {
-			name := strings.TrimSpace(v.Name)
-			if name == "" {
-				continue
-			}
-			lower := strings.ToLower(name)
-			if _, exists := seen[lower]; exists {
-				continue
-			}
-			seen[lower] = struct{}{}
-			uniq = append(uniq, AgentVariable{
-				Name:         name,
+	if a.Variables != nil {
+		trimmed := make([]AgentVariable, len(a.Variables))
+		for i, v := range a.Variables {
+			trimmed[i] = AgentVariable{
+				Name:         strings.TrimSpace(v.Name),
 				Description:  strings.TrimSpace(v.Description),
 				DefaultValue: strings.TrimSpace(v.DefaultValue),
-			})
+			}
 		}
-		a.Variables = uniq
+		a.Variables = trimmed
 	}
 }
 
@@ -333,20 +321,7 @@ func (a *Agent) Validate() error {
 	if len(a.Variables) > maxAgentVariables {
 		return ErrAgentVariableTooMany
 	}
-	for _, v := range a.Variables {
-		if !variableNamePattern.MatchString(v.Name) {
-			return ErrAgentVariableNameInvalid
-		}
-	}
-	seen := make(map[string]struct{}, len(a.Variables))
-	for _, v := range a.Variables {
-		lower := strings.ToLower(v.Name)
-		if _, exists := seen[lower]; exists {
-			return ErrAgentVariableDuplicate
-		}
-		seen[lower] = struct{}{}
-	}
-	return nil
+	return firstVariableProblem(a.Variables)
 }
 
 func (a *Agent) HasTool(toolName string) bool {

@@ -478,7 +478,7 @@ func (s *Service) buildRequest(input ai.GenerateInput) openrouter.ChatCompletion
 	}
 
 	if explicit {
-		messages = withTailBreakpoints(messages, input.VolatileTail)
+		messages = withReplayBreakpoint(withTailBreakpoints(messages, input.VolatileTail), len(history), input.ReplayedHistory, input.VolatileTail)
 	}
 
 	req := openrouter.ChatCompletionRequest{

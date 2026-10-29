@@ -69,7 +69,7 @@ func TestAPublishWithoutItsPinOrOnAChangedPageRefuses(t *testing.T) {
 		t.Fatalf("got %+v", res)
 	}
 	r.publisher.err = errors.Join(sitepublish_usecase.ErrPublishInProgress)
-	if res := tool.Execute(context.Background(), cc, map[string]interface{}{}); !strings.Contains(res.Message, "já está sendo publicada") {
+	if res := tool.Execute(context.Background(), cc, map[string]interface{}{}); !strings.Contains(res.Message, "já está sendo publicado") {
 		t.Fatalf("got %+v", res)
 	}
 }

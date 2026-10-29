@@ -417,24 +417,25 @@ type AnalysisUpdatePayload struct {
 }
 
 type SubscribedPayload struct {
-	EntryID            string                 `json:"entry_id"`
-	EntryType          string                 `json:"entry_type"`
-	LeadID             string                 `json:"lead_id,omitempty"`
-	LeadName           string                 `json:"lead_name"`
-	LeadNumber         string                 `json:"lead_number"`
-	LeadVersion        int64                  `json:"lead_version"`
-	Blocked            bool                   `json:"blocked"`
-	LeadPicture        string                 `json:"lead_picture"`
-	LeadMetadata       map[string]interface{} `json:"lead_metadata,omitempty"`
-	EntryVariables     []string               `json:"entry_variables,omitempty"`
-	UnreadCount        int64                  `json:"unread_count"`
-	AutomationEnabled  bool                   `json:"automation_enabled"`
-	WindowOpen         bool                   `json:"window_open"`
-	WindowExpiresAt    *time.Time             `json:"window_expires_at,omitempty"`
-	WindowClosedReason string                 `json:"window_closed_reason,omitempty"`
-	WindowClosedDetail string                 `json:"window_closed_detail,omitempty"`
-	WindowTier         string                 `json:"window_tier,omitempty"`
-	AdOrigin           *conversation.AdOrigin `json:"ad_origin,omitempty"`
+	EntryID            string                       `json:"entry_id"`
+	EntryType          string                       `json:"entry_type"`
+	LeadID             string                       `json:"lead_id,omitempty"`
+	LeadName           string                       `json:"lead_name"`
+	LeadNumber         string                       `json:"lead_number"`
+	LeadVersion        int64                        `json:"lead_version"`
+	Blocked            bool                         `json:"blocked"`
+	LeadPicture        string                       `json:"lead_picture"`
+	LeadMetadata       map[string]interface{}       `json:"lead_metadata,omitempty"`
+	EntryVariables     []string                     `json:"entry_variables,omitempty"`
+	UnreadCount        int64                        `json:"unread_count"`
+	AutomationEnabled  bool                         `json:"automation_enabled"`
+	WindowOpen         bool                         `json:"window_open"`
+	WindowExpiresAt    *time.Time                   `json:"window_expires_at,omitempty"`
+	WindowClosedReason string                       `json:"window_closed_reason,omitempty"`
+	WindowClosedDetail string                       `json:"window_closed_detail,omitempty"`
+	WindowTier         string                       `json:"window_tier,omitempty"`
+	AdOrigin           *conversation.AdOrigin       `json:"ad_origin,omitempty"`
+	PageOrigin         *conversation.PageOriginView `json:"page_origin,omitempty"`
 
 	MessageCapabilities conversation.MessageCapabilities `json:"message_capabilities"`
 	MediaLimits         *[]conversation.MediaLimit       `json:"media_limits,omitempty"`

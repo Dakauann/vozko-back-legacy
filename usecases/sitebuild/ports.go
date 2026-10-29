@@ -89,6 +89,7 @@ type Shell struct {
 	PrimaryOrigin  string              `json:"primary_origin,omitempty"`
 	Favicon        string              `json:"favicon,omitempty"`
 	StructuredData []json.RawMessage   `json:"structured_data,omitempty"`
+	Webchat        string              `json:"webchat,omitempty"`
 }
 
 type BuildRequest struct {

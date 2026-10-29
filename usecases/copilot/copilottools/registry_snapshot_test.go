@@ -75,6 +75,7 @@ func registeredTools(t *testing.T) []copilot.Tool {
 		attendancetools.NewAttendanceStagesTool(attendance),
 		attendancetools.NewAttendanceReworkTool(attendance),
 		attendancetools.NewAttendanceLiveTool(attendance),
+		attendancetools.NewAttendanceServiceMessagesTool(attendance),
 		attendancetools.NewCampaignDispatchTool(nil, attendance),
 		attendancetools.NewReadChoiceStatsTool(attendancetools.ChoiceStatsDeps{}),
 		attendancetools.NewConversationInsightsTool(nil, nil, nil),

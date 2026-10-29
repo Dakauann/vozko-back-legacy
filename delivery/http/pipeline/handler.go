@@ -41,7 +41,7 @@ func NewPipelineHandler(
 }
 
 // @Summary		Listar funis
-// @Description	Retorna os funis do workspace, opcionalmente filtrados pelo tipo de objeto (conversa ou oportunidade).
+// @Description	Retorna os funis do workspace, opcionalmente filtrados pelo tipo de objeto (conversa ou negociação).
 // @Tags			Funis
 // @Produce		json
 // @Param			objectType	query		string	false	"Tipo de objeto do funil ('conversation' | 'opportunity')"
@@ -92,7 +92,7 @@ func (h *PipelineHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Criar um funil
-// @Description	Cria um novo funil no workspace para organizar conversas ou oportunidades.
+// @Description	Cria um novo funil no workspace para organizar conversas ou negociações.
 // @Tags			Funis
 // @Accept			json
 // @Produce		json
@@ -214,7 +214,7 @@ func (h *PipelineHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Consultar o que um funil contém
-// @Description	Retorna quantas conversas, campanhas, canais e oportunidades ainda apontam para o funil, para que a exclusão seja confirmada com os números à vista.
+// @Description	Retorna quantas conversas, campanhas, canais e negociações ainda apontam para o funil, para que a exclusão seja confirmada com os números à vista.
 // @Tags			Funis
 // @Produce		json
 // @Param			id	path		string	true	"Identificador do funil"

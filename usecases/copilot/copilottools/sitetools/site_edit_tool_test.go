@@ -105,13 +105,13 @@ func TestEditorConflictsComeBackAndAnAbsentEditorIsNotAFailure(t *testing.T) {
 	r.editor.errs = map[copilot.ScreenCommandName]error{copilot.ScreenEdit: copilot.ErrScreenUnavailable}
 	res := NewSiteEditTool(r.deps).Execute(context.Background(), r.cc, args(t, headlineEdit))
 	data = decoded(t, res.Data)
-	if res.Status != copilot.StatusOK || !strings.Contains(data["editor"].(string), "guardado na página") {
+	if res.Status != copilot.StatusOK || !strings.Contains(data["editor"].(string), "guardado no site") {
 		t.Fatalf("the batch is stored even when the editor stays silent, got %+v", res)
 	}
 }
 
 func TestEditsAreRefusedOnPagesThatCannotChange(t *testing.T) {
-	for status, want := range map[site_usecase.Status]string{site_usecase.StatusArchived: "arquivada", site_usecase.StatusSuspended: "suspensa"} {
+	for status, want := range map[site_usecase.Status]string{site_usecase.StatusArchived: "arquivado", site_usecase.StatusSuspended: "suspenso"} {
 		r := newRig(t)
 		r.storage.view.Project.Status = status
 		res := NewSiteEditTool(r.deps).Execute(context.Background(), r.cc, args(t, headlineEdit))

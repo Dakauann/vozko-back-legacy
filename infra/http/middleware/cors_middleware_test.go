@@ -89,7 +89,7 @@ func TestCORS_TrustedOrigin_ActualRequest(t *testing.T) {
 	}
 }
 
-func TestCORS_UntrustedOrigin_GetsWildcard(t *testing.T) {
+func TestCORS_UntrustedOrigin_GetsNoCORSHeaders(t *testing.T) {
 	cors := NewCORSMiddleware([]string{"https://app.vozko.com.br"})
 	handler := cors.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -100,11 +100,10 @@ func TestCORS_UntrustedOrigin_GetsWildcard(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Errorf("expected *, got %q", got)
-	}
-	if got := rr.Header().Get("Access-Control-Allow-Credentials"); got != "" {
-		t.Errorf("expected no credentials header for wildcard, got %q", got)
+	for _, header := range []string{"Access-Control-Allow-Origin", "Access-Control-Allow-Credentials", "Access-Control-Allow-Headers", "Access-Control-Allow-Methods"} {
+		if got := rr.Header().Get(header); got != "" {
+			t.Errorf("a browser on another site must not read the API, got %s %q", header, got)
+		}
 	}
 }
 
@@ -142,11 +141,10 @@ func TestCORS_UntrustedOrigin_PreflightNoCredentials(t *testing.T) {
 	if rr.Code != http.StatusNoContent {
 		t.Errorf("expected 204, got %d", rr.Code)
 	}
-	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Errorf("expected *, got %q", got)
-	}
-	if got := rr.Header().Get("Access-Control-Allow-Credentials"); got != "" {
-		t.Errorf("untrusted preflight should not have credentials, got %q", got)
+	for _, header := range []string{"Access-Control-Allow-Origin", "Access-Control-Allow-Credentials", "Access-Control-Allow-Headers"} {
+		if got := rr.Header().Get(header); got != "" {
+			t.Errorf("an untrusted preflight is never approved, got %s %q", header, got)
+		}
 	}
 }
 

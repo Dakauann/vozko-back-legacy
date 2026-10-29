@@ -252,7 +252,7 @@ function precedingSpace(content: string, start: number): number {
 }
 
 function classSource(el: JsxElement): { literal: Literal | null; attr: JsxAttr | null; dynamic: boolean } {
-  const attr = attrFor(el, "class") ?? null;
+  const attr = (el.component ? (el.attrs as JsxAttr[]).find((candidate) => candidate.name === "className") : attrFor(el, "class")) ?? null;
   if (!attr) return { literal: null, attr: null, dynamic: false };
   const value = attr.node.value as AstNode | null;
   if (!value) return { literal: null, attr, dynamic: true };

@@ -1,6 +1,7 @@
 ---
 name: carrossel-e-miniatura
 description: Como criar carrosséis que fazem a pessoa deslizar até o fim e miniaturas que ganham o clique (narrativa entre cartões, continuidade visual, teste do tamanho pequeno, rosto e poucas palavras); carregue antes de montar um carrossel ou uma capa de vídeo.
+surface: ads
 ---
 
 # Carrossel e miniatura

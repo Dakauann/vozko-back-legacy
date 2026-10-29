@@ -5,13 +5,13 @@ import "fmt"
 const (
 	CodeFileNotFound     = "sheet_fit_file_not_found"
 	CodeFileOtherAccount = "sheet_fit_file_other_account"
-	CodeModelFile        = "sheet_fit_model_file"
 	CodeModelMissing     = "sheet_fit_model_missing"
 	CodeUsesRequired     = "sheet_fit_uses_required"
 	CodeUseInvalid       = "sheet_fit_use_invalid"
 	CodeTabMissing       = "sheet_fit_tab_missing"
 	CodeTabAmbiguous     = "sheet_fit_tab_ambiguous"
 	CodeTabShared        = "sheet_fit_tab_shared"
+	CodeTabNotFound      = "sheet_fit_tab_not_found"
 	CodeColumnMissing    = "sheet_fit_column_missing"
 	CodeColumnArchived   = "sheet_fit_column_archived"
 	CodeColumnSystem     = "sheet_fit_column_system"
@@ -28,13 +28,13 @@ var messages = []struct {
 }{
 	{CodeFileNotFound, "O arquivo não está nas planilhas deste workspace"},
 	{CodeFileOtherAccount, "O arquivo foi criado por outra conta Google e não recebe gravações"},
-	{CodeModelFile, "Este é o arquivo modelo; escolha o arquivo que recebe as linhas"},
 	{CodeModelMissing, "Uma aba modelo do fluxo foi removida"},
 	{CodeUsesRequired, "Informe onde o fluxo grava para conferir o arquivo"},
 	{CodeUseInvalid, "Um uso da planilha está incompleto"},
 	{CodeTabMissing, "Nenhuma aba do arquivo serve para uma aba modelo"},
 	{CodeTabAmbiguous, "Mais de uma aba do arquivo serve para uma aba modelo"},
 	{CodeTabShared, "Duas abas modelo precisam de abas diferentes no arquivo"},
+	{CodeTabNotFound, "A aba escolhida não está mais no arquivo"},
 	{CodeColumnMissing, "A aba não tem uma coluna que o fluxo preenche"},
 	{CodeColumnArchived, "Uma coluna que o fluxo preenche está arquivada"},
 	{CodeColumnSystem, "Uma coluna que o fluxo preenche é preenchida pelo sistema nesta aba"},
@@ -65,6 +65,18 @@ func Message(code string) string {
 type Tab struct {
 	SheetID string
 	Title   string
+}
+
+type TabOption struct {
+	SheetID string
+	Title   string
+	Problem *Problem
+}
+
+type TabChoice struct {
+	ModelSheetID string
+	ModelTab     string
+	Options      []TabOption
 }
 
 type Problem struct {

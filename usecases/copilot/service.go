@@ -217,6 +217,7 @@ func (s *Service) runTurn(ctx context.Context, thread *aichat.Thread, start turn
 	cc = s.attachScreen(cc, thread.ID, emit)
 
 	driver := NewDriver(cc, model, s.registry, s.access, s.funds, s.newID)
+	driver.resume(history, start.approved)
 	driver.state = s.workspaceState(ctx, cc)
 	driver.observeView(ctx)
 	driver.reattach = func(next copilot.Context) copilot.Context {
@@ -228,7 +229,7 @@ func (s *Service) runTurn(ctx context.Context, thread *aichat.Thread, start turn
 	driver.inbox = s.withOpenings(thread.ID, rec, driver, s.inbox(thread.ID, model, sees, rec, emit))
 	sess := &agentloop.Session{History: history, Turn: start.approved, PromptImages: copilot.ImageURLs(start.attachments)}
 	if start.notice {
-		sess.Frame = agentloop.AppNotice
+		sess.Frame, sess.RecordPrompt = agentloop.AppNotice, true
 	}
 	cfg := DefaultConfig(cc, limits)
 	cfg.ReasoningEffort = level
@@ -376,25 +377,11 @@ func (s *Service) buildHistory(threadID, model string, sees bool) ([]ai.Message,
 	if thread.Checkpoint != "" {
 		out = append(out, ai.Message{Role: ai.RoleUser, Content: thread.Checkpoint})
 	}
-	for _, m := range msgs {
-		switch m.Role {
-		case aichat.RoleAssistant:
-			turn, err := aichat.DecodeTranscript(m.Transcript)
-			if err != nil {
-				return nil, err
-			}
-			if len(turn) > 0 {
-				out = append(out, aichat.ReplayFor(turn, m.Model, model)...)
-			} else if content := assistantHistoryContent(m); content != "" {
-				out = append(out, ai.Message{Role: ai.RoleAssistant, Content: content})
-			}
-		case aichat.RoleSystem:
-			out = append(out, ai.Message{Role: ai.RoleSystem, Content: m.Content})
-		case aichat.RoleUser:
-			out = append(out, userMessage(m, agentloop.UserRequest, sees))
-		}
+	rows, err := replayRows(msgs, model, sees)
+	if err != nil {
+		return nil, err
 	}
-	return out, nil
+	return agentloop.PruneToolOutputs(append(out, rows...)), nil
 }
 
 func userMessage(m *aichat.Message, frame func(string) string, sees bool) ai.Message {

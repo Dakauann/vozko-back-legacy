@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
-	"time"
 
 	"vozko/domain/ai"
 	"vozko/domain/aichat"
@@ -25,11 +24,11 @@ func newEmailTool(name string) *emailTool {
 
 func TestEmailToolsExistOnlyInsideTheEmailEditor(t *testing.T) {
 	read := newEmailTool("email_read")
-	plain := &fakeTool{name: "list_agents", meta: readMeta}
+	plain := &fakeTool{name: "search_leads", meta: readMeta}
 	if got := offeredNames(studioDriver(emailView, read, plain)); got != "email_read" {
 		t.Fatalf("the email editor offers only its own tools, got %s", got)
 	}
-	if got := offeredNames(studioDriver(copilot.View{}, read, plain)); got != "list_agents" {
+	if got := offeredNames(studioDriver(copilot.View{}, read, plain)); got != "search_leads" {
 		t.Fatalf("the panel never offers email editor tools, got %s", got)
 	}
 	if got := offeredNames(studioDriver(studioView, read, plain)); got != "" {
@@ -38,12 +37,12 @@ func TestEmailToolsExistOnlyInsideTheEmailEditor(t *testing.T) {
 }
 
 func TestTheEmailEditorPromptExplainsTheEditorOnlyThere(t *testing.T) {
-	prompt := systemPrompt(emailView, time.Now())
+	prompt := systemPrompt(emailView)
 	if !strings.Contains(prompt, "# Editor de e-mail") || !strings.Contains(prompt, emailView.ProjectID) || strings.Contains(prompt, "# Estúdio") {
 		t.Fatal("the email surface explains its own editor")
 	}
 	for _, other := range []copilot.View{{}, studioView} {
-		if strings.Contains(systemPrompt(other, time.Now()), "# Editor de e-mail") {
+		if strings.Contains(systemPrompt(other), "# Editor de e-mail") {
 			t.Fatal("the email editor section stays inside the email editor")
 		}
 	}

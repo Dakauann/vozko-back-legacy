@@ -62,3 +62,26 @@ func TestASkillCanBeScopedToTheStudioOrToThePanel(t *testing.T) {
 		t.Fatalf("an unknown surface must be refused, got %v", err)
 	}
 }
+
+func TestAnAdSkillIsOfferedWhereAdsAreMadeAndNowhereElse(t *testing.T) {
+	skill := Skill{Name: "x", Description: "d", Body: "b", Surface: SkillAdsWork}
+	if err := skill.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		view View
+		want bool
+	}{
+		{View{}, true},
+		{View{Surface: SurfaceAttendance}, true},
+		{View{Surface: SurfaceLeads}, true},
+		{View{Surface: SurfaceStudio, ProjectID: "p1", ProjectKind: StudioVideo}, true},
+		{View{Surface: SurfaceEmailDesign, ProjectID: "p1"}, false},
+		{View{Surface: SurfaceEmailCampaign, ProjectID: "p1"}, false},
+		{View{Surface: SurfaceSite, ProjectID: "p1"}, false},
+	} {
+		if skill.OfferedOn(c.view) != c.want {
+			t.Errorf("an ad skill on %q offered %v, want %v", c.view.Surface, !c.want, c.want)
+		}
+	}
+}

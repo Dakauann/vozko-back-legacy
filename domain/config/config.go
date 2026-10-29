@@ -36,7 +36,6 @@ func mustLoadLocation(name string) *time.Location {
 
 type SystemConfig struct {
 	ID                     string  `json:"id"`
-	BaseSystemPrompt       string  `json:"baseSystemPrompt"`
 	WorkTimeEnabled        bool    `json:"workTimeEnabled"`
 	WorkTimeStart          string  `json:"workTimeStart"`
 	WorkTimeEnd            string  `json:"workTimeEnd"`
@@ -133,7 +132,6 @@ type UpdateSystemConfigUseCase interface {
 }
 
 type UpdateSystemConfigInput struct {
-	BaseSystemPrompt       *string  `json:"baseSystemPrompt,omitempty"`
 	WorkTimeEnabled        *bool    `json:"workTimeEnabled,omitempty"`
 	WorkTimeStart          *string  `json:"workTimeStart,omitempty"`
 	WorkTimeEnd            *string  `json:"workTimeEnd,omitempty"`

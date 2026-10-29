@@ -81,7 +81,7 @@ func TestService_ACatalogedModelGetsItsOwnLimits(t *testing.T) {
 	th, ms := &fakeThreads{thread: testThread()}, &fakeMessages{}
 	prov := &scriptAI{
 		turns: [][]ai.ToolCall{{call("read_x", nil)}, {}}, texts: []string{"", "fim"},
-		usage:  &ai.Usage{PromptTokens: AnswerTokenBudget, TotalTokens: AnswerTokenBudget},
+		usage:  &ai.Usage{PromptTokens: AnswerTokenBudget / 2, TotalTokens: AnswerTokenBudget},
 		models: []ai.ModelInfo{{ID: testThread().Model, ContextLength: 1_000_000, PromptPrice: 0.1, CompletionPrice: 0.4, Capabilities: []ai.ModelCapability{ai.CapabilityTools}}},
 	}
 	svc := testService(Deps{Engine: agentloop.Engine{AI: prov}, Registry: NewRegistry(&fakeTool{name: "read_x", meta: readMeta}), Access: &fakeAccess{}, Funds: openFunds{}, Threads: th, Messages: ms, NewID: func() string { return "a" }})

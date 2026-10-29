@@ -265,3 +265,28 @@ func TestSystemDataHasExamples(t *testing.T) {
 		}
 	}
 }
+
+func TestUseProblemsFlagsEachBadNameOfAListOnce(t *testing.T) {
+	problems := UseProblems([]string{"matricula", "", "lead_name", "a-b", "matricula", "Matricula", strings.Repeat("a", 65), "turno"})
+	want := []struct {
+		name string
+		err  error
+	}{
+		{"", ErrNameInvalid},
+		{"lead_name", ErrNameReserved},
+		{"a-b", ErrNameInvalid},
+		{"matricula", ErrNameRepeated},
+		{strings.Repeat("a", 65), ErrNameInvalid},
+	}
+	if len(problems) != len(want) {
+		t.Fatalf("problems = %+v", problems)
+	}
+	for i, w := range want {
+		if problems[i].Name != w.name || !errors.Is(problems[i].Err, w.err) {
+			t.Fatalf("problem %d = %+v, want %s %v", i, problems[i], w.name, w.err)
+		}
+	}
+	if UseProblems([]string{"a", "b"}) != nil {
+		t.Fatal("a clean list has problems")
+	}
+}

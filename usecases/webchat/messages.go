@@ -32,6 +32,9 @@ const (
 )
 
 func (s *VisitorService) SubmitIntake(ctx context.Context, session *Session, answers wcdomain.IntakeAnswers) (VisitorState, error) {
+	if session.Demo {
+		return s.demoIntake(session, answers)
+	}
 	w, v := session.Widget, session.Visitor
 	now := s.Now()
 	intake, err := w.ResolveIntake(answers, v.Verified(), now)
@@ -70,6 +73,9 @@ type SendInput struct {
 }
 
 func (s *VisitorService) Send(ctx context.Context, session *Session, in SendInput) (*wcdomain.VisitorMessage, error) {
+	if session.Demo {
+		return s.demoSend(session, in)
+	}
 	w, v := session.Widget, session.Visitor
 	if err := s.allowMessage(session); err != nil {
 		return nil, err
@@ -237,6 +243,9 @@ type HistoryView struct {
 }
 
 func (s *VisitorService) History(ctx context.Context, session *Session, in HistoryInput) (*HistoryView, error) {
+	if session.Demo {
+		return &HistoryView{Messages: []wcdomain.VisitorMessage{}}, nil
+	}
 	conv, err := s.Conversations.FindByVisitor(ctx, session.Widget.ID, session.Visitor.ID)
 	if err != nil {
 		if errors.Is(err, wcdomain.ErrConversationNotFound) {
@@ -282,35 +291,62 @@ type UploadInput struct {
 	PageURL         string
 }
 
-func (s *VisitorService) Upload(ctx context.Context, session *Session, in UploadInput) (*wcdomain.VisitorMessage, error) {
+type admittedAttachment struct {
+	ProviderID string
+	MimeType   string
+	MediaType  conversation.MediaType
+	Filename   string
+}
+
+func (s *VisitorService) admitAttachment(session *Session, in UploadInput) (admittedAttachment, error) {
 	w, v := session.Widget, session.Visitor
-	if !w.AllowAttachments || s.Media == nil {
-		return nil, wcdomain.ErrAttachmentsDisabled
+	if !w.AllowAttachments {
+		return admittedAttachment{}, wcdomain.ErrAttachmentsDisabled
 	}
 	if len(in.Data) == 0 {
-		return nil, wcdomain.ErrAttachmentTypeRefused
+		return admittedAttachment{}, wcdomain.ErrAttachmentTypeRefused
 	}
 	if len(in.Data) > wcdomain.MaxAttachmentBytes {
-		return nil, wcdomain.ErrAttachmentTooLarge
+		return admittedAttachment{}, wcdomain.ErrAttachmentTooLarge
 	}
 	if err := allow(s.Limits.UploadsPerVisitor, v.ID); err != nil {
-		return nil, err
+		return admittedAttachment{}, err
 	}
 	if err := s.allowMessage(session); err != nil {
-		return nil, err
+		return admittedAttachment{}, err
 	}
-	if v.MustCompleteIntake(w) {
-		return nil, wcdomain.ErrIntakePending
+	if !session.Demo && v.MustCompleteIntake(w) {
+		return admittedAttachment{}, wcdomain.ErrIntakePending
 	}
 	mime := strings.SplitN(http.DetectContentType(in.Data), ";", 2)[0]
 	kind, accepted := wcdomain.AttachmentMIMETypes[mime]
 	if !accepted {
-		return nil, wcdomain.ErrAttachmentTypeRefused
+		return admittedAttachment{}, wcdomain.ErrAttachmentTypeRefused
 	}
 	providerID, err := wcdomain.InboundProviderID(v.ID, in.ClientMessageID)
 	if err != nil {
+		return admittedAttachment{}, err
+	}
+	mediaType := conversation.MediaTypeDocument
+	if kind == channel.MediaImage {
+		mediaType = conversation.MediaTypeImage
+	}
+	return admittedAttachment{ProviderID: providerID, MimeType: mime, MediaType: mediaType, Filename: safeFileName(in.FileName, mime)}, nil
+}
+
+func (s *VisitorService) Upload(ctx context.Context, session *Session, in UploadInput) (*wcdomain.VisitorMessage, error) {
+	if session.Demo {
+		return s.demoUpload(session, in)
+	}
+	w, v := session.Widget, session.Visitor
+	if s.Media == nil {
+		return nil, wcdomain.ErrAttachmentsDisabled
+	}
+	attachment, err := s.admitAttachment(session, in)
+	if err != nil {
 		return nil, err
 	}
+	providerID, mime, mediaType := attachment.ProviderID, attachment.MimeType, attachment.MediaType
 	conv, err := s.conversationFor(ctx, session, in.PageURL)
 	if err != nil {
 		return nil, err
@@ -323,10 +359,6 @@ func (s *VisitorService) Upload(ctx context.Context, session *Session, in Upload
 		return &wcdomain.VisitorMessage{ID: providerID, Author: wcdomain.AuthorVisitor, CreatedAt: s.Now()}, nil
 	}
 
-	mediaType := conversation.MediaTypeDocument
-	if kind == channel.MediaImage {
-		mediaType = conversation.MediaTypeImage
-	}
 	stored, err := s.Media.Store(conversation.StoreMediaInput{
 		ID:               uuid.NewString(),
 		Key:              attachmentKeyTemplate + conv.ID + "/" + uuid.NewString() + extensionFor(mime),
@@ -335,7 +367,7 @@ func (s *VisitorService) Upload(ctx context.Context, session *Session, in Upload
 		Type:             mediaType,
 		MimeType:         mime,
 		Data:             in.Data,
-		OriginalFilename: safeFileName(in.FileName, mime),
+		OriginalFilename: attachment.Filename,
 	})
 	if err != nil {
 		return nil, err
@@ -412,6 +444,9 @@ func (s *VisitorService) RequestHuman(ctx context.Context, session *Session) err
 	if err := allow(s.Limits.HandOffsPerVisitor, v.ID); err != nil {
 		return err
 	}
+	if session.Demo {
+		return nil
+	}
 	conv, err := s.Conversations.FindByVisitor(ctx, w.ID, v.ID)
 	if err != nil {
 		return err
@@ -436,6 +471,9 @@ func (s *VisitorService) RequestHuman(ctx context.Context, session *Session) err
 func (s *VisitorService) Typing(ctx context.Context, session *Session, on bool) error {
 	if err := allow(s.Limits.TypingPerVisitor, session.Visitor.ID); err != nil {
 		return err
+	}
+	if session.Demo {
+		return nil
 	}
 	conv, err := s.Conversations.FindByVisitor(ctx, session.Widget.ID, session.Visitor.ID)
 	if err != nil {

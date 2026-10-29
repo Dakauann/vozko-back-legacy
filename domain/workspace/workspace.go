@@ -227,30 +227,30 @@ var ResourceActions = map[Resource][]ActionDefinition{
 		{ActionName: ActionUpdate, Description: "Escolher o agente ou o fluxo que responde as conversas de cada remetente de RCS e SMS", Risks: []RiskKind{RiskChangesAutomation}},
 	},
 	ResourceSites: {
-		{ActionName: ActionRead, Description: "Ver as páginas, o código, as versões, as configurações e a pré-visualização"},
-		{ActionName: ActionCreate, Description: "Criar páginas a partir de um modelo e criar sistemas de design", Requires: []PermissionEntry{
+		{ActionName: ActionRead, Description: "Ver os sites, o código, as versões, as configurações e a pré-visualização"},
+		{ActionName: ActionCreate, Description: "Criar sites a partir de um modelo e criar sistemas de design", Requires: []PermissionEntry{
 			{Resource: ResourceSites, Action: ActionRead},
 		}},
-		{ActionName: ActionUpdate, Description: "Editar o conteúdo, o código, as configurações e as versões das páginas e os sistemas de design", Requires: []PermissionEntry{
+		{ActionName: ActionUpdate, Description: "Editar o conteúdo, o código, as configurações e as versões dos sites e os sistemas de design", Requires: []PermissionEntry{
 			{Resource: ResourceSites, Action: ActionRead},
 		}},
-		{ActionName: ActionDelete, Description: "Excluir páginas que não estão no ar e sistemas de design", Risks: []RiskKind{RiskDeletesData}, Requires: []PermissionEntry{
+		{ActionName: ActionDelete, Description: "Excluir sites que não estão no ar e sistemas de design", Risks: []RiskKind{RiskDeletesData}, Requires: []PermissionEntry{
 			{Resource: ResourceSites, Action: ActionRead},
 		}},
-		{ActionName: ActionPublish, Description: "Publicar, desfazer a publicação e tirar páginas do ar; a página fica aberta a qualquer visitante", Risks: []RiskKind{RiskContactsCustomers}, Requires: []PermissionEntry{
+		{ActionName: ActionPublish, Description: "Publicar, desfazer a publicação e tirar sites do ar; o site fica aberto a qualquer visitante", Risks: []RiskKind{RiskContactsCustomers}, Requires: []PermissionEntry{
 			{Resource: ResourceSites, Action: ActionRead},
 		}},
 	},
 	ResourceSiteDomains: {
-		{ActionName: ActionRead, Description: "Ver os endereços das páginas e o estado da verificação de cada domínio", Requires: []PermissionEntry{
+		{ActionName: ActionRead, Description: "Ver os endereços dos sites e o estado da verificação de cada domínio", Requires: []PermissionEntry{
 			{Resource: ResourceSites, Action: ActionRead},
 		}},
-		{ActionName: ActionUpdate, Description: "Conectar e remover domínios próprios das páginas", Risks: []RiskKind{RiskConnectsAccounts}, Requires: []PermissionEntry{
+		{ActionName: ActionUpdate, Description: "Conectar e remover domínios próprios dos sites", Risks: []RiskKind{RiskConnectsAccounts}, Requires: []PermissionEntry{
 			{Resource: ResourceSiteDomains, Action: ActionRead},
 		}},
 	},
 	ResourceSiteSubmissions: {
-		{ActionName: ActionRead, Description: "Ver os envios dos formulários das páginas, com os dados de contato de cada visitante", Risks: []RiskKind{RiskSensitiveData}, Requires: []PermissionEntry{
+		{ActionName: ActionRead, Description: "Ver os envios dos formulários dos sites, com os dados de contato de cada visitante", Risks: []RiskKind{RiskSensitiveData}, Requires: []PermissionEntry{
 			{Resource: ResourceSites, Action: ActionRead},
 		}},
 	},

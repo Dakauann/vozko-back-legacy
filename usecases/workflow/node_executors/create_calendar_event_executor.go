@@ -170,25 +170,6 @@ func (s *createCalendarEventExecutor) Execute(ctx *workflow.NodeContext) (*workf
 		return createCalendarEventFailure(ctx, err.Error()), nil
 	}
 
-	accessToken := googleAccess.Token
-
-	conflict, err := calendar.ConflictCheck{Google: s.google, AccessToken: accessToken, Local: s.repo}.Conflict(workspaceID, startTime, endTime)
-	if err != nil {
-		return createCalendarEventRefused(ctx, err, err.Error()), nil
-	}
-	if conflict != nil {
-		log.Printf("[workflow][create_calendar_event][run:%s] CONFLICT: event %q (%s to %s) overlaps requested slot %s to %s",
-			calendarRunID(ctx), conflict.Title,
-			conflict.StartTime.Format(time.RFC3339), conflict.EndTime.Format(time.RFC3339),
-			startTime.Format(time.RFC3339), endTime.Format(time.RFC3339))
-		return createCalendarEventRefused(ctx, calendar.ErrSlotConflict, fmt.Sprintf(
-			"O horário %s a %s já está ocupado (conflito com: %s). Escolha outro horário.",
-			startTime.In(location).Format("02/01 15:04"),
-			endTime.In(location).Format("15:04"),
-			conflict.Title,
-		)), nil
-	}
-
 	event := &calendar.CalendarEvent{
 		WorkspaceID:             workspaceID,
 		Title:                   title,
@@ -213,10 +194,26 @@ func (s *createCalendarEventExecutor) Execute(ctx *workflow.NodeContext) (*workf
 		sendUpdates = "all"
 	}
 
-	googleEventID, meetingLink, err := s.google.CreateGoogleEvent(accessToken, event, createGoogleMeet, sendUpdates)
+	reserved, err := calendar.ConflictCheck{Google: s.google, AccessToken: googleAccess.Token, Local: s.repo}.Reserve(workspaceID, calendar.Slot{Start: startTime, End: endTime}, event, createGoogleMeet, sendUpdates)
+	if conflict := reserved.Conflict; conflict != nil {
+		log.Printf("[workflow][create_calendar_event][run:%s] CONFLICT: event %q (%s to %s) overlaps requested slot %s to %s",
+			calendarRunID(ctx), conflict.Title,
+			conflict.StartTime.Format(time.RFC3339), conflict.EndTime.Format(time.RFC3339),
+			startTime.Format(time.RFC3339), endTime.Format(time.RFC3339))
+		return createCalendarEventRefused(ctx, calendar.ErrSlotConflict, fmt.Sprintf(
+			"O horário %s a %s já está ocupado (conflito com: %s). Escolha outro horário.",
+			startTime.In(location).Format("02/01 15:04"),
+			endTime.In(location).Format("15:04"),
+			conflict.Title,
+		)), nil
+	}
+	if errors.Is(err, calendar.ErrConflictCheckUnavailable) {
+		return createCalendarEventRefused(ctx, err, err.Error()), nil
+	}
 	if err != nil {
 		return createCalendarEventFailure(ctx, fmt.Sprintf("falha ao criar evento no Google Calendar: %v", err)), nil
 	}
+	googleEventID, meetingLink := reserved.GoogleEventID, reserved.MeetingLink
 
 	log.Printf("[workflow][node:%s][run:%s] action_create_calendar_event: created google event=%s workspace=%s meet=%t",
 		ctx.Node.ID,

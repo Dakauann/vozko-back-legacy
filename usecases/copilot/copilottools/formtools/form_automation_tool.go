@@ -23,7 +23,7 @@ func NewCreateFormAutomationTool(deps FormDeps) copilot.Tool {
 func (t *createFormAutomationTool) Definition() tools.Definition {
 	return copilottools.Definition("create_form_automation",
 		"Cria, em rascunho, uma automação que roda quando alguém responde o formulário do WhatsApp: ela parte do gatilho de formulário respondido, "+
-			"etiqueta a conversa e abre uma oportunidade no funil padrão. A automação não roda até o usuário revisar e ativar. Só depois da aprovação do usuário.",
+			"etiqueta a conversa e abre uma negociação no funil padrão. A automação não roda até o usuário revisar e ativar. Só depois da aprovação do usuário.",
 		formRef{})
 }
 

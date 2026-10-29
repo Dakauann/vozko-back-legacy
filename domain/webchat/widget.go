@@ -254,11 +254,7 @@ func (w *Widget) AllowsOrigin(origin string) bool {
 }
 
 func (w *Widget) FrameAncestors() string {
-	origins := w.origins()
-	if origins.Empty() {
-		return "'none'"
-	}
-	return strings.Join(origins.Origins(), " ")
+	return frameAncestors(w.origins())
 }
 
 func (w *Widget) Serves() bool {

@@ -15,8 +15,8 @@ import (
 const (
 	CodeNotInspected        = "not_inspected"
 	CodeInspectionThrottled = "inspection_throttled"
-	ReasonNotInspected      = "esta versão da página ainda não foi lida; ela é lida quando alguém que pode editar abre a página no editor"
-	ReasonThrottled         = "a página acabou de ser inspecionada; tente de novo em alguns segundos"
+	ReasonNotInspected      = "esta versão do site ainda não foi lida; ela é lida quando alguém que pode editar abre o site no editor"
+	ReasonThrottled         = "o site acabou de ser inspecionado; tente de novo em alguns segundos"
 
 	InspectSpacing    = 5 * time.Second
 	OutlineKeep       = 25 * time.Minute

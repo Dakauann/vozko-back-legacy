@@ -202,10 +202,10 @@ func TestMoveStageRefusalsLeaveThroughTheErrorHandle(t *testing.T) {
 		want    string
 		code    string
 	}{
-		"opportunity funnel": {"st-won", stage.ErrStageNotConversationFunnel, nil, "oportunidades", "stage_not_conversation_funnel"},
+		"opportunity funnel": {"st-won", stage.ErrStageNotConversationFunnel, nil, "negociações", "stage_not_conversation_funnel"},
 		"deleted stage":      {"st-gone", nil, nil, "não existe", "stage_not_found"},
 		"other workspace":    {"st-won", stage.ErrUnauthorized, nil, "não existe", "stage_not_found"},
-		"refused on write":   {"st-won", nil, stage.ErrStageNotConversationFunnel, "oportunidades", "stage_not_conversation_funnel"},
+		"refused on write":   {"st-won", nil, stage.ErrStageNotConversationFunnel, "negociações", "stage_not_conversation_funnel"},
 		"generic failure":    {"st-won", nil, stage.ErrEntryNotFound, "falha", "stage_move_failed"},
 	} {
 		t.Run(name, func(t *testing.T) {

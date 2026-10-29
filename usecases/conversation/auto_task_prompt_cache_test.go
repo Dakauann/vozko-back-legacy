@@ -79,7 +79,7 @@ func autoTaskCases() map[string]autoTaskCase {
 			volatile:    [2]string{"deal-1 R$ 100", "deal-1 R$ 200"},
 			noted:       "deal-1 R$ 200",
 			build: func(history []*conversation.Message, deals string) AutoTaskPrompt {
-				return BuildAutoDealPrompt(AutoDealPromptInput{EntryID: "entry-1", ContainerName: "Campanha", ContactLabel: "+55 11 99999-0000", MessageCount: len(history), CurrentDeals: "Oportunidades abertas:\n- " + deals, History: history})
+				return BuildAutoDealPrompt(AutoDealPromptInput{EntryID: "entry-1", ContainerName: "Campanha", ContactLabel: "+55 11 99999-0000", MessageCount: len(history), CurrentDeals: "Negociações abertas:\n- " + deals, History: history})
 			},
 		},
 	}

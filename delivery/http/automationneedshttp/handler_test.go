@@ -17,6 +17,7 @@ import (
 	"vozko/domain/campaignaudience"
 	"vozko/domain/conversation"
 	"vozko/domain/conversationvars"
+	"vozko/domain/variabledecl"
 	workspace_domain "vozko/domain/workspace"
 	"vozko/infra/http/middleware"
 	automationneeds_usecase "vozko/usecases/automationneeds"
@@ -31,6 +32,7 @@ type fakeQueries struct {
 	flow   []automationneeds_usecase.FlowVariable
 	data   []automationneeds_usecase.DataRow
 	set    []string
+	chosen []string
 	err    error
 }
 
@@ -215,5 +217,21 @@ func TestTheFlowPanelAnswersLabelsUsesAndFillers(t *testing.T) {
 	row := got.Variables[0]
 	if row.Label != "Turno" || row.Required || !row.InFlow || row.Default != "Manhã" || row.Nodes[0].Name != "Boas-vindas" || row.FilledBy[0].Kind != "default" || row.Type.Kind != "text" {
 		t.Fatalf("row = %+v", row)
+	}
+}
+
+func TestTheFormMarksAPlanilhaRow(t *testing.T) {
+	q := &fakeQueries{form: automationneeds_usecase.VariablesForm{
+		Automation: &domain.Link{Automation: conversation.Automation{Kind: conversation.AutomationWorkflow, ID: "w1"}, Name: "Franquias"},
+		Rows: []automationneeds_usecase.VariableRow{
+			{Need: domain.Need{Name: "planilha", Type: variabledecl.Type{Kind: variabledecl.KindSheet}, Shape: variabledecl.ShapeSheet}},
+			{Need: domain.Need{Name: "nome"}},
+		},
+	}}
+	rec := serve(t, q, http.MethodGet, "/conversations/whatsapp/e1/variables?kind=workflow&id=w1", "")
+	var body ConversationVariablesResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if rec.Code != http.StatusOK || len(body.Variables) != 2 || !body.Variables[0].Sheet || body.Variables[1].Sheet {
+		t.Fatalf("body = %s", rec.Body.String())
 	}
 }

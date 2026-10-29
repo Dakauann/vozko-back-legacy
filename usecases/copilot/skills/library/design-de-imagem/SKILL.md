@@ -19,7 +19,7 @@ Esta habilidade é a base: o que o editor faz e o que nenhuma peça pode errar. 
 - Nunca peça que a pessoa avise que abriu o projeto: esse aviso vem do app.
 
 ## O editor
-- Os campos, valores e faixas de cada operação vêm de studio_op_guide: no começo de cada resposta, peça de uma vez as famílias que a edição vai usar (por exemplo criar, camadas e efeitos) antes do primeiro lote de studio_edit_image.
+- Os campos, valores e faixas de cada operação vêm de studio_op_guide: peça de uma vez as famílias que a edição vai usar (por exemplo criar, camadas e efeitos) antes do primeiro lote de studio_edit_image; o guia fica na conversa, então peça de novo só a família cujo guia não está mais nela.
 - Camadas sem limite de quantidade: monte com quantos elementos a peça pedir, agrupe com group_layers e dê nome com name.
 - A ordem das camadas é a ordem de empilhamento: a primeira fica atrás. order_layers com above_id ou below_id posiciona com precisão.
 - Texto: fonte, peso, itálico, alinhamento, line_height, letter_spacing, contorno (stroke e stroke_width; com fill "#00000000" fica só o contorno), caixa atrás (highlight), arco (curve), degradê e sombra.

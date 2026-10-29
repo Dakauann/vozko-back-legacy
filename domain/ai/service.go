@@ -88,6 +88,7 @@ type GenerateInput struct {
 	AsOf               time.Time
 	Zone               *time.Location
 	VolatileTail       int
+	ReplayedHistory    int
 	AgentTurn          AgentTurn
 }
 

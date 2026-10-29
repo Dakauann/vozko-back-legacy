@@ -73,7 +73,7 @@ func (n Needs) Labeled(catalog variabledecl.Catalog) Needs {
 		if d, ok := catalog.Find(need.Name); ok {
 			need.Declared = true
 			need.Type = d.Type
-			if need.Description == "" {
+			if d.Description != "" {
 				need.Description = d.Description
 			}
 		}

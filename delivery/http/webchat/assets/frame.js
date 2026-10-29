@@ -5,13 +5,15 @@
   var key = body.getAttribute("data-key");
   var prefix = body.getAttribute("data-prefix");
   var app = document.getElementById("app");
+  var demo = body.getAttribute("data-demo") === "true";
   var frameScript = document.currentScript.src;
   var powUrl = new URL("pow.js" + new URL(frameScript).search, frameScript).href;
+  var space = demo ? "vozko-webchat-preview:" : "vozko-webchat:";
   var keys = {
-    token: "vozko-webchat:" + key,
-    read: "vozko-webchat:read:" + key,
-    open: "vozko-webchat:open:" + key,
-    draft: "vozko-webchat:draft:" + key
+    token: space + key,
+    read: space + "read:" + key,
+    open: space + "open:" + key,
+    draft: space + "draft:" + key
   };
 
   var TEXT = {
@@ -26,7 +28,7 @@
       failed: "Não foi possível enviar. Verifique sua conexão e tente de novo.",
       fileRefused: "Este tipo de arquivo não é aceito. Envie uma imagem ou um PDF.", fileTooLarge: "Arquivo grande demais. O limite é 10 MB.",
       required: "Preencha os campos obrigatórios.", invalid: "Confira os dados informados.", file: "Arquivo",
-      unread: "{n} mensagens novas", unreadOne: "1 mensagem nova"
+      unread: "{n} mensagens novas", unreadOne: "1 mensagem nova", preview: "Prévia: as mensagens não são enviadas", notSent: "Prévia, não enviada", previewSent: "Esta mensagem não chegou à equipe porque é uma prévia. No site publicado, as conversas chegam à caixa de entrada."
     },
     en: {
       open: "Open chat", minimize: "Minimize chat", placeholder: "Type your message", send: "Send",
@@ -39,7 +41,7 @@
       failed: "Could not send. Check your connection and try again.",
       fileRefused: "This file type is not accepted. Send an image or a PDF.", fileTooLarge: "File is too large. The limit is 10 MB.",
       required: "Please fill in the required fields.", invalid: "Please check your details.", file: "File",
-      unread: "{n} new messages", unreadOne: "1 new message"
+      unread: "{n} new messages", unreadOne: "1 new message", preview: "Preview: messages are not sent", notSent: "Preview, not sent", previewSent: "This message did not reach the team because this is a preview. On the published site, conversations arrive in the inbox."
     },
     es: {
       open: "Abrir chat", minimize: "Minimizar chat", placeholder: "Escribe tu mensaje", send: "Enviar",
@@ -52,7 +54,7 @@
       failed: "No se pudo enviar. Revisa tu conexión e inténtalo de nuevo.",
       fileRefused: "Este tipo de archivo no se acepta. Envía una imagen o un PDF.", fileTooLarge: "Archivo demasiado grande. El límite es 10 MB.",
       required: "Completa los campos obligatorios.", invalid: "Revisa los datos.", file: "Archivo",
-      unread: "{n} mensajes nuevos", unreadOne: "1 mensaje nuevo"
+      unread: "{n} mensajes nuevos", unreadOne: "1 mensaje nuevo", preview: "Vista previa: los mensajes no se envían", notSent: "Vista previa, no enviado", previewSent: "Este mensaje no llegó al equipo porque es una vista previa. En el sitio publicado, las conversaciones llegan a la bandeja de entrada."
     },
     de: {
       open: "Chat öffnen", minimize: "Chat minimieren", placeholder: "Nachricht schreiben", send: "Senden",
@@ -65,7 +67,7 @@
       failed: "Senden fehlgeschlagen. Verbindung prüfen und erneut versuchen.",
       fileRefused: "Dieser Dateityp wird nicht akzeptiert. Senden Sie ein Bild oder ein PDF.", fileTooLarge: "Datei zu groß. Maximal 10 MB.",
       required: "Bitte Pflichtfelder ausfüllen.", invalid: "Bitte Angaben prüfen.", file: "Datei",
-      unread: "{n} neue Nachrichten", unreadOne: "1 neue Nachricht"
+      unread: "{n} neue Nachrichten", unreadOne: "1 neue Nachricht", preview: "Vorschau: Nachrichten werden nicht gesendet", notSent: "Vorschau, nicht gesendet", previewSent: "Diese Nachricht hat das Team nicht erreicht, weil dies eine Vorschau ist. Auf der veröffentlichten Website landen Unterhaltungen im Posteingang."
     }
   };
   var lang = (navigator.language || "pt").slice(0, 2).toLowerCase();
@@ -308,6 +310,14 @@
     minimize.addEventListener("click", function () { setOpen(false); ui.launcher.focus(); });
     header.appendChild(minimize);
     ui.panel.appendChild(header);
+
+    if (demo) {
+      var note = el("p", "preview-note");
+      note.setAttribute("role", "note");
+      note.appendChild(glyph("alert"));
+      note.appendChild(el("span", null, t.preview));
+      ui.panel.appendChild(note);
+    }
 
     ui.handoff = el("div", "handoff");
     ui.panel.appendChild(ui.handoff);
@@ -730,6 +740,12 @@
     return state.widget.assistantName || t.assistant;
   }
 
+  function metaText(m) {
+    if (m.state === "sending") { return ""; }
+    var time = clock.format(new Date(m.createdAt));
+    return demo && m.author === "visitor" ? time + " · " + t.notSent : time;
+  }
+
   function renderThread() {
     if (!ui.thread) { return; }
     var nearBottom = ui.thread.scrollHeight - ui.thread.scrollTop - ui.thread.clientHeight < 80;
@@ -752,9 +768,16 @@
       if (m.state === "failed") {
         run.appendChild(renderFailed(m));
       } else if (!next || next.author !== m.author) {
-        run.appendChild(el("span", "meta", m.state === "sending" ? "" : clock.format(new Date(m.createdAt))));
+        run.appendChild(el("span", "meta", metaText(m)));
       }
     });
+    if (demo && items.some(function (m) { return m.author === "visitor"; })) {
+      var unsent = el("p", "preview-note preview-sent", null);
+      unsent.setAttribute("role", "note");
+      unsent.appendChild(glyph("alert"));
+      unsent.appendChild(el("span", null, t.previewSent));
+      ui.thread.appendChild(unsent);
+    }
     if (state.options.length) {
       var options = el("div", "options");
       state.options.forEach(function (o) {
@@ -777,7 +800,12 @@
     bubble.title = m.createdAt ? new Date(m.createdAt).toLocaleString() : "";
     if (m.quote && m.quote.text) { bubble.appendChild(el("span", "quote", m.quote.text)); }
     if (m.text) { bubble.appendChild(document.createTextNode(m.text)); }
-    if (m.media && /^https:\/\//.test(m.media.url)) {
+    if (m.media && !m.media.url && m.media.filename) {
+      var chip = el("span", "file-link");
+      chip.appendChild(glyph("file"));
+      chip.appendChild(el("span", null, m.media.filename));
+      bubble.appendChild(chip);
+    } else if (m.media && /^https:\/\//.test(m.media.url)) {
       if (m.media.kind === "image" || m.media.kind === "sticker") {
         var img = el("img");
         img.src = m.media.url;

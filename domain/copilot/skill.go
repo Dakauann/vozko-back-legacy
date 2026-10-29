@@ -14,7 +14,7 @@ var (
 	ErrSkillDescription = errors.New("copilot skill: description is required")
 	ErrSkillBody        = errors.New("copilot skill: body is required")
 	ErrSkillDash        = errors.New("copilot skill: em and en dashes are not allowed")
-	ErrSkillSurface     = errors.New("copilot skill: surface must be empty, studio, panel, email or site, and extra surfaces must be known and named once")
+	ErrSkillSurface     = errors.New("copilot skill: surface must be empty, studio, panel, email, site or ads, and extra surfaces must be known and named once")
 )
 
 var skillName = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
@@ -27,6 +27,7 @@ const (
 	SkillPanelOnly  SkillSurface = "panel"
 	SkillEmailWork  SkillSurface = "email"
 	SkillSiteWork   SkillSurface = "site"
+	SkillAdsWork    SkillSurface = "ads"
 )
 
 type Skill struct {
@@ -57,13 +58,15 @@ func (surface SkillSurface) offeredOn(view View) bool {
 		return view.OnEmailDocument() || !view.Focused()
 	case SkillSiteWork:
 		return view.OnSite()
+	case SkillAdsWork:
+		return view.OnStudio() || !view.Focused()
 	}
 	return !view.OnSite()
 }
 
 func (surface SkillSurface) known() bool {
 	switch surface {
-	case SkillEverywhere, SkillStudioOnly, SkillPanelOnly, SkillEmailWork, SkillSiteWork:
+	case SkillEverywhere, SkillStudioOnly, SkillPanelOnly, SkillEmailWork, SkillSiteWork, SkillAdsWork:
 		return true
 	}
 	return false

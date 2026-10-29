@@ -10,7 +10,7 @@ import (
 )
 
 // @Summary		Biblioteca de seções
-// @Description	Seções prontas da biblioteca (kind library: topo, benefícios, depoimentos, perguntas, planos, formulário, WhatsApp, galeria, equipe e rodapé) seguidas das seções salvas pelo workspace (kind snippet, título igual ao nome nos quatro idiomas), para inserir numa página com a operação insert_section e o campo library_key. Cada seção traz o título em pt, en, es e de e as tecnologias em que pode entrar; stack filtra pelas que cabem numa tecnologia.
+// @Description	Peças prontas da biblioteca (kind library), cada uma num grupo: sections (topo, benefícios, depoimentos, perguntas, planos, WhatsApp, galeria, equipe, rodapé), forms (orçamento, contato e agendamento ligados aos campos do CRM), fields (texto, WhatsApp, e-mail, seleção, caixa de marcar), buttons (botão, botão com contorno, link), media (imagem, vídeo) e platform (botão de WhatsApp), seguidas das seções salvas pelo workspace (kind snippet, grupo saved, título igual ao nome nos quatro idiomas), para inserir numa página com a operação insert_section e o campo library_key. Cada seção traz o título em pt, en, es e de e as tecnologias em que pode entrar; stack filtra pelas que cabem numa tecnologia.
 // @Tags			Páginas
 // @Produce		json
 // @Param			stack	query		string	false	"tecnologia da página"	Enums(react, html)
@@ -42,7 +42,7 @@ func presentSection(s sitebuild.SectionInfo) SectionResponse {
 		stacks = append(stacks, string(stack))
 	}
 	return SectionResponse{
-		Key: s.Key, Kind: string(s.Kind), Stacks: stacks,
+		Key: s.Key, Kind: string(s.Kind), Group: string(s.Group), Stacks: stacks,
 		Title: SectionTitleResponse{PT: s.Title.PT, EN: s.Title.EN, ES: s.Title.ES, DE: s.Title.DE},
 	}
 }

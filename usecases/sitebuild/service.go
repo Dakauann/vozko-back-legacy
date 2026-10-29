@@ -19,16 +19,33 @@ import (
 	"vozko/domain/site"
 	"vozko/domain/sitepublish"
 	"vozko/domain/sitesubmission"
+	"vozko/domain/webchat"
 )
 
 const minSigningKeyLength = 32
 
 const (
-	RuntimeFile    = "vz-runtime.js"
-	PowFile        = "pow.js"
-	BridgeFile     = "vz-editor-bridge.js"
-	ScreenshotFile = "vz-screenshot.js"
+	RuntimeFile         = "vz-runtime.js"
+	PowFile             = "pow.js"
+	BridgeFile          = "vz-editor-bridge.js"
+	ScreenshotFile      = "vz-screenshot.js"
+	TailwindBrowserFile = "vz-tailwind-browser.js"
 )
+
+func PreviewOnlyFiles() []string {
+	return []string{BridgeFile, ScreenshotFile, TailwindBrowserFile}
+}
+
+func runtimeFor(runtime map[string]string, mode Mode) map[string]string {
+	out := make(map[string]string, len(runtime))
+	for name, body := range runtime {
+		if mode == ModePublish && slices.Contains(PreviewOnlyFiles(), name) {
+			continue
+		}
+		out[name] = body
+	}
+	return out
+}
 
 type Config struct {
 	Addresses  sitepublish.Addresses
@@ -43,6 +60,7 @@ type Deps struct {
 	Media      MediaLocator
 	Sections   SectionLibrary
 	WhatsApp   WhatsAppLinks
+	Widgets    webchat.SiteWidgetFinder
 	Workspaces WorkspaceNames
 	Now        func() time.Time
 	Random     io.Reader
@@ -58,6 +76,7 @@ type Service struct {
 	media      MediaLocator
 	sections   SectionLibrary
 	whatsapp   WhatsAppLinks
+	widgets    webchat.SiteWidgetFinder
 	workspaces WorkspaceNames
 	now        func() time.Time
 	random     io.Reader
@@ -120,7 +139,7 @@ func validOrigin(raw string) bool {
 
 func NewService(cfg Config, deps Deps) (*Service, error) {
 	switch {
-	case deps.Builder == nil || deps.Cache == nil || deps.Media == nil || deps.WhatsApp == nil || deps.Workspaces == nil:
+	case deps.Builder == nil || deps.Cache == nil || deps.Media == nil || deps.WhatsApp == nil || deps.Widgets == nil || deps.Workspaces == nil:
 		return nil, errors.New("sitebuild: the builder, the cache, the media locator, the WhatsApp links and the workspace names are required")
 	case len(cfg.SigningKey) < minSigningKeyLength:
 		return nil, fmt.Errorf("sitebuild: the preview signing key needs at least %d characters", minSigningKeyLength)
@@ -129,7 +148,7 @@ func NewService(cfg Config, deps Deps) (*Service, error) {
 	case !validOrigin(cfg.APIOrigin):
 		return nil, errors.New("sitebuild: the api origin must be an https origin")
 	}
-	for _, file := range []string{RuntimeFile, PowFile, BridgeFile, ScreenshotFile} {
+	for _, file := range append([]string{RuntimeFile, PowFile}, PreviewOnlyFiles()...) {
 		if strings.TrimSpace(cfg.Runtime[file]) == "" {
 			return nil, fmt.Errorf("sitebuild: the runtime file %s is required", file)
 		}
@@ -152,6 +171,7 @@ func NewService(cfg Config, deps Deps) (*Service, error) {
 		media:      deps.Media,
 		sections:   deps.Sections,
 		whatsapp:   deps.WhatsApp,
+		widgets:    deps.Widgets,
 		workspaces: deps.Workspaces,
 		now:        now,
 		random:     random,
@@ -295,7 +315,7 @@ func (s *Service) shell(ctx context.Context, workspaceID string, p site.Project,
 	if forms == nil {
 		forms = map[string]string{}
 	}
-	shell := Shell{API: s.api, Forms: forms, Pages: pages, Integrations: integrations, Loaders: loaders, ConsentText: settings.Consent.Text, PrimaryOrigin: primaryOrigin, Favicon: images[settings.Site.FaviconMediaID]}
+	shell := Shell{API: s.api, Forms: forms, Pages: pages, Integrations: integrations, Loaders: loaders, ConsentText: settings.Consent.Text, PrimaryOrigin: primaryOrigin, Favicon: images[settings.Site.FaviconMediaID], Webchat: settings.Site.WebchatWidget}
 	if settings.Site.StructuredData {
 		data, err := s.organization(ctx, workspaceID, primaryOrigin, shell.Favicon)
 		if err != nil {
@@ -353,6 +373,33 @@ func (s *Service) linkPreviewWhatsApp(ctx context.Context, workspaceID string, r
 	return result, nil
 }
 
+func (s *Service) linkPreviewWebchat(ctx context.Context, workspaceID string, result BuildResult) (BuildResult, error) {
+	resolve := func(ref string) (string, bool, error) {
+		widget, err := webchat.FindSiteWidget(ctx, s.widgets, workspaceID, ref)
+		if errors.Is(err, webchat.ErrWidgetNotFound) {
+			return "", false, nil
+		}
+		if err != nil {
+			return "", false, err
+		}
+		return widget.PublicKey, true, nil
+	}
+	assets := make([]Asset, len(result.Assets))
+	for i, a := range result.Assets {
+		assets[i] = a
+		if !strings.HasPrefix(strings.ToLower(a.ContentType), "text/html") {
+			continue
+		}
+		linked, err := sitepublish.LinkWebchat(string(a.Body), resolve)
+		if err != nil {
+			return BuildResult{}, fmt.Errorf("%w: %s: %w", ErrPreviewUnavailable, a.Path, err)
+		}
+		assets[i].Body = []byte(linked)
+	}
+	result.Assets = assets
+	return result, nil
+}
+
 type hashedRequest struct {
 	Mode    Mode              `json:"mode"`
 	Project site.Project      `json:"project"`
@@ -384,7 +431,7 @@ func (s *Service) request(ctx context.Context, mode Mode, workspaceID string, p 
 	if err != nil {
 		return BuildRequest{}, "", err
 	}
-	req := BuildRequest{Mode: mode, Project: p, Shell: shell, Runtime: s.runtime}
+	req := BuildRequest{Mode: mode, Project: p, Shell: shell, Runtime: runtimeFor(s.runtime, mode)}
 	hash, err := requestHash(req)
 	if err != nil {
 		return BuildRequest{}, "", err
@@ -399,6 +446,9 @@ func (s *Service) build(ctx context.Context, workspaceID string, req BuildReques
 	}
 	if req.Mode == ModePreview && len(result.Errors) == 0 {
 		if result, err = s.linkPreviewWhatsApp(ctx, workspaceID, result); err != nil {
+			return BuildResult{}, err
+		}
+		if result, err = s.linkPreviewWebchat(ctx, workspaceID, result); err != nil {
 			return BuildResult{}, err
 		}
 	}

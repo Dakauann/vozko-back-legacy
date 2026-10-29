@@ -1,6 +1,7 @@
 ---
 name: criativos-que-performam
 description: Como pensar, variar e renovar criativos de anúncio (ganchos, formatos, proporções, zonas seguras, fadiga); carregue antes de propor textos, imagens ou vídeos.
+surface: ads
 ---
 
 # Criativos que performam

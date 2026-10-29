@@ -1,6 +1,7 @@
 ---
 name: alcance-e-reconhecimento
 description: Campanhas de alcance e reconhecimento de marca (ser visto por muita gente da região ou do público certo): quando usar, frequência, criativos e como medir; carregue antes de criar uma campanha de reconhecimento.
+surface: ads
 ---
 
 # Alcance e reconhecimento

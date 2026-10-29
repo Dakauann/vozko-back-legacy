@@ -33,6 +33,8 @@ var (
 	ErrFormStageUnknown     = errors.New("site: the form stage is not in this workspace or funnel")
 	ErrFormOwnerUnknown     = errors.New("site: the form owner is not in this workspace")
 	ErrFormWorkflowUnknown  = errors.New("site: the form workflow is not in this workspace")
+	ErrFormWorkflowNotBound = errors.New("site: the form workflow does not start from this form")
+	ErrWebchatWidgetUnknown = errors.New("site: the site chat is not a widget of this workspace")
 	ErrFormChannelUnknown   = errors.New("site: the form follow up channel is not in this workspace")
 	ErrStatusInvalid        = errors.New("site: the status filter is not a page status")
 	ErrPublicationInvalid   = errors.New("site: a live page needs its deployment and a draft has none")

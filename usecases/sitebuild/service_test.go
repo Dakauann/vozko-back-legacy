@@ -11,6 +11,7 @@ import (
 	"vozko/domain/inlinemarkup"
 	"vozko/domain/site"
 	"vozko/domain/sitepublish"
+	"vozko/domain/webchat"
 )
 
 const (
@@ -48,6 +49,7 @@ type fixture struct {
 	clock    *clock
 	sections fakeSections
 	whatsapp *fakeWhatsApp
+	widgets  *fakeWidgets
 }
 
 func newFixture(t *testing.T, tweaks ...func(*Config)) *fixture {
@@ -59,17 +61,18 @@ func newFixture(t *testing.T, tweaks ...func(*Config)) *fixture {
 		clock:    &clock{now: time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)},
 		sections: fakeSections{"html/faq": "<section>FAQ</section>"},
 		whatsapp: &fakeWhatsApp{numbers: map[string]string{"phone-1": "5511999990000"}},
+		widgets:  &fakeWidgets{rows: []webchat.Widget{{ID: "6b1f6d2e-3c4a-4f5b-8e9d-0a1b2c3d4e5f", WorkspaceID: "ws1", PublicKey: "pk_chat"}, {ID: "7c2a7e3f-4d5b-4a6c-9fae-1b2c3d4e5f60", WorkspaceID: "ws2", PublicKey: "pk_foreign"}}},
 	}
 	cfg := Config{
 		Addresses:  sitepublish.Addresses{Domain: testDomain},
 		SigningKey: testKey,
 		APIOrigin:  "https://api.vozko.test",
-		Runtime:    map[string]string{"vz-runtime.js": "runtime", "pow.js": "pow", "vz-editor-bridge.js": "bridge", "vz-screenshot.js": "screenshot"},
+		Runtime:    map[string]string{"vz-runtime.js": "runtime", "pow.js": "pow", "vz-editor-bridge.js": "bridge", "vz-screenshot.js": "screenshot", "vz-tailwind-browser.js": "tailwind"},
 	}
 	for _, tweak := range tweaks {
 		tweak(&cfg)
 	}
-	svc, err := NewService(cfg, Deps{Builder: f.builder, Cache: f.cache, Media: f.media, Sections: f.sections, WhatsApp: f.whatsapp, Workspaces: fakeWorkspaceNames{"ws1": "Clínica Sorriso"}, Now: f.clock.Now})
+	svc, err := NewService(cfg, Deps{Builder: f.builder, Cache: f.cache, Media: f.media, Sections: f.sections, WhatsApp: f.whatsapp, Widgets: f.widgets, Workspaces: fakeWorkspaceNames{"ws1": "Clínica Sorriso"}, Now: f.clock.Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,18 +104,24 @@ func hostOf(t *testing.T, raw string) (string, string) {
 }
 
 func TestNewServiceFailsClosedOnMissingDependencies(t *testing.T) {
-	good := Config{Addresses: sitepublish.Addresses{Domain: testDomain}, SigningKey: testKey, APIOrigin: "https://api.vozko.test", Runtime: map[string]string{"vz-runtime.js": "r", "pow.js": "p", "vz-editor-bridge.js": "b", "vz-screenshot.js": "s"}}
-	deps := Deps{Builder: &fakeBuilder{}, Cache: newMemoryCache(), Media: &fakeMedia{}, WhatsApp: &fakeWhatsApp{}, Workspaces: fakeWorkspaceNames{}}
+	good := Config{Addresses: sitepublish.Addresses{Domain: testDomain}, SigningKey: testKey, APIOrigin: "https://api.vozko.test", Runtime: map[string]string{"vz-runtime.js": "r", "pow.js": "p", "vz-editor-bridge.js": "b", "vz-screenshot.js": "s", "vz-tailwind-browser.js": "t"}}
+	deps := Deps{Builder: &fakeBuilder{}, Cache: newMemoryCache(), Media: &fakeMedia{}, WhatsApp: &fakeWhatsApp{}, Widgets: &fakeWidgets{}, Workspaces: fakeWorkspaceNames{}}
 	cases := map[string]func() (Config, Deps){
 		"no builder":    func() (Config, Deps) { d := deps; d.Builder = nil; return good, d },
 		"no cache":      func() (Config, Deps) { d := deps; d.Cache = nil; return good, d },
 		"no media":      func() (Config, Deps) { d := deps; d.Media = nil; return good, d },
 		"no whatsapp":   func() (Config, Deps) { d := deps; d.WhatsApp = nil; return good, d },
+		"no widgets":    func() (Config, Deps) { d := deps; d.Widgets = nil; return good, d },
 		"no workspaces": func() (Config, Deps) { d := deps; d.Workspaces = nil; return good, d },
 		"short key":     func() (Config, Deps) { c := good; c.SigningKey = "short"; return c, deps },
 		"no domain":     func() (Config, Deps) { c := good; c.Addresses.Domain = ""; return c, deps },
 		"no runtime":    func() (Config, Deps) { c := good; c.Runtime = map[string]string{"pow.js": "p"}; return c, deps },
 		"bad api url":   func() (Config, Deps) { c := good; c.APIOrigin = "ftp://x"; return c, deps },
+		"no tailwind browser": func() (Config, Deps) {
+			c := good
+			c.Runtime = map[string]string{"vz-runtime.js": "r", "pow.js": "p", "vz-editor-bridge.js": "b", "vz-screenshot.js": "s"}
+			return c, deps
+		},
 		"no screenshot": func() (Config, Deps) {
 			c := good
 			c.Runtime = map[string]string{"vz-runtime.js": "r", "pow.js": "p", "vz-editor-bridge.js": "b"}
@@ -378,5 +387,86 @@ func TestExecutePreparesTextsMediaAndSections(t *testing.T) {
 	f.media.err = errBoom
 	if _, err := f.svc.Execute(context.Background(), ExecuteInput{WorkspaceID: "ws1", ProjectID: "p1", Project: project, Batch: batch}); !errors.Is(err, ErrMediaUnavailable) {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestPreviewOnlyRuntimeFilesNeverReachAPublishBuild(t *testing.T) {
+	f := newFixture(t)
+	if _, err := f.svc.Preview(context.Background(), previewInput()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.Candidate(context.Background(), CandidateInput{WorkspaceID: "ws1", ProjectID: "p1", Project: htmlProject(), Settings: previewInput().Settings, FormKeys: map[string]string{"contato": "fk1"}, PrimaryOrigin: "https://sorriso.vozko.site"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.builder.builds) != 2 {
+		t.Fatalf("builds %d", len(f.builder.builds))
+	}
+	preview, publish := f.builder.builds[0], f.builder.builds[1]
+	if preview.Mode != ModePreview || publish.Mode != ModePublish {
+		t.Fatalf("modes %s %s", preview.Mode, publish.Mode)
+	}
+	for _, file := range PreviewOnlyFiles() {
+		if preview.Runtime[file] == "" {
+			t.Fatalf("the preview needs %s", file)
+		}
+		if _, sent := publish.Runtime[file]; sent {
+			t.Fatalf("a publish build must never receive %s", file)
+		}
+	}
+	if publish.Runtime[RuntimeFile] == "" || publish.Runtime[PowFile] == "" {
+		t.Fatalf("publish runtime %v", publish.Runtime)
+	}
+	want := map[string]bool{BridgeFile: true, ScreenshotFile: true, TailwindBrowserFile: true}
+	if len(PreviewOnlyFiles()) != len(want) {
+		t.Fatalf("preview only %v", PreviewOnlyFiles())
+	}
+	for _, file := range PreviewOnlyFiles() {
+		if !want[file] {
+			t.Fatalf("preview only %v", PreviewOnlyFiles())
+		}
+	}
+}
+
+func TestAPreviewOriginProvesItsWorkspaceAndProjectUntilItExpires(t *testing.T) {
+	f := newFixture(t)
+	out, err := f.svc.Preview(context.Background(), previewInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	origin := strings.TrimSuffix(out.URL, "/")
+	if !f.svc.PreviewOrigin(origin) || f.svc.PreviewOrigin("https://sorriso.vozko.site") {
+		t.Fatal("only preview addresses are preview origins")
+	}
+	grant, found, err := f.svc.PreviewGrant(context.Background(), origin)
+	if err != nil || !found {
+		t.Fatalf("got %v %v", found, err)
+	}
+	if grant.WorkspaceID != "ws1" || grant.ProjectID != "p1" || grant.Origin != origin || !grant.Expires.Equal(f.clock.now.Add(PreviewTTL).Truncate(time.Second)) {
+		t.Fatalf("got %+v", grant)
+	}
+	host, _ := hostOf(t, out.URL)
+	label, _, _ := strings.Cut(host, ".")
+	flip := []byte(label)
+	flip[len(flip)-1] ^= 1
+	for _, refused := range []string{"https://" + string(flip) + "." + testDomain, "https://sorriso.vozko.site", origin + "/x", "http://" + host} {
+		if _, found, err := f.svc.PreviewGrant(context.Background(), refused); found || err != nil {
+			t.Fatalf("%s: got %v %v", refused, found, err)
+		}
+	}
+	f.clock.now = f.clock.now.Add(PreviewTTL + time.Second)
+	if _, found, err := f.svc.PreviewGrant(context.Background(), origin); found || err != nil {
+		t.Fatalf("expired: got %v %v", found, err)
+	}
+}
+
+func TestAPreviewGrantFailsClosedWhenTheCacheFails(t *testing.T) {
+	f := newFixture(t)
+	out, err := f.svc.Preview(context.Background(), previewInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.cache.failGet = errors.New("redis down")
+	if _, found, err := f.svc.PreviewGrant(context.Background(), strings.TrimSuffix(out.URL, "/")); found || err == nil {
+		t.Fatalf("got %v %v", found, err)
 	}
 }

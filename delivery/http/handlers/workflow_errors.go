@@ -170,7 +170,7 @@ var workflowValidationRefusals = []response.ErrorRefusal{
 	{Err: workflow.ErrNodeInvalidInteractiveConfig, Refusal: workflowInvalid("invalid_interactive_config", "As opções de botões ou lista de um nó não seguem os limites do WhatsApp")},
 	{Err: workflow.ErrNodeInvalidLabelID, Refusal: workflowInvalid("invalid_label", "A etiqueta selecionada é inválida ou não foi encontrada")},
 	{Err: workflow.ErrNodeInvalidStageID, Refusal: workflowInvalid("invalid_stage", "A etapa selecionada é inválida ou não foi encontrada")},
-	{Err: workflow.ErrNodeInvalidOpportunityPipeline, Refusal: workflowInvalid("invalid_opportunity_pipeline", "O funil selecionado não é um funil de oportunidades deste workspace")},
+	{Err: workflow.ErrNodeInvalidOpportunityPipeline, Refusal: workflowInvalid("invalid_opportunity_pipeline", "O funil selecionado não é um funil de negociações deste workspace")},
 	{Err: workflow.ErrNodeStageNotConversationFunnel, Refusal: workflowInvalid("stage_not_conversation_funnel", "Mover Etapa só leva a conversa para etapas de funis de conversa. Escolha uma etapa de um funil de conversa.")},
 	{Err: workflow.ErrNodeInvalidDepartmentID, Refusal: workflowInvalid("invalid_department", "O departamento selecionado é inválido ou não foi encontrado")},
 	{Err: workflow.ErrNodeInvalidMemberID, Refusal: workflowInvalid("invalid_member", "O atendente selecionado é inválido ou não faz parte do workspace")},

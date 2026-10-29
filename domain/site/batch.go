@@ -16,34 +16,35 @@ import (
 )
 
 const (
-	CodeOperationInvalid   = "operation_invalid"
-	CodeOperationUnknown   = "operation_unknown"
-	CodeFieldRequired      = "field_required"
-	CodeFieldInvalid       = "field_invalid"
-	CodePathNotFound       = "path_not_found"
-	CodePathExists         = "path_exists"
-	CodeNodeInvalid        = "node_invalid"
-	CodeNodeStale          = "node_stale"
-	CodeRevInvalid         = "rev_invalid"
-	CodeRefInvalid         = "ref_invalid"
-	CodeRefDuplicate       = "ref_duplicate"
-	CodeRefUnknown         = "ref_unknown"
-	CodePositionInvalid    = "position_invalid"
-	CodeTextMarkupInvalid  = "text_markup_invalid"
-	CodeAttributeForbidden = "attribute_forbidden"
-	CodeClassInvalid       = "class_invalid"
-	CodeBreakpointInvalid  = "breakpoint_invalid"
-	CodeMediaInvalid       = "media_invalid"
-	CodeLibraryKeyInvalid  = "library_key_invalid"
-	CodeTokenInvalid       = "token_invalid"
-	CodeKnobUnknown        = "knob_unknown"
-	CodeKnobValueInvalid   = "knob_value_invalid"
-	CodeEditNoop           = "edit_noop"
-	CodeEditPlaceholder    = "edit_placeholder"
-	CodeEditNotFound       = "edit_not_found"
-	CodeEditAmbiguous      = "edit_ambiguous"
-	CodeSkipped            = "skipped"
-	CodeOperationFailed    = "operation_failed"
+	CodeOperationInvalid     = "operation_invalid"
+	CodeOperationUnknown     = "operation_unknown"
+	CodeFieldRequired        = "field_required"
+	CodeFieldInvalid         = "field_invalid"
+	CodePathNotFound         = "path_not_found"
+	CodePathExists           = "path_exists"
+	CodeNodeInvalid          = "node_invalid"
+	CodeNodeStale            = "node_stale"
+	CodeRevInvalid           = "rev_invalid"
+	CodeRefInvalid           = "ref_invalid"
+	CodeRefDuplicate         = "ref_duplicate"
+	CodeRefUnknown           = "ref_unknown"
+	CodePositionInvalid      = "position_invalid"
+	CodeTextMarkupInvalid    = "text_markup_invalid"
+	CodeAttributeForbidden   = "attribute_forbidden"
+	CodeClassInvalid         = "class_invalid"
+	CodeBreakpointInvalid    = "breakpoint_invalid"
+	CodeMediaInvalid         = "media_invalid"
+	CodeLibraryKeyInvalid    = "library_key_invalid"
+	CodeTokenInvalid         = "token_invalid"
+	CodeKnobUnknown          = "knob_unknown"
+	CodeKnobValueInvalid     = "knob_value_invalid"
+	CodeEditNoop             = "edit_noop"
+	CodeEditPlaceholder      = "edit_placeholder"
+	CodeEditNotFound         = "edit_not_found"
+	CodeEditAmbiguous        = "edit_ambiguous"
+	CodeSkipped              = "skipped"
+	CodeOperationFailed      = "operation_failed"
+	CodeCopyReferenceMissing = "copy_reference_missing"
 
 	CodeFileStale             = "file_stale"
 	CodeKnobExists            = "knob_exists"
@@ -99,9 +100,10 @@ type Origin struct {
 }
 
 type Batch struct {
-	Operations []Operation `json:"operations"`
-	Ignored    []Ignored   `json:"ignored,omitempty"`
-	Origins    []Origin    `json:"-"`
+	Operations []Operation  `json:"operations"`
+	Ignored    []Ignored    `json:"ignored,omitempty"`
+	Origins    []Origin     `json:"-"`
+	Elements   []ElementUse `json:"-"`
 }
 
 func (b Batch) Origin(index int) Origin {
@@ -175,6 +177,9 @@ func PrepareBatch(p Project, raw []byte) (Batch, error) {
 		for _, e := range expanded {
 			batch.add(i, o.Op, e)
 		}
+		if o.Op == OpInsertElement {
+			batch.Elements = append(batch.Elements, ElementUse{Index: i, Element: o.Element, Key: o.Key})
+		}
 	}
 	if len(refused.Failures) > 0 {
 		return batch, refused
@@ -216,6 +221,8 @@ func (o Operation) keys() []string {
 		nodeKey(o.Node)
 		nodeKey(o.Before)
 		nodeKey(o.After)
+		nodeKey(o.Into)
+		nodeKey(o.Source)
 		if o.At != nil {
 			nodeKey(o.At.Before)
 			nodeKey(o.At.After)
@@ -231,8 +238,18 @@ func (o Operation) keys() []string {
 			add("token:", o.Name)
 		}
 	case FamilyShorthand:
-		if o.Op == OpSetWhatsAppLink || o.Op == OpClearWhatsAppLink {
+		if o.Op == OpSetWhatsAppLink || o.Op == OpClearWhatsAppLink || o.Op == OpSetFormField {
 			nodeKey(o.Node)
+			break
+		}
+		if o.Op == OpInsertElement || o.Op == OpInsertFormField {
+			if o.At != nil {
+				nodeKey(o.At.Before)
+				nodeKey(o.At.After)
+				nodeKey(o.At.Into)
+				add("file:", o.At.Page)
+			}
+			add("ref:", o.Ref)
 			break
 		}
 		add("knob:", o.Name)
@@ -477,11 +494,14 @@ func (s *batchState) validateVisual(i int, o Operation) *Failure {
 		touched = append(touched, target)
 		if o.Op == OpMove {
 			anchor, field := o.Before, "before"
-			if (o.Before == "") == (o.After == "") {
+			if anchors := countSet(o.Before, o.After, o.Into); anchors != 1 {
 				return failure(i, CodePositionInvalid, "before")
 			}
 			if o.After != "" {
 				anchor, field = o.After, "after"
+			}
+			if o.Into != "" {
+				anchor, field = o.Into, "into"
 			}
 			resolved, f := s.node(i, anchor, field)
 			if f != nil {
@@ -502,6 +522,11 @@ func (s *batchState) validateVisual(i int, o Operation) *Failure {
 	if f := s.checkRev(i, o, touched); f != nil {
 		return f
 	}
+	if o.Op == OpInsertSection && o.Source != "" {
+		if f := s.copySource(i, o); f != nil {
+			return f
+		}
+	}
 	if o.Ref != "" {
 		if !refName.MatchString(o.Ref) {
 			return failure(i, CodeRefInvalid, "ref")
@@ -511,6 +536,35 @@ func (s *batchState) validateVisual(i int, o Operation) *Failure {
 		}
 	}
 	return s.visualFields(i, o)
+}
+
+func countSet(values ...string) int {
+	set := 0
+	for _, v := range values {
+		if v != "" {
+			set++
+		}
+	}
+	return set
+}
+
+func (s *batchState) copySource(i int, o Operation) *Failure {
+	if o.HTML != "" || o.LibraryKey != "" {
+		return failure(i, CodeFieldInvalid, "source")
+	}
+	source, f := s.node(i, o.Source, "source")
+	if f != nil {
+		return f
+	}
+	switch {
+	case !source.literal && o.SourceRev != 0:
+		return failure(i, CodeFieldInvalid, "source_rev")
+	case source.literal && o.SourceRev == 0:
+		return failure(i, CodeFieldRequired, "source_rev")
+	case source.literal && o.SourceRev > s.revs[source.file]:
+		return failure(i, CodeRevInvalid, "source_rev")
+	}
+	return nil
 }
 
 func (s *batchState) placement(i int, at *Placement) (resolvedNode, *Failure) {
@@ -580,6 +634,7 @@ func (s *batchState) visualFields(i int, o Operation) *Failure {
 		switch {
 		case o.HTML != "" && o.LibraryKey != "":
 			return failure(i, CodeFieldInvalid, "library_key")
+		case o.Source != "":
 		case strings.TrimSpace(o.HTML) == "" && o.LibraryKey == "":
 			return failure(i, CodeFieldRequired, "html")
 		case o.LibraryKey != "" && !libraryKey.MatchString(o.LibraryKey):
@@ -600,7 +655,7 @@ func (s *batchState) attribute(i int, o Operation) *Failure {
 	if name == "" {
 		return failure(i, CodeFieldRequired, "name")
 	}
-	if !attrName.MatchString(name) || strings.HasPrefix(name, "on") || name == reservedAttrNode || name == reservedAttrItem || name == "class" || name == "classname" {
+	if !attrName.MatchString(name) || strings.HasPrefix(name, "on") || name == reservedAttrNode || name == reservedAttrItem || name == "class" || name == "classname" || strings.EqualFold(name, "srcdoc") {
 		return failure(i, CodeAttributeForbidden, "name")
 	}
 	if o.Value == nil {

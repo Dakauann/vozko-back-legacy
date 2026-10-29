@@ -189,6 +189,7 @@ type SectionTitleResponse struct {
 type SectionResponse struct {
 	Key    string               `json:"key" example:"faq"`
 	Kind   string               `json:"kind" enums:"library,snippet"`
+	Group  string               `json:"group" enums:"sections,forms,fields,buttons,media,platform,saved"`
 	Title  SectionTitleResponse `json:"title"`
 	Stacks []string             `json:"stacks" enums:"react,html"`
 }

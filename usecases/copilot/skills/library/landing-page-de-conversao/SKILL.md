@@ -35,7 +35,10 @@ Rodapé com dados da empresa, política de privacidade e contato.
 ## Formulário ou WhatsApp
 - Formulário curto quando o lead precisa entrar num funil com dados (nome e WhatsApp bastam na maioria dos casos). Cada campo a mais derruba conversão; peça o resto na conversa. Veja formularios-e-captura.
 - Botão de WhatsApp quando a conversa é o produto (orçamento, dúvida rápida). Os dois juntos funcionam bem: formulário como principal e WhatsApp como alternativa.
-- Defina para onde vão os leads com site_settings (seção forms) antes de publicar.
+- Defina para onde vão os leads com site_settings (seção forms) antes de publicar. Um formulário com funil precisa de responsável ou de fluxo; o fluxo escolhido precisa ser uma automação cujo gatilho é este formulário.
+- Chat do site como terceira via: site_settings na seção site com webchat_widget (chave de references, webchat_widgets) coloca o chat em todas as páginas.
+- Agendamento quando o próximo passo é marcar horário (consulta, avaliação, reunião, visita): o bloco vz-booking (veja codigo-html-tailwind ou codigo-react-tailwind) troca o vai e vem da conversa por um horário reservado na hora. Crie o bloco em site_settings seção bookings (duração, intervalo entre reuniões, antecedência mínima, dias à frente, horário de atendimento, título do evento com {nome}, Meet, campos extras, consentimento) e o destino do lead na seção forms com o mesmo id. O fluxo do formulário recebe field.horario, field.horario_fim e field.link_reuniao para confirmar e lembrar pelo WhatsApp.
+- Antes de publicar, confira título e descrição de cada rota (seção pages) e o favicon da marca (seção site, favicon_media_id de uma imagem da biblioteca); sem favicon a aba do navegador fica genérica.
 
 ## Coerência com o anúncio
 - Quem clica num anúncio espera ver a mesma promessa, a mesma oferta e o mesmo visual logo de cara. Um título diferente do anúncio faz a pessoa voltar.

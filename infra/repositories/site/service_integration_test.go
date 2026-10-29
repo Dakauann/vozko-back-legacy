@@ -35,6 +35,8 @@ type anyReference struct{}
 
 func (anyReference) Check(context.Context, string, string, site.FormSettings) error { return nil }
 
+func (anyReference) CheckWebchat(context.Context, string, string) error { return nil }
+
 type noForms struct{}
 
 func (noForms) Deactivate(context.Context, string) error { return nil }

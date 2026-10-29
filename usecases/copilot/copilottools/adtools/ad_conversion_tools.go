@@ -26,8 +26,8 @@ type AdPixels interface {
 }
 
 const (
-	leadEventText     = "oportunidade criada no CRM envia " + advertising.EventNameLead
-	purchaseEventText = "oportunidade ganha no CRM envia " + advertising.EventNamePurchase + " com o valor"
+	leadEventText     = "negociação criada no CRM envia " + advertising.EventNameLead
+	purchaseEventText = "negociação ganha no CRM envia " + advertising.EventNamePurchase + " com o valor"
 )
 
 func conversionData(s *advertising.ConversionSettings) map[string]interface{} {
@@ -53,7 +53,7 @@ func (t *getAdConversionSettingsTool) Meta() copilot.Meta {
 func (t *getAdConversionSettingsTool) Definition() tools.Definition {
 	return copilottools.Definition("get_ad_conversion_settings",
 		"Mostra como a plataforma avisa a Meta das conversões do CRM: se está ligado, a conta de anúncios, se o WhatsApp oficial está ligado ao "+
-			"conjunto de dados da Meta, o pixel e quais eventos saem (oportunidade criada envia LeadSubmitted, oportunidade ganha envia Purchase).",
+			"conjunto de dados da Meta, o pixel e quais eventos saem (negociação criada envia LeadSubmitted, negociação ganha envia Purchase).",
 		struct{}{})
 }
 
@@ -68,8 +68,8 @@ func (t *getAdConversionSettingsTool) Execute(ctx context.Context, cc copilot.Co
 type saveAdConversionSettingsArgs struct {
 	AdAccountID   string `json:"ad_account_id" req:"true" desc:"ad_account_id de list_ad_accounts (também aceita o id da Meta ou o nome exato da conta) que recebe as conversões"`
 	Enabled       *bool  `json:"enabled" desc:"true liga o envio, false desliga; omita para manter"`
-	SendLeads     *bool  `json:"send_leads" desc:"oportunidade criada no CRM envia LeadSubmitted; omita para manter"`
-	SendPurchases *bool  `json:"send_purchases" desc:"oportunidade ganha no CRM envia Purchase com o valor; omita para manter"`
+	SendLeads     *bool  `json:"send_leads" desc:"negociação criada no CRM envia LeadSubmitted; omita para manter"`
+	SendPurchases *bool  `json:"send_purchases" desc:"negociação ganha no CRM envia Purchase com o valor; omita para manter"`
 	PixelID       string `json:"pixel_id" desc:"pixel_id de list_ad_pixels, para conversões de quem não veio por mensagem; omita para manter"`
 }
 
@@ -88,7 +88,7 @@ func (t *saveAdConversionSettingsTool) Meta() copilot.Meta {
 func (t *saveAdConversionSettingsTool) Definition() tools.Definition {
 	return copilottools.Definition("save_ad_conversion_settings",
 		"Muda o envio de conversões do CRM para a Meta: liga ou desliga, escolhe a conta, o pixel e quais eventos saem "+
-			"(oportunidade criada envia LeadSubmitted, oportunidade ganha envia Purchase). Os dados de contato saem criptografados. "+
+			"(negociação criada envia LeadSubmitted, negociação ganha envia Purchase). Os dados de contato saem criptografados. "+
 			"Para ligar, a conta precisa de um conjunto de dados do WhatsApp (connect_ad_dataset) ou de um pixel. Só depois da aprovação do usuário.",
 		saveAdConversionSettingsArgs{})
 }
@@ -183,7 +183,7 @@ func (t *connectAdDatasetTool) Meta() copilot.Meta { return adsMeta(workspace.Ac
 func (t *connectAdDatasetTool) Definition() tools.Definition {
 	return copilottools.Definition("connect_ad_dataset",
 		"Liga o número oficial do WhatsApp ao conjunto de dados da Meta da conta escolhida em save_ad_conversion_settings, para a Meta saber "+
-			"quais conversas de anúncio viraram oportunidades e vendas. Salve a conta antes. Só depois da aprovação do usuário.",
+			"quais conversas de anúncio viraram negociações e vendas. Salve a conta antes. Só depois da aprovação do usuário.",
 		connectAdDatasetArgs{})
 }
 

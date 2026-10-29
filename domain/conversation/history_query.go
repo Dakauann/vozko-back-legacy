@@ -22,11 +22,12 @@ type HistoryQuery struct {
 }
 
 type HistoryPage struct {
-	Messages []*Message
-	HasMore  bool
-	HasAfter bool
-	Total    int64
-	AdOrigin *AdOrigin
+	Messages   []*Message
+	HasMore    bool
+	HasAfter   bool
+	Total      int64
+	AdOrigin   *AdOrigin
+	PageOrigin *PageOriginView
 }
 
 type HistoryReader interface {

@@ -12,12 +12,13 @@ import (
 )
 
 type AgentRoutes struct {
-	Tools      *agenttoolhttp.Handler
-	Publishing *agentpublishhttp.Handler
-	Runs       *agentrunhttp.Handler
-	Scenarios  *agentscenariohttp.Handler
-	Needs      *automationneedshttp.Handler
-	Variables  *variabledeclhttp.Handler
+	Tools          *agenttoolhttp.Handler
+	Publishing     *agentpublishhttp.Handler
+	Runs           *agentrunhttp.Handler
+	Scenarios      *agentscenariohttp.Handler
+	Needs          *automationneedshttp.Handler
+	AgentVariables *automationneedshttp.AgentVariablesHandler
+	Variables      *variabledeclhttp.Handler
 }
 
 func (r *router) setupAgentToolRoutes(protected *mux.Router) {
@@ -36,7 +37,10 @@ func (r *router) setupAgentToolRoutes(protected *mux.Router) {
 	if r.agentRoutes.Needs != nil {
 		automationneedshttp.RegisterRoutes(protected, r.agentRoutes.Needs, r.ac)
 	}
+	if r.agentRoutes.AgentVariables != nil {
+		automationneedshttp.RegisterAgentVariableRoutes(protected, r.agentRoutes.AgentVariables, r.ac)
+	}
 	if r.agentRoutes.Variables != nil {
-		variabledeclhttp.RegisterRoutes(protected, r.agentRoutes.Variables, r.ac)
+		variabledeclhttp.RegisterRoutes(protected, r.agentRoutes.Variables, r.acAny)
 	}
 }

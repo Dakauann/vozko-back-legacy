@@ -41,6 +41,8 @@ const (
 
 var (
 	errFollowUpUnknown = errors.New("siteforms: the follow up channel is not known")
+	errFollowUpNoValue = errors.New("siteforms: the submission left empty the field the follow up channel writes to")
+	errNoConversation  = errors.New("siteforms: the workflow runs on a conversation that could not be opened")
 	errNobodyToOwn     = errors.New("siteforms: the form names nobody to own the lead or the deal")
 	errEffectDropped   = errors.New("siteforms: the effect cannot succeed and is dropped")
 )
@@ -263,6 +265,9 @@ func (s *Service) openConversation(ctx context.Context, run *sitesubmission.Effe
 }
 
 func (s *Service) openEntry(ctx context.Context, workspaceID, leadID string, channel site.FollowUp, values sitesubmission.EffectValues) (string, string, error) {
+	if strings.TrimSpace(values.For(channel.Kind.Field())) == "" {
+		return "", "", dropped(errFollowUpNoValue)
+	}
 	switch channel.Kind {
 	case site.FollowUpWhatsApp:
 		opened, err := s.d.Official.Open(ctx, wo.OpenEntryInput{WorkspaceID: workspaceID, BusinessPhoneID: channel.ID, PhoneNumber: values.Phone, Name: values.Name})
@@ -287,6 +292,9 @@ func (s *Service) openEntry(ctx context.Context, workspaceID, leadID string, cha
 }
 
 func (s *Service) fireTrigger(ctx context.Context, run *sitesubmission.EffectRun) error {
+	if run.Plan.Settings.FollowUp != nil && run.EntryID == "" {
+		return dropped(errNoConversation)
+	}
 	run.Done(sitesubmission.EffectTrigger)
 	if err := s.d.Effects.Progress(ctx, *run); err != nil {
 		run.Reopen(sitesubmission.EffectTrigger)
@@ -295,7 +303,7 @@ func (s *Service) fireTrigger(ctx context.Context, run *sitesubmission.EffectRun
 	sub := run.Submission
 	err := s.d.Leads.Trigger(ctx, formlead.Trigger{
 		WorkspaceID: run.WorkspaceID, EntryID: run.EntryID, EntryType: run.EntryType,
-		Form: formlead.Form{Kind: formlead.KindSiteForm, ID: sub.FormKey}, SubmissionID: sub.ID, Data: triggerData(sub),
+		Form: formlead.Form{Kind: formlead.KindSiteForm, ID: sub.FormKey}, SubmissionID: sub.ID, Data: sub.TriggerData(),
 	})
 	if err == nil {
 		return nil
@@ -307,18 +315,6 @@ func (s *Service) fireTrigger(ctx context.Context, run *sitesubmission.EffectRun
 	return err
 }
 
-func triggerData(sub sitesubmission.Submission) map[string]any {
-	fields := make(map[string]any, len(sub.Fields))
-	for k, v := range sub.Fields {
-		fields[k] = v
-	}
-	return map[string]any{
-		"source": string(formlead.KindSiteForm), "project_id": sub.ProjectID, "form_id": sub.FormID, "form_key": sub.FormKey,
-		"route": sub.Route, "variant": sub.Variant, "fields": fields,
-		"utm": map[string]string{"source": sub.UTM.Source, "medium": sub.UTM.Medium, "campaign": sub.UTM.Campaign, "term": sub.UTM.Term, "content": sub.UTM.Content},
-	}
-}
-
 func (s *Service) notify(ctx context.Context, run *sitesubmission.EffectRun) error {
 	sub := run.Submission
 	who := strings.TrimSpace(run.Plan.Values.Name)
@@ -327,7 +323,7 @@ func (s *Service) notify(ctx context.Context, run *sitesubmission.EffectRun) err
 	}
 	_, err := s.d.Notices.Publish(ctx, notification.Draft{
 		WorkspaceID: run.WorkspaceID, Category: notification.CategoryLeads, Severity: notification.SeverityInfo,
-		Title: notification.ClipTitle("Novo envio no formulário " + sub.FormID), Body: who + " enviou o formulário " + sub.FormID + " da página.",
+		Title: notification.ClipTitle("Novo envio no formulário " + sub.FormID), Body: who + " enviou o formulário " + sub.FormID + " do site.",
 		ActionURL: submissionsPath + sub.ProjectID, ActionLabel: "Ver envios",
 		Audience: notification.Holding(workspace.ResourceSiteSubmissions, workspace.ActionRead), DedupKey: "site_submission:" + sub.ID, Source: notification.SourceSiteForm,
 	})

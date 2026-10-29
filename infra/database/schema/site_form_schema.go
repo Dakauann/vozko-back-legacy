@@ -26,6 +26,7 @@ type SiteFormManifest struct {
 	Manifest     datatypes.JSON `gorm:"type:jsonb;not null"`
 	Settings     datatypes.JSON `gorm:"type:jsonb;not null"`
 	SuccessURL   string         `gorm:"type:text;not null;default:''"`
+	Booking      datatypes.JSON `gorm:"type:jsonb"`
 	Active       bool           `gorm:"not null;default:false;index:idx_site_form_manifests_project_active,priority:2"`
 	CreatedAt    time.Time      `gorm:"type:timestamptz;not null"`
 }

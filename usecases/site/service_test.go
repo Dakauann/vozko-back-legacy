@@ -31,6 +31,7 @@ type harness struct {
 	executor  *fakeExecutor
 	preview   *fakePreviewer
 	refs      *fakeReferences
+	bindings  *fakeBindings
 	forms     *fakeForms
 	retired   *fakeRetirement
 	published *fakePublished
@@ -44,12 +45,12 @@ type harness struct {
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	h := &harness{
-		store: newMemoryStore(), executor: &fakeExecutor{}, preview: &fakePreviewer{}, refs: &fakeReferences{refuse: map[string]error{}}, forms: &fakeForms{}, retired: &fakeRetirement{}, published: &fakePublished{revisions: map[string]string{}},
+		store: newMemoryStore(), executor: &fakeExecutor{}, preview: &fakePreviewer{}, refs: &fakeReferences{refuse: map[string]error{}}, bindings: &fakeBindings{bound: map[string]bool{"contato/w1": true}}, forms: &fakeForms{}, retired: &fakeRetirement{}, published: &fakePublished{revisions: map[string]string{}},
 		media: &fakeMedia{urls: map[string]string{}}, numbers: &fakeNumbers{}, hostnames: &fakeHostnames{}, cache: &fakeCache{},
 		clock: &clock{now: time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)},
 	}
 	ids := &sequence{}
-	svc, err := NewService(Deps{Store: h.store, Executor: h.executor, Previewer: h.preview, References: h.refs, Forms: h.forms, Retirement: h.retired, Published: h.published, Media: h.media, Numbers: h.numbers, Hostnames: h.hostnames, Previews: h.cache, Now: h.clock.Now, NewID: ids.next})
+	svc, err := NewService(Deps{Store: h.store, Executor: h.executor, Previewer: h.preview, References: h.refs, Bindings: h.bindings, Forms: h.forms, Retirement: h.retired, Published: h.published, Media: h.media, Numbers: h.numbers, Hostnames: h.hostnames, Previews: h.cache, Now: h.clock.Now, NewID: ids.next})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -779,5 +780,107 @@ func TestDuplicateCopiesTheSourceSettingsAndDesignButNeverThePublication(t *test
 	}
 	if _, err := h.svc.Duplicate(ctx, DuplicateInput{WorkspaceID: wsB, UserID: userA, ProjectID: v.Project.ID}); !errors.Is(err, ErrProjectNotFound) {
 		t.Fatalf("another workspace cannot copy it: %v", err)
+	}
+}
+
+func TestTheSettingsWorkflowMustBeTheOneThisFormTriggersAndDraftFormsGetKeys(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	v := h.create(t, site.StackHTML, "blank", "Nova")
+	raw := []byte(`{"forms":{"contato":{"workflow_id":"w1","follow_up":{"kind":"whatsapp","id":"p1"}},"news":{}}}`)
+	if _, err := h.svc.PutSettings(ctx, wsA, v.Project.ID, 1, raw); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(h.bindings.keyed, ",") != v.Project.ID+":contato,news" {
+		t.Fatalf("keys %v", h.bindings.keyed)
+	}
+	other := []byte(`{"forms":{"contato":{"workflow_id":"w9","follow_up":{"kind":"whatsapp","id":"p1"}}}}`)
+	var refErr *FormReferenceError
+	if _, err := h.svc.PutSettings(ctx, wsA, v.Project.ID, 2, other); !errors.As(err, &refErr) || !errors.Is(err, ErrFormWorkflowNotBound) || refErr.Form != "contato" {
+		t.Fatalf("got %v", err)
+	}
+	h.bindings.err = errors.New("db down")
+	if _, err := h.svc.PutSettings(ctx, wsA, v.Project.ID, 2, raw); err == nil {
+		t.Fatal("an unreadable binding refuses the save")
+	}
+}
+
+func TestTheSiteChatMustBeAWidgetOfTheWorkspace(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	v := h.create(t, site.StackHTML, "blank", "Nova")
+	if _, err := h.svc.PutSettings(ctx, wsA, v.Project.ID, 1, []byte(`{"site":{"webchat_widget":"pk_ours"}}`)); err != nil {
+		t.Fatal(err)
+	}
+	h.refs.refuse["webchat"] = ErrWebchatWidgetUnknown
+	if _, err := h.svc.PutSettings(ctx, wsA, v.Project.ID, 2, []byte(`{"site":{"webchat_widget":"pk_theirs"}}`)); !errors.Is(err, ErrWebchatWidgetUnknown) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestLegacyFormSettingsWithoutADealOwnerStayReadableAndOnlyRefuseWhenThatFormIsSaved(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	v := h.create(t, site.StackHTML, "blank", "Nova")
+	legacy := &StoredSettings{ProjectID: v.Project.ID, WorkspaceID: wsA, Settings: site.Settings{Forms: map[string]site.FormSettings{"contato": {FunnelID: "f1"}}}}
+	if err := h.store.SaveSettings(ctx, legacy, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.Get(ctx, wsA, v.Project.ID); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := h.svc.GetSettings(ctx, wsA, v.Project.ID); err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	if _, err := h.svc.Preview(ctx, wsA, v.Project.ID); err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	unrelated := []byte(`{"forms":{"contato":{"funnel_id":"f1"}},"pages":{"/":{"title":"Oferta"}}}`)
+	saved, err := h.svc.PutSettings(ctx, wsA, v.Project.ID, 2, unrelated)
+	if err != nil {
+		t.Fatalf("an unrelated save keeps working: %v", err)
+	}
+	changed := []byte(`{"forms":{"contato":{"funnel_id":"f1","stage_id":"s1"}},"pages":{"/":{"title":"Oferta"}}}`)
+	if _, err := h.svc.PutSettings(ctx, wsA, v.Project.ID, saved.Version, changed); !errors.Is(err, site.ErrFormDealOwnerRequired) || site.ErrorCode(err) != site.CodeFormDealOwnerRequired {
+		t.Fatalf("saving that form without an owner is refused: %v", err)
+	}
+	added := []byte(`{"forms":{"contato":{"funnel_id":"f1"},"novo":{"funnel_id":"f1"}},"pages":{"/":{"title":"Oferta"}}}`)
+	if _, err := h.svc.PutSettings(ctx, wsA, v.Project.ID, saved.Version, added); !errors.Is(err, site.ErrFormDealOwnerRequired) {
+		t.Fatalf("a new form without an owner is refused: %v", err)
+	}
+}
+
+func TestLegacyUnboundWorkflowsAndChatsDoNotBlockUnrelatedSaves(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	v := h.create(t, site.StackHTML, "blank", "Nova")
+	legacy := &StoredSettings{ProjectID: v.Project.ID, WorkspaceID: wsA, Settings: site.Settings{
+		Forms: map[string]site.FormSettings{"contato": {WorkflowID: "w9", FollowUp: &site.FollowUp{Kind: site.FollowUpWhatsApp, ID: "p1"}}},
+		Site:  site.Identity{WebchatWidget: "pk_gone"},
+	}}
+	if err := h.store.SaveSettings(ctx, legacy, 1); err != nil {
+		t.Fatal(err)
+	}
+	h.refs.refuse["webchat"] = ErrWebchatWidgetUnknown
+	raw := []byte(`{"forms":{"contato":{"workflow_id":"w9","follow_up":{"kind":"whatsapp","id":"p1"}}},"site":{"webchat_widget":"pk_gone"},"pages":{"/":{"title":"Oferta"}}}`)
+	if _, err := h.svc.PutSettings(ctx, wsA, v.Project.ID, 2, raw); err != nil {
+		t.Fatalf("unchanged legacy references never block another save: %v", err)
+	}
+}
+
+func TestSavingABookingReservesItsKeyBesideTheForms(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	v := h.create(t, site.StackHTML, "blank", "Nova")
+	raw := []byte(`{"forms":{"contato":{}},"bookings":{"agenda":{"duration_minutes":30,"horizon_days":7,"title":"Avaliação com {nome}","consent_text":"Aceito","hours":{"timezone":"America/Sao_Paulo","days":{"mon":[{"start":"09:00","end":"12:00"}]}}}}}`)
+	if _, err := h.svc.PutSettings(ctx, wsA, v.Project.ID, 1, raw); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(h.bindings.keyed, ",") != v.Project.ID+":agenda,contato" {
+		t.Fatalf("keys %v", h.bindings.keyed)
+	}
+	bad := []byte(`{"bookings":{"agenda":{"duration_minutes":3,"horizon_days":7,"title":"x","consent_text":"Aceito","hours":{"timezone":"America/Sao_Paulo","days":{"mon":[{"start":"09:00","end":"12:00"}]}}}}}`)
+	if _, err := h.svc.PutSettings(ctx, wsA, v.Project.ID, 2, bad); !errors.Is(err, site.ErrBookingDurationInvalid) {
+		t.Fatalf("got %v", err)
 	}
 }

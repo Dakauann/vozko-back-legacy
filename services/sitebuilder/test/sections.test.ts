@@ -39,7 +39,7 @@ async function insert(project: Project, key: string, html: string): Promise<Proj
 }
 
 function headingOf(html: string): string {
-  return /<h[12][^>]*>([^<]+)</.exec(html)?.[1] ?? /<p class="font-display[^"]*">([^<]+)</.exec(html)![1];
+  return /<h[12][^>]*>([^<]+)</.exec(html)?.[1] ?? /<p class="font-display[^"]*">([^<]+)</.exec(html)?.[1] ?? /(?:alt|title)="([^"]+)"/.exec(html)?.[1] ?? />([^<>]*[A-Za-z][^<>]*)</.exec(html)![1].trim();
 }
 
 describe("library sections insert and build in both stacks", () => {

@@ -78,11 +78,25 @@ func FreeSlots(from, to time.Time, events []*CalendarEvent, slotDuration time.Du
 	return slots
 }
 
-func mergedBusy(from, to time.Time, events []*CalendarEvent) []Slot {
+func BusyOf(events []*CalendarEvent) []Slot {
 	busy := make([]Slot, 0, len(events))
 	for _, ev := range events {
-		if ev != nil && ev.Transparency != "transparent" && ev.EndTime.After(from) && ev.StartTime.Before(to) {
+		if ev != nil && ev.Transparency != "transparent" && ev.EndTime.After(ev.StartTime) {
 			busy = append(busy, Slot{Start: ev.StartTime, End: ev.EndTime})
+		}
+	}
+	return busy
+}
+
+func mergedBusy(from, to time.Time, events []*CalendarEvent) []Slot {
+	return mergeSlots(from, to, BusyOf(events))
+}
+
+func mergeSlots(from, to time.Time, slots []Slot) []Slot {
+	busy := make([]Slot, 0, len(slots))
+	for _, s := range slots {
+		if s.End.After(from) && s.Start.Before(to) {
+			busy = append(busy, s)
 		}
 	}
 	sort.Slice(busy, func(i, j int) bool { return busy[i].Start.Before(busy[j].Start) })

@@ -56,7 +56,7 @@ func newService(t *testing.T, repo *fakeRepo) *Service {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := NewService(repo, registry)
+	s, err := NewService(ServiceDeps{Repo: repo, Registry: registry, Automations: &fakeAutomations{}, Permissions: grants{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func newService(t *testing.T, repo *fakeRepo) *Service {
 func TestSaveChecksStampsAndStoresPerWorkspace(t *testing.T) {
 	repo := newFakeRepo()
 	s := newService(t, repo)
-	saved, err := s.Save(context.Background(), "ws", "user-1", domain.Declaration{Name: " valor ", Label: "Valor", Type: domain.Type{Kind: domain.KindNumber}})
+	saved, err := s.Save(context.Background(), "ws", editor("user-1"), domain.Declaration{Name: " valor ", Label: "Valor", Type: domain.Type{Kind: domain.KindNumber}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestSaveChecksStampsAndStoresPerWorkspace(t *testing.T) {
 	if _, ok := repo.rows["ws"]["valor"]; !ok {
 		t.Fatal("not stored")
 	}
-	if _, err := s.Save(context.Background(), "ws", "user-1", domain.Declaration{Name: "lead_name", Label: "X", Type: domain.Type{Kind: domain.KindText}}); !errors.Is(err, domain.ErrNameReserved) {
+	if _, err := s.Save(context.Background(), "ws", editor("user-1"), domain.Declaration{Name: "lead_name", Label: "X", Type: domain.Type{Kind: domain.KindText}}); !errors.Is(err, domain.ErrNameReserved) {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -100,11 +100,11 @@ func TestListAndCatalogFailClosed(t *testing.T) {
 func TestDeleteSaysWhenNothingWasThere(t *testing.T) {
 	repo := newFakeRepo()
 	s := newService(t, repo)
-	if err := s.Delete(context.Background(), "ws", "nada"); !errors.Is(err, domain.ErrNotFound) {
+	if err := s.Delete(context.Background(), "ws", editor("u"), "nada"); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("err = %v", err)
 	}
-	_, _ = s.Save(context.Background(), "ws", "u", domain.Declaration{Name: "x", Label: "X", Type: domain.Type{Kind: domain.KindText}})
-	if err := s.Delete(context.Background(), "ws", "x"); err != nil {
+	_, _ = s.Save(context.Background(), "ws", editor("u"), domain.Declaration{Name: "x", Label: "X", Type: domain.Type{Kind: domain.KindText}})
+	if err := s.Delete(context.Background(), "ws", editor("u"), "x"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -112,7 +112,7 @@ func TestDeleteSaysWhenNothingWasThere(t *testing.T) {
 func TestRejectedReadsTheWorkspaceDeclarations(t *testing.T) {
 	repo := newFakeRepo()
 	s := newService(t, repo)
-	_, _ = s.Save(context.Background(), "ws", "u", domain.Declaration{Name: "valor", Label: "Valor", Type: domain.Type{Kind: domain.KindNumber}})
+	_, _ = s.Save(context.Background(), "ws", editor("u"), domain.Declaration{Name: "valor", Label: "Valor", Type: domain.Type{Kind: domain.KindNumber}})
 	got, err := s.Rejected(context.Background(), "ws", map[string]string{"valor": "dez", "livre": "ok"})
 	if err != nil || !reflect.DeepEqual(got, []string{"valor"}) {
 		t.Fatalf("rejected = %v, err = %v", got, err)
@@ -143,13 +143,13 @@ func TestSaveLetsTheTypeReadTheWorkspaceFirst(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, _ := NewService(newFakeRepo(), registry)
+	s, _ := NewService(ServiceDeps{Repo: newFakeRepo(), Registry: registry, Automations: &fakeAutomations{}, Permissions: grants{}})
 	in := domain.Declaration{Name: "planilha", Label: "Planilha", Type: domain.Type{Kind: domain.KindSheet, Settings: map[string]string{domain.SettingModel: "sp-model"}}}
-	saved, err := s.Save(context.Background(), "ws", "user-1", in)
+	saved, err := s.Save(context.Background(), "ws", editor("user-1"), in)
 	if err != nil || saved.Type.Settings[domain.SettingModelTitle] != "Modelo Altiva" {
 		t.Fatalf("Save = %+v, %v", saved, err)
 	}
-	if _, err := s.Save(context.Background(), "other", "user-1", in); !errors.Is(err, domain.ErrTypeInvalid) {
+	if _, err := s.Save(context.Background(), "other", editor("user-1"), in); !errors.Is(err, domain.ErrTypeInvalid) {
 		t.Fatalf("a refused preparation = %v", err)
 	}
 }

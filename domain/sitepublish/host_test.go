@@ -41,6 +41,12 @@ func TestAddressesPutPreviewsAndDeploymentsBesidePagesOnOneDomain(t *testing.T) 
 	}
 }
 
+func TestAddressesNameTheDomainFreePageAddressesLiveOn(t *testing.T) {
+	if got := (Addresses{Domain: "Vozko.App."}).PagesDomain(); got != "vozko.app" {
+		t.Errorf("got %q", got)
+	}
+}
+
 func TestAddressesReadTokensAndDeploymentsBackFromHosts(t *testing.T) {
 	a := Addresses{Domain: "vozko.app"}
 	if token, ok := a.PreviewToken("PREVIEW--abc123.vozko.app:443"); !ok || token != "abc123" {
@@ -77,5 +83,17 @@ func TestOnlyPreviewOriginsCountAsPreviews(t *testing.T) {
 	local := Addresses{Domain: "paginas.localhost", Origins: Origins{LoopbackPort: "4000"}}
 	if !local.PreviewOrigin("http://preview--abc.paginas.localhost:4000") || local.PreviewOrigin("http://preview--abc.paginas.localhost:3000") {
 		t.Error("a local preview origin carries the API port")
+	}
+}
+
+func TestAPreviewOriginNamesItsCanonicalHost(t *testing.T) {
+	a := Addresses{Domain: "vozko.app"}
+	if host, ok := a.PreviewOriginHost("https://preview--abc.vozko.app"); !ok || host != "preview--abc.vozko.app" {
+		t.Errorf("got %q %v", host, ok)
+	}
+	for _, origin := range []string{"https://sorriso.vozko.app", "http://preview--abc.vozko.app", "https://preview--abc.vozko.app/x", ""} {
+		if host, ok := a.PreviewOriginHost(origin); ok || host != "" {
+			t.Errorf("%q named %q", origin, host)
+		}
 	}
 }

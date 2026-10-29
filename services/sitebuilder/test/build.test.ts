@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { build, type BuildOutput, type BuildRequest } from "../src/build";
+import { build, previewOnlyFiles, type BuildOutput, type BuildRequest } from "../src/build";
 import { normalizeDocument } from "../src/build/shell";
 import type { Project } from "../src/project";
 import { htmlProject, reactProject, runtime, shell } from "./fixtures/projects";
@@ -62,6 +62,84 @@ describe("editor capture library", () => {
   });
 });
 
+describe("runtime minification", () => {
+  test("our runtime files ship minified with their exports intact while vendored libraries stay byte identical", async () => {
+    for (const mode of ["preview", "publish"] as const) {
+      const out = await build(request(htmlProject, mode));
+      const served = (stem: string) => out.assets.find((a) => new RegExp(`assets/${stem}-[a-f0-9]{10}\.js$`).test(a.path));
+      const runtimeAsset = served("vz-runtime")!;
+      const source = decoder.decode(runtimeAsset.body);
+      expect(source.length).toBeLessThan(runtime["vz-runtime.js"].length * 0.8);
+      expect(source).not.toContain("attachWebchat");
+      expect(source).not.toContain("MIN_FILL_MS");
+      const pow = served("pow")!;
+      expect(source).toContain(`./${pow.path.split("/").pop()}`);
+      expect(decoder.decode(pow.body).length).toBeLessThan(runtime["pow.js"].length);
+      const dir = mkdtempSync(join(tmpdir(), "vz-min-"));
+      try {
+        writeFileSync(join(dir, pow.path.split("/").pop()!), pow.body);
+        writeFileSync(join(dir, "runtime.mjs"), source);
+        const mod = await import(pathToFileURL(join(dir, "runtime.mjs")).href);
+        expect(mod.TRAP_NAME).toBe("vz_website");
+        expect(mod.messagesFor("en").bookingPreview).toBe("Preview: sample times, nothing is booked.");
+        expect(mod.webchatLoader("https://api.vozko.test", "pk_1")).toBe("https://api.vozko.test/public/webchat/loader.js");
+        expect(mod.formFields([["vz_website", "x"], ["lead.name", "Ana"]])).toEqual({ "lead.name": "Ana" });
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+      if (mode === "preview") {
+        const bridge = decoder.decode(served("vz-editor-bridge")!.body);
+        expect(bridge.length).toBeLessThan(runtime["vz-editor-bridge.js"].length * 0.8);
+        expect(decoder.decode(served("vz-screenshot")!.body)).toBe(runtime["vz-screenshot.js"]);
+        expect(decoder.decode(served("vz-tailwind-browser")!.body)).toBe(runtime["vz-tailwind-browser.js"]);
+      }
+    }
+  });
+});
+
+describe("live class compiler", () => {
+  for (const project of [reactProject, htmlProject]) {
+    test(`a ${project.stack} preview loads the browser class compiler byte identical after the compiled stylesheet`, async () => {
+      const out = await build(request(project, "preview"));
+      const compiler = out.assets.find((a) => /assets\/vz-tailwind-browser-[a-f0-9]{10}\.js$/.test(a.path));
+      expect(compiler).toBeDefined();
+      expect(decoder.decode(compiler!.body)).toBe(runtime["vz-tailwind-browser.js"]);
+      const index = text(out, "index.html");
+      const tag = `<script defer="" src="/${compiler!.path}" data-vz-tailwind-browser=""></script>`;
+      expect(index).toContain(tag);
+      expect(index.indexOf(tag)).toBeGreaterThan(index.indexOf('rel="stylesheet"'));
+      const source = index.match(/<style type="text\/tailwindcss">([\s\S]*?)<\/style>/);
+      expect(source).not.toBeNull();
+      expect(source![1]).toContain('@import "tailwindcss/theme" layer(theme);@import "tailwindcss/utilities" layer(utilities);');
+      expect(source![1]).not.toContain("preflight");
+      if (project === htmlProject) expect(source![1]).toContain("--color-brand: oklch(0.6 0.2 250);");
+    });
+  }
+
+  test("a project theme cannot close the class compiler style", async () => {
+    const hostile = { ...htmlProject, files: { ...htmlProject.files, "theme.css": { content: '@import "tailwindcss";\n@theme {\n  --x: "</style><script>alert(1)</script>";\n}\n', rev: 1 } } };
+    const index = text(await build(request(hostile, "preview")), "index.html");
+    const source = index.match(/<style type="text\/tailwindcss">([\s\S]*?)<\/style>/)![1];
+    expect(source).not.toContain("<");
+  });
+
+  test("publish never ships any preview only file even when it is handed one", async () => {
+    for (const project of [reactProject, htmlProject]) {
+      const out = await build(request(project, "publish"));
+      for (const name of previewOnlyFiles) {
+        const stem = name.replace(/\.js$/, "");
+        expect(out.assets.some((a) => a.path.includes(stem))).toBe(false);
+        for (const asset of out.assets) expect(decoder.decode(asset.body)).not.toContain("data-vz-tailwind-browser");
+      }
+    }
+  });
+
+  test("a preview without the browser class compiler is refused", async () => {
+    const { ["vz-tailwind-browser.js"]: _dropped, ...partial } = runtime;
+    await expect(build({ mode: "preview", project: reactProject, shell, runtime: partial })).rejects.toThrow("the class compiler is required for previews");
+  });
+});
+
 describe("react build", () => {
   test("preview tags the bundle, adds the bridge and revisions, and skips integrations", async () => {
     const out = await build(request(reactProject, "preview"));
@@ -69,6 +147,7 @@ describe("react build", () => {
     const index = text(out, "index.html");
     expect(golden(index)).toMatchSnapshot();
     expect(index).toContain('<meta name="vz-revs"');
+    expect(index).toMatch(/<html[^>]*\sdata-vz-preview/);
     expect(index).toContain('<meta name="robots" content="noindex">');
     expect(index).toContain("vz-editor-bridge-");
     expect(index).not.toContain("data-vz-consent");
@@ -92,6 +171,7 @@ describe("react build", () => {
     expect(golden(index)).toMatchSnapshot();
     expect(normalizeDocument(index)).toBe(index);
     expect(index).not.toContain("vz-revs");
+    expect(index).not.toContain("data-vz-preview");
     expect(index).not.toContain("data-vz-node");
     expect(index).not.toContain("vz-editor-bridge");
     expect(index).toContain('<div id="root"><!--vz-prerender--></div>');
@@ -110,7 +190,7 @@ describe("react build", () => {
     expect(out.assets.some((a) => a.path.startsWith("assets/vendor/lucide"))).toBe(false);
     const runtimeAsset = out.assets.find((a) => a.path.startsWith("assets/vz-runtime-"))!;
     const pow = out.assets.find((a) => a.path.startsWith("assets/pow-"))!;
-    expect(decoder.decode(runtimeAsset.body)).toContain(`from "./${pow.path.split("/").pop()}"`);
+    expect(decoder.decode(runtimeAsset.body)).toContain(`"./${pow.path.split("/").pop()}"`);
     const css = decoder.decode(out.assets.find((a) => a.path.startsWith("assets/index-") && a.path.endsWith(".css"))!.body);
     expect(css).toContain(".bg-brand");
     expect(css).toContain(".text-4xl");

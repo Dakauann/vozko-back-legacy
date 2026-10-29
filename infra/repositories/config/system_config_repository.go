@@ -25,7 +25,6 @@ func (r *SystemConfigRepository) Get(ctx context.Context) (*config.SystemConfig,
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &config.SystemConfig{
 				ID:                     "default",
-				BaseSystemPrompt:       "",
 				MaxConcurrentCalls:     config.DefaultMaxConcurrentCalls,
 				WorkTimeEnabled:        false,
 				WorkTimeStart:          config.DefaultWorkTimeStart,
@@ -37,7 +36,6 @@ func (r *SystemConfigRepository) Get(ctx context.Context) (*config.SystemConfig,
 	}
 	cfg := &config.SystemConfig{
 		ID:                     dbConfig.ID,
-		BaseSystemPrompt:       dbConfig.BaseSystemPrompt,
 		MaxConcurrentCalls:     dbConfig.MaxConcurrentCalls,
 		WorkTimeEnabled:        dbConfig.WorkTimeEnabled,
 		WorkTimeStart:          dbConfig.WorkTimeStart,
@@ -53,7 +51,6 @@ func (r *SystemConfigRepository) Get(ctx context.Context) (*config.SystemConfig,
 func (r *SystemConfigRepository) Upsert(ctx context.Context, cfg *config.SystemConfig) error {
 	dbConfig := &schema.SystemConfig{
 		ID:                     "default",
-		BaseSystemPrompt:       cfg.BaseSystemPrompt,
 		MaxConcurrentCalls:     cfg.MaxConcurrentCalls,
 		WorkTimeEnabled:        cfg.WorkTimeEnabled,
 		WorkTimeStart:          cfg.WorkTimeStart,

@@ -806,23 +806,28 @@ type ThreadUsageResponse struct {
 	CacheReadTokens  int64 `json:"cacheReadTokens" example:"820000"`
 	CacheWriteTokens int64 `json:"cacheWriteTokens" example:"95000"`
 	ReasoningTokens  int64 `json:"reasoningTokens" example:"3100"`
+	NewInputTokens   int64 `json:"newInputTokens" example:"45532"`
+	ProcessedTokens  int64 `json:"processedTokens" example:"979704"`
+	ContextTokens    int64 `json:"contextTokens" example:"30000"`
 }
 
 type ThreadCostResponse struct {
-	Available    bool                `json:"available" example:"true"`
-	AmountMicros int64               `json:"amountMicros" example:"420000"`
-	Currency     string              `json:"currency" example:"BRL"`
-	Usage        ThreadUsageResponse `json:"usage"`
+	Available        bool                `json:"available" example:"true"`
+	AmountMicros     int64               `json:"amountMicros" example:"420000"`
+	ModelMicros      int64               `json:"modelMicros" example:"300000"`
+	GenerationMicros int64               `json:"generationMicros" example:"120000"`
+	Currency         string              `json:"currency" example:"BRL"`
+	Usage            ThreadUsageResponse `json:"usage"`
 }
 
 // @Summary		Custo da conversa com a Elo
-// @Description	Quanto foi debitado do saldo do workspace por esta conversa, do início até agora, já com o preço do plano aplicado (nunca o custo do provedor). Soma o uso do modelo em cada resposta e as gerações de imagem, música, locução, vídeo e trabalhos do Estúdio que a Elo iniciou nesta conversa, menos estornos. Cada débito é convertido pela cotação registrada no momento da cobrança.
+// @Description	Quanto foi debitado do saldo do workspace por esta conversa, do início até agora, já com o preço do plano aplicado (nunca o custo do provedor). Soma o uso do modelo em cada resposta e as gerações de imagem, música, locução, vídeo e trabalhos do Estúdio que a Elo iniciou nesta conversa, menos estornos. `modelMicros` é a parte das chamadas ao modelo e `generationMicros` a das gerações de mídia; somam `amountMicros`. Cada débito é convertido pela cotação registrada no momento da cobrança.
 // @Description
 // @Description	`amountMicros` é o valor em milionésimos da moeda de cobrança (`currency`, hoje BRL). Os débitos chegam alguns segundos depois de cada chamada, então logo após uma resposta o total pode ainda subir.
 // @Description
 // @Description	`available: false` quando o total não pode ser exato: conversas anteriores ao registro de custo por conversa ou débito sem cotação. Nesse caso `amountMicros` vem 0 e não deve ser mostrado como valor.
 // @Description
-// @Description	`usage` traz os tokens das chamadas ao modelo nesta conversa: `inputTokens` (já inclui os lidos do cache), `cacheReadTokens` (entrada reaproveitada do cache, cobrada bem mais barata), `cacheWriteTokens` (entrada gravada no cache), `outputTokens` (já inclui o raciocínio), `reasoningTokens` e `calls` (quantas chamadas ao modelo; gerações de mídia não contam). `usage.available: false` quando algum débito da conversa não tem o registro de tokens correspondente; nesse caso os números vêm 0 e não devem ser mostrados.
+// @Description	`usage` traz os tokens das chamadas ao modelo nesta conversa: `inputTokens` (já inclui os lidos do cache), `cacheReadTokens` (entrada reaproveitada do cache, cobrada bem mais barata), `cacheWriteTokens` (entrada gravada no cache), `outputTokens` (já inclui o raciocínio), `reasoningTokens` e `calls` (quantas chamadas ao modelo; gerações de mídia não contam). `newInputTokens` é a entrada nova (`inputTokens` menos o lido e o gravado no cache), `processedTokens` é a soma de entrada e saída de todas as chamadas (tokens processados, não o tamanho da conversa) e `contextTokens` é a entrada da chamada mais recente, o tamanho atual do contexto. `usage.available: false` quando algum débito da conversa não tem o registro de tokens correspondente; nesse caso os números vêm 0 e não devem ser mostrados.
 // @Description
 // @Description	Só o dono da conversa consulta; a conversa de outra pessoa responde 404.
 // @Tags			Elo
@@ -852,9 +857,11 @@ func (h *AIChatHandler) ThreadCost(w http.ResponseWriter, r *http.Request) {
 func threadCostResponse(cost aichat.ThreadCost) ThreadCostResponse {
 	tokens := cost.Usage.Tokens
 	return ThreadCostResponse{
-		Available:    cost.Available,
-		AmountMicros: cost.AmountMicros,
-		Currency:     cost.Currency,
+		Available:        cost.Available,
+		AmountMicros:     cost.AmountMicros,
+		ModelMicros:      cost.ModelMicros,
+		GenerationMicros: cost.GenerationMicros,
+		Currency:         cost.Currency,
 		Usage: ThreadUsageResponse{
 			Available:        cost.Usage.Available,
 			Calls:            cost.Usage.Calls,
@@ -863,6 +870,9 @@ func threadCostResponse(cost aichat.ThreadCost) ThreadCostResponse {
 			CacheReadTokens:  tokens.CacheRead,
 			CacheWriteTokens: tokens.CacheWrite,
 			ReasoningTokens:  tokens.Reasoning,
+			NewInputTokens:   cost.Usage.NewInputTokens(),
+			ProcessedTokens:  cost.Usage.ProcessedTokens(),
+			ContextTokens:    cost.Usage.ContextTokens,
 		},
 	}
 }

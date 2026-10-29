@@ -34,6 +34,9 @@ const (
 	OpRemoveKnob        OperationKind = "remove_knob"
 	OpSetWhatsAppLink   OperationKind = "set_whatsapp_link"
 	OpClearWhatsAppLink OperationKind = "clear_whatsapp_link"
+	OpInsertElement     OperationKind = "insert_element"
+	OpSetFormField      OperationKind = "set_form_field"
+	OpInsertFormField   OperationKind = "insert_form_field"
 )
 
 type Family string
@@ -55,12 +58,12 @@ func OperationKinds() []OperationKind {
 }
 
 func ShorthandKinds() []OperationKind {
-	return []OperationKind{OpDefineKnob, OpRenameKnob, OpRemoveKnob, OpSetWhatsAppLink, OpClearWhatsAppLink}
+	return []OperationKind{OpDefineKnob, OpRenameKnob, OpRemoveKnob, OpSetWhatsAppLink, OpClearWhatsAppLink, OpInsertElement, OpSetFormField, OpInsertFormField}
 }
 
 func (k OperationKind) Family() Family {
 	switch k {
-	case OpDefineKnob, OpRenameKnob, OpRemoveKnob, OpSetWhatsAppLink, OpClearWhatsAppLink:
+	case OpDefineKnob, OpRenameKnob, OpRemoveKnob, OpSetWhatsAppLink, OpClearWhatsAppLink, OpInsertElement, OpSetFormField, OpInsertFormField:
 		return FamilyShorthand
 	case OpWriteFile, OpEditFile, OpDeleteFile, OpRenameFile:
 		return FamilyCode
@@ -105,6 +108,7 @@ type Operation struct {
 	Alt        *string
 	Before     string
 	After      string
+	Into       string
 	At         *Placement
 	HTML       string
 	LibraryKey string
@@ -116,49 +120,65 @@ type Operation struct {
 	Step       *float64
 	Unit       string
 	NumberRef  string
+	Element    PlatformElement
+	Key        string
+	Source     string
+	SourceRev  uint64
+	Field      string
+	Input      string
+	Required   *bool
 }
 
 type operationWire struct {
-	Op         OperationKind `json:"op"`
-	Path       string        `json:"path,omitempty"`
-	To         string        `json:"to,omitempty"`
-	Content    *string       `json:"content,omitempty"`
-	Old        string        `json:"old,omitempty"`
-	New        *string       `json:"new,omitempty"`
-	ReplaceAll bool          `json:"replace_all,omitempty"`
-	Node       string        `json:"node,omitempty"`
-	Rev        uint64        `json:"rev,omitempty"`
-	Item       *int          `json:"item,omitempty"`
-	Text       *string       `json:"text,omitempty"`
-	Name       string        `json:"name,omitempty"`
-	Value      any           `json:"value,omitempty"`
-	Add        []string      `json:"add,omitempty"`
-	Remove     []string      `json:"remove,omitempty"`
-	Breakpoint string        `json:"breakpoint,omitempty"`
-	MediaID    string        `json:"media_id,omitempty"`
-	Alt        *string       `json:"alt,omitempty"`
-	Before     string        `json:"before,omitempty"`
-	After      string        `json:"after,omitempty"`
-	At         *Placement    `json:"at,omitempty"`
-	HTML       string        `json:"html,omitempty"`
-	LibraryKey string        `json:"library_key,omitempty"`
-	Ref        string        `json:"ref,omitempty"`
-	Variable   string        `json:"variable,omitempty"`
-	Kind       KnobKind      `json:"kind,omitempty"`
-	Min        *float64      `json:"min,omitempty"`
-	Max        *float64      `json:"max,omitempty"`
-	Step       *float64      `json:"step,omitempty"`
-	Unit       string        `json:"unit,omitempty"`
-	NumberRef  string        `json:"number_ref,omitempty"`
+	Op         OperationKind   `json:"op"`
+	Path       string          `json:"path,omitempty"`
+	To         string          `json:"to,omitempty"`
+	Content    *string         `json:"content,omitempty"`
+	Old        string          `json:"old,omitempty"`
+	New        *string         `json:"new,omitempty"`
+	ReplaceAll bool            `json:"replace_all,omitempty"`
+	Node       string          `json:"node,omitempty"`
+	Rev        uint64          `json:"rev,omitempty"`
+	Item       *int            `json:"item,omitempty"`
+	Text       *string         `json:"text,omitempty"`
+	Name       string          `json:"name,omitempty"`
+	Value      any             `json:"value,omitempty"`
+	Add        []string        `json:"add,omitempty"`
+	Remove     []string        `json:"remove,omitempty"`
+	Breakpoint string          `json:"breakpoint,omitempty"`
+	MediaID    string          `json:"media_id,omitempty"`
+	Alt        *string         `json:"alt,omitempty"`
+	Before     string          `json:"before,omitempty"`
+	After      string          `json:"after,omitempty"`
+	Into       string          `json:"into,omitempty"`
+	At         *Placement      `json:"at,omitempty"`
+	HTML       string          `json:"html,omitempty"`
+	LibraryKey string          `json:"library_key,omitempty"`
+	Ref        string          `json:"ref,omitempty"`
+	Variable   string          `json:"variable,omitempty"`
+	Kind       KnobKind        `json:"kind,omitempty"`
+	Min        *float64        `json:"min,omitempty"`
+	Max        *float64        `json:"max,omitempty"`
+	Step       *float64        `json:"step,omitempty"`
+	Unit       string          `json:"unit,omitempty"`
+	NumberRef  string          `json:"number_ref,omitempty"`
+	Element    PlatformElement `json:"element,omitempty"`
+	Key        string          `json:"key,omitempty"`
+	Source     string          `json:"source,omitempty"`
+	SourceRev  uint64          `json:"source_rev,omitempty"`
+	Field      string          `json:"field,omitempty"`
+	Input      string          `json:"input,omitempty"`
+	Required   *bool           `json:"required,omitempty"`
 }
 
 func (o Operation) MarshalJSON() ([]byte, error) {
 	w := operationWire{
 		Op: o.Op, Path: o.Path, To: o.To, Content: o.Content, Old: o.Old, New: o.New, ReplaceAll: o.ReplaceAll,
 		Node: o.Node, Rev: o.Rev, Item: o.Item, Text: o.Text, Name: o.Name, Add: o.Add, Remove: o.Remove,
-		Breakpoint: o.Breakpoint, MediaID: o.MediaID, Alt: o.Alt, Before: o.Before, After: o.After, At: o.At,
+		Breakpoint: o.Breakpoint, MediaID: o.MediaID, Alt: o.Alt, Before: o.Before, After: o.After, Into: o.Into, At: o.At,
 		HTML: o.HTML, LibraryKey: o.LibraryKey, Ref: o.Ref, Variable: o.Variable, Kind: o.Kind, Min: o.Min, Max: o.Max, Step: o.Step,
-		Unit: o.Unit, NumberRef: o.NumberRef,
+		Unit: o.Unit, NumberRef: o.NumberRef, Element: o.Element, Key: o.Key, Source: o.Source, SourceRev: o.SourceRev,
+		Field: o.Field, Input: o.Input, Required: o.Required,
 	}
 	switch {
 	case o.Number != nil:
@@ -184,10 +204,10 @@ var operationFields = map[OperationKind][]string{
 	OpSetAttr:       {"node", "rev", "name", "value"},
 	OpSetClasses:    {"node", "rev", "add", "remove", "breakpoint"},
 	OpReplaceImage:  {"node", "rev", "media_id", "alt"},
-	OpMove:          {"node", "rev", "before", "after"},
+	OpMove:          {"node", "rev", "before", "after", "into"},
 	OpDuplicate:     {"node", "rev", "ref"},
 	OpRemove:        {"node", "rev"},
-	OpInsertSection: {"at", "rev", "html", "library_key", "ref"},
+	OpInsertSection: {"at", "rev", "html", "library_key", "ref", "source", "source_rev"},
 	OpSetToken:      {"name", "value"},
 	OpSetKnob:       {"name", "value"},
 
@@ -196,6 +216,9 @@ var operationFields = map[OperationKind][]string{
 	OpRemoveKnob:        {"name"},
 	OpSetWhatsAppLink:   {"node", "rev", "number_ref", "text"},
 	OpClearWhatsAppLink: {"node", "rev"},
+	OpInsertElement:     {"at", "rev", "element", "key", "ref"},
+	OpSetFormField:      {"node", "rev", "field", "input", "required"},
+	OpInsertFormField:   {"at", "rev", "field", "input", "text", "required", "ref"},
 }
 
 type Ignored struct {
@@ -261,16 +284,16 @@ func (d *decoder) flag(name string) bool {
 	return value
 }
 
-func (d *decoder) rev() uint64 {
-	raw, ok := d.raw("rev")
+func (d *decoder) rev(name string) uint64 {
+	raw, ok := d.raw(name)
 	if !ok {
 		return 0
 	}
 	var value uint64
 	if json.Unmarshal(raw, &value) != nil {
-		d.fail(CodeFieldInvalid, "rev")
+		d.fail(CodeFieldInvalid, name)
 	} else if value == 0 {
-		d.fail(CodeRevInvalid, "rev")
+		d.fail(CodeRevInvalid, name)
 	}
 	return value
 }
@@ -406,7 +429,7 @@ func decodeOperation(index int, raw json.RawMessage) (Operation, []Ignored, *Fai
 		New:        d.text("new"),
 		ReplaceAll: d.flag("replace_all"),
 		Node:       d.identifier("node"),
-		Rev:        d.rev(),
+		Rev:        d.rev("rev"),
 		Item:       d.item(),
 		Text:       d.text("text"),
 		Name:       d.identifier("name"),
@@ -417,6 +440,7 @@ func decodeOperation(index int, raw json.RawMessage) (Operation, []Ignored, *Fai
 		Alt:        d.text("alt"),
 		Before:     d.identifier("before"),
 		After:      d.identifier("after"),
+		Into:       d.identifier("into"),
 		At:         d.placement(),
 		LibraryKey: d.identifier("library_key"),
 		Ref:        d.identifier("ref"),
@@ -427,6 +451,13 @@ func decodeOperation(index int, raw json.RawMessage) (Operation, []Ignored, *Fai
 		Step:       d.number("step"),
 		Unit:       d.identifier("unit"),
 		NumberRef:  d.identifier("number_ref"),
+		Element:    PlatformElement(d.identifier("element")),
+		Key:        d.identifier("key"),
+		Source:     d.identifier("source"),
+		SourceRev:  d.rev("source_rev"),
+		Field:      d.identifier("field"),
+		Input:      d.identifier("input"),
+		Required:   d.optionalFlag("required"),
 	}
 	if old := d.text("old"); old != nil {
 		o.Old = *old

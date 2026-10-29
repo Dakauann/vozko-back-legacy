@@ -43,12 +43,12 @@ func personFrom(claims *auth.Claims) shared.Person {
 	return shared.Person{UserID: claims.UserID, SystemAdmin: claims.Role == string(user.RoleAdmin)}
 }
 
-// @Summary		Criar oportunidade
-// @Description	Cria uma nova oportunidade em um funil de oportunidades do workspace. O pipeline e a etapa são obrigatórios; o título é obrigatório quando não há um lead associado. A conversa (`linkEntryId` e `linkEntryType`) é opcional: um atendimento criado na página do lead leva só `leadId`. Quando a conversa vem sem `leadId`, o lead do negócio passa a ser o lead dessa conversa (se ela tiver um). Um `leadId` diferente do lead da conversa é recusado com 400; com uma conversa sem lead, o `leadId` enviado é mantido. Os negócios de um lead são listados em GET /leads/{id}/deals. Vincular uma conversa exige acesso a ela (o mesmo critério de POST /opportunities/{id}/conversations): sem acesso, responde 403. Valores de campos personalizados recusados respondem 400 com o código do campo (`custom_field_unknown_key`, `custom_field_value_type`, `custom_field_value_not_in_options` ou `custom_field_value_required`).
-// @Tags			Oportunidades
+// @Summary		Criar negociação
+// @Description	Cria uma nova negociação em um funil de negociações do workspace. O pipeline e a etapa são obrigatórios; o título é obrigatório quando não há um lead associado. A conversa (`linkEntryId` e `linkEntryType`) é opcional: um atendimento criado na página do lead leva só `leadId`. Quando a conversa vem sem `leadId`, o lead da negociação passa a ser o lead dessa conversa (se ela tiver um). Um `leadId` diferente do lead da conversa é recusado com 400; com uma conversa sem lead, o `leadId` enviado é mantido. As negociações de um lead são listadas em GET /leads/{id}/deals. Vincular uma conversa exige acesso a ela (o mesmo critério de POST /opportunities/{id}/conversations): sem acesso, responde 403. Valores de campos personalizados recusados respondem 400 com o código do campo (`custom_field_unknown_key`, `custom_field_value_type`, `custom_field_value_not_in_options` ou `custom_field_value_required`).
+// @Tags			Negociações
 // @Accept			json
 // @Produce		json
-// @Param			request	body		CreateOpportunityRequest	true	"Dados da oportunidade a criar"
+// @Param			request	body		CreateOpportunityRequest	true	"Dados da negociação a criar"
 // @Success		201	{object}	opportunity.Opportunity
 // @Failure		400	{object}	response.ErrorResponse
 // @Failure		401	{object}	response.ErrorResponse
@@ -99,13 +99,13 @@ func (h *OpportunityHandler) Create(w http.ResponseWriter, r *http.Request) {
 	response.WriteSuccess(w, http.StatusCreated, created)
 }
 
-// @Summary		Atualizar oportunidade
-// @Description	Atualiza os campos de uma oportunidade existente. Todos os campos são opcionais e apenas os informados são alterados.
-// @Tags			Oportunidades
+// @Summary		Atualizar negociação
+// @Description	Atualiza os campos de uma negociação existente. Todos os campos são opcionais e apenas os informados são alterados.
+// @Tags			Negociações
 // @Accept			json
 // @Produce		json
-// @Param			id		path		string						true	"ID da oportunidade"
-// @Param			request	body		UpdateOpportunityRequest	true	"Campos da oportunidade a atualizar"
+// @Param			id		path		string						true	"ID da negociação"
+// @Param			request	body		UpdateOpportunityRequest	true	"Campos da negociação a atualizar"
 // @Success		200	{object}	opportunity.Opportunity
 // @Failure		400	{object}	response.ErrorResponse
 // @Failure		401	{object}	response.ErrorResponse
@@ -152,12 +152,12 @@ func (h *OpportunityHandler) Update(w http.ResponseWriter, r *http.Request) {
 	response.WriteSuccess(w, http.StatusOK, updated)
 }
 
-// @Summary		Mover oportunidade de etapa
-// @Description	Move uma oportunidade para outra etapa do funil. O status vem da etapa: uma etapa de ganho marca como ganha (e exige valor), uma de perda marca como perdida (e exige o motivo), qualquer outra reabre.
-// @Tags			Oportunidades
+// @Summary		Mover negociação de etapa
+// @Description	Move uma negociação para outra etapa do funil. O status vem da etapa: uma etapa de ganho marca como ganha (e exige valor), uma de perda marca como perdida (e exige o motivo), qualquer outra reabre.
+// @Tags			Negociações
 // @Accept			json
 // @Produce		json
-// @Param			id		path		string				true	"ID da oportunidade"
+// @Param			id		path		string				true	"ID da negociação"
 // @Param			request	body		MoveStageRequest	true	"Etapa de destino"
 // @Success		200	{object}	opportunity.Opportunity
 // @Failure		400	{object}	response.ErrorResponse
@@ -195,11 +195,11 @@ func (h *OpportunityHandler) MoveStage(w http.ResponseWriter, r *http.Request) {
 	response.WriteSuccess(w, http.StatusOK, moved)
 }
 
-// @Summary		Obter oportunidade
-// @Description	Retorna os detalhes de uma oportunidade específica do workspace.
-// @Tags			Oportunidades
+// @Summary		Obter negociação
+// @Description	Retorna os detalhes de uma negociação específica do workspace.
+// @Tags			Negociações
 // @Produce		json
-// @Param			id	path		string	true	"ID da oportunidade"
+// @Param			id	path		string	true	"ID da negociação"
 // @Success		200	{object}	opportunity.Opportunity
 // @Failure		401	{object}	response.ErrorResponse
 // @Failure		404	{object}	response.ErrorResponse
@@ -224,9 +224,9 @@ func (h *OpportunityHandler) Get(w http.ResponseWriter, r *http.Request) {
 	response.WriteSuccess(w, http.StatusOK, o)
 }
 
-// @Summary		Listar oportunidades do pipeline
-// @Description	Retorna as oportunidades de um pipeline do workspace, respeitando o escopo de departamento do usuário. O parâmetro pipelineId é obrigatório.
-// @Tags			Oportunidades
+// @Summary		Listar negociações do pipeline
+// @Description	Retorna as negociações de um pipeline do workspace, respeitando o escopo de departamento do usuário. O parâmetro pipelineId é obrigatório.
+// @Tags			Negociações
 // @Produce		json
 // @Param			pipelineId	query	string	true	"ID do pipeline"
 // @Success		200	{array}		opportunity.Opportunity
@@ -257,12 +257,12 @@ func (h *OpportunityHandler) ListByPipeline(w http.ResponseWriter, r *http.Reque
 	response.WriteSuccess(w, http.StatusOK, list)
 }
 
-// @Summary		Remover oportunidade
-// @Description	Exclui uma oportunidade do workspace.
-// @Tags			Oportunidades
+// @Summary		Remover negociação
+// @Description	Exclui uma negociação do workspace.
+// @Tags			Negociações
 // @Produce		json
-// @Param			id	path	string	true	"ID da oportunidade"
-// @Success		204	"Oportunidade removida"
+// @Param			id	path	string	true	"ID da negociação"
+// @Success		204	"Negociação removida"
 // @Failure		401	{object}	response.ErrorResponse
 // @Failure		404	{object}	response.ErrorResponse
 // @Security		BearerAuth
@@ -284,12 +284,12 @@ func (h *OpportunityHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	response.WriteSuccess(w, http.StatusNoContent, nil)
 }
 
-// @Summary		Vincular conversa à oportunidade
-// @Description	Associa uma conversa (entryType whatsapp, unofficial_whatsapp, instagram ou telegram) a uma oportunidade.
-// @Tags			Oportunidades
+// @Summary		Vincular conversa à negociação
+// @Description	Associa uma conversa (entryType whatsapp, unofficial_whatsapp, instagram ou telegram) a uma negociação.
+// @Tags			Negociações
 // @Accept			json
 // @Produce		json
-// @Param			id		path		string					true	"ID da oportunidade"
+// @Param			id		path		string					true	"ID da negociação"
 // @Param			request	body		LinkConversationRequest	true	"Conversa a vincular"
 // @Success		201	{object}	map[string]string
 // @Failure		400	{object}	response.ErrorResponse
@@ -322,12 +322,12 @@ func (h *OpportunityHandler) LinkConversation(w http.ResponseWriter, r *http.Req
 	response.WriteSuccess(w, http.StatusCreated, map[string]string{"message": "conversation linked"})
 }
 
-// @Summary		Desvincular conversa da oportunidade
-// @Description	Remove a associação entre uma conversa ou chamada e uma oportunidade.
-// @Tags			Oportunidades
+// @Summary		Desvincular conversa da negociação
+// @Description	Remove a associação entre uma conversa ou chamada e uma negociação.
+// @Tags			Negociações
 // @Accept			json
 // @Produce		json
-// @Param			id		path		string					true	"ID da oportunidade"
+// @Param			id		path		string					true	"ID da negociação"
 // @Param			request	body		LinkConversationRequest	true	"Conversa a desvincular"
 // @Success		200	{object}	map[string]string
 // @Failure		400	{object}	response.ErrorResponse
@@ -360,11 +360,11 @@ func (h *OpportunityHandler) UnlinkConversation(w http.ResponseWriter, r *http.R
 	response.WriteSuccess(w, http.StatusOK, map[string]string{"message": "conversation unlinked"})
 }
 
-// @Summary		Listar conversas da oportunidade
-// @Description	Retorna as conversas e chamadas vinculadas a uma oportunidade.
-// @Tags			Oportunidades
+// @Summary		Listar conversas da negociação
+// @Description	Retorna as conversas e chamadas vinculadas a uma negociação.
+// @Tags			Negociações
 // @Produce		json
-// @Param			id	path		string	true	"ID da oportunidade"
+// @Param			id	path		string	true	"ID da negociação"
 // @Success		200	{array}		opportunity_usecase.LinkedConversation
 // @Failure		401	{object}	response.ErrorResponse
 // @Failure		404	{object}	response.ErrorResponse
@@ -388,9 +388,9 @@ func (h *OpportunityHandler) ListConversations(w http.ResponseWriter, r *http.Re
 	response.WriteSuccess(w, http.StatusOK, links)
 }
 
-// @Summary		Listar oportunidades de uma conversa
-// @Description	Retorna as oportunidades vinculadas a uma conversa ou chamada, identificada por entryId e entryType, para exibição no painel lateral da conversa.
-// @Tags			Oportunidades
+// @Summary		Listar negociações de uma conversa
+// @Description	Retorna as negociações vinculadas a uma conversa ou chamada, identificada por entryId e entryType, para exibição no painel lateral da conversa.
+// @Tags			Negociações
 // @Produce		json
 // @Param			entryId		query	string	true	"ID da entrada (conversa ou chamada)"
 // @Param			entryType	query	string	true	"Tipo da entrada (whatsapp, unofficial_whatsapp, instagram ou telegram)"
@@ -427,7 +427,7 @@ func (h *OpportunityHandler) handleDomainError(w http.ResponseWriter, err error)
 	case errors.Is(err, opportunitydomain.ErrNotFound):
 		response.WriteError(w, http.StatusNotFound, err.Error(), nil)
 	case errors.Is(err, opportunitydomain.ErrStaleDeal):
-		response.WriteError(w, http.StatusConflict, "Esta oportunidade foi alterada agora. Recarregue para ver a versão atual.", nil)
+		response.WriteError(w, http.StatusConflict, "Esta negociação foi alterada agora. Recarregue para ver a versão atual.", nil)
 	case errors.Is(err, opportunitydomain.ErrScopeDenied), errors.Is(err, opportunitydomain.ErrEntryAccess), errors.Is(err, opportunity_usecase.ErrOwnerChoiceDenied):
 		response.WriteError(w, http.StatusForbidden, "Forbidden", nil)
 	case errors.Is(err, opportunitydomain.ErrWorkspaceRequired),
@@ -457,11 +457,11 @@ func (h *OpportunityHandler) handleDomainError(w http.ResponseWriter, err error)
 	}
 }
 
-// @Summary		Histórico da oportunidade
-// @Description	Lista, em ordem cronológica, cada mudança da oportunidade (criação, etapa, ganho, perda, reabertura, valor, responsável e vínculo com conversa) com quem a fez: uma pessoa, um agente de IA (ai:<id>) ou um fluxo (workflow:<id>).
-// @Tags			Oportunidades
+// @Summary		Histórico da negociação
+// @Description	Lista, em ordem cronológica, cada mudança da negociação (criação, etapa, ganho, perda, reabertura, valor, responsável e vínculo com conversa) com quem a fez: uma pessoa, um agente de IA (ai:<id>) ou um fluxo (workflow:<id>).
+// @Tags			Negociações
 // @Produce		json
-// @Param			id	path		string	true	"ID da oportunidade"
+// @Param			id	path		string	true	"ID da negociação"
 // @Success		200	{array}		opportunity.Event
 // @Failure		401	{object}	response.ErrorResponse
 // @Failure		404	{object}	response.ErrorResponse

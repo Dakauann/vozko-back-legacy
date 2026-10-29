@@ -24,10 +24,11 @@ import (
 func (c *Container) agentToolValidator() *agenttool_usecase.Validator {
 	if c.agentToolValidatorService == nil {
 		c.agentToolValidatorService = agenttool_usecase.NewValidator(agenttool_usecase.ValidatorDeps{
-			Registry: c.services.toolRegistry,
-			Secrets:  c.workspaceSecretStore(),
-			Hosts:    netguard.NewHostVerdicts(nil),
-			Models:   c.services.ai,
+			Registry:  c.services.toolRegistry,
+			Secrets:   c.workspaceSecretStore(),
+			Hosts:     netguard.NewHostVerdicts(nil),
+			Models:    c.services.ai,
+			Variables: automationVariableRules{c: c},
 		})
 	}
 	return c.agentToolValidatorService
@@ -78,12 +79,13 @@ func (c *Container) agentToolHandler() *agenttoolhttp.Handler {
 
 func agentRoutes(c *Container) deliveryHttp.AgentRoutes {
 	return deliveryHttp.AgentRoutes{
-		Tools:      c.agentToolHandler(),
-		Publishing: agentpublishhttp.NewHandler(c.agentPublishing(), c.useCases.getAgent, c.services.toolRegistry),
-		Runs:       agentrunhttp.NewHandler(c.agentRuns(), c.useCases.getAgent),
-		Scenarios:  agentscenariohttp.NewHandler(c.agentScenarios(), c.useCases.getAgent),
-		Needs:      automationneedshttp.NewHandler(c.automationQueries()),
-		Variables:  variabledeclhttp.NewHandler(c.variableDeclarations()),
+		Tools:          c.agentToolHandler(),
+		Publishing:     agentpublishhttp.NewHandler(c.agentPublishing(), c.useCases.getAgent, c.services.toolRegistry),
+		Runs:           agentrunhttp.NewHandler(c.agentRuns(), c.useCases.getAgent),
+		Scenarios:      agentscenariohttp.NewHandler(c.agentScenarios(), c.useCases.getAgent),
+		Needs:          automationneedshttp.NewHandler(c.automationQueries()),
+		AgentVariables: automationneedshttp.NewAgentVariablesHandler(c.useCases.getAgent, c.automationQueries()),
+		Variables:      variabledeclhttp.NewHandler(c.variableDeclarations()),
 	}
 }
 

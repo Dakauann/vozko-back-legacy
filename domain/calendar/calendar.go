@@ -238,6 +238,10 @@ type GoogleCalendarAPI interface {
 	ListEventsIncremental(accessToken, syncToken string) (*IncrementalSyncResult, error)
 }
 
+type BusyReader interface {
+	FreeBusy(accessToken string, from, to time.Time) ([]Slot, error)
+}
+
 type WatchResponse struct {
 	ChannelID  string
 	ResourceID string

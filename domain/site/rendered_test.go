@@ -138,6 +138,50 @@ func TestOpenGapsListDraftGapsOncePerSourceNode(t *testing.T) {
 	}
 }
 
+func TestAWhatsAppButtonHasADestinationBeforeItsLinkIsWritten(t *testing.T) {
+	cases := map[string]bool{
+		`<a data-vz-whatsapp="cta-vo" href="#">Falar no WhatsApp</a>`: false,
+		`<a data-vz-whatsapp="cta-vo">Falar no WhatsApp</a>`:          false,
+		`<a data-vz-whatsapp=" " href="#">Falar no WhatsApp</a>`:      true,
+		`<a href="#">Topo</a>`:                                         true,
+		`<a href="#especialidades">Especialidades</a>`:                 false,
+	}
+	for html, gap := range cases {
+		pages := []RenderedPage{page(t, "/", html)}
+		if got := slices.Contains(issueCodes(CheckPages(pages).OpenGaps(pages, Settings{})), CodeLinkEmpty); got != gap {
+			t.Errorf("%s: link_empty %v, want %v", html, got, gap)
+		}
+	}
+}
+
+func TestAFollowUpChannelNeedsTheFieldItWritesTo(t *testing.T) {
+	phoneOnly := `<form data-vz-form="agendamento"><input name="lead.name"><input type="tel" name="lead.phone"></form>`
+	withEmail := `<form data-vz-form="agendamento"><input name="lead.name"><input type="email" name="lead.email"></form>`
+	email := &FollowUp{Kind: FollowUpEmail, ID: "inbox-1"}
+	whatsapp := &FollowUp{Kind: FollowUpWhatsApp, ID: "phone-1"}
+	cases := []struct {
+		html   string
+		follow *FollowUp
+		gap    bool
+	}{
+		{phoneOnly, email, true},
+		{withEmail, email, false},
+		{phoneOnly, whatsapp, false},
+		{withEmail, whatsapp, true},
+		{phoneOnly, nil, false},
+	}
+	for _, c := range cases {
+		pages := []RenderedPage{page(t, "/", c.html)}
+		settings := Settings{Forms: map[string]FormSettings{"agendamento": {FollowUp: c.follow}}}
+		if got := slices.Contains(issueCodes(CheckPages(pages).OpenGaps(pages, settings)), CodeFormFollowUpFieldMissing); got != c.gap {
+			t.Errorf("%v on %s: gap %v, want %v", c.follow, c.html, got, c.gap)
+		}
+	}
+	if !IsGap(CodeFormFollowUpFieldMissing) {
+		t.Fatal("a missing follow up field blocks publishing")
+	}
+}
+
 func TestInvisibleWithoutJSOnlyCountsAboveTheFoldText(t *testing.T) {
 	cases := map[string]struct {
 		html string
@@ -190,5 +234,18 @@ func TestCheckedPagesFeedTheirFormsToTheOpenGaps(t *testing.T) {
 	want := "consent_required@/sobre,form_identity_missing@/sobre,privacy_link_missing@"
 	if strings.Join(routes, ",") != want {
 		t.Fatalf("got  %s\nwant %s", strings.Join(routes, ","), want)
+	}
+}
+
+func TestAFormThatOpensDealsWithoutAnOwnerIsAPublishGap(t *testing.T) {
+	pages := []RenderedPage{page(t, "/", `<form data-vz-form="contato" data-vz-node="pages/index.html#4"><label><input type="tel" name="lead.phone"></label><label><input type="checkbox" name="consent"> Aceito a <a href="/privacidade">privacidade</a></label></form>`)}
+	checked := CheckPages(pages)
+	gaps := checked.OpenGaps(pages, Settings{Forms: map[string]FormSettings{"contato": {FunnelID: "f1"}}})
+	if len(gaps) != 1 || gaps[0].Code != CodeFormDealOwnerRequired || gaps[0].Detail != "contato" || gaps[0].Node != "pages/index.html#4" || !IsGap(gaps[0].Code) {
+		t.Fatalf("got %+v", gaps)
+	}
+	owned := Settings{Forms: map[string]FormSettings{"contato": {FunnelID: "f1", Owner: &Owner{Kind: OwnerUser, ID: "u1"}}}}
+	if gaps := checked.OpenGaps(pages, owned); len(gaps) != 0 {
+		t.Fatalf("got %+v", gaps)
 	}
 }

@@ -201,9 +201,9 @@ func QuietQuestions(wantMemory, wantDeals bool) map[string]decision.Question {
 	}
 	if wantDeals {
 		questions[QuestionDealChange] = decision.Choice(
-			"Considerando a conversa e as oportunidades abertas no estado, o que mudou nas oportunidades de venda?",
-			decision.Option{Key: DealChangeNone, Description: "nada mudou nas oportunidades"},
-			decision.Option{Key: "criar", Description: "o cliente demonstrou intenção real de compra e não há oportunidade aberta para isso"},
+			"Considerando a conversa e as negociações abertas no estado, o que mudou nas negociações?",
+			decision.Option{Key: DealChangeNone, Description: "nada mudou nas negociações"},
+			decision.Option{Key: "criar", Description: "o cliente demonstrou intenção real de compra e não há negociação aberta para isso"},
 			decision.Option{Key: "atualizar_valor", Description: "um valor foi combinado ou alterado"},
 			decision.Option{Key: "mover", Description: "a negociação avançou para outra etapa"},
 			decision.Option{Key: "ganhar", Description: "o cliente confirmou a compra ou o pagamento"},

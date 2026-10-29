@@ -511,3 +511,16 @@ func (p projects) WorkspaceOf(_ context.Context, projectID string) (string, erro
 }
 
 var errStoreDown = errors.New("db down")
+
+func (f *formShelf) WorkspaceForm(ctx context.Context, workspaceID, formKey string) (*PageForm, error) {
+	forms, err := f.WorkspaceForms(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	for _, form := range forms {
+		if form.FormKey == formKey {
+			return &form, nil
+		}
+	}
+	return nil, nil
+}

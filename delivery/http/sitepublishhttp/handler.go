@@ -263,7 +263,7 @@ func (h *Handler) RemoveHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Números da página
-// @Description	Visualizações, visitantes únicos (por dia, sem cookies), cliques em CTA, formulários vistos, iniciados e enviados e cliques no WhatsApp, por dia, rota e variante, com totais e taxa de conversão (envios mais WhatsApp sobre visitantes, em pontos-base). Os números são contados pelo servidor das páginas e consolidados de hora em hora; robôs não contam. sources traz as visitas e os envios por utm_source e pela origem de quem indicou (sem a própria página), até 25 de cada. leads conta as pessoas que enviaram um formulário da página ou chegaram por ela a uma conversa no período; wonDeals e wonRevenue somam as oportunidades dessas pessoas ganhas no período, dentro do escopo de oportunidades de quem consulta (dealsVisible falso quando a pessoa não vê oportunidades). wonRevenue está em unidades da moeda wonRevenueCurrency (a de maior valor); wonRevenueByCurrency traz cada moeda em centavos. Sem from e to, os últimos 30 dias. Exige `sites:read`.
+// @Description	Visualizações, visitantes únicos (por dia, sem cookies), cliques em CTA, formulários vistos, iniciados e enviados e cliques no WhatsApp, por dia, rota e variante, com totais e taxa de conversão (envios mais WhatsApp sobre visitantes, em pontos-base). Os números são contados pelo servidor das páginas e consolidados de hora em hora; robôs não contam. sources traz as visitas e os envios por utm_source e pela origem de quem indicou (sem a própria página), até 25 de cada. leads conta as pessoas que enviaram um formulário da página ou chegaram por ela a uma conversa no período; wonDeals e wonRevenue somam as negociações dessas pessoas ganhas no período, dentro do escopo de negociações de quem consulta (dealsVisible falso quando a pessoa não vê negociações). wonRevenue está em unidades da moeda wonRevenueCurrency (a de maior valor); wonRevenueByCurrency traz cada moeda em centavos. Sem from e to, os últimos 30 dias. Exige `sites:read`.
 // @Tags			sites
 // @Produce		json
 // @Param			id		path		string	true	"ID da página"
@@ -318,7 +318,7 @@ func (h *Handler) VerifyHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Domínios próprios do workspace
-// @Description	Quantos domínios próprios o workspace usa (used: todos os que não estão sendo removidos, em qualquer página) e quantos pode manter no ar agora (allowed: só os domínios contratados como adicional; nenhum plano inclui domínios). offline billing indica assinatura pendente ou pagamento contestado: os domínios ficam fora do ar até o pagamento ser confirmado. Exige `site_domains:read`.
+// @Description	Quantos domínios próprios o workspace usa (used: todos os que não estão sendo removidos, em qualquer página) e quantos pode manter no ar agora (allowed: só os domínios contratados como adicional; nenhum plano inclui domínios). offline billing indica assinatura pendente ou pagamento contestado: os domínios ficam fora do ar até o pagamento ser confirmado. platformDomain é o domínio da plataforma onde ficam os endereços gratuitos das páginas (slug.platformDomain). Exige `site_domains:read`.
 // @Tags			sites
 // @Produce		json
 // @Success		200			{object}	DomainSlotsDTO
@@ -336,5 +336,5 @@ func (h *Handler) DomainSlots(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	response.WriteSuccess(w, http.StatusOK, DomainSlotsDTO{Used: slots.Used, Allowed: slots.Allowed, Offline: string(slots.Offline)})
+	response.WriteSuccess(w, http.StatusOK, DomainSlotsDTO{Used: slots.Used, Allowed: slots.Allowed, Offline: string(slots.Offline), PlatformDomain: h.addresses.PagesDomain()})
 }

@@ -60,6 +60,7 @@ import (
 	opportunityhttp "vozko/delivery/http/opportunity"
 	opportunityboardhttp "vozko/delivery/http/opportunityboard"
 	"vozko/delivery/http/personalinboxhttp"
+	"vozko/delivery/http/tutorialhttp"
 	pipelinehttp "vozko/delivery/http/pipeline"
 	readmehttp "vozko/delivery/http/readme"
 	reporthttp "vozko/delivery/http/report"
@@ -191,6 +192,7 @@ type router struct {
 	agentRoutes                    AgentRoutes
 	planDuplicateHandler           *handlers.WorkspacePlanDuplicateHandler
 	inboxPreferencesHandler        *personalinboxhttp.Handler
+	tutorialHandler                *tutorialhttp.Handler
 	sites                          SiteRoutes
 	sitePublish                    SitePublishRoutes
 	siteForms                      SiteFormRoutes
@@ -381,10 +383,12 @@ func NewRouter(
 	sites SiteRoutes,
 	sitePublish SitePublishRoutes,
 	siteForms SiteFormRoutes,
+	tutorialHandler *tutorialhttp.Handler,
 ) Router {
 	r := &router{
 		planDuplicateHandler:           planDuplicateHandler,
 		inboxPreferencesHandler:        inboxPreferencesHandler,
+		tutorialHandler:                tutorialHandler,
 		sites:                          sites,
 		sitePublish:                    sitePublish,
 		siteForms:                      siteForms,
@@ -601,6 +605,7 @@ func (r *router) setupRoutes() {
 	campaignlaunchhttp.RegisterProtectedRoutes(protected, r.campaignLaunchHandler, r.ac)
 	notificationhttp.RegisterProtectedRoutes(protected, r.notificationHandler)
 	personalinboxhttp.RegisterProtectedRoutes(protected, r.inboxPreferencesHandler)
+	tutorialhttp.RegisterProtectedRoutes(protected, r.tutorialHandler, r.ac)
 	r.setupUnofficialWhatsAppRoutes(protected)
 	r.setupWhatsAppOutreachRoutes(protected)
 	r.setupWABARoutes(protected)

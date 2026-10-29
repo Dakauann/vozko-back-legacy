@@ -33,7 +33,7 @@ type Queries interface {
 	FlowVariables(ctx context.Context, workspaceID, workflowID string) ([]automationneeds_usecase.FlowVariable, error)
 	ConversationData(ctx context.Context, in automationneeds_usecase.ConversationRef) ([]automationneeds_usecase.DataRow, error)
 	SetConversationData(ctx context.Context, in automationneeds_usecase.ConversationRef, name, value string) (automationneeds_usecase.DataRow, error)
-	SheetCandidates(ctx context.Context, workspaceID string, target *conversation.Automation, name string) (automationneeds_usecase.SheetCandidates, error)
+	SheetCandidates(ctx context.Context, workspaceID string, target *conversation.Automation, name, chosen string) (automationneeds_usecase.SheetCandidates, error)
 }
 
 type Handler struct {
@@ -97,6 +97,7 @@ type VariableRowResponse struct {
 	automationneedsx.NeedResponse
 	Current   string `json:"current,omitempty" example:"2026-17"`
 	Suggested string `json:"suggested,omitempty" example:"lead.custom:matricula"`
+	Sheet     bool   `json:"sheet"`
 }
 
 type ConversationFieldResponse struct {
@@ -163,17 +164,22 @@ func (h *Handler) FlowVariables(w http.ResponseWriter, r *http.Request) {
 	for _, row := range rows {
 		item := FlowVariableResponse{
 			NeedResponse: automationneedsx.Needs(domain.Needs{row.Need})[0], Required: row.Required, InFlow: row.InFlow, Used: row.Used,
-			Default: row.Need.Default, Nodes: []FlowNodeResponse{}, FilledBy: []FlowFillerResponse{},
+			Default: row.Need.Default, Nodes: []FlowNodeResponse{}, FilledBy: fillers(row.FilledBy),
 		}
 		for _, n := range row.Nodes {
 			item.Nodes = append(item.Nodes, FlowNodeResponse{ID: n.ID, Name: n.Name})
 		}
-		for _, f := range row.FilledBy {
-			item.FilledBy = append(item.FilledBy, FlowFillerResponse{Kind: string(f.Kind), Value: f.Value})
-		}
 		out.Variables = append(out.Variables, item)
 	}
 	response.WriteSuccess(w, http.StatusOK, out)
+}
+
+func fillers(in []automationneeds_usecase.Filler) []FlowFillerResponse {
+	out := make([]FlowFillerResponse, 0, len(in))
+	for _, f := range in {
+		out = append(out, FlowFillerResponse{Kind: string(f.Kind), Value: f.Value})
+	}
+	return out
 }
 
 type DataRowResponse struct {
@@ -512,7 +518,7 @@ func formResponse(form automationneeds_usecase.VariablesForm) ConversationVariab
 	}
 	for _, row := range form.Rows {
 		need := automationneedsx.Needs(domain.Needs{row.Need})[0]
-		out.Variables = append(out.Variables, VariableRowResponse{NeedResponse: need, Current: row.Current, Suggested: string(row.Suggested)})
+		out.Variables = append(out.Variables, VariableRowResponse{NeedResponse: need, Current: row.Current, Suggested: string(row.Suggested), Sheet: row.Need.IsSheet()})
 	}
 	for _, f := range form.Fields {
 		out.Fields = append(out.Fields, ConversationFieldResponse{Field: f.Field, Value: f.Value})

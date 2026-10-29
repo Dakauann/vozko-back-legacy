@@ -6,8 +6,10 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
+	"vozko/domain/siteform"
 	"vozko/domain/strictjson"
 )
 
@@ -118,6 +120,30 @@ func (k FollowUpKind) Valid() bool {
 	return k == FollowUpWhatsApp || k == FollowUpUnofficialWhatsApp || k == FollowUpEmail
 }
 
+func (k FollowUpKind) Field() string {
+	switch k {
+	case FollowUpWhatsApp, FollowUpUnofficialWhatsApp:
+		return siteform.TargetPhone
+	case FollowUpEmail:
+		return siteform.TargetEmail
+	}
+	return ""
+}
+
+const CodeFormFollowUpFieldMissing = "form_follow_up_field_missing"
+
+func followUpReachable(m siteform.Manifest, form FormSettings) bool {
+	if form.FollowUp == nil {
+		return true
+	}
+	field := form.FollowUp.Kind.Field()
+	if field == "" {
+		return false
+	}
+	_, ok := m.Field(field)
+	return ok
+}
+
 type FollowUp struct {
 	Kind FollowUpKind `json:"kind"`
 	ID   string       `json:"id"`
@@ -127,7 +153,19 @@ const CodeFormChannelRequired = "form_channel_required"
 
 var ErrFormChannelRequired = errors.New("site: a form that starts a workflow needs a follow up channel")
 
+const CodeFormDealOwnerRequired = "form_deal_owner_required"
+
+var ErrFormDealOwnerRequired = errors.New("site: a form that opens deals needs an owner or a workflow to own them")
+
+func (f FormSettings) CheckDealOwner(id string) error {
+	if f.FunnelID == "" || f.WorkflowID != "" || (f.Owner != nil && f.Owner.Kind != OwnerUnassigned) {
+		return nil
+	}
+	return fmt.Errorf("%w: %w: form %s", ErrSettingsInvalid, ErrFormDealOwnerRequired, id)
+}
+
 type FormSettings struct {
+	Name       string    `json:"name,omitempty"`
 	FunnelID   string    `json:"funnel_id,omitempty"`
 	StageID    string    `json:"stage_id,omitempty"`
 	Owner      *Owner    `json:"owner,omitempty"`
@@ -160,6 +198,7 @@ type Settings struct {
 	Pages        map[string]PageMeta     `json:"pages,omitempty"`
 	Integrations Integrations            `json:"integrations,omitzero"`
 	Forms        map[string]FormSettings `json:"forms,omitempty"`
+	Bookings     map[string]Booking      `json:"bookings,omitempty"`
 	Redirects    []Redirect              `json:"redirects,omitempty"`
 	Consent      Consent                 `json:"consent,omitzero"`
 	Site         Identity                `json:"site,omitzero"`
@@ -220,6 +259,14 @@ func (s Settings) Validate() error {
 			return err
 		}
 	}
+	for id, booking := range s.Bookings {
+		if !formSettingsID.MatchString(id) {
+			return settingsError("booking " + id + " is not a booking id")
+		}
+		if err := booking.validate(id); err != nil {
+			return err
+		}
+	}
 	if err := ValidateRedirects(s.Redirects); err != nil {
 		return fmt.Errorf("%w: %w", ErrSettingsInvalid, err)
 	}
@@ -229,7 +276,16 @@ func (s Settings) Validate() error {
 	return s.Consent.validate()
 }
 
+const MaxFormNameRunes = 80
+
+func validFormName(name string) bool {
+	return name == "" || (name == strings.TrimSpace(name) && utf8.RuneCountInString(name) <= MaxFormNameRunes && !strings.ContainsFunc(name, unicode.IsControl))
+}
+
 func (f FormSettings) validate(id string) error {
+	if !validFormName(f.Name) {
+		return settingsError("form " + id + " name is not a short single line")
+	}
 	for _, ref := range []string{f.FunnelID, f.StageID, f.WorkflowID} {
 		if ref != "" && !referenceID.MatchString(ref) {
 			return settingsError("form " + id + " has a malformed reference")

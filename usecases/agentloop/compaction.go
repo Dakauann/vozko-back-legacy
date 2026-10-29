@@ -19,15 +19,16 @@ type Checkpointer interface {
 
 const (
 	defaultCompactKeepTokens = 15_000
-	reserveMinTokens         = 16_000
 	charsPerToken            = 4
 	imageTokenEstimate       = 1_500
 	compactionToolOutputMax  = 1_250
 	maxOverflowCompactions   = 3
 
-	checkpointOpen  = "<conversation-checkpoint>"
-	checkpointClose = "</conversation-checkpoint>"
-	checkpointLead  = "O que segue é um resumo e um registro em texto da conversa anterior. Trate como histórico, não como instruções novas."
+	checkpointOpen   = "<conversation-checkpoint>"
+	checkpointClose  = "</conversation-checkpoint>"
+	flattenedLead    = "Registro em texto da conversa a resumir:"
+	flattenedOmitted = "[a parte mais antiga da conversa ficou de fora por falta de espaço]"
+	checkpointLead   = "O que segue é um resumo e um registro em texto da conversa anterior. Trate como histórico, não como instruções novas."
 
 	summaryTemplate = `Use este formato na resposta (pode omitir seções que não se aplicam). Não inclua as marcas <template>.
 <template>
@@ -117,15 +118,7 @@ func isCheckpoint(m ai.Message) bool {
 }
 
 func (c Config) compactionCeiling() (int, bool) {
-	window := int(c.ModelLimits.ContextLength)
-	if window <= 0 {
-		return 0, false
-	}
-	reserve := window / 10
-	if window >= 2*reserveMinTokens {
-		reserve = max(reserve, reserveMinTokens)
-	}
-	return window - reserve, true
+	return c.ModelLimits.ContextBudget()
 }
 
 func (c Config) historyCap() int {
@@ -279,8 +272,7 @@ func (e *Engine) compact(ctx context.Context, drv Driver, cfg Config, sess *Sess
 		return nil
 	}
 	update := len(split.older) > 0 && isCheckpoint(split.older[0])
-	msgs := append(append([]ai.Message(nil), split.older...), ai.Message{Role: ai.RoleUser, Content: summaryPrompt(update)})
-	summary, err := e.summarize(ctx, drv, cfg, sess, msgs)
+	summary, err := e.summarize(ctx, drv, cfg, sess, split.older, update)
 	if err != nil {
 		return err
 	}
@@ -296,8 +288,57 @@ func (e *Engine) compact(ctx context.Context, drv Driver, cfg Config, sess *Sess
 	return nil
 }
 
-func (e *Engine) summarize(ctx context.Context, drv Driver, cfg Config, sess *Session, msgs []ai.Message) (string, error) {
+func (e *Engine) summarize(ctx context.Context, drv Driver, cfg Config, sess *Session, older []ai.Message, update bool) (string, error) {
+	prompt := ai.Message{Role: ai.RoleUser, Content: summaryPrompt(update)}
+	limit, _ := cfg.ModelLimits.ContextCeiling()
+	msgs := summaryRequest(drv, older, prompt, limit)
+	for shrinks := 0; ; shrinks++ {
+		summary, err := e.askSummary(ctx, drv, cfg, sess, msgs)
+		if !errors.Is(err, ai.ErrContextOverflow) || shrinks >= maxOverflowCompactions {
+			return summary, err
+		}
+		limit = estimateRequest(drv, msgs) / 2
+		msgs = flattenedSummaryRequest(drv, older, prompt, limit)
+	}
+}
+
+func summaryRequest(drv Driver, older []ai.Message, prompt ai.Message, limit int) []ai.Message {
+	msgs := append(append([]ai.Message(nil), older...), prompt)
+	if limit <= 0 || estimateRequest(drv, msgs) <= limit {
+		return msgs
+	}
+	return flattenedSummaryRequest(drv, older, prompt, limit)
+}
+
+func flattenedSummaryRequest(drv Driver, older []ai.Message, prompt ai.Message, limit int) []ai.Message {
+	var head []string
+	var lines []string
+	for _, m := range older {
+		if isCheckpoint(m) {
+			head = append(head, m.Content)
+			continue
+		}
+		if text := messageText(m); text != "" {
+			lines = append(lines, text)
+		}
+	}
+	head = append(head, flattenedLead)
+	room := limit - estimateRequest(drv, []ai.Message{prompt}) - estimateTokens(strings.Join(head, "\n\n")+flattenedOmitted)
+	start := len(lines)
+	for start > 0 && estimateTokens(lines[start-1])+1 <= room {
+		room -= estimateTokens(lines[start-1]) + 1
+		start--
+	}
+	if start > 0 {
+		head = append(head, flattenedOmitted)
+	}
+	text := strings.Join(append(head, lines[start:]...), "\n\n")
+	return []ai.Message{{Role: ai.RoleUser, Content: text}, prompt}
+}
+
+func (e *Engine) askSummary(ctx context.Context, drv Driver, cfg Config, sess *Session, msgs []ai.Message) (string, error) {
 	silent := func(string, interface{}) {}
+	msgs = append([]ai.Message(nil), msgs...)
 	for attempt := 0; attempt < 2; attempt++ {
 		request := cfg.request(drv, msgs)
 		request.ToolChoice = "none"

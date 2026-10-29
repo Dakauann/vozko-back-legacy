@@ -147,19 +147,19 @@ func (allowAll) Execute(string, string, workspace.Resource, workspace.Action) er
 
 func (allowAll) Check(string) error { return nil }
 
-func evalRegistry(kind studio.Kind) (*copilotuc.Registry, error) {
+func evalRegistry(kind studio.Kind, arm string) (*copilotuc.Registry, error) {
 	library, err := skills.Load()
 	if err != nil {
 		return nil, err
 	}
-	all := studiotools.StudioTools(studiotools.StudioDeps{Projects: evalProjects{kind: kind}})
+	all := studiotools.StudioTools(studiotools.StudioDeps{Projects: evalProjects{kind: kind}, Perception: perceptionFor(arm)})
 	all = append(all, adtools.AdsTools(adtools.AdsDeps{})...)
 	all = append(all, skilltools.NewLoadSkillTool(library), attendancetools.NewCalculateTool())
 	return copilotuc.NewRegistry(all...), nil
 }
 
 func runBrief(ctx context.Context, engine *agentloop.Engine, ledger *usageLedger, model, name string) (evalRun, error) {
-	registry, err := evalRegistry(studio.KindImage)
+	registry, err := evalRegistry(studio.KindImage, perceptionOn)
 	if err != nil {
 		return evalRun{}, err
 	}

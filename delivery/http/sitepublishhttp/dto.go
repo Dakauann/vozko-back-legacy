@@ -53,9 +53,10 @@ type VerificationDTO struct {
 }
 
 type DomainSlotsDTO struct {
-	Used    int    `json:"used" example:"2"`
-	Allowed int    `json:"allowed" example:"3"`
-	Offline string `json:"offline,omitempty" enums:"billing"`
+	Used           int    `json:"used" example:"2"`
+	Allowed        int    `json:"allowed" example:"3"`
+	Offline        string `json:"offline,omitempty" enums:"billing"`
+	PlatformDomain string `json:"platformDomain" example:"vozko.app"`
 }
 
 type HostnameDTO struct {

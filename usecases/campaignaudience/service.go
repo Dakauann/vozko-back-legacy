@@ -44,6 +44,7 @@ type Deps struct {
 	Gate        cache.Gate
 	Flight      cache.Flight
 	Values      VariableValues
+	SheetFiles  SheetFiles
 	Now         func() time.Time
 	NewID       func() string
 }
@@ -58,6 +59,7 @@ func New(deps Deps) (*Service, error) {
 		"selections": deps.Selections == nil, "lists": deps.Lists == nil, "sheets": deps.Sheets == nil,
 		"phones": deps.Phones == nil, "emails": deps.Emails == nil, "email leads": deps.EmailLeads == nil, "emails seen": deps.EmailsSeen == nil,
 		"definitions": deps.Definitions == nil, "gate": deps.Gate == nil, "flight": deps.Flight == nil, "variable values": deps.Values == nil,
+		"sheet files": deps.SheetFiles == nil,
 	}
 	for name, absent := range missing {
 		if absent {
@@ -240,16 +242,15 @@ func (s *Service) walk(ctx context.Context, w walk, visit visitor) (*campaignaud
 			return nil, campaignaudience.Count{}, err
 		}
 	}
-	prepared, err := ch.Prepare(ctx, w.actor, w.params)
-	if err != nil {
-		return nil, campaignaudience.Count{}, err
-	}
-	accept, err := s.typed(ctx, w.actor.WorkspaceID, &prepared)
+	prepared, accept, err := s.prepare(ctx, ch, w.actor, w.params)
 	if err != nil {
 		return nil, campaignaudience.Count{}, err
 	}
 	bound, err := s.bindAudience(w.actor, w.spec.Source, list, prepared, w.spec.Variables)
 	if err != nil {
+		return nil, campaignaudience.Count{}, err
+	}
+	if bound, err = s.fitSheets(ctx, w.actor.WorkspaceID, bound, prepared); err != nil {
 		return nil, campaignaudience.Count{}, err
 	}
 	if prepared.Open == nil {

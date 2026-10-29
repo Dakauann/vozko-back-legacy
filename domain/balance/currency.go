@@ -10,6 +10,8 @@ type ReferenceTotals struct {
 	Transactions  int
 	Debits        int
 	MissingRate   bool
+
+	GenerationBillingMicros int64
 }
 
 type ReferenceTotaler interface {

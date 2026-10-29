@@ -2,6 +2,7 @@ package aiusage_repository
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -36,7 +37,7 @@ func TestUsageUnderAReferenceSumsTokensAndCountsCallsAndBilledRows(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := aiusage.Totals{Calls: 2, Billed: 2, Tokens: aiusage.Tokens{Input: 3000, Output: 300, CacheRead: 2300, CacheWrite: 50, Reasoning: 20}}
+	want := aiusage.Totals{Calls: 2, Billed: 2, LatestInput: 2000, Tokens: aiusage.Tokens{Input: 3000, Output: 300, CacheRead: 2300, CacheWrite: 50, Reasoning: 20}}
 	if totals != want {
 		t.Fatalf("totals = %+v, want %+v", totals, want)
 	}
@@ -50,5 +51,28 @@ func TestUsageUnderAnUnknownReferenceIsEmpty(t *testing.T) {
 	}
 	if totals != (aiusage.Totals{}) {
 		t.Fatalf("totals = %+v, want zero", totals)
+	}
+}
+
+func TestTheContextIsTheInputOfTheLatestModelCall(t *testing.T) {
+	db := repotest.IsolatedDB(t, "ai_usage", &schema.AIUsageRecord{})
+	repo := NewUsageRepository(db)
+	ws := uuid.New().String()
+	base := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	rows := []schema.AIUsageRecord{
+		{ReferenceID: "aichat:th-1:a", WorkspaceID: ws, Model: "m", Billed: true, InputTokens: 12_000, OutputTokens: 300, CreatedAt: base},
+		{ReferenceID: "aichat:th-1:b", WorkspaceID: ws, Model: "m", Billed: true, InputTokens: 30_000, OutputTokens: 200, CreatedAt: base.Add(time.Minute)},
+		{ReferenceID: "aichat:th-1:job", WorkspaceID: ws, Model: "imagen", Billed: true, CreatedAt: base.Add(2 * time.Minute)},
+		{ReferenceID: "aichat:th-2:c", WorkspaceID: ws, Model: "m", Billed: true, InputTokens: 99_000, OutputTokens: 1, CreatedAt: base.Add(3 * time.Minute)},
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	totals, err := repo.TotalsUnder(ws, "aichat:th-1:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if totals.LatestInput != 30_000 || totals.Tokens.Input != 42_000 {
+		t.Fatalf("totals = %+v, want the latest call's 30000 input as context", totals)
 	}
 }

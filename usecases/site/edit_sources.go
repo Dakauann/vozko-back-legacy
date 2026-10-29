@@ -2,6 +2,7 @@ package site_usecase
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"slices"
 
@@ -23,6 +24,45 @@ func (s *Service) foreignNumbers(ctx context.Context, workspaceID string, batch 
 		}
 	}
 	return failures
+}
+
+func (s *Service) foreignElements(ctx context.Context, workspaceID, projectID string, batch site.Batch) ([]site.Failure, error) {
+	uses := batch.PlatformElements()
+	if len(uses) == 0 {
+		return nil, nil
+	}
+	var bookings map[string]site.Booking
+	var failures []site.Failure
+	for _, use := range uses {
+		switch use.Element {
+		case site.ElementWebchat:
+			err := s.references.CheckWebchat(ctx, workspaceID, use.Key)
+			if errors.Is(err, ErrWebchatWidgetUnknown) {
+				failures = append(failures, site.Failure{Index: use.Index, Code: site.CodeWebchatWidgetUnknown, Field: "key"})
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+		case site.ElementBooking:
+			if bookings == nil {
+				stored, err := s.store.GetSettings(ctx, workspaceID, projectID)
+				if err != nil {
+					return nil, err
+				}
+				bookings = stored.Settings.Bookings
+				if bookings == nil {
+					bookings = map[string]site.Booking{}
+				}
+			}
+			if _, ok := bookings[use.Key]; !ok {
+				failures = append(failures, site.Failure{Index: use.Index, Code: site.CodeBookingUnknown, Field: "key"})
+			}
+		default:
+			failures = append(failures, site.Failure{Index: use.Index, Code: site.CodeElementUnknown, Field: "element"})
+		}
+	}
+	return failures, nil
 }
 
 func (s *Service) bases(ctx context.Context, v *View, wants map[string][]uint64) (map[string][]site.File, error) {

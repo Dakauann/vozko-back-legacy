@@ -31,25 +31,28 @@ const (
 
 var formRefusals = []response.ErrorRefusal{
 	{Err: site.ErrFormChannelRequired, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, site.CodeFormChannelRequired, "Um formulário que inicia um fluxo precisa de um canal de acompanhamento")},
+	{Err: site.ErrFormDealOwnerRequired, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, site.CodeFormDealOwnerRequired, "Um formulário que abre negociações precisa de um responsável ou de um fluxo")},
 	{Err: site_usecase.ErrFormFunnelUnknown, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, "form_funnel_unknown", "O funil do formulário não existe neste workspace")},
 	{Err: site_usecase.ErrFormStageUnknown, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, "form_stage_unknown", "A etapa do formulário não existe neste workspace ou neste funil")},
 	{Err: site_usecase.ErrFormOwnerUnknown, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, "form_owner_unknown", "O responsável do formulário não existe neste workspace")},
 	{Err: site_usecase.ErrFormWorkflowUnknown, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, "form_workflow_unknown", "O fluxo do formulário não existe neste workspace")},
+	{Err: site_usecase.ErrFormWorkflowNotBound, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, "form_workflow_not_bound", "O fluxo escolhido não começa com este formulário; escolha uma automação deste formulário ou crie uma")},
+	{Err: site_usecase.ErrWebchatWidgetUnknown, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, "webchat_widget_unknown", "O chat escolhido não é deste workspace")},
 	{Err: site_usecase.ErrFormChannelUnknown, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, "form_channel_unknown", "O canal de acompanhamento do formulário não existe neste workspace")},
 }
 
 var refusals = []response.ErrorRefusal{
-	{Err: site_usecase.ErrProjectNotFound, Refusal: response.NewRefusal(http.StatusNotFound, "project_not_found", "Página não encontrada")},
+	{Err: site_usecase.ErrProjectNotFound, Refusal: response.NewRefusal(http.StatusNotFound, "project_not_found", "Site não encontrado")},
 	{Err: site_usecase.ErrRevisionNotFound, Refusal: response.NewRefusal(http.StatusNotFound, "revision_not_found", "Versão não encontrada")},
 	{Err: site_usecase.ErrDesignSystemNotFound, Refusal: response.NewRefusal(http.StatusNotFound, "design_system_not_found", "Sistema de design não encontrado")},
 	{Err: shared.ErrVersionRequired, Refusal: response.NewRefusal(http.StatusPreconditionRequired, httpx.CodeVersionRequired, "Informe a versão carregada no cabeçalho If-Match")},
-	{Err: shared.ErrVersionConflict, Refusal: response.NewRefusal(http.StatusConflict, httpx.CodeVersionConflict, "A página foi salva em outra aba ou por outra pessoa")},
-	{Err: site_usecase.ErrProjectArchived, Refusal: response.NewRefusal(http.StatusConflict, "project_archived", "A página está arquivada")},
-	{Err: site_usecase.ErrProjectPublished, Refusal: response.NewRefusal(http.StatusConflict, "project_published", "A página está no ar; tire do ar antes")},
-	{Err: site_usecase.ErrProjectDomainsBusy, Refusal: response.NewRefusal(http.StatusConflict, "project_domains_busy", "Um domínio da página está sendo verificado; tente de novo em instantes")},
-	{Err: site_usecase.ErrProjectSuspended, Refusal: response.NewRefusal(http.StatusConflict, "project_suspended", "A página está suspensa")},
-	{Err: site_usecase.ErrSlugTaken, Refusal: response.NewRefusal(http.StatusConflict, "slug_taken", "Outra página do workspace já usa este endereço")},
-	{Err: site_usecase.ErrOriginTaken, Refusal: response.NewRefusal(http.StatusConflict, "origin_taken", "A página deste pedido da Elo pertence a outra pessoa")},
+	{Err: shared.ErrVersionConflict, Refusal: response.NewRefusal(http.StatusConflict, httpx.CodeVersionConflict, "O site foi salvo em outra aba ou por outra pessoa")},
+	{Err: site_usecase.ErrProjectArchived, Refusal: response.NewRefusal(http.StatusConflict, "project_archived", "O site está arquivado")},
+	{Err: site_usecase.ErrProjectPublished, Refusal: response.NewRefusal(http.StatusConflict, "project_published", "O site está no ar; tire do ar antes")},
+	{Err: site_usecase.ErrProjectDomainsBusy, Refusal: response.NewRefusal(http.StatusConflict, "project_domains_busy", "Um domínio do site está sendo verificado; tente de novo em instantes")},
+	{Err: site_usecase.ErrProjectSuspended, Refusal: response.NewRefusal(http.StatusConflict, "project_suspended", "O site está suspenso")},
+	{Err: site_usecase.ErrSlugTaken, Refusal: response.NewRefusal(http.StatusConflict, "slug_taken", "Outro site do workspace já usa este endereço")},
+	{Err: site_usecase.ErrOriginTaken, Refusal: response.NewRefusal(http.StatusConflict, "origin_taken", "O site deste pedido da Elo pertence a outra pessoa")},
 	{Err: sitepublish.ErrSlugReserved, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, "slug_reserved", "Este endereço é reservado")},
 	{Err: sitepublish.ErrSlugInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, "slug_invalid", "Use letras minúsculas, números e hífens, de 3 a 63 caracteres")},
 	{Err: site_usecase.ErrNameInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, "name_invalid", "O nome precisa ter de 1 a 120 caracteres")},
@@ -61,14 +64,22 @@ var refusals = []response.ErrorRefusal{
 	{Err: site_usecase.ErrWorkspaceRequired, Refusal: response.NewRefusal(http.StatusForbidden, "workspace_required", "Escolha um workspace")},
 	{Err: site.ErrBatchMalformed, Refusal: response.NewRefusal(http.StatusBadRequest, site.CodeBatchMalformed, "As operações precisam ser uma lista")},
 	{Err: site.ErrRedirectInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, site.CodeRedirectInvalid, "Um redirecionamento é inválido")},
+	{Err: site.ErrBookingDurationInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, site.CodeBookingDurationInvalid, "A reunião do agendamento dura de 5 a 480 minutos, de 5 em 5")},
+	{Err: site.ErrBookingBufferInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, site.CodeBookingBufferInvalid, "O intervalo entre reuniões vai de 0 a 240 minutos, de 5 em 5")},
+	{Err: site.ErrBookingNoticeInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, site.CodeBookingNoticeInvalid, "A antecedência mínima vai de 0 minutos a 30 dias")},
+	{Err: site.ErrBookingHorizonInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, site.CodeBookingHorizonInvalid, "O agendamento abre de 1 a 90 dias à frente")},
+	{Err: site.ErrBookingHoursInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, site.CodeBookingHoursInvalid, "O horário de atendimento precisa de fuso e de uma janela que caiba uma reunião")},
+	{Err: site.ErrBookingTitleInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, site.CodeBookingTitleInvalid, "O título do evento precisa de 1 a 120 caracteres e só aceita a variável {nome}")},
+	{Err: site.ErrBookingConsentInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, site.CodeBookingConsentInvalid, "O agendamento precisa de um texto de consentimento de até 2000 caracteres")},
+	{Err: site.ErrBookingFieldsInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, site.CodeBookingFieldsInvalid, "O agendamento pede um campo desconhecido ou repetido")},
 	{Err: site.ErrSettingsInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, site.CodeSettingsInvalid, "As configurações têm valores inválidos")},
 	{Err: site.ErrDesignSystemInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, site.CodeDesignSystemInvalid, "O sistema de design tem valores inválidos")},
-	{Err: site_usecase.ErrStepsInvalid, Refusal: response.NewRefusal(http.StatusBadGateway, site.CodeStepsInvalid, "O construtor devolveu uma alteração que não cabe na página")},
-	{Err: site_usecase.ErrBuilderUnavailable, Refusal: response.NewRefusal(http.StatusServiceUnavailable, "build_unavailable", "O construtor de páginas está indisponível; tente de novo")},
-	{Err: site_usecase.ErrPreviewNotBuilt, Refusal: response.NewRefusal(http.StatusConflict, CodePreviewNotBuilt, "A pré-visualização desta versão ainda não foi preparada por quem edita a página")},
+	{Err: site_usecase.ErrStepsInvalid, Refusal: response.NewRefusal(http.StatusBadGateway, site.CodeStepsInvalid, "O construtor devolveu uma alteração que não cabe no site")},
+	{Err: site_usecase.ErrBuilderUnavailable, Refusal: response.NewRefusal(http.StatusServiceUnavailable, "build_unavailable", "O construtor de sites está indisponível; tente de novo")},
+	{Err: site_usecase.ErrPreviewNotBuilt, Refusal: response.NewRefusal(http.StatusConflict, CodePreviewNotBuilt, "A pré-visualização desta versão ainda não foi preparada por quem edita o site")},
 	{Err: site_usecase.ErrPreviewUnavailable, Refusal: response.NewRefusal(http.StatusServiceUnavailable, "preview_unavailable", "Não foi possível preparar a pré-visualização; tente de novo")},
 	{Err: site_usecase.ErrRevisionDamaged, Refusal: response.NewRefusal(http.StatusInternalServerError, "revision_damaged", "Um arquivo desta versão não foi encontrado no armazenamento")},
-	{Err: site_usecase.ErrSnippetsFull, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, CodeSnippetsFull, "As seções salvas passam do tamanho máximo de uma página")},
+	{Err: site_usecase.ErrSnippetsFull, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, CodeSnippetsFull, "As seções salvas passam do tamanho máximo de um site")},
 	{Err: sitebuild.ErrSectionStackInvalid, Refusal: response.NewRefusal(http.StatusBadRequest, CodeSectionStackInvalid, "Escolha react ou html")},
 	{Err: sitebuild.ErrSectionsUnavailable, Refusal: response.NewRefusal(http.StatusServiceUnavailable, CodeSectionsUnavailable, "As seções salvas não puderam ser lidas; tente de novo")},
 }
@@ -81,10 +92,10 @@ var outlineReasonCodes = []string{
 var requestRefusals = []response.Refusal{
 	response.NewRefusal(http.StatusBadRequest, httpx.CodeInvalidBody, "Corpo da requisição inválido"),
 	response.NewRefusal(http.StatusBadRequest, CodePageInvalid, "limit vai de 1 a 100 e offset começa em 0"),
-	response.NewRefusal(http.StatusConflict, httpx.CodeVersionConflict, "A página foi salva em outra aba ou por outra pessoa"),
-	response.NewRefusal(http.StatusRequestEntityTooLarge, CodeProjectTooLarge, "O envio passa do tamanho máximo de uma página"),
+	response.NewRefusal(http.StatusConflict, httpx.CodeVersionConflict, "O site foi salvo em outra aba ou por outra pessoa"),
+	response.NewRefusal(http.StatusRequestEntityTooLarge, CodeProjectTooLarge, "O envio passa do tamanho máximo de um site"),
 	response.NewRefusal(http.StatusUnprocessableEntity, CodeEditRefused, "A alteração foi recusada"),
-	response.NewRefusal(http.StatusUnprocessableEntity, CodeBuildFailed, "A página não compilou"),
+	response.NewRefusal(http.StatusUnprocessableEntity, CodeBuildFailed, "O site não compilou"),
 	response.NewRefusal(http.StatusInternalServerError, CodeInternal, "Erro interno"),
 }
 
@@ -100,11 +111,11 @@ func writeError(w http.ResponseWriter, err error, fallback string) {
 	var tooBig *http.MaxBytesError
 	switch {
 	case errors.As(err, &tooBig):
-		response.WriteErrorWithCode(w, http.StatusRequestEntityTooLarge, CodeProjectTooLarge, "O envio passa do tamanho máximo de uma página", nil)
+		response.WriteErrorWithCode(w, http.StatusRequestEntityTooLarge, CodeProjectTooLarge, "O envio passa do tamanho máximo de um site", nil)
 	case errors.As(err, &issues):
-		response.WriteErrorWithDetails(w, http.StatusUnprocessableEntity, issues.Code(), "Os arquivos quebram uma regra da página", IssuesDetails{Issues: issues.Issues})
+		response.WriteErrorWithDetails(w, http.StatusUnprocessableEntity, issues.Code(), "Os arquivos quebram uma regra do site", IssuesDetails{Issues: issues.Issues})
 	case errors.As(err, &failed):
-		response.WriteErrorWithDetails(w, http.StatusUnprocessableEntity, CodeBuildFailed, "A página não compilou", buildDetails(failed))
+		response.WriteErrorWithDetails(w, http.StatusUnprocessableEntity, CodeBuildFailed, "O site não compilou", buildDetails(failed))
 	case errors.As(err, &edit):
 		response.WriteErrorWithDetails(w, http.StatusUnprocessableEntity, CodeEditRefused, "A alteração foi recusada",
 			EditRefusalDetails{Failures: edit.Failures, Skipped: edit.Skipped, Ignored: edit.Ignored, Issues: edit.Issues})

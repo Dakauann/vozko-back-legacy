@@ -24,6 +24,7 @@ const (
 var (
 	ErrNameInvalid        = errors.New("variable declaration: a name has only letters, digits and underscores, up to 64")
 	ErrNameReserved       = errors.New("variable declaration: lead_name, lead_number and campaign_name are filled by the platform")
+	ErrNameRepeated       = errors.New("variable declaration: a name appears twice in one list")
 	ErrLabelInvalid       = errors.New("variable declaration: a friendly name has 1 to 60 characters")
 	ErrDescriptionTooLong = errors.New("variable declaration: a description has up to 500 characters")
 	ErrKindUnknown        = errors.New("variable declaration: unknown type")
@@ -33,6 +34,7 @@ var (
 	ErrKindTaken          = errors.New("variable declaration: two rules for one type")
 	ErrNotFound           = errors.New("variable declaration: no such declaration in this workspace")
 	ErrUnreadable         = errors.New("variable declaration: the declarations could not be read")
+	ErrChangeForbidden    = errors.New("variable declaration: changing it needs update rights on every agent and workflow that uses it")
 )
 
 var namePattern = regexp.MustCompile(`^\w{1,64}$`)
@@ -133,6 +135,27 @@ func CheckName(name string) error {
 		return fmt.Errorf("%w: %q", ErrNameReserved, name)
 	}
 	return nil
+}
+
+type UseProblem struct {
+	Name string
+	Err  error
+}
+
+func UseProblems(names []string) []UseProblem {
+	var out []UseProblem
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
+		err := CheckName(name)
+		if err == nil && seen[name] {
+			err = fmt.Errorf("%w: %q", ErrNameRepeated, name)
+		}
+		seen[name] = true
+		if err != nil {
+			out = append(out, UseProblem{Name: name, Err: err})
+		}
+	}
+	return out
 }
 
 func normalized(d Declaration) Declaration {

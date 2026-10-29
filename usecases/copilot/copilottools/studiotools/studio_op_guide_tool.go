@@ -13,10 +13,10 @@ import (
 	"vozko/usecases/copilot/copilottools"
 )
 
-const studioOpGuideHint = "Os campos, os valores aceitos, as faixas e os exemplos de cada operação estão em studio_op_guide: antes do primeiro lote com uma família nesta resposta, chame studio_op_guide com as famílias ou as operações que vai usar, várias de uma vez. Famílias e operações: "
+const studioOpGuideHint = "Os campos, os valores aceitos, as faixas e os exemplos de cada operação estão em studio_op_guide: antes do primeiro lote com uma família cujo guia não está na conversa, chame studio_op_guide com as famílias ou as operações que vai usar, várias de uma vez; campo fora do guia é recusado. Famílias e operações: "
 
 const studioOpGuideDescription = "Devolve a referência das operações de studio_edit_image ou studio_edit_video, conforme o projeto aberto: para cada família ou operação pedida, a explicação, os exemplos e cada campo com o tipo, os valores aceitos e as faixas. " +
-	"Peça de uma vez todas as famílias que a edição vai usar, antes de editar com elas, e peça de novo em cada nova resposta ao usuário."
+	"Peça de uma vez todas as famílias que a edição vai usar, antes de editar com elas. O guia fica na conversa: peça de novo só se ele não estiver mais na conversa."
 
 type studioOpGuideArgs struct {
 	Names []string `json:"names" req:"true" desc:"famílias do índice de studio_edit_image ou studio_edit_video, operações ou campos, como [\"texto\", \"animate\"]"`
@@ -25,9 +25,9 @@ type studioOpGuideArgs struct {
 func compactEditDefinition(reference tools.Definition, intro, outro string, families []studioOpFamily, core []string) tools.Definition {
 	operations := reference.Parameters["operations"]
 	items := *operations.Items
-	properties := make(map[string]tools.Parameter, len(items.Properties))
-	for name, p := range items.Properties {
-		properties[name] = bareParameter(p, slices.Contains(core, name))
+	properties := make(map[string]tools.Parameter, len(core))
+	for _, name := range core {
+		properties[name] = items.Properties[name]
 	}
 	items.Properties = properties
 	operations.Items = &items
@@ -37,28 +37,6 @@ func compactEditDefinition(reference tools.Definition, intro, outro string, fami
 		Parameters:  map[string]tools.Parameter{"operations": operations},
 		Required:    reference.Required,
 	}
-}
-
-func bareParameter(p tools.Parameter, documented bool) tools.Parameter {
-	bare := tools.Parameter{Type: p.Type, Items: bareItems(p.Items)}
-	if documented {
-		bare.Description, bare.Enum = p.Description, p.Enum
-	}
-	return bare
-}
-
-func bareItems(items *tools.ParameterItems) *tools.ParameterItems {
-	if items == nil {
-		return nil
-	}
-	bare := &tools.ParameterItems{Type: items.Type, Required: items.Required, Items: bareItems(items.Items)}
-	if items.Properties != nil {
-		bare.Properties = make(map[string]tools.Parameter, len(items.Properties))
-		for name, p := range items.Properties {
-			bare.Properties[name] = bareParameter(p, false)
-		}
-	}
-	return bare
 }
 
 type studioOpReference struct {
@@ -71,7 +49,7 @@ type studioOpReference struct {
 func referenceOf(edit *studioEditTool) studioOpReference {
 	params := edit.Definition().Parameters["operations"].Items.Properties
 	order := edit.operationOrder()
-	ref := studioOpReference{studioOpNames: newStudioOpNames(edit.kind, edit.families, order, edit.core), families: edit.families, sections: map[string]string{}, byOp: map[string]string{}}
+	ref := studioOpReference{studioOpNames: edit.names(), families: edit.families, sections: map[string]string{}, byOp: map[string]string{}}
 	for _, family := range edit.families {
 		var b strings.Builder
 		b.WriteString("## " + family.name + ": " + strings.Join(family.ops, ", ") + "\n")
@@ -153,7 +131,7 @@ func (r studioOpReference) guide(names []string) (string, map[string]string, err
 		}
 		family, ok := r.resolve(name)
 		if !ok {
-			return "", nil, fmt.Errorf("%w: %q não é família, operação nem campo deste editor; a família mais próxima é %s; as famílias são: %s", copilottools.ErrInvalidArgs, name, r.closest(name), strings.Join(r.familyNames(), ", "))
+			return "", nil, fmt.Errorf("%w: %q não é família, operação nem campo deste editor; %s; as famílias são: %s", copilottools.ErrInvalidArgs, name, r.nearestFamily(name), strings.Join(r.familyNames(), ", "))
 		}
 		if family != name && r.byOp[name] != family {
 			resolved[name] = family

@@ -13,12 +13,12 @@ import (
 )
 
 const (
-	ReasonBuildFailed = "a página não compila, então as pendências não puderam ser lidas; veja build_errors"
-	ReasonRulesBroken = "a página quebra uma regra do projeto, então as pendências não puderam ser lidas; veja build_errors"
-	ReasonNoPreview   = "a prévia da página não está disponível agora, então as pendências não foram lidas"
+	ReasonBuildFailed = "o site não compila, então as pendências não puderam ser lidas; veja build_errors"
+	ReasonRulesBroken = "o site quebra uma regra do projeto, então as pendências não puderam ser lidas; veja build_errors"
+	ReasonNoPreview   = "a prévia do site não está disponível agora, então as pendências não foram lidas"
 	ReasonNoCapture   = "o editor aberto não devolveu a página renderizada, então as pendências não foram lidas"
 	ReasonNoManifest  = "site.json não pôde ser lido, então as pendências não foram lidas"
-	ReasonStale       = "a página mudou enquanto era lida, então as pendências não foram lidas; leia de novo"
+	ReasonStale       = "o site mudou enquanto era lido, então as pendências não foram lidas; leia de novo"
 	ReasonInvalid     = "a leitura da página chegou incompleta ou grande demais, então as pendências não foram lidas"
 	reasonRouteBroken = "a rota %s não gerou um HTML legível"
 
@@ -177,7 +177,7 @@ func (s Service) Inspect(ctx context.Context, view *site_usecase.View, documents
 		if nodes == nil {
 			nodes = []site.OutlineNode{}
 		}
-		outlines = append(outlines, site.RouteOutline{Route: route, Rendered: true, Nodes: nodes})
+		outlines = append(outlines, site.RouteOutline{Route: route, Rendered: true, Nodes: nodes, Forms: site.FormOutline(doc)})
 	}
 	checked := site.CheckPages(pages)
 	structural, _ := site.Split(checked.Issues)

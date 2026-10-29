@@ -91,7 +91,7 @@ func studioDeps(kind studio.Kind, media *tooltest.StubImages, jobs *fakeJobs) St
 func TestStudioReadAsksTheOpenEditor(t *testing.T) {
 	editor := &fakeEditor{replies: map[copilot.ScreenCommandName]copilot.ScreenReply{copilot.ScreenRead: {OK: true, Data: []byte(`{"tracks":3}`)}}}
 	res := NewStudioReadTool(studioDeps(studio.KindVideo, nil, nil)).Execute(context.Background(), studioSession(copilot.StudioVideo, editor), nil)
-	if res.Status != copilot.StatusOK || renderJSON(res.Data) != `{"tracks":3}` {
+	if res.Status != copilot.StatusOK || renderJSON(res.Data) != `{"alerts_unavailable":"`+studioReportsUnavailable+`","tracks":3}` {
 		t.Fatalf("result = %+v", res)
 	}
 	cmd, _ := editor.sent(copilot.ScreenRead)
@@ -225,7 +225,7 @@ func TestStudioEditSendsTheBatchAsWritten(t *testing.T) {
 	editor := &fakeEditor{replies: map[copilot.ScreenCommandName]copilot.ScreenReply{copilot.ScreenEdit: {OK: true, Data: []byte(`{"created":{"titulo":"c-9"}}`)}}}
 	edit := NewStudioEditVideoTool(studioDeps(studio.KindVideo, nil, nil))
 	args := map[string]interface{}{"operations": []interface{}{
-		map[string]interface{}{"op": "add_text", "ref": "titulo", "text": "Oferta", "at_ms": 0.0, "x": 0.0, "y": 0.3, "unknown": "drop"},
+		map[string]interface{}{"op": "add_text", "ref": "titulo", "text": "Oferta", "at_ms": 0.0, "x": 0.0, "y": 0.3},
 		map[string]interface{}{"op": "animate", "clip_id": "@titulo", "property": "scale", "keys": []interface{}{map[string]interface{}{"at_ms": 0.0, "value": 1.0}}},
 	}}
 	res := edit.Execute(context.Background(), studioSession(copilot.StudioVideo, editor), args)
@@ -239,8 +239,8 @@ func TestStudioEditSendsTheBatchAsWritten(t *testing.T) {
 			t.Fatalf("the batch lost %s: %s", want, sent)
 		}
 	}
-	if strings.Contains(sent, "unknown") || strings.Contains(sent, `"y":null`) {
-		t.Fatalf("unknown or empty fields must not reach the editor: %s", sent)
+	if strings.Contains(sent, `"y":null`) {
+		t.Fatalf("empty fields must not reach the editor: %s", sent)
 	}
 }
 

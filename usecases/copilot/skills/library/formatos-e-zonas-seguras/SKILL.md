@@ -1,6 +1,7 @@
 ---
 name: formatos-e-zonas-seguras
 description: Tamanhos, proporções, cortes automáticos e zonas seguras de cada rede e peça (Reels, Stories, feed, carrossel, Marketplace, coluna da direita, Shorts, TikTok, miniatura do YouTube, banners, apresentações, Status do WhatsApp), como aplicar no Estúdio e como conferir o encaixe por posicionamento antes de anunciar; carregue antes de escolher o formato, posicionar texto e logo ou criar um anúncio com imagem.
+surface: ads
 ---
 
 # Formatos e zonas seguras

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"html"
-	"sort"
 	"strings"
 
 	"vozko/domain/sitehtml"
@@ -71,10 +70,5 @@ func LinkWhatsApp(source string, resolve WhatsAppResolver) (string, error) {
 		at := el.Start + 1 + len(el.Tag)
 		edits = append(edits, splice{start: at, end: at, text: " " + attr})
 	}
-	sort.Slice(edits, func(a, b int) bool { return edits[a].start > edits[b].start })
-	out := source
-	for _, e := range edits {
-		out = out[:e.start] + e.text + out[e.end:]
-	}
-	return out, nil
+	return applySplices(source, edits), nil
 }

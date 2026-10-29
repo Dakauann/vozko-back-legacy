@@ -73,11 +73,16 @@ func TestActivationRetiresThePreviousFormsInOneTransaction(t *testing.T) {
 
 func TestAStoredFormThatNoLongerDecodesRefuses(t *testing.T) {
 	db, mock := mockDB(t)
-	columns := []string{"workspace_id", "project_id", "deployment_id", "form_key", "form_id", "manifest", "settings", "success_url"}
+	columns := []string{"workspace_id", "project_id", "deployment_id", "form_key", "form_id", "manifest", "settings", "success_url", "booking"}
 	mock.ExpectQuery(sqlPattern(selectActiveFormSQL)).WithArgs("k").
-		WillReturnRows(sqlmock.NewRows(columns).AddRow("w1", "p1", "d1", "k", "contato", []byte(`{"id":"contato","fields":[],"extra":1}`), []byte(`{}`), ""))
+		WillReturnRows(sqlmock.NewRows(columns).AddRow("w1", "p1", "d1", "k", "contato", []byte(`{"id":"contato","fields":[],"extra":1}`), []byte(`{}`), "", nil))
 	if _, err := NewFormStore(db).ActiveForm(context.Background(), "k"); !errors.Is(err, ErrStoredFormInvalid) {
 		t.Fatalf("err = %v", err)
+	}
+	mock.ExpectQuery(sqlPattern(selectActiveFormSQL)).WithArgs("k").
+		WillReturnRows(sqlmock.NewRows(columns).AddRow("w1", "p1", "d1", "k", "agenda", []byte(`{"id":"agenda","fields":[]}`), []byte(`{}`), "", []byte(`{"duration_minutes":0}`)))
+	if _, err := NewFormStore(db).ActiveForm(context.Background(), "k"); !errors.Is(err, ErrStoredFormInvalid) {
+		t.Fatalf("a stored booking that breaks the rules must refuse: %v", err)
 	}
 	mock.ExpectQuery(sqlPattern(selectActiveFormSQL)).WithArgs("k").WillReturnError(errors.New("down"))
 	if form, err := NewFormStore(db).ActiveForm(context.Background(), "k"); err == nil || form != nil {

@@ -33,7 +33,7 @@ func New(d Deps, cfg Config) (*Service, error) {
 		"hosting": d.Hosting, "media": d.Media, "custom hostnames": d.CustomHostnames, "access": d.Access,
 		"subscriptions": d.Subscriptions, "entitlements": d.Entitlements, "widgets": d.Widgets, "deployments": d.Deployments,
 		"hostnames": d.Hostnames, "abuse cases": d.Abuse, "alerts": d.Alerts, "thumbnails": d.Thumbnails, "locks": d.Locks,
-		"dns": d.DNS, "reversals": d.Reversals, "counters": d.Counters,
+		"dns": d.DNS, "reversals": d.Reversals, "counters": d.Counters, "booking calendars": d.Calendars,
 	} {
 		if deps.IsNil(dep) {
 			return nil, fmt.Errorf("sitepublish: %s is required", name)
@@ -220,7 +220,7 @@ func (s *Service) settleKeys(ctx context.Context, projectID string, mode keyMode
 
 func (s *Service) activateForms(ctx context.Context, rec sitepublish.DeploymentRecord) error {
 	if err := s.Forms.Activate(ctx, ActivateForms{
-		WorkspaceID: rec.WorkspaceID, ProjectID: rec.ProjectID, DeploymentID: rec.ID, Manifests: rec.Forms.Manifests, Settings: rec.Forms.Settings, Widgets: rec.Forms.Widgets,
+		WorkspaceID: rec.WorkspaceID, ProjectID: rec.ProjectID, DeploymentID: rec.ID, Manifests: rec.Forms.Manifests, Settings: rec.Forms.Settings, Widgets: rec.Forms.Widgets, Bookings: rec.Forms.Bookings,
 	}); err != nil {
 		return fmt.Errorf("%w: %w", ErrFormsUnavailable, err)
 	}

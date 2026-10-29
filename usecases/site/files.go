@@ -97,6 +97,13 @@ func (s *Service) Edit(ctx context.Context, in EditInput) (*EditResult, error) {
 	if failures := s.foreignNumbers(ctx, in.WorkspaceID, batch); len(failures) > 0 {
 		return nil, &EditRefusal{Failures: failures, Ignored: batch.Ignored}
 	}
+	elementFailures, err := s.foreignElements(ctx, in.WorkspaceID, in.ProjectID, batch)
+	if err != nil {
+		return nil, err
+	}
+	if len(elementFailures) > 0 {
+		return nil, &EditRefusal{Failures: elementFailures, Ignored: batch.Ignored}
+	}
 	bases, err := s.bases(ctx, base, batch.StaleRevs(project))
 	if err != nil {
 		return nil, err

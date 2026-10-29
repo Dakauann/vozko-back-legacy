@@ -14,6 +14,7 @@ import {
   type Project,
   type Route,
 } from "../project";
+import { themeSource } from "../execute/theme";
 import { compileCss, scanCandidates } from "../tailwind";
 import { interactiveModule, lintModule, staticPackages, type BuildWarning } from "./analyze";
 import { bundle, captureSpecifier, projectSpecifier, type BuildError, type BundleOutput, type EntryOutput, type Import } from "./bundle";
@@ -39,6 +40,8 @@ export const runtimeFile = "vz-runtime.js";
 export const powFile = "pow.js";
 export const bridgeFile = "vz-editor-bridge.js";
 export const screenshotFile = "vz-screenshot.js";
+export const tailwindBrowserFile = "vz-tailwind-browser.js";
+export const previewOnlyFiles = [bridgeFile, screenshotFile, tailwindBrowserFile];
 export const prerenderPath = "__vz/prerender.html";
 
 export interface BuildRequest {
@@ -131,21 +134,43 @@ function revisions(project: Project): Record<string, number> {
   return out;
 }
 
-function runtimeAssets(request: BuildRequest, assets: Assets): { runtime: string; bridge?: string } {
+interface RuntimeAssets {
+  runtime: string;
+  bridge?: string;
+  classCompiler?: string;
+}
+
+const minified = new Map<string, Promise<string>>();
+
+function minifyOwn(source: string): Promise<string> {
+  const key = createHash("sha256").update(source).digest("hex");
+  let pending = minified.get(key);
+  if (!pending) {
+    pending = esbuild.transform(source, { loader: "js", format: "esm", minify: true, legalComments: "none", target: "es2022" }).then((result) => result.code);
+    pending.catch(() => minified.delete(key));
+    minified.set(key, pending);
+  }
+  return pending;
+}
+
+async function runtimeAssets(request: BuildRequest, assets: Assets): Promise<RuntimeAssets> {
   const runtime = request.runtime[runtimeFile];
   const pow = request.runtime[powFile];
   if (typeof runtime !== "string" || typeof pow !== "string") throw new BuildRefused("the runtime files are required");
-  const powUrl = assets.hashed("pow", ".js", pow);
+  const powUrl = assets.hashed("pow", ".js", await minifyOwn(pow));
   const powName = `./${powUrl.split("/").pop()}`;
-  const rewritten = runtime.replace(/(["'])\.\/pow\.js\1/g, `$1${powName}$1`);
-  const result: { runtime: string; bridge?: string } = { runtime: assets.hashed("vz-runtime", ".js", rewritten) };
+  const rewritten = (await minifyOwn(runtime)).replace(/(["'])\.\/pow\.js\1/g, `$1${powName}$1`);
+  const result: RuntimeAssets = { runtime: assets.hashed("vz-runtime", ".js", rewritten) };
   if (request.mode === "preview") {
     const bridge = request.runtime[bridgeFile];
     if (typeof bridge !== "string") throw new BuildRefused("the editor bridge is required for previews");
     const screenshot = request.runtime[screenshotFile];
     if (typeof screenshot !== "string") throw new BuildRefused("the screenshot library is required for previews");
     const screenshotName = `./${assets.hashed("vz-screenshot", ".js", screenshot).split("/").pop()}`;
-    result.bridge = assets.hashed("vz-editor-bridge", ".js", bridge.replace(/(["'])\.\/vz-screenshot\.js\1/g, `$1${screenshotName}$1`));
+    result.bridge = assets.hashed("vz-editor-bridge", ".js", (await minifyOwn(bridge)).replace(/(["'])\.\/vz-screenshot\.js\1/g, `$1${screenshotName}$1`));
+    const compiler = request.runtime[tailwindBrowserFile];
+    if (typeof compiler !== "string") throw new BuildRefused("the class compiler is required for previews");
+    result.classCompiler = assets.hashed("vz-tailwind-browser", ".js", compiler);
   }
   return result;
 }
@@ -205,7 +230,8 @@ interface Common {
   assets: Assets;
   vendor: Vendor;
   consentDefault?: string;
-  runtime: { runtime: string; bridge?: string };
+  runtime: RuntimeAssets;
+  classTheme: string;
   integrations: IntegrationScript[];
 }
 
@@ -302,6 +328,8 @@ async function buildReact(common: Common): Promise<BuildOutput> {
       consentDefault: common.consentDefault,
       runtime: common.runtime.runtime,
       bridge: common.runtime.bridge,
+      classCompiler: common.runtime.classCompiler,
+      classTheme: common.classTheme,
       integrations: common.integrations,
       body: root + consentSlot(request, common.integrations, ""),
       appScripts: [`/${app.file}`],
@@ -421,6 +449,8 @@ async function buildHtml(common: Common): Promise<BuildOutput> {
       consentDefault: common.consentDefault,
       runtime: common.runtime.runtime,
       bridge: common.runtime.bridge,
+      classCompiler: common.runtime.classCompiler,
+      classTheme: common.classTheme,
       integrations: common.integrations,
       body: page.body + consentSlot(request, common.integrations, page.body),
       appScripts: [],
@@ -459,7 +489,8 @@ export async function build(request: BuildRequest): Promise<BuildOutput> {
     assets,
     vendor: loadVendor(),
     consentDefault: integrations.length > 0 ? assets.hashed("vz-runtime-consent", ".js", consentDefaultCode) : undefined,
-    runtime: runtimeAssets(request, assets),
+    runtime: await runtimeAssets(request, assets),
+    classTheme: request.mode === "preview" ? Object.values(styleFiles(request.project.stack, files)).map(themeSource).filter(Boolean).join("\n") : "",
     integrations,
   };
   try {

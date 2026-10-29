@@ -25,11 +25,11 @@ const (
 	editNoOperations = "envie ao menos uma operação em operations"
 	editMalformed    = "operations precisa ser uma lista de operações"
 	editRefused      = "nada foi aplicado; corrija e reenvie o lote inteiro: "
-	editNoBuilder    = "o construtor de páginas não está disponível agora, então nada foi aplicado; tente de novo em instantes"
-	editMoved        = "a página mudou duas vezes enquanto você editava, então nada foi aplicado; leia de novo com site_read"
+	editNoBuilder    = "o construtor de sites não está disponível agora, então nada foi aplicado; tente de novo em instantes"
+	editMoved        = "o site mudou duas vezes enquanto você editava, então nada foi aplicado; leia de novo com site_read"
 	editLabelBad     = "label vai até 120 caracteres, numa linha"
 	editNoChange     = "o lote não mudou nenhum arquivo"
-	editNotShown     = "o lote está guardado na página, mas o editor não mostrou: "
+	editNotShown     = "o lote está guardado no site, mas o editor não mostrou: "
 	opPrefix         = "operação %d (%s): %s"
 	opSkipped        = "operação %d pulada: dependia da operação %d"
 	opIgnored        = "operação %d: campo %s ignorado, não existe para essa op"
@@ -58,6 +58,7 @@ var codeWords = map[string]string{
 	site.CodeBreakpointInvalid:     "breakpoint é sm, md, lg ou xl",
 	site.CodeMediaInvalid:          "media_id não é uma imagem da biblioteca",
 	site.CodeLibraryKeyInvalid:     "library_key não existe",
+	site.CodeCopyReferenceMissing:  "o elemento copiado usa nomes que o arquivo de destino não tem (veja detail)",
 	site.CodeTokenInvalid:          "nome ou valor de token inválido",
 	site.CodeKnobUnknown:           "esse knob não existe em knobs.json",
 	site.CodeKnobValueInvalid:      "valor fora do knob",
@@ -102,9 +103,12 @@ type siteOperationArgs struct {
 	Alt        *string     `json:"alt,omitempty" desc:"replace_image: texto alternativo"`
 	Before     string      `json:"before,omitempty" desc:"move: node"`
 	After      string      `json:"after,omitempty" desc:"move: node"`
+	Into       string      `json:"into,omitempty" desc:"move: node que recebe por último"`
 	At         *siteAtArgs `json:"at,omitempty" desc:"insert_section: onde"`
 	HTML       string      `json:"html,omitempty" desc:"insert_section: o markup da seção"`
 	LibraryKey string      `json:"library_key,omitempty" desc:"insert_section: seção pronta da biblioteca"`
+	Source     string      `json:"source,omitempty" desc:"insert_section: copia este node (outra página vale)"`
+	SourceRev  int         `json:"source_rev,omitempty" desc:"insert_section: rev do arquivo de source"`
 	Ref        string      `json:"ref,omitempty" desc:"nome para o que for criado; depois @nome"`
 	Variable   string      `json:"variable,omitempty" desc:"define_knob: variável css (--raio)"`
 	Kind       string      `json:"kind,omitempty" enum:"range,color" desc:"define_knob"`
@@ -159,7 +163,7 @@ func (t *siteEditTool) NeedsApproval(mode copilot.Mode) bool { return mode == co
 
 func (t *siteEditTool) Definition() tools.Definition {
 	return copilottools.Definition("site_edit",
-		"Edita a página aberta com um lote de operações aplicadas em ordem, todas ou nenhuma; o editor do usuário mostra cada passo. Campos por op: "+
+		"Edita o site aberto com um lote de operações aplicadas em ordem, todas ou nenhuma; o editor do usuário mostra cada passo. Campos por op: "+
 			"write_file(path, content, rev) arquivo novo, ou inteiro com o rev lido; edit_file(path, old, new, replace_all) troca um trecho exato; delete_file(path, rev); rename_file(path, rev, to); "+
 			"set_text(node, rev, text, item); set_attr(node, rev, name, value); set_classes(node, rev, add, remove, breakpoint); replace_image(node, rev, media_id, alt); "+
 			"move(node, rev, before ou after); duplicate(node, rev, ref); remove(node, rev); insert_section(at, html ou library_key, ref); "+

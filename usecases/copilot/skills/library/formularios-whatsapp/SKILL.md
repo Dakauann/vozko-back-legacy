@@ -49,5 +49,5 @@ description: Como montar formulários do WhatsApp (WhatsApp Flows) que as pessoa
 - Publique com publish_whatsapp_form antes de enviar.
 - send_whatsapp_form só vai com a janela de 24 horas aberta. A mensagem diz o que a pessoa ganha e quanto tempo leva ("Leva 1 minuto"); o botão é curto e com verbo ("Preencher", "Agendar").
 - Fora da janela, a alternativa é um modelo aprovado com botão do formulário, enviado com send_template.
-- Para agir nas respostas, ofereça create_form_automation (etiqueta e oportunidade, em rascunho para o usuário revisar e ativar).
+- Para agir nas respostas, ofereça create_form_automation (etiqueta e negociação, em rascunho para o usuário revisar e ativar).
 - Para avaliar, whatsapp_form_results mostra envios, respostas, tempo até responder e as escolhas mais comuns; whatsapp_form_responses traz as respostas, e export_whatsapp_form_responses gera a planilha.

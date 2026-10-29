@@ -96,11 +96,11 @@ func (q *Queries) VariablesForm(ctx context.Context, in ConversationRef, target 
 		form.Fields = append(form.Fields, FieldValue{Field: fields[i], Value: value})
 	}
 	for _, need := range needs {
-		form.Rows = append(form.Rows, VariableRow{
-			Need:      need,
-			Current:   strings.TrimSpace(snapshot.Values[need.Name]),
-			Suggested: campaign.SameKeyBinding(defs, need.Name),
-		})
+		row := VariableRow{Need: need, Current: strings.TrimSpace(snapshot.Values[need.Name])}
+		if !need.IsSheet() {
+			row.Suggested = campaign.SameKeyBinding(defs, need.Name)
+		}
+		form.Rows = append(form.Rows, row)
 	}
 	return form, nil
 }
@@ -123,6 +123,9 @@ func (q *Queries) saveConversationValues(ctx context.Context, in SaveValues) err
 	}
 	if unneeded := unneededNames(needs, assignment.Names()); len(unneeded) > 0 {
 		return &conversationvars.VariablesError{Cause: conversationvars.ErrNotNeeded, Names: unneeded}
+	}
+	if refused := perRecipientSheets(q.d.Service.Label(ctx, in.WorkspaceID, needs), in.Bindings); len(refused) > 0 {
+		return &conversationvars.VariablesError{Cause: conversationvars.ErrSourceInvalid, Names: refused}
 	}
 	ref := conversationvars.Ref{WorkspaceID: in.WorkspaceID, EntryID: strings.TrimSpace(in.EntryID), EntryType: in.EntryType}
 	resolved, err := q.resolve(ctx, ref, assignment)
@@ -231,4 +234,16 @@ func unneededNames(needs domain.Needs, names []string) []string {
 		}
 	}
 	return out
+}
+
+func perRecipientSheets(needs domain.Needs, bindings []conversationvars.Binding) []string {
+	var refused []string
+	for _, b := range bindings {
+		need := needs.Find(strings.TrimSpace(b.Name))
+		source := campaign.BindingSource(strings.TrimSpace(string(b.Source)))
+		if need != nil && need.IsSheet() && source != campaign.BindLiteral && source != conversationvars.SourceCurrent {
+			refused = append(refused, need.Name)
+		}
+	}
+	return refused
 }

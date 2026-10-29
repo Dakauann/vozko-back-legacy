@@ -57,8 +57,8 @@ func TestStudioLookNamesItsTargetForTheChatWithoutTellingTheModel(t *testing.T) 
 	if res.Subject.Kind != copilot.SubjectStudioLook || res.Subject.Key != copilot.LookMoments || res.Subject.Target.ProjectID != studioProjectID || *res.Subject.Target.FromMS != from || *res.Subject.Target.ToMS != to {
 		t.Fatalf("subject = %+v target = %+v", res.Subject, res.Subject.Target)
 	}
-	if renderJSON(res.Data) != `{"frames":[]}` {
-		t.Fatalf("the model must receive the editor data unchanged, got %s", renderJSON(res.Data))
+	if renderJSON(res.Data) != `{"alerts_unavailable":"`+studioReportsUnavailable+`","frames":[]}` {
+		t.Fatalf("the model must receive the editor data without the target, got %s", renderJSON(res.Data))
 	}
 
 	named := lookEditor()

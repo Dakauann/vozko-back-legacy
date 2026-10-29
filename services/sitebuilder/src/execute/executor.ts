@@ -1,6 +1,7 @@
-import { contains, lineBlock, type MarkupElement } from "../markup/element";
+import { contains, lineBlock, lineIndentAt, type MarkupElement } from "../markup/element";
 import { parseHtml, type HtmlDocument } from "../markup/html";
-import { parseJsx, type JsxDocument } from "../markup/jsx";
+import { parseJsx, type AstNode, type JsxDocument, type JsxElement } from "../markup/jsx";
+
 import { knobsPath, markupLanguage, styleFiles, tailwindEntry, themeFile, type Project, type Stack } from "../project";
 import { classMerger, classValidator, type ClassMerger } from "../tailwind";
 import type { MarkupAdapter, Workspace } from "./adapter";
@@ -10,7 +11,10 @@ import { htmlAdapter } from "./html-adapter";
 import { jsxAdapter } from "./jsx-adapter";
 import { mapOffset, Patcher, type Splice } from "./patcher";
 import { afterInsertion, beforeInsertion, intoInsertion, placeText } from "./placement";
+import { missingReferences, pageFunction } from "./references";
 import { setCssVariable, setThemeToken } from "./theme";
+
+const MAX_MISSING_NAMES = 6;
 import {
   OpFailure,
   type ExecuteRequest,
@@ -29,6 +33,8 @@ import {
 interface SectionSource {
   markup: string;
   language: "html" | "jsx";
+  indent?: string;
+  origin?: { file: string; node: AstNode };
 }
 
 interface Version {
@@ -105,6 +111,8 @@ export function operationKeys(o: Operation): string[] {
       nodeKey(o.node);
       nodeKey(o.before);
       nodeKey(o.after);
+      nodeKey(o.into);
+      nodeKey(o.source);
       nodeKey(o.at?.before);
       nodeKey(o.at?.after);
       nodeKey(o.at?.into);
@@ -290,6 +298,14 @@ class Batch implements Workspace {
   }
 
   section(o: Operation): SectionSource {
+    if (o.source) {
+      const source = this.locate(o.source, o.source_rev, "source");
+      requirePlaceable(source.el, "source");
+      const language = markupLanguage(this.stack, source.file);
+      if (language !== "html" && language !== "jsx") throw new OpFailure("node_invalid", "source");
+      const content = this.content(source.file)!;
+      return { markup: content.slice(source.el.start, source.el.end), language, indent: lineIndentAt(content, source.el.start), ...(language === "jsx" ? { origin: { file: source.file, node: (source.el as JsxElement).node } } : {}) };
+    }
     if (o.html && o.html.trim() !== "") return { markup: o.html, language: "html" };
     const jsx = o.library_key ? this.request.jsx_sections?.[o.library_key] : undefined;
     if (jsx) return { markup: jsx, language: "jsx" };
@@ -381,14 +397,16 @@ function requirePlaceable(el: MarkupElement, field: string) {
 
 async function move(batch: Batch, o: Operation): Promise<OpChange> {
   const target = batch.locate(o.node, o.rev, "node");
-  const anchorField = o.before ? "before" : "after";
-  const anchor = batch.locate(o.before ?? o.after, o.rev, anchorField);
-  if (anchor.file !== target.file || contains(target.el, anchor.el) || contains(anchor.el, target.el)) throw new OpFailure("position_invalid", anchorField);
+  const anchorField = o.into ? "into" : o.before ? "before" : "after";
+  const anchor = batch.locate(o.into ?? o.before ?? o.after, o.rev, anchorField);
+  const nested = contains(target.el, anchor.el) || (!o.into && contains(anchor.el, target.el));
+  if (anchor.file !== target.file || anchor.el.start === target.el.start || nested) throw new OpFailure("position_invalid", anchorField);
   requirePlaceable(target.el, "node");
-  requirePlaceable(anchor.el, anchorField);
+  if (o.into && anchor.el.innerEnd === null) throw new OpFailure("position_invalid", anchorField);
+  if (!o.into) requirePlaceable(anchor.el, anchorField);
   const content = batch.content(target.file)!;
   const cut = lineBlock(content, target.el.start, target.el.end);
-  const at = o.before ? beforeInsertion(content, anchor.el) : afterInsertion(content, anchor.el);
+  const at = o.into ? intoInsertion(content, anchor.el.innerEnd!) : o.before ? beforeInsertion(content, anchor.el) : afterInsertion(content, anchor.el);
   const placed = placeText(content, at, content.slice(target.el.start, target.el.end), cut.indent);
   const patcher = new Patcher(content).remove(cut.start, cut.end);
   if (o.before) patcher.insertBefore(at.index, placed.text);
@@ -459,10 +477,15 @@ async function insertSection(batch: Batch, o: Operation): Promise<OpChange> {
       at = placement.before ? beforeInsertion(content, anchor.el) : afterInsertion(content, anchor.el);
     }
   }
+  if (section.origin && section.language === "jsx" && section.origin.file !== file && markupLanguage(batch.stack, file) === "jsx") {
+    const target = batch.jsx(file);
+    const missing = missingReferences(section.origin.node, target, placement.page ? pageFunction(target) : (batch.locate(placement.before ?? placement.after ?? placement.into, o.rev, "at").el as JsxElement).node);
+    if (missing.length > 0) throw new OpFailure("copy_reference_missing", "source", missing.slice(0, MAX_MISSING_NAMES).join(", "));
+  }
   const markup = sectionMarkup(batch, file, section);
   if (markup === "") throw new OpFailure("html_invalid", "html");
   const content = batch.content(file)!;
-  const placed = placeText(content, at, markup);
+  const placed = placeText(content, at, markup, section.language === "jsx" || markupLanguage(batch.stack, file) === "html" ? section.indent : undefined);
   const patcher = new Patcher(content);
   if (placement.before) patcher.insertBefore(at.index, placed.text);
   else patcher.insertAfter(at.index, placed.text);

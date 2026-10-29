@@ -8,7 +8,6 @@ import (
 
 type SystemConfig struct {
 	ID                     string    `gorm:"primaryKey;type:varchar(36);default:'default'"`
-	BaseSystemPrompt       string    `gorm:"type:text"`
 	MaxConcurrentCalls     int       `gorm:"column:max_concurrent_calls;type:int;default:30"`
 	WorkTimeEnabled        bool      `gorm:"type:bool;default:false"`
 	WorkTimeStart          string    `gorm:"type:varchar(5);default:'08:00'"`

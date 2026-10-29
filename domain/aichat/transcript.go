@@ -35,7 +35,7 @@ type transcriptThinking struct {
 func EncodeTranscript(turn []ai.Message) ([]byte, error) {
 	out := make([]transcriptMessage, 0, len(turn))
 	for _, m := range turn {
-		if m.Role != ai.RoleAssistant && m.Role != ai.RoleTool {
+		if m.Role != ai.RoleAssistant && m.Role != ai.RoleTool && m.Role != ai.RoleUser {
 			continue
 		}
 		stored := transcriptMessage{Role: m.Role, Content: m.Content, ToolCallID: m.ToolCallID}

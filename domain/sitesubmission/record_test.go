@@ -37,6 +37,7 @@ func TestTheFollowUpChannelMustReachTheIdentityTheFormAsks(t *testing.T) {
 		"form without identity and workflow":  {siteform.Manifest{ID: "x"}, site.FormSettings{WorkflowID: "wf", FollowUp: whatsapp}, ErrFormChannelRequired},
 		"unknown channel kind":                {phoneForm(), site.FormSettings{WorkflowID: "wf", FollowUp: &site.FollowUp{Kind: "sms", ID: "x"}}, ErrFormChannelRequired},
 		"whatsapp success needs a channel id": {phoneForm(), site.FormSettings{Success: &site.Success{Kind: site.SuccessWhatsApp}}, ErrSuccessChannelRequired},
+		"a live legacy funnel stays live":     {phoneForm(), site.FormSettings{FunnelID: "f1"}, nil},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

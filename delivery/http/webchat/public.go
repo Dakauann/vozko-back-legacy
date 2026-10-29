@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -187,19 +188,21 @@ func (h *PublicHandler) serveAsset(w http.ResponseWriter, name, cacheControl str
 }
 
 // @Summary		Janela do WebChat
-// @Description	Página do chat carregada pelo script dentro de um iframe. Só pode ser exibida nos sites permitidos do chat (Content-Security-Policy frame-ancestors). Chat pausado ou removido responde 404.
+// @Description	Página do chat carregada pelo script dentro de um iframe. Só pode ser exibida nos sites permitidos do chat (Content-Security-Policy frame-ancestors). Numa prévia de página da Vozko (origin com o endereço assinado da prévia, do mesmo workspace do chat) a janela é uma demonstração: só a prévia e o editor podem exibi-la e nenhuma mensagem é enviada. Prévia inválida ou vencida, chat pausado ou removido responde 404.
 // @Tags			WebChat
 // @Produce		html
 // @Param			publicKey	path	string	true	"chave pública do chat"
+// @Param			origin		query	string	false	"origem da página que exibe o chat"
 // @Success		200
 // @Failure		404
 // @Router			/public/webchat/{publicKey}/frame [get]
 func (h *PublicHandler) Frame(w http.ResponseWriter, r *http.Request) {
-	widget, err := h.visitors.WidgetForFrame(r.Context(), mux.Vars(r)["publicKey"])
+	frame, err := h.visitors.WidgetForFrame(r.Context(), mux.Vars(r)["publicKey"], r.URL.Query().Get("origin"))
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
+	widget := frame.Widget
 	header := w.Header()
 	header.Set("Content-Type", "text/html; charset=utf-8")
 	header.Set("Cache-Control", "no-store")
@@ -214,7 +217,7 @@ func (h *PublicHandler) Frame(w http.ResponseWriter, r *http.Request) {
 		"connect-src 'self'",
 		"form-action 'none'",
 		"base-uri 'none'",
-		"frame-ancestors " + widget.FrameAncestors(),
+		"frame-ancestors " + frame.Ancestors,
 	}, "; "))
 	if err := frameTemplate.Execute(w, map[string]string{
 		"PublicKey": widget.PublicKey,
@@ -224,6 +227,7 @@ func (h *PublicHandler) Frame(w http.ResponseWriter, r *http.Request) {
 		"Position":  string(widget.Position),
 		"Label":     widget.LauncherLabel,
 		"Version":   h.version,
+		"Demo":      strconv.FormatBool(frame.Demo),
 	}); err != nil {
 		http.Error(w, "frame unavailable", http.StatusInternalServerError)
 	}
@@ -254,7 +258,7 @@ func (h *PublicHandler) Challenge(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Abrir sessão do visitante
-// @Description	Abre ou retoma a sessão de um visitante. Com token válido retoma o mesmo visitante; sem ele exige o desafio resolvido (challengeToken e nonce). Com identity (JWT assinado pelo site) o visitante é o cliente identificado, em qualquer aparelho. Devolve o token da sessão (30 dias, enviado como Authorization: Bearer), a aparência do chat e o que falta no formulário inicial. Limites: novas sessões por IP e por chat (429 rate_limited).
+// @Description	Abre ou retoma a sessão de um visitante. Com token válido retoma o mesmo visitante; sem ele exige o desafio resolvido (challengeToken e nonce). Com identity (JWT assinado pelo site) o visitante é o cliente identificado, em qualquer aparelho. Devolve o token da sessão (30 dias, enviado como Authorization: Bearer), a aparência do chat e o que falta no formulário inicial. Limites: novas sessões por IP e por chat (429 rate_limited). Quando parentOrigin é uma prévia assinada de página do mesmo workspace, a sessão é uma demonstração até a prévia vencer: as rotas da sessão respondem como de costume, mas nada é gravado (sem visitante, conversa, lead, mensagem ou arquivo) e nada chega à caixa de entrada. Prévia inválida, vencida ou de outro workspace responde 403.
 // @Tags			WebChat
 // @Accept			json
 // @Produce		json
@@ -501,7 +505,7 @@ func (h *PublicHandler) Typing(w http.ResponseWriter, r *http.Request) {
 // @Description	| status | { kind: "status", state: human ou blocked } |
 // @Description	| ping | a cada 20 s |
 // @Description
-// @Description	A conexão fecha depois de 30 minutos; o chat reconecta e busca o que perdeu com GET .../messages?after=. No máximo 3 conexões por visitante (429).
+// @Description	A conexão fecha depois de 30 minutos; o chat reconecta e busca o que perdeu com GET .../messages?after=. No máximo 3 conexões por visitante (429). Numa sessão de demonstração (prévia de página) só chegam pings.
 // @Tags			WebChat
 // @Produce		text/event-stream
 // @Success		200
@@ -514,7 +518,7 @@ func (h *PublicHandler) Stream(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	events, cancel, err := h.stream.Subscribe(s.Visitor.ID)
+	events, cancel, err := h.subscribe(s)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -555,6 +559,13 @@ func (h *PublicHandler) Stream(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+func (h *PublicHandler) subscribe(s *wcuc.Session) (<-chan wcdomain.VisitorEvent, func(), error) {
+	if s.Demo {
+		return nil, func() {}, nil
+	}
+	return h.stream.Subscribe(s.Visitor.ID)
 }
 
 func writeEvent(w http.ResponseWriter, controller *http.ResponseController, name string, payload any) error {

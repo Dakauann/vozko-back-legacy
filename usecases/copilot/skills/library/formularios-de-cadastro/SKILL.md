@@ -1,6 +1,7 @@
 ---
 name: formularios-de-cadastro
 description: Anúncios com formulário instantâneo da Meta (cadastro sem sair do Facebook ou do Instagram): quando usar, como montar o formulário, qualidade dos cadastros e retorno rápido; carregue antes de criar ou avaliar um anúncio de cadastro.
+surface: ads
 ---
 
 # Formulários de cadastro (formulário instantâneo)
@@ -28,7 +29,7 @@ A Meta oferece dois tipos de formulário: mais volume (rápido de enviar no celu
 ## Depois do cadastro
 - Cadastro esfria em minutos: contate o quanto antes, idealmente na primeira hora. Veja funil-e-qualificacao.
 - Na plataforma os cadastros chegam em Formulários e leads (a busca na Meta roda a cada 15 minutos). Combine com o usuário quem liga ou manda mensagem e em quanto tempo.
-- Avalie pelo custo por cadastro qualificado, não só pelo custo por cadastro. Com conversões do CRM ligadas (get_ad_conversion_settings), a Meta aprende quem vira oportunidade e venda.
+- Avalie pelo custo por cadastro qualificado, não só pelo custo por cadastro. Com conversões do CRM ligadas (get_ad_conversion_settings), a Meta aprende quem vira negociação e venda.
 
 ## Erros comuns
 - Formulário longo demais ou com muitas respostas digitadas.

@@ -78,56 +78,23 @@ func TestEveryOperationFieldIsDocumentedBySomeFamily(t *testing.T) {
 	}
 }
 
-func shapeOf(params map[string]tools.Parameter) map[string]string {
-	out := map[string]string{}
-	var walk func(prefix string, params map[string]tools.Parameter)
-	walk = func(prefix string, params map[string]tools.Parameter) {
-		for name, p := range params {
-			out[prefix+name] = p.Type
-			if p.Items != nil {
-				out[prefix+name+"[]"] = p.Items.Type
-				walk(prefix+name+".", p.Items.Properties)
-			}
-		}
-	}
-	walk("", params)
-	return out
-}
-
-func TestTheCompactEditSchemaKeepsEveryFieldNameAndTypeAndTheOperationEnum(t *testing.T) {
+func TestTheCompactEditSchemaSendsOnlyTheOperationEnumAndTheCoreFields(t *testing.T) {
 	for _, kind := range studioKinds {
 		edit := studioEditFor(kind)
 		reference := edit.Definition().Parameters["operations"].Items
 		sent := copilot.DefinitionOn(edit, studioViewOf(kind)).Parameters["operations"].Items
-		if got, want := shapeOf(sent.Properties), shapeOf(reference.Properties); !mapsEqual(got, want) {
-			t.Fatalf("%s: the compact schema lost or changed fields", kind)
-		}
 		if !slices.Equal(sent.Properties["op"].Enum, edit.allowed) || !slices.Equal(sent.Required, reference.Required) {
 			t.Fatalf("%s: op enum %v required %v", kind, sent.Properties["op"].Enum, sent.Required)
 		}
-		for name, p := range sent.Properties {
-			if !slices.Contains(edit.core, name) && (p.Description != "" || len(p.Enum) > 0) {
-				t.Errorf("%s: %s still carries its documentation in every call", kind, name)
-			}
+		if len(sent.Properties) != len(edit.core) {
+			t.Fatalf("%s: the compact schema sends %d fields, want only the %d core fields; the rest lives in studio_op_guide", kind, len(sent.Properties), len(edit.core))
 		}
 		for _, name := range edit.core {
-			if sent.Properties[name].Description != reference.Properties[name].Description {
-				t.Errorf("%s: the core field %s lost its description", kind, name)
+			if got, want := sent.Properties[name], reference.Properties[name]; got.Type != want.Type || got.Description != want.Description || !slices.Equal(got.Enum, want.Enum) {
+				t.Errorf("%s: the core field %s changed: %+v", kind, name, got)
 			}
 		}
 	}
-}
-
-func mapsEqual(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if b[k] != v {
-			return false
-		}
-	}
-	return true
 }
 
 func TestTheCompactEditToolNamesEveryFamilyAndOperationAndPointsToTheGuide(t *testing.T) {
@@ -462,6 +429,33 @@ func TestTheIconFieldAcceptsLibraryIconIDs(t *testing.T) {
 		line = line[:strings.Index(line[1:], "\n")+1]
 		if !strings.Contains(line, "studio_library_search") || !strings.Contains(line, "add_element") {
 			t.Errorf("%s: icon_id should take library icon ids and send other library items to add_element: %s", kind, line)
+		}
+	}
+}
+
+func TestTheOpGuideIsAskedAgainOnlyWhenItLeftTheConversation(t *testing.T) {
+	library, err := skills.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	texts := map[string]string{"studio_op_guide": NewStudioOpGuideTool().Definition().Description}
+	for _, kind := range studioKinds {
+		texts[string(kind)+" edit"] = copilot.DefinitionOn(studioEditFor(kind), studioViewOf(kind)).Description
+	}
+	for _, name := range []string{"design-de-imagem", "edicao-de-video", "motion-design"} {
+		skill, _ := library.Find(name)
+		texts[name] = skill.Body
+	}
+	for name, text := range texts {
+		for _, stale := range []string{"peça de novo em cada nova resposta", "no começo de cada resposta, peça", "primeiro lote com uma família nesta resposta", "antes do primeiro lote da resposta"} {
+			if strings.Contains(text, stale) {
+				t.Errorf("%s still asks for the guide again every answer: %q", name, stale)
+			}
+		}
+	}
+	for name, text := range map[string]string{"studio_op_guide": texts["studio_op_guide"], "image edit": texts["image edit"], "video edit": texts["video edit"]} {
+		if !strings.Contains(text, "não está na conversa") && !strings.Contains(text, "não estiver mais na conversa") {
+			t.Errorf("%s does not say the guide is asked again only when it left the conversation", name)
 		}
 	}
 }

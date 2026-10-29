@@ -57,7 +57,7 @@ func (t *listDealPipelinesTool) Meta() copilot.Meta {
 }
 
 func (t *listDealPipelinesTool) Definition() tools.Definition {
-	return copilottools.Definition("list_deal_pipelines", "Lista os funis de oportunidades com as etapas de cada um.", struct{}{})
+	return copilottools.Definition("list_deal_pipelines", "Lista os funis de negociações com as etapas de cada um.", struct{}{})
 }
 
 func (t *listDealPipelinesTool) Execute(_ context.Context, cc copilot.Context, _ map[string]interface{}) copilot.Result {
@@ -90,7 +90,7 @@ func NewListDealsTool(deps DealDeps) copilot.Tool { return &listDealsTool{deps: 
 func (t *listDealsTool) Meta() copilot.Meta { return dealMeta(workspace.ActionRead, false) }
 
 func (t *listDealsTool) Definition() tools.Definition {
-	return copilottools.Definition("list_deals", "Lista as oportunidades de um funil que o usuário pode ver: título, etapa, valor e status.", listDealsArgs{})
+	return copilottools.Definition("list_deals", "Lista as negociações de um funil que o usuário pode ver: título, etapa, valor e status.", listDealsArgs{})
 }
 
 func (t *listDealsTool) Execute(_ context.Context, cc copilot.Context, args map[string]interface{}) copilot.Result {
@@ -127,10 +127,10 @@ func (t *listDealsTool) Execute(_ context.Context, cc copilot.Context, args map[
 type createDealArgs struct {
 	PipelineID string  `json:"pipeline_id" req:"true" desc:"pipeline_id exato de list_deal_pipelines" id:"true"`
 	StageID    string  `json:"stage_id" req:"true" desc:"stage_id exato de list_deal_pipelines" id:"true"`
-	Title      string  `json:"title" req:"true" desc:"nome da oportunidade"`
+	Title      string  `json:"title" req:"true" desc:"nome da negociação"`
 	Value      float64 `json:"value" desc:"valor na moeda do workspace (ex.: 1200.50)"`
-	LeadID     string  `json:"lead_id" desc:"lead_id de search_leads, quando a oportunidade é de um contato" id:"true"`
-	EntryID    string  `json:"entry_id" desc:"entry_id de search_conversations, para ligar a oportunidade à conversa"`
+	LeadID     string  `json:"lead_id" desc:"lead_id de search_leads, quando a negociação é de um contato" id:"true"`
+	EntryID    string  `json:"entry_id" desc:"entry_id de search_conversations, para ligar a negociação à conversa"`
 	EntryType  string  `json:"entry_type" desc:"entry_type da conversa, junto com entry_id"`
 }
 
@@ -141,7 +141,7 @@ func NewCreateDealTool(deps DealDeps) copilot.Tool { return &createDealTool{deps
 func (t *createDealTool) Meta() copilot.Meta { return dealMeta(workspace.ActionCreate, true) }
 
 func (t *createDealTool) Definition() tools.Definition {
-	return copilottools.Definition("create_deal", "Cria uma oportunidade num funil, opcionalmente ligada a uma conversa. Só depois da aprovação do usuário.", createDealArgs{})
+	return copilottools.Definition("create_deal", "Cria uma negociação num funil, opcionalmente ligada a uma conversa. Só depois da aprovação do usuário.", createDealArgs{})
 }
 
 func (t *createDealTool) Describe(_ context.Context, cc copilot.Context, args map[string]interface{}) []copilot.Field {
@@ -198,7 +198,7 @@ func (t *createDealTool) Execute(_ context.Context, cc copilot.Context, args map
 
 type moveDealArgs struct {
 	DealID     string `json:"deal_id" req:"true" desc:"deal_id exato de list_deals" id:"true"`
-	PipelineID string `json:"pipeline_id" req:"true" desc:"pipeline_id da oportunidade" id:"true"`
+	PipelineID string `json:"pipeline_id" req:"true" desc:"pipeline_id da negociação" id:"true"`
 	StageID    string `json:"stage_id" req:"true" desc:"stage_id de destino, do mesmo funil" id:"true"`
 }
 
@@ -209,13 +209,13 @@ func NewMoveDealTool(deps DealDeps) copilot.Tool { return &moveDealTool{deps: de
 func (t *moveDealTool) Meta() copilot.Meta { return dealMeta(workspace.ActionUpdate, true) }
 
 func (t *moveDealTool) Definition() tools.Definition {
-	return copilottools.Definition("move_deal", "Move uma oportunidade para outra etapa do funil. Só depois da aprovação do usuário.", moveDealArgs{})
+	return copilottools.Definition("move_deal", "Move uma negociação para outra etapa do funil. Só depois da aprovação do usuário.", moveDealArgs{})
 }
 
 func (t *moveDealTool) Describe(_ context.Context, cc copilot.Context, args map[string]interface{}) []copilot.Field {
 	var a moveDealArgs
 	copilottools.BindArgs(args, &a)
-	title := "oportunidade desconhecida"
+	title := "negociação desconhecida"
 	if deal, err := t.deps.Deals.Get(copilottools.PersonOf(cc), cc.WorkspaceID, strings.TrimSpace(a.DealID)); err == nil && deal != nil {
 		title = deal.Title
 	}
@@ -257,13 +257,13 @@ func NewLinkDealTool(deps DealDeps) copilot.Tool { return &linkDealTool{deps: de
 func (t *linkDealTool) Meta() copilot.Meta { return dealMeta(workspace.ActionUpdate, true) }
 
 func (t *linkDealTool) Definition() tools.Definition {
-	return copilottools.Definition("link_deal", "Liga uma conversa a uma oportunidade existente. Só depois da aprovação do usuário.", linkDealArgs{})
+	return copilottools.Definition("link_deal", "Liga uma conversa a uma negociação existente. Só depois da aprovação do usuário.", linkDealArgs{})
 }
 
 func (t *linkDealTool) Describe(_ context.Context, cc copilot.Context, args map[string]interface{}) []copilot.Field {
 	var a linkDealArgs
 	copilottools.BindArgs(args, &a)
-	title := "oportunidade desconhecida"
+	title := "negociação desconhecida"
 	if deal, err := t.deps.Deals.Get(copilottools.PersonOf(cc), cc.WorkspaceID, strings.TrimSpace(a.DealID)); err == nil && deal != nil {
 		title = deal.Title
 	}
@@ -296,17 +296,17 @@ func formatAmount(v float64) string {
 	return strings.Replace(strconv.FormatFloat(v, 'f', 2, 64), ".", ",", 1)
 }
 
-const dealLeadMismatch = "essa conversa é de outro contato; crie a oportunidade sem informar o contato ou informe o contato da conversa"
+const dealLeadMismatch = "essa conversa é de outro contato; crie a negociação sem informar o contato ou informe o contato da conversa"
 
 func dealFailure(tool string, err error) copilot.Result {
 	switch {
 	case errors.Is(err, opportunity.ErrEntryAccess):
 		return copilot.Result{Status: copilot.StatusDenied, Message: "o usuário não tem acesso a esta conversa"}
 	case errors.Is(err, opportunity.ErrScopeDenied):
-		return copilot.Result{Status: copilot.StatusDenied, Message: "o usuário não tem acesso às oportunidades deste workspace"}
+		return copilot.Result{Status: copilot.StatusDenied, Message: "o usuário não tem acesso às negociações deste workspace"}
 	case errors.Is(err, opportunity.ErrNotFound), errors.Is(err, opportunity_usecase.ErrPipelineNotFound),
 		errors.Is(err, opportunity_usecase.ErrStageNotFound), errors.Is(err, opportunity.ErrStageOutsidePipeline):
-		return copilot.Result{Status: copilot.StatusError, Message: "oportunidade, funil ou etapa desconhecidos; use os ids de list_deal_pipelines e list_deals"}
+		return copilot.Result{Status: copilot.StatusError, Message: "negociação, funil ou etapa desconhecidos; use os ids de list_deal_pipelines e list_deals"}
 	case errors.Is(err, opportunity_usecase.ErrNotOpportunityPipeline):
 		return copilot.Result{Status: copilot.StatusError, Message: "esse funil não é de vendas; use list_deal_pipelines"}
 	case errors.Is(err, opportunity_usecase.ErrLeadOutsideWorkspace), errors.Is(err, opportunity_usecase.ErrEntryOutsideWorkspace):
@@ -316,12 +316,12 @@ func dealFailure(tool string, err error) copilot.Result {
 	case errors.Is(err, opportunity.ErrLostReasonMissing):
 		return copilot.Result{Status: copilot.StatusError, Message: "para marcar como perdido é preciso um motivo de perda; faça pela tela de vendas"}
 	case errors.Is(err, opportunity.ErrWonWithoutValue):
-		return copilot.Result{Status: copilot.StatusError, Message: "para marcar como ganha a oportunidade precisa de um valor"}
+		return copilot.Result{Status: copilot.StatusError, Message: "para marcar como ganha a negociação precisa de um valor"}
 	case errors.Is(err, opportunity.ErrTitleOrLead):
 		return copilot.Result{Status: copilot.StatusError, Message: "informe um título ou um contato"}
 	}
 	log.Printf("[copilot] %s failed: %v", tool, err)
-	return copilot.Result{Status: copilot.StatusError, Message: "falha ao mudar as oportunidades"}
+	return copilot.Result{Status: copilot.StatusError, Message: "falha ao mudar as negociações"}
 }
 
 func (t *createDealTool) Validate(_ context.Context, cc copilot.Context, args map[string]interface{}) error {

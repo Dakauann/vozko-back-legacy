@@ -6,6 +6,7 @@ import (
 	"sort"
 	"testing"
 
+	"vozko/domain/sitesubmission"
 	"vozko/domain/workflow"
 	"vozko/usecases/formlead"
 )
@@ -145,5 +146,30 @@ func TestFormSubmittedRefusesAnIncompleteTrigger(t *testing.T) {
 	}
 	if len(h.runsByWorkflow()) != 0 {
 		t.Fatal("an incomplete trigger started a run")
+	}
+}
+
+func TestAPageFormSubmissionReachesTheWorkflowAsFlatFormVariables(t *testing.T) {
+	h := newTriggerHarness(t, formTriggeredWorkflow("wf-page", map[string]interface{}{workflow.FormTriggerFormIDsKey: []interface{}{"f_key1234567"}}))
+	sub := sitesubmission.Submission{
+		ID: "sub-1", ProjectID: "p-1", FormID: "contato", FormKey: "f_key1234567", Route: "/oferta",
+		Fields: map[string]string{"lead.name": "Ana", "field.interesse": "implante"},
+	}
+	err := h.firer.FormSubmitted(context.Background(), formlead.Trigger{
+		WorkspaceID: "ws-1", EntryID: "entry-1", EntryType: "whatsapp", Form: formlead.Form{Kind: formlead.KindSiteForm, ID: sub.FormKey}, SubmissionID: sub.ID,
+		Data: sub.TriggerData(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runs := h.runsByWorkflow()["wf-page"]
+	if len(runs) != 1 {
+		t.Fatalf("runs = %d", len(runs))
+	}
+	for ref, want := range map[string]string{"form.field.interesse": "implante", "form.lead.name": "Ana", workflow.DataKeyFormID: "f_key1234567", workflow.DataKeyFormResponseID: "sub-1", "route": "/oferta"} {
+		got, ok := workflow.ResolveVariable(ref, &runs[0].State)
+		if !ok || got != want {
+			t.Errorf("%s = %v (%v), want %s", ref, got, ok, want)
+		}
 	}
 }

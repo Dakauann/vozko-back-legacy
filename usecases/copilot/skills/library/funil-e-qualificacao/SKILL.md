@@ -1,6 +1,7 @@
 ---
 name: funil-e-qualificacao
 description: Como desenhar etapas de funil, qualificar contatos, responder rápido e fazer follow-up até fechar; carregue antes de criar funis, etapas, mover contatos ou planejar retorno a clientes.
+surface: ads
 ---
 
 # Funil e qualificação
@@ -29,4 +30,4 @@ Uma pergunta por vez no WhatsApp. Contato que não tem necessidade ou prazo não
 - Fora da janela de 24 horas do WhatsApp oficial, o retorno precisa de modelo aprovado.
 
 ## Na plataforma
-create_pipeline e create_stage montam o funil; set_initial_stage define onde o contato entra; move_conversation_stage move; schedule_message agenda retornos; create_deal registra oportunidade com valor. A análise automática das conversas pode mover etapas sozinha quando ligada no canal.
+create_pipeline e create_stage montam o funil; set_initial_stage define onde o contato entra; move_conversation_stage move; schedule_message agenda retornos; create_deal registra negociação com valor. A análise automática das conversas pode mover etapas sozinha quando ligada no canal.

@@ -25,12 +25,13 @@ type StudioJobs interface {
 }
 
 type StudioDeps struct {
-	Projects StudioProjects
-	Media    mediatools.MediaGeneration
-	Jobs     StudioJobs
-	Presets  StudioPresets
-	Links    StudioShortLinks
-	Library  StudioMediaLibrary
+	Projects   StudioProjects
+	Media      mediatools.MediaGeneration
+	Jobs       StudioJobs
+	Presets    StudioPresets
+	Links      StudioShortLinks
+	Library    StudioMediaLibrary
+	Perception StudioPerception
 }
 
 const (

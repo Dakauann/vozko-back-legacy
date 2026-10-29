@@ -11,6 +11,7 @@ import (
 	"vozko/domain/shared"
 	"vozko/domain/stage"
 	uw "vozko/domain/unofficial_whatsapp"
+	"vozko/domain/webchat"
 	businessphone "vozko/domain/whatsapp/business_phone"
 	"vozko/domain/workflow"
 	"vozko/domain/workspace"
@@ -95,12 +96,13 @@ func TestTheReferenceCatalogListsOnlyThisWorkspace(t *testing.T) {
 	}
 	checks := map[string][]ReferenceItem{
 		"funnels": got.Funnels, "members": got.Members, "departments": got.Departments, "workflows": got.Workflows,
-		"official": got.WhatsAppNumbers, "unofficial": got.UnofficialNumbers, "inboxes": got.EmailInboxes,
+		"official": got.WhatsAppNumbers, "unofficial": got.UnofficialNumbers, "inboxes": got.EmailInboxes, "chats": got.WebchatWidgets,
 	}
 	want := map[string]ReferenceItem{
 		"funnels": {ID: "f1", Name: "Funil f1"}, "members": {ID: "u1", Name: "Pessoa u1"}, "departments": {ID: "d1", Name: "Time d1"},
 		"workflows": {ID: "w1", Name: "Fluxo w1"}, "official": {ID: "p1", Name: "Clínica (+55 11 90000-0000)"},
 		"unofficial": {ID: "i1", Name: "Celular i1 (5511988887777)"}, "inboxes": {ID: "e1", Name: "Contato e1"},
+		"chats": {ID: "pk_c1", Name: "Chat c1"},
 	}
 	for name, items := range checks {
 		if len(items) != 1 || items[0] != want[name] {
@@ -109,6 +111,13 @@ func TestTheReferenceCatalogListsOnlyThisWorkspace(t *testing.T) {
 	}
 	if len(got.Stages) != 2 || got.Stages[0] != (StageReference{ID: "s1", Name: "Etapa s1", FunnelID: "f1"}) {
 		t.Fatalf("stages %+v", got.Stages)
+	}
+	if len(got.LeadFields) != 1 || got.LeadFields[0] != (ReferenceItem{ID: "field.cidade", Name: "Cidade"}) {
+		t.Fatalf("lead fields %+v", got.LeadFields)
+	}
+	other, err := refs.Catalog(context.Background(), wsB)
+	if err != nil || other.LeadFields == nil || len(other.LeadFields) != 0 {
+		t.Fatalf("other workspace lead fields %+v %v", other.LeadFields, err)
 	}
 }
 
@@ -127,5 +136,68 @@ func TestTheReferenceCatalogRefusesWhenAListCannotBeRead(t *testing.T) {
 	}
 	if _, err := refs.Catalog(context.Background(), wsA); err == nil {
 		t.Fatal("a list that cannot be read refuses instead of looking empty")
+	}
+}
+
+type refWidgets map[string]string
+
+func (r refWidgets) widget(id string) *webchat.Widget {
+	return &webchat.Widget{ID: id, WorkspaceID: r[id], PublicKey: "pk_" + id, Name: "Chat " + id}
+}
+
+func (r refWidgets) FindByPublicKey(_ context.Context, key string) (*webchat.Widget, error) {
+	for id := range r {
+		if "pk_"+id == key {
+			return r.widget(id), nil
+		}
+	}
+	return nil, webchat.ErrWidgetNotFound
+}
+
+func (r refWidgets) FindByID(_ context.Context, workspaceID, id string) (*webchat.Widget, error) {
+	if r[id] != workspaceID {
+		return nil, webchat.ErrWidgetNotFound
+	}
+	return r.widget(id), nil
+}
+
+func (r refWidgets) ListByWorkspace(_ context.Context, in webchat.ListWidgetsInput) (*shared.PaginatedResult[*webchat.Widget], error) {
+	return &shared.PaginatedResult[*webchat.Widget]{Items: idsFor(r, in.WorkspaceID, r.widget)}, nil
+}
+
+func TestTheSiteChatReferenceMustBeAWidgetOfThisWorkspace(t *testing.T) {
+	refs := newReferences(t)
+	if err := refs.CheckWebchat(context.Background(), wsA, "pk_c1"); err != nil {
+		t.Fatal(err)
+	}
+	for _, ref := range []string{"pk_c2", "pk_none"} {
+		if err := refs.CheckWebchat(context.Background(), wsA, ref); !errors.Is(err, ErrWebchatWidgetUnknown) {
+			t.Fatalf("%s: got %v", ref, err)
+		}
+	}
+}
+
+type refCalendars map[string]bool
+
+func (r refCalendars) Connected(_ context.Context, workspaceID string) (bool, error) {
+	if workspaceID == "broken" {
+		return false, errors.New("google auth: timeout")
+	}
+	return r[workspaceID], nil
+}
+
+func TestTheReferenceCatalogSaysWhetherTheGoogleCalendarCanTakeBookings(t *testing.T) {
+	refs := newReferences(t)
+	got, err := refs.Catalog(context.Background(), wsA)
+	if err != nil || !got.GoogleCalendar || got.BookingBlocks == nil || len(got.BookingBlocks) != 0 {
+		t.Fatalf("catalog %+v %v", got, err)
+	}
+	other, err := refs.Catalog(context.Background(), wsB)
+	if err != nil || other.GoogleCalendar {
+		t.Fatalf("another workspace reads as connected: %+v %v", other, err)
+	}
+	unknown, err := refs.Catalog(context.Background(), "broken")
+	if err != nil || unknown.GoogleCalendar {
+		t.Fatalf("an unreadable calendar must never read as connected: %+v %v", unknown, err)
 	}
 }

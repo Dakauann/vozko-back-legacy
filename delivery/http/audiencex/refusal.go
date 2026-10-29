@@ -45,6 +45,8 @@ var audienceStatuses = map[string]int{
 	"audience_list_metadata_missing":      http.StatusUnprocessableEntity,
 	"audience_list_column_unknown":        http.StatusUnprocessableEntity,
 	"audience_leads_metadata_unavailable": http.StatusUnprocessableEntity,
+	"audience_sheet_required":             http.StatusUnprocessableEntity,
+	"audience_sheet_unfit":                http.StatusUnprocessableEntity,
 	"audience_lead_status_invalid":        http.StatusBadRequest,
 	"template_suggestion_slot_invalid":    http.StatusUnprocessableEntity,
 	"audience_unavailable":                http.StatusServiceUnavailable,
@@ -62,11 +64,16 @@ var campaignStatuses = map[error]int{
 	campaign.ErrWorkflowForbidden:      http.StatusForbidden,
 	campaign.ErrAgentNotFound:          http.StatusUnprocessableEntity,
 	campaign.ErrAutomationUnavailable:  http.StatusServiceUnavailable,
+	campaign.ErrSheetsOfficialOnly:     http.StatusUnprocessableEntity,
 }
 
 var templateErrors = []error{wc.ErrCampaignTemplateNotFound, wc.ErrCampaignTemplateNotApproved, template.ErrTemplateNotSendable, template.ErrTemplateNotFound, template.ErrTemplateAccessDenied}
 
 var instanceErrors = []error{uw.ErrInstanceNotFound, uw.ErrInstanceOutsideDepartment, uw.ErrInstanceNotConnected, uw.ErrRestrictedByWA}
+
+type VariableDetails struct {
+	Variable string `json:"variable" example:"planilha_de_gravacao"`
+}
 
 func WriteRefusal(w http.ResponseWriter, err error) bool {
 	if err == nil {
@@ -83,6 +90,10 @@ func WriteRefusal(w http.ResponseWriter, err error) bool {
 	}
 	if code == CodeBusy {
 		w.Header().Set("Retry-After", retryAfterSeconds)
+	}
+	if key, named := audience.VariableOf(err); named {
+		response.WriteErrorWithDetails(w, status, code, err.Error(), VariableDetails{Variable: key})
+		return true
 	}
 	response.WriteErrorWithCode(w, status, code, err.Error(), nil)
 	return true

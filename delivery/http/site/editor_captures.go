@@ -26,7 +26,7 @@ const (
 )
 
 var captureRefusals = []response.ErrorRefusal{
-	{Err: sitethumbnail.ErrImageInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, CodeThumbnailInvalid, "A miniatura precisa ser uma imagem JPEG da página")},
+	{Err: sitethumbnail.ErrImageInvalid, Refusal: response.NewRefusal(http.StatusUnprocessableEntity, CodeThumbnailInvalid, "A miniatura precisa ser uma imagem JPEG do site")},
 }
 
 type CaptureProjects interface {

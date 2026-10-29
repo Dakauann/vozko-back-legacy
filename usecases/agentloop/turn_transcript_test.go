@@ -21,7 +21,7 @@ func TestTheSessionKeepsTheRepliesOwnMessages(t *testing.T) {
 	}
 	for _, m := range sess.Turn {
 		if m.Role == ai.RoleUser {
-			t.Fatalf("the request and notes are not part of the reply: %+v", m)
+			t.Fatalf("the request is stored on its own, not as part of the reply: %+v", m)
 		}
 	}
 }

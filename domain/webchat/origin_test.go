@@ -35,3 +35,13 @@ func TestSiteOriginsAreNeverSaved(t *testing.T) {
 		t.Fatalf("allowed origins changed: %v", w.AllowedOrigins)
 	}
 }
+
+func TestAPreviewFrameMayOnlyBeEmbeddedByItsPreviewAndTheEditor(t *testing.T) {
+	got := PreviewFrameAncestors("https://preview--abc.vozko.site", []string{"https://app.vozko.com", "not an origin; script-src *"})
+	if got != "https://preview--abc.vozko.site https://app.vozko.com" {
+		t.Fatalf("ancestors = %q", got)
+	}
+	if got := PreviewFrameAncestors("", nil); got != "'none'" {
+		t.Fatalf("no preview = %q", got)
+	}
+}

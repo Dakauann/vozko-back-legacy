@@ -155,11 +155,21 @@ func TestPublishLinksWhatsAppAnchorsThroughPageReferences(t *testing.T) {
 func TestPublishActivatesEmbeddedWidgetsByTheirID(t *testing.T) {
 	r := newRig(t)
 	r.builder.candidate = htmlCandidate(strings.Replace(homeHTML, "</body>", `<vz-webchat widget="pk_chat"></vz-webchat></body>`, 1))
-	if _, err := r.svc.Publish(context.Background(), actor, projectID); err != nil {
+	res, err := r.svc.Publish(context.Background(), actor, projectID)
+	if err != nil {
 		t.Fatal(err)
 	}
 	if got := r.forms.activated[0].Widgets; len(got) != 1 || got[0] != "6b1f6d2e-3c4a-4f5b-8e9d-0a1b2c3d4e5f" {
 		t.Fatalf("widgets = %v", got)
+	}
+	manifest, _ := sitepublish.DecodeDeploymentManifest(r.hosting.manifests[res.Deployment.ID])
+	served := string(r.hosting.blobs[manifest.Files[manifest.Routes["/"]].SHA256])
+	if !strings.Contains(served, `data-vz-webchat-key="pk_chat"`) {
+		t.Fatalf("the page carries the widget public key for the runtime: %s", served)
+	}
+	csp := manifest.ContentSecurityPolicy()
+	if !strings.Contains(csp, "https://api.vozko.test/public/webchat/loader.js") || !strings.Contains(csp, "https://api.vozko.test/public/webchat/") {
+		t.Fatalf("csp %s", csp)
 	}
 	r.builder.candidate = htmlCandidate(strings.Replace(homeHTML, "</body>", `<vz-webchat widget="6b1f6d2e-3c4a-4f5b-8e9d-0a1b2c3d4e5f"></vz-webchat></body>`, 1))
 	if _, err := r.svc.Publish(context.Background(), actor, projectID); err != nil {

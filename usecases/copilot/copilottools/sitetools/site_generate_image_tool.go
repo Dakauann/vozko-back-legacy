@@ -36,7 +36,7 @@ type queuedGeneration interface {
 }
 
 type siteImagePlacementArgs struct {
-	Node string `json:"node,omitempty" desc:"opcional: um img da página (arquivo#offset); a imagem nova entra no lugar"`
+	Node string `json:"node,omitempty" desc:"opcional: um img do site (arquivo#offset); a imagem nova entra no lugar"`
 	Rev  int    `json:"rev,omitempty" desc:"com node: rev do arquivo em que o node foi lido"`
 	Alt  string `json:"alt,omitempty" desc:"com node: o que a imagem mostra, para quem não vê"`
 }
@@ -64,7 +64,7 @@ func (t *siteGenerateImageTool) NeedsApproval(mode copilot.Mode) bool {
 func (t *siteGenerateImageTool) Definition() tools.Definition {
 	inner := t.inner.Definition()
 	def := copilottools.Definition("site_generate_image",
-		"Gera uma imagem com IA pelo mesmo módulo de generate_image e, com node, já a coloca num img da página aberta pelo mesmo caminho de site_edit; sem node, só guarda na biblioteca. "+
+		"Gera uma imagem com IA pelo mesmo módulo de generate_image e, com node, já a coloca num img do site aberto pelo mesmo caminho de site_edit; sem node, só guarda na biblioteca. "+
 			"É cobrada do saldo pelo custo do provedor; conforme o modo do usuário, roda direto ou pede aprovação (o usuário escolhe o modelo no cartão). Devolve media_id, media_url e, colocada, changed e open_gaps.",
 		siteImagePlacementArgs{})
 	for name, param := range inner.Parameters {

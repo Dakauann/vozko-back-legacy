@@ -1,6 +1,7 @@
 ---
 name: impulsionar-publicacao
 description: Quando e como transformar uma publicação existente do Facebook ou do Instagram em anúncio (impulsionar) e quando é melhor criar um anúncio do zero; carregue antes de impulsionar uma publicação.
+surface: ads
 ---
 
 # Impulsionar uma publicação existente

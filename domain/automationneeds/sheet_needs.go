@@ -65,3 +65,22 @@ func (v Variables) WithDeclaredDefaults(catalog variabledecl.Catalog) Variables 
 	sort.Slice(out.Optional, func(i, j int) bool { return out.Optional[i].Name < out.Optional[j].Name })
 	return out
 }
+
+func (n Need) IsSheet() bool {
+	return n.Type.Kind == variabledecl.KindSheet || len(n.SheetUses) > 0
+}
+
+func (n Need) DeclaredDefault() string {
+	return variabledecl.DefaultOf(variabledecl.Declaration{Type: n.Type})
+}
+
+func (n Needs) Typed(catalog variabledecl.Catalog, registry *variabledecl.Registry) Needs {
+	out := n.Labeled(catalog)
+	if registry == nil {
+		return out
+	}
+	for i := range out {
+		out[i].Shape = registry.ShapeOf(out[i].Type)
+	}
+	return out
+}

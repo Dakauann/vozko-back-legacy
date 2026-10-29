@@ -29,8 +29,8 @@ func TestAPublishedPageEmbeddingTheWidgetIsAcceptedWithoutEditingIt(t *testing.T
 	if len(pages.asked) != 1 || pages.asked[0] != "ws-1/widget-1" {
 		t.Fatalf("asked %v", pages.asked)
 	}
-	frame, err := h.svc.WidgetForFrame(context.Background(), h.widget.PublicKey)
-	if err != nil || !frame.AllowsOrigin("https://ofertas.vozko.site") {
+	frame, err := h.svc.WidgetForFrame(context.Background(), h.widget.PublicKey, "")
+	if err != nil || !frame.Widget.AllowsOrigin("https://ofertas.vozko.site") {
 		t.Fatalf("frame widget %v", err)
 	}
 	pages.origins = nil

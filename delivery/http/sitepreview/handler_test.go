@@ -160,3 +160,15 @@ func TestDispatchRoutesPreviewHostsBeforeTheAPI(t *testing.T) {
 		}
 	}
 }
+
+func TestThePreviewMayLoadOnlyTheSiteChatLoaderAndFrame(t *testing.T) {
+	server := &fakeServer{served: sitebuild.Served{ContentType: "text/html; charset=utf-8", Body: []byte("<html></html>")}}
+	rec := httptest.NewRecorder()
+	newHandler(t, server).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "https://preview--tok.paginas.test/", nil))
+	csp := rec.Header().Get("Content-Security-Policy")
+	for _, want := range []string{"script-src 'self' https://api.vozkoia.com/public/webchat/loader.js;", "frame-src https://api.vozkoia.com/public/webchat/;"} {
+		if !strings.Contains(csp, want) {
+			t.Fatalf("csp %q misses %q", csp, want)
+		}
+	}
+}

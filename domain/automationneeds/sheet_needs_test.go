@@ -76,3 +76,37 @@ func TestADeclaredDefaultMakesAPlanilhaOptional(t *testing.T) {
 		t.Fatalf("optional = %+v", got.Optional)
 	}
 }
+
+func TestANeedIsASheetWhenDeclaredAsAPlanilhaOrWrittenBySheetSteps(t *testing.T) {
+	declared := Need{Name: "planilha", Type: variabledecl.Type{Kind: variabledecl.KindSheet}}
+	written := Need{Name: "planilha", SheetUses: []sheetfit.Use{{ModelSheetID: "m", Kind: sheetfit.UseAddRow}}}
+	text := Need{Name: "nome", Type: variabledecl.Type{Kind: variabledecl.KindText}}
+	if !declared.IsSheet() || !written.IsSheet() || text.IsSheet() {
+		t.Fatalf("declared = %v written = %v text = %v", declared.IsSheet(), written.IsSheet(), text.IsSheet())
+	}
+}
+
+func TestADeclaredPlanilhaCarriesItsReceptiveDefault(t *testing.T) {
+	need := Need{Name: "planilha", Type: variabledecl.Type{Kind: variabledecl.KindSheet, Settings: map[string]string{variabledecl.SettingDefault: " sp-centro "}}}
+	if got := need.DeclaredDefault(); got != "sp-centro" {
+		t.Fatalf("default = %q", got)
+	}
+	if got := (Need{Name: "nome"}).DeclaredDefault(); got != "" {
+		t.Fatalf("an undeclared default = %q", got)
+	}
+}
+
+func TestTypedNeedsCarryTheDeclaredTypeAndItsShape(t *testing.T) {
+	registry, err := variabledecl.NewRegistry(variabledecl.Builtin()...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog := variabledecl.NewCatalog([]variabledecl.Declaration{{Name: "turno", Label: "Turno", Type: variabledecl.Type{Kind: variabledecl.KindChoice, Options: []string{"Manhã", "Tarde"}}}})
+	got := Needs{{Name: "turno"}, {Name: "livre"}}.Typed(catalog, registry)
+	if got[0].Shape != variabledecl.ShapeChoice || got[0].Label != "Turno" || !reflect.DeepEqual(got[0].Type.Options, []string{"Manhã", "Tarde"}) {
+		t.Fatalf("turno = %+v", got[0])
+	}
+	if got[1].Shape != variabledecl.ShapeText || got[1].Declared {
+		t.Fatalf("livre = %+v", got[1])
+	}
+}

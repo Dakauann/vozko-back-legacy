@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"vozko/domain/campaign"
+	"vozko/domain/variabledecl"
 )
 
 type Outcome string
@@ -25,6 +26,8 @@ const (
 	BlockerLeadsMetadataUnavailable Blocker = "leads_metadata_unavailable"
 	BlockerTemplateRequired         Blocker = "template_required"
 	BlockerMessageRequired          Blocker = "message_required"
+	BlockerSheetRequired            Blocker = "sheet_required"
+	BlockerSheetUnfit               Blocker = "sheet_unfit"
 )
 
 const ReasonMissingVariable = string(campaign.SkipMissingVariable)
@@ -69,6 +72,26 @@ type VariableCount struct {
 	Optional       bool                   `json:"optional"`
 	Default        string                 `json:"default,omitempty" example:"cordial"`
 	Invalid        int                    `json:"invalid"`
+	Sheet          bool                   `json:"sheet"`
+	SheetUnfit     string                 `json:"sheetUnfit,omitempty" example:"sheet_fit_tab_missing"`
+	Type           *VariableType          `json:"type,omitempty"`
+}
+
+type VariableType struct {
+	Kind    variabledecl.Kind  `json:"kind" example:"choice"`
+	Shape   variabledecl.Shape `json:"shape" enums:"text,number,date,choice,sheet" example:"choice"`
+	Options []string           `json:"options"`
+}
+
+func typeOf(b Bound) *VariableType {
+	if !b.Automation() || b.Type.Kind == "" {
+		return nil
+	}
+	options := b.Type.Options
+	if options == nil {
+		options = []string{}
+	}
+	return &VariableType{Kind: b.Type.Kind, Shape: b.Shape, Options: options}
 }
 
 type SelectionCount struct {
@@ -127,7 +150,7 @@ func (t *Tally) Checking(accept func(key, value string) bool) *Tally {
 
 func (t *Tally) fits(i int, value string) bool {
 	b := t.bound[i]
-	if value == "" || t.accept == nil || !b.Automation() || t.accept(b.Key, value) {
+	if value == "" || t.accept == nil || !b.Automation() || b.Sheet || t.accept(b.Key, value) {
 		return true
 	}
 	t.invalid[i]++
@@ -150,7 +173,7 @@ func (t *Tally) sourcesRequired() bool {
 
 func (t *Tally) skipsSlot(i int) bool {
 	b := t.bound[i]
-	return !b.fed() && (b.Optional || t.sourcesRequired() || b.Source == campaign.BindLiteral)
+	return !b.fed() && (b.Optional || b.Sheet || t.sourcesRequired() || b.Source == campaign.BindLiteral)
 }
 
 func (t *Tally) Add(c Candidate) Decision {
@@ -255,8 +278,11 @@ func (t *Tally) blockers() []Blocker {
 			break
 		}
 	}
+	if blocker, _ := t.sheetBlocker(); blocker != "" {
+		blockers = append(blockers, blocker)
+	}
 	for i, b := range t.bound {
-		if t.skipsSlot(i) && !b.Optional {
+		if t.skipsSlot(i) && !b.Optional && !b.Sheet {
 			blockers = append(blockers, BlockerSourceRequired)
 			break
 		}
@@ -285,9 +311,28 @@ func (t *Tally) metadataBlocker() Blocker {
 	return BlockerLeadsMetadataUnavailable
 }
 
+func (t *Tally) sheetBlocker() (Blocker, string) {
+	for _, b := range t.bound {
+		switch {
+		case !b.Sheet || b.Optional && Unbound(b):
+		case Unbound(b):
+			return BlockerSheetRequired, b.Key
+		case b.SheetUnfit != "":
+			return BlockerSheetUnfit, b.Key
+		}
+	}
+	return "", ""
+}
+
 func (t *Tally) Creatable() error {
 	for _, blocker := range t.blockers() {
 		switch blocker {
+		case BlockerSheetRequired:
+			_, key := t.sheetBlocker()
+			return variableError(ErrSheetRequired, key)
+		case BlockerSheetUnfit:
+			_, key := t.sheetBlocker()
+			return variableError(ErrSheetUnfit, key)
 		case BlockerTemplateRequired:
 			return ErrTemplateRequired
 		case BlockerMessageRequired:
@@ -319,7 +364,7 @@ func (t *Tally) Count() Count {
 		count.OutTotal += n
 	}
 	for i, b := range t.bound {
-		v := VariableCount{Key: b.Key, Name: b.Name, Header: b.Header, Source: b.Source, Value: b.Value, Missing: t.missing[i], Policy: b.Missing, Text: b.Text, Fallback: b.Fallback, Suggested: b.Suggested, Kind: SlotTemplate, NeededBy: b.NeededBy, Column: b.Column, ColumnMissing: b.ColumnMissing, Optional: b.Optional, Default: b.Default, Invalid: t.invalid[i]}
+		v := VariableCount{Key: b.Key, Name: b.Name, Header: b.Header, Source: b.Source, Value: b.Value, Missing: t.missing[i], Policy: b.Missing, Text: b.Text, Fallback: b.Fallback, Suggested: b.Suggested, Kind: SlotTemplate, NeededBy: b.NeededBy, Column: b.Column, ColumnMissing: b.ColumnMissing, Optional: b.Optional, Default: b.Default, Invalid: t.invalid[i], Sheet: b.Sheet, SheetUnfit: b.SheetUnfit, Type: typeOf(b)}
 		if b.Automation() {
 			v.Kind = SlotAutomation
 		}

@@ -2,6 +2,7 @@ package campaignaudience
 
 import (
 	"errors"
+	"fmt"
 
 	"vozko/domain/campaign"
 )
@@ -42,7 +43,35 @@ var (
 	ErrColumnNeedsList          = errors.New("campaign audience: only a list audience has columns to feed a variable")
 	ErrColumnWithSource         = errors.New("campaign audience: a variable reads a list column, a lead field or a fixed text, never two of them")
 	ErrDefaultUnavailable       = errors.New("campaign audience: only an agent variable with a default can use it")
+	ErrSheetLiteralOnly         = errors.New("campaign audience: a Planilha is one spreadsheet for the whole campaign, never a list column, a lead field or a missing policy")
+	ErrSheetRequired            = errors.New("campaign audience: choose the spreadsheet the automation writes to")
+	ErrSheetUnfit               = errors.New("campaign audience: the chosen spreadsheet does not fit what the automation writes")
 )
+
+type VariableError struct {
+	Cause error
+	Key   string
+}
+
+func (e *VariableError) Error() string {
+	return fmt.Sprintf("%v: %q", e.Cause, e.Key)
+}
+
+func (e *VariableError) Unwrap() error {
+	return e.Cause
+}
+
+func variableError(cause error, key string) error {
+	return &VariableError{Cause: cause, Key: key}
+}
+
+func VariableOf(err error) (string, bool) {
+	var named *VariableError
+	if !errors.As(err, &named) || named.Key == "" {
+		return "", false
+	}
+	return named.Key, true
+}
 
 var errorCodes = []struct {
 	err  error
@@ -84,6 +113,9 @@ var errorCodes = []struct {
 	{ErrColumnNeedsList, "audience_variable_column_needs_list"},
 	{ErrColumnWithSource, "audience_variable_column_with_source"},
 	{ErrDefaultUnavailable, "audience_variable_default_unavailable"},
+	{ErrSheetLiteralOnly, "audience_variable_sheet_literal_only"},
+	{ErrSheetRequired, "audience_sheet_required"},
+	{ErrSheetUnfit, "audience_sheet_unfit"},
 	{campaign.ErrListEmpty, "audience_file_empty"},
 	{campaign.ErrListContactColumn, "audience_contact_column_missing"},
 	{campaign.ErrListTooWide, "audience_file_too_wide"},

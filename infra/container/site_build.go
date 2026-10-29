@@ -9,12 +9,15 @@ import (
 
 	"vozko/delivery/http/sitepreview"
 	"vozko/domain/site"
+	"vozko/domain/sitepublish"
 	"vozko/infra/config"
 	site_repository "vozko/infra/repositories/site"
+	webchat_repository "vozko/infra/repositories/webchat"
 	"vozko/infra/sitebuilder"
 	"vozko/infra/siteruntime"
 	site_usecase "vozko/usecases/site"
 	"vozko/usecases/sitebuild"
+	wcuc "vozko/usecases/webchat"
 )
 
 func siteRuntimeFiles() map[string]string {
@@ -70,6 +73,7 @@ func (c *Container) siteBuild() *sitebuild.Service {
 		Media:      sitebuild.MediaFromRepository(c.repositories.media),
 		Sections:   sections,
 		WhatsApp:   c.siteFormsForPublish(),
+		Widgets:    webchat_repository.NewWidgetRepository(c.db),
 		Workspaces: siteWorkspaceNames{c: c},
 	})
 	if err != nil {
@@ -78,6 +82,20 @@ func (c *Container) siteBuild() *sitebuild.Service {
 	c.siteShared.build = service
 	return service
 }
+
+type sitePreviewGrants struct {
+	c *Container
+}
+
+func (g sitePreviewGrants) PreviewOrigin(origin string) bool {
+	return g.c.siteBuild().PreviewOrigin(origin)
+}
+
+func (g sitePreviewGrants) PreviewGrant(ctx context.Context, origin string) (sitepublish.PreviewGrant, bool, error) {
+	return g.c.siteBuild().PreviewGrant(ctx, origin)
+}
+
+var _ wcuc.PreviewGrants = sitePreviewGrants{}
 
 type siteBuildEditor struct {
 	service *sitebuild.Service

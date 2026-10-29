@@ -119,7 +119,7 @@ func (c *Container) buildReportRegistry() *report_domain.Registry {
 			report_renderers.NewConversationEntriesRenderer(c.useCases.exportEntries, reportDepartmentScopes{members: c.repositories.workspace, departments: c.repositories.workspaceDepartment}))
 	}
 	if c.services.opportunityIO != nil {
-		withPDF(report_domain.KindOpportunities, "oportunidades",
+		withPDF(report_domain.KindOpportunities, "negociacoes",
 			report_renderers.NewOpportunitiesRenderer(c.services.opportunityIO, c.useCases.personDeals))
 	}
 	registry.Register(c.leadExportRenderer())

@@ -1,6 +1,7 @@
 ---
 name: publico-e-segmentacao
 description: Como montar público, localização, idade, exclusões, públicos personalizados e semelhantes na Meta hoje; carregue antes de definir ou mudar o público de um anúncio.
+surface: ads
 ---
 
 # Público e segmentação na Meta

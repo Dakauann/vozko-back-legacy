@@ -11,10 +11,12 @@ import (
 	site_repository "vozko/infra/repositories/site"
 	sitepublish_repository "vozko/infra/repositories/sitepublish"
 	uwrepo "vozko/infra/repositories/unofficial_whatsapp"
+	webchat_repository "vozko/infra/repositories/webchat"
 	site_usecase "vozko/usecases/site"
 	"vozko/usecases/sitebuild"
 	"vozko/usecases/siteforms"
 	"vozko/usecases/siteinspect"
+	sitenext_usecase "vozko/usecases/sitenext"
 )
 
 func (c *Container) siteFormReferences() *site_usecase.WorkspaceReferences {
@@ -28,9 +30,12 @@ func (c *Container) siteFormReferences() *site_usecase.WorkspaceReferences {
 		PhoneList:   c.useCases.workspacePhones,
 		Instances:   uwrepo.NewInstanceRepository(c.db),
 		Inboxes:     emailinbox_repository.NewInboxRepository(c.db),
+		Widgets:     webchat_repository.NewWidgetRepository(c.db),
+		Calendars:   c.siteBookingCalendar(),
+		LeadFields:  c.repositories.customField,
 	})
 	if err != nil {
-		log.Fatalf("[sites] form settings need the pipeline, stage, member, department, workflow, phone, instance and inbox repositories: %v", err)
+		log.Fatalf("[sites] form settings need the pipeline, stage, member, department, workflow, phone, instance and inbox and chat widget repositories: %v", err)
 	}
 	return refs
 }
@@ -45,6 +50,7 @@ func (c *Container) siteStorage() *site_usecase.Service {
 		Executor:   builder,
 		Previewer:  builder,
 		References: c.siteFormReferences(),
+		Bindings:   c.siteFormsForPublish(),
 		Forms:      c.siteFormsForPublish(),
 		Retirement: siteRetirement{c: c},
 		Published:  sitePublishedRevisions{deployments: sitepublish_repository.NewDeployments(c.db)},
@@ -83,8 +89,13 @@ func siteRoutes(c *Container) deliveryHttp.SiteRoutes {
 	storage := c.siteStorage()
 	inspector := siteinspect.Service{Previews: storage, Cache: c.redisProvider.SharedState()}
 	outlines := siteinspect.Outlines{Inspector: inspector, State: c.redisProvider.SharedState()}
+	nextSteps, err := sitenext_usecase.New(sitenext_usecase.Deps{Projects: storage, Outlines: outlines, Hostnames: c.siteHostnameReader()})
+	if err != nil {
+		log.Fatalf("[sites] %v", err)
+	}
 	return deliveryHttp.SiteRoutes{
-		Storage:  sitehttp.NewHandler(storage, outlines, c.siteSections(), c.useCases.checkWsAccess, apiOrigin(c.cfg.Sites)),
-		Captures: sitehttp.NewCaptureHandler(storage, outlines, c.siteThumbnails()),
+		Storage:   sitehttp.NewHandler(storage, outlines, c.siteSections(), c.useCases.checkWsAccess, apiOrigin(c.cfg.Sites)),
+		Captures:  sitehttp.NewCaptureHandler(storage, outlines, c.siteThumbnails()),
+		NextSteps: sitehttp.NewNextStepsHandler(nextSteps),
 	}
 }

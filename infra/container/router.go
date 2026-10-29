@@ -138,6 +138,7 @@ func (c *Container) initRouter() {
 		siteRoutes(c),
 		sitePublishRoutes(c),
 		siteFormRoutes(c),
+		c.tutorialHandler(),
 	)
 
 }

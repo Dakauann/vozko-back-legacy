@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -45,24 +46,20 @@ func (g Graph) CampaignVarNodes() map[string][]string {
 }
 
 func VariableUseIssues(g *Graph) []LintIssue {
+	names := make([]string, len(g.Variables))
+	for i, use := range g.Variables {
+		names[i] = use.Name
+	}
 	var issues []LintIssue
-	seen := map[string]bool{}
-	for _, use := range g.Variables {
-		problem := ""
-		switch err := variabledecl.CheckName(use.Name); {
-		case err != nil:
-			problem = fmt.Sprintf("O dado %q do fluxo tem um nome inválido", use.Name)
-		case seen[use.Name]:
-			problem = fmt.Sprintf("O dado %q aparece duas vezes nos dados do fluxo", use.Name)
-		}
-		seen[use.Name] = true
-		if problem == "" {
-			continue
+	for _, problem := range variabledecl.UseProblems(names) {
+		message := fmt.Sprintf("O dado %q do fluxo tem um nome inválido", problem.Name)
+		if errors.Is(problem.Err, variabledecl.ErrNameRepeated) {
+			message = fmt.Sprintf("O dado %q aparece duas vezes nos dados do fluxo", problem.Name)
 		}
 		issues = append(issues, LintIssue{
-			Code: LintGraphVariableInvalid, Severity: SeverityBlocking, Path: use.Name,
-			Message: problem, Hint: "Abra Dados do fluxo e corrija ou remova esse dado.",
-			Values: map[string]string{"name": use.Name},
+			Code: LintGraphVariableInvalid, Severity: SeverityBlocking, Path: problem.Name,
+			Message: message, Hint: "Abra Dados do fluxo e corrija ou remova esse dado.",
+			Values: map[string]string{"name": problem.Name},
 		})
 	}
 	return issues

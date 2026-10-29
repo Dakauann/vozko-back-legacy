@@ -30,6 +30,7 @@ type Deps struct {
 	Executor   Executor
 	Previewer  Previewer
 	References FormReferences
+	Bindings   FormBindings
 	Forms      FormsRetirement
 	Retirement PublicationRetirement
 	Published  PublishedRevisions
@@ -47,6 +48,7 @@ type Service struct {
 	executor   Executor
 	previewer  Previewer
 	references FormReferences
+	bindings   FormBindings
 	forms      FormsRetirement
 	retirement PublicationRetirement
 	published  PublishedRevisions
@@ -60,7 +62,7 @@ type Service struct {
 }
 
 func NewService(d Deps) (*Service, error) {
-	if d.Store == nil || d.Executor == nil || d.Previewer == nil || d.References == nil || d.Forms == nil || d.Retirement == nil || d.Published == nil || d.Media == nil ||
+	if d.Store == nil || d.Executor == nil || d.Previewer == nil || d.References == nil || d.Bindings == nil || d.Forms == nil || d.Retirement == nil || d.Published == nil || d.Media == nil ||
 		d.Numbers == nil || d.Hostnames == nil || d.Previews == nil {
 		return nil, ErrMissingDependency
 	}
@@ -70,7 +72,7 @@ func NewService(d Deps) (*Service, error) {
 	if d.NewID == nil {
 		d.NewID = uuid.NewString
 	}
-	return &Service{store: d.Store, executor: d.Executor, previewer: d.Previewer, references: d.References, forms: d.Forms, retirement: d.Retirement, published: d.Published, media: d.Media,
+	return &Service{store: d.Store, executor: d.Executor, previewer: d.Previewer, references: d.References, bindings: d.Bindings, forms: d.Forms, retirement: d.Retirement, published: d.Published, media: d.Media,
 		numbers: d.Numbers, hostnames: d.Hostnames, previews: d.Previews, origins: d.Origins, now: d.Now, newID: d.NewID}, nil
 }
 

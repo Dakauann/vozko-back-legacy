@@ -1,6 +1,7 @@
 ---
 name: video-com-som
 description: Como montar um vídeo de anúncio com música, locução e efeitos sonoros (generate_music, generate_voiceover, render_video, studio_generate_sfx) que funcione mudo e com som; carregue antes de criar qualquer vídeo ou som de anúncio.
+surface: ads
 ---
 
 # Vídeo de anúncio com som

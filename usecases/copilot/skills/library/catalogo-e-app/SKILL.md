@@ -1,6 +1,7 @@
 ---
 name: catalogo-e-app
 description: Anúncios de catálogo (a Meta mostra os produtos certos para cada pessoa) e de promoção de aplicativo: requisitos, catálogo bem cuidado, otimização e criativos; carregue antes de criar anúncios de catálogo ou de app.
+surface: ads
 ---
 
 # Catálogo e aplicativo

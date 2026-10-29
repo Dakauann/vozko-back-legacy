@@ -22,6 +22,7 @@ export interface ShellInput {
   primary_origin?: string;
   favicon?: string;
   structured_data?: unknown[];
+  webchat?: string;
 }
 
 export const originPlaceholder = "__VZ_ORIGIN__";
@@ -57,6 +58,8 @@ export interface ShellParts {
   consentDefault?: string;
   runtime: string;
   bridge?: string;
+  classCompiler?: string;
+  classTheme?: string;
   integrations: IntegrationScript[];
   body: string;
   appScripts: string[];
@@ -95,16 +98,24 @@ export function renderShell(parts: ShellParts): string {
   for (const data of parts.shell.structured_data ?? []) head.push(`<script type="application/ld+json">${jsonForScript(data)}</script>`);
   for (const href of parts.styles) head.push(`<link rel="stylesheet"${attr("href", href)}>`);
   for (const href of parts.preloads) head.push(`<link rel="modulepreload"${attr("href", href)}>`);
+  if (parts.mode === "preview" && parts.classCompiler) head.push(`<style type="text/tailwindcss">${classCompilerSource(parts.classTheme ?? "")}</style>`);
   head.push(`<script type="module"${attr("src", parts.runtime)}></script>`);
   for (const script of parts.integrations) {
     head.push(`<script type="text/plain"${attr("data-vz-consent", script.category)}${attr("data-vz-integration", script.kind)}${attr("src", script.src)}></script>`);
   }
   const body: string[] = [parts.body];
+  if (parts.shell.webchat && !/<vz-webchat\b/i.test(parts.body)) body.push(`<vz-webchat${attr("widget", parts.shell.webchat)}></vz-webchat>`);
   for (const src of parts.appScripts) body.push(`<script type="module" data-vz-app${attr("src", src)}></script>`);
   if (parts.bridge) body.push(`<script type="module"${attr("src", parts.bridge)}></script>`);
+  if (parts.mode === "preview" && parts.classCompiler) body.push(`<script defer${attr("src", parts.classCompiler)} data-vz-tailwind-browser></script>`);
   let html = `<html${attr("lang", parts.lang)}${attr("data-vz-api", parts.shell.api)}${attr("data-vz-forms", JSON.stringify(parts.shell.forms))}${attr("data-vz-route", parts.route)}`;
+  if (parts.mode === "preview") html += " data-vz-preview";
   if (parts.shell.variant) html += attr("data-vz-variant", parts.shell.variant);
   return normalizeDocument(`<!doctype html>\n${html}><head>${head.join("")}</head><body>${body.join("")}</body></html>`);
+}
+
+export function classCompilerSource(theme: string): string {
+  return `@import "tailwindcss/theme" layer(theme);@import "tailwindcss/utilities" layer(utilities);${theme.replace(/</g, "\\3c ")}`;
 }
 
 export function normalizeDocument(html: string): string {
@@ -122,8 +133,16 @@ const integrationIds: Record<string, RegExp> = {
 
 export class IntegrationRefused extends Error {}
 
-function gtagLoader(loader: string, id: string, configId: string): string {
-  return `(function(){var s=document.createElement("script");s.async=true;s.src=${JSON.stringify(loader + "?id=")}+encodeURIComponent(${JSON.stringify(id)});document.head.appendChild(s);window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}gtag("js",new Date());gtag("config",${JSON.stringify(configId)});})();\n`;
+const leadEvent = "vz:lead";
+const contactEvent = "vz:contact";
+
+function on(event: string, body: string): string {
+  return `window.addEventListener(${JSON.stringify(event)},function(e){var d=(e&&e.detail)||{};${body}});`;
+}
+
+function gtagLoader(loader: string, id: string, configId: string, listeners = ""): string {
+  return `(function(){var s=document.createElement("script");s.async=true;s.src=${JSON.stringify(loader + "?id=")}+encodeURIComponent(${JSON.stringify(id)});document.head.appendChild(s);window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}gtag("js",new Date());gtag("config",${JSON.stringify(configId)});${listeners}})();
+`;
 }
 
 export function integrationCode(kind: string, id: string, loader: string | undefined): { category: "analytics" | "marketing"; code: string } {
@@ -136,28 +155,33 @@ export function integrationCode(kind: string, id: string, loader: string | undef
     case "meta_pixel":
       return {
         category: "marketing",
-        code: `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version="2.0";n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,"script",${source});fbq("init",${literal});fbq("track","PageView");\n`,
+        code: `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version="2.0";n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,"script",${source});fbq("init",${literal});fbq("track","PageView");${on(leadEvent, `window.fbq("track","Lead",{},d.eventId?{eventID:d.eventId}:{});`)}${on(contactEvent, `window.fbq("track","Contact");`)}
+`,
       };
     case "ga4":
-      return { category: "analytics", code: gtagLoader(loader, id, id) };
+      return { category: "analytics", code: gtagLoader(loader, id, id, on(leadEvent, `gtag("event","generate_lead",{form_id:d.form||""});`)) };
     case "google_ads": {
-      const account = id.split("/")[0];
-      return { category: "marketing", code: gtagLoader(loader, account, account) };
+      const [account, label] = id.split("/");
+      const conversion = label ? on(leadEvent, `gtag("event","conversion",{send_to:${literal},transaction_id:d.eventId||""});`) : "";
+      return { category: "marketing", code: gtagLoader(loader, account, account, conversion) };
     }
     case "gtm":
       return {
         category: "marketing",
-        code: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src=${JSON.stringify(loader + "?id=")}+encodeURIComponent(i);f.parentNode.insertBefore(j,f);})(window,document,"script","dataLayer",${literal});\n`,
+        code: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src=${JSON.stringify(loader + "?id=")}+encodeURIComponent(i);f.parentNode.insertBefore(j,f);})(window,document,"script","dataLayer",${literal});${on(leadEvent, `window.dataLayer.push({event:"generate_lead",vz_event_id:d.eventId||"",vz_form:d.form||""});`)}${on(contactEvent, `window.dataLayer.push({event:"contact",vz_target:d.target||""});`)}
+`,
       };
     case "tiktok_pixel":
       return {
         category: "marketing",
-        code: `!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.load=function(e){var n=${source};ttq._i=ttq._i||{};ttq._i[e]=[];ttq._t=ttq._t||{};ttq._t[e]=+new Date;var o=d.createElement("script");o.type="text/javascript";o.async=!0;o.src=n+"?sdkid="+encodeURIComponent(e)+"&lib="+t;var a=d.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};ttq.load(${literal});ttq.page()}(window,document,"ttq");\n`,
+        code: `!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.load=function(e){var n=${source};ttq._i=ttq._i||{};ttq._i[e]=[];ttq._t=ttq._t||{};ttq._t[e]=+new Date;var o=d.createElement("script");o.type="text/javascript";o.async=!0;o.src=n+"?sdkid="+encodeURIComponent(e)+"&lib="+t;var a=d.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};ttq.load(${literal});ttq.page()}(window,document,"ttq");${on(leadEvent, `window.ttq.track("SubmitForm",{},d.eventId?{event_id:d.eventId}:{});`)}${on(contactEvent, `window.ttq.track("Contact");`)}
+`,
       };
     case "clarity":
       return {
         category: "analytics",
-        code: `(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src=${source}+encodeURIComponent(i);y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script",${literal});\n`,
+        code: `(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src=${source}+encodeURIComponent(i);y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script",${literal});
+`,
       };
   }
   throw new IntegrationRefused(`integration ${kind} is unknown`);

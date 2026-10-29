@@ -971,6 +971,119 @@
         "op": "remove"
       },
       "malformed": true
+    },
+    {
+      "name": "move into a container and copy an element to another page",
+      "base": "html",
+      "operations": [
+        {
+          "op": "insert_section",
+          "at": {
+            "after": "pages/obrigado.html#0"
+          },
+          "rev": 1,
+          "source": "pages/index.html#62",
+          "source_rev": 3
+        },
+        {
+          "op": "move",
+          "node": "pages/index.html#31",
+          "rev": 3,
+          "into": "pages/index.html#0"
+        }
+      ],
+      "accepted": [
+        {
+          "op": "insert_section",
+          "rev": 1,
+          "at": {
+            "after": "pages/obrigado.html#0"
+          },
+          "source": "pages/index.html#62",
+          "source_rev": 3
+        },
+        {
+          "op": "move",
+          "node": "pages/index.html#31",
+          "rev": 3,
+          "into": "pages/index.html#0"
+        }
+      ],
+      "executed": {
+        "steps": [
+          {
+            "op": "insert_section",
+            "index": 0,
+            "focus": "pages/obrigado.html#18",
+            "files": {
+              "pages/obrigado.html": "<h1>Obrigado</h1>\n<img src=\"/media/a.webp\" alt=\"Foto\">\n"
+            }
+          },
+          {
+            "op": "move",
+            "index": 1,
+            "focus": "pages/index.html#70",
+            "files": {
+              "pages/index.html": "<section class=\"hero py-20\">\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n  <h1 class=\"text-4xl\">Oi</h1>\n</section>\n"
+            }
+          }
+        ],
+        "final": {
+          "knobs.json": {
+            "content": "{\"knobs\":[{\"name\":\"Espaço do topo\",\"variable\":\"--hero-gap\",\"kind\":\"range\",\"min\":0,\"max\":8,\"step\":0.5,\"unit\":\"rem\"},{\"name\":\"Cor da marca\",\"variable\":\"--color-brand\",\"kind\":\"color\"}]}",
+            "rev": 1
+          },
+          "pages/index.html": {
+            "content": "<section class=\"hero py-20\">\n  <img src=\"/media/a.webp\" alt=\"Foto\">\n  <h1 class=\"text-4xl\">Oi</h1>\n</section>\n",
+            "rev": 4
+          },
+          "pages/obrigado.html": {
+            "content": "<h1>Obrigado</h1>\n<img src=\"/media/a.webp\" alt=\"Foto\">\n",
+            "rev": 2
+          },
+          "partials/header.html": {
+            "content": "<header>Logo</header>\n",
+            "rev": 1
+          },
+          "scripts/motion.js": {
+            "content": "import { animate } from \"motion\";\n",
+            "rev": 1
+          },
+          "site.json": {
+            "content": "{\"name\":\"Clínica Sorriso\",\"lang\":\"pt-BR\",\"routes\":[{\"path\":\"/\",\"page\":\"pages/index.html\"},{\"path\":\"/obrigado\",\"page\":\"pages/obrigado.html\"}]}",
+            "rev": 1
+          },
+          "theme.css": {
+            "content": "@import \"tailwindcss\";\n@theme {\n  --color-brand: oklch(0.6 0.2 250);\n  --hero-gap: 4rem;\n}\n",
+            "rev": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "copy refuses html beside a source",
+      "base": "html",
+      "operations": [
+        {
+          "op": "insert_section",
+          "at": {
+            "page": "pages/obrigado.html"
+          },
+          "rev": 1,
+          "html": "<p>a</p>",
+          "source": "pages/index.html#62",
+          "source_rev": 3
+        }
+      ],
+      "refusal": {
+        "failures": [
+          {
+            "index": 0,
+            "code": "field_invalid",
+            "field": "source"
+          }
+        ]
+      }
     }
   ],
   "replays": [

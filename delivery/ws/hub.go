@@ -1516,6 +1516,7 @@ func (h *ConversationHub) handleSubscribe(conn *WSConnection, payload json.RawMe
 	var hasMore bool
 	var total int64
 	var adOrigin *conversation.AdOrigin
+	var pageOrigin *conversation.PageOriginView
 
 	info, _ = h.historyProvider.GetEntryInfo(p.EntryID, p.EntryType)
 	unreadCount, _ = h.historyProvider.GetUnreadCount(p.EntryID, shared.EntryType(p.EntryType))
@@ -1531,7 +1532,7 @@ func (h *ConversationHub) handleSubscribe(conn *WSConnection, payload json.RawMe
 	if histErr != nil {
 		log.Printf("[ConversationHub] Error loading history for %s:%s user %s: %v", p.EntryType, p.EntryID, conn.UserID, histErr)
 	}
-	messages, hasMore, total, adOrigin = page.Messages, page.HasMore, page.Total, page.AdOrigin
+	messages, hasMore, total, adOrigin, pageOrigin = page.Messages, page.HasMore, page.Total, page.AdOrigin, page.PageOrigin
 
 	alreadySent := h.sentMessageIDs[conn.ID][sub]
 	var filteredMessages []*conversation.Message
@@ -1567,6 +1568,7 @@ func (h *ConversationHub) handleSubscribe(conn *WSConnection, payload json.RawMe
 			WindowClosedDetail: windowClosedDetail,
 			WindowTier:         windowTier,
 			AdOrigin:           adOrigin,
+			PageOrigin:         pageOrigin,
 
 			MessageCapabilities: h.messageCapabilities(p.EntryType),
 			MediaLimits:         h.mediaLimitsOf(p.EntryType),

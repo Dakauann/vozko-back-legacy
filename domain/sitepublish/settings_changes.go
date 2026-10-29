@@ -34,6 +34,7 @@ const (
 	FieldNoIndex        = "noindex"
 	FieldFavicon        = "favicon_media_id"
 	FieldStructuredData = "structured_data"
+	FieldWebchat        = "webchat_widget"
 )
 
 type RedirectChange struct {
@@ -288,6 +289,9 @@ func identityChange(before, after site.Identity) *IdentityChange {
 	}
 	if before.StructuredData != after.StructuredData {
 		fields = append(fields, FieldStructuredData)
+	}
+	if before.WebchatWidget != after.WebchatWidget {
+		fields = append(fields, FieldWebchat)
 	}
 	if len(fields) == 0 {
 		return nil

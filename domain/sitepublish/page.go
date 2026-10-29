@@ -22,12 +22,12 @@ const (
 var ErrPrerenderPlaceholder = errors.New("sitepublish: the page needs exactly one prerender placeholder")
 
 var (
-	vzFormID    = regexp.MustCompile(`<vz-form\b[^>]*?\sid\s*=\s*["']([^"']*)["']|\sdata-vz-form\s*=\s*["']([^"']*)["']`)
+	vzFormID    = regexp.MustCompile(`<vz-form\b[^>]*?\sid\s*=\s*["']([^"']*)["']|\sdata-vz-form\s*=\s*["']([^"']*)["']|<vz-booking\b[^>]*?\sbooking\s*=\s*["']([^"']*)["']`)
 	formIDShape = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 	absoluteURL = regexp.MustCompile(`https?://[^\s"'()<>,]+`)
 )
 
-var runtimeTags = []string{"vz-form", "vz-consent", "vz-popup", "vz-countdown", "vz-whatsapp"}
+var runtimeTags = []string{"vz-form", "vz-consent", "vz-popup", "vz-countdown", "vz-whatsapp", WebchatTag, site.BookingTag}
 
 var runtimeAttrs = []string{"data-vz-form", "data-vz-cta", "data-vz-popup", "data-vz-countdown", "data-vz-consent", "data-vz-consent-open"}
 
@@ -213,8 +213,8 @@ func HoldForReview(pages []site.RenderedPage) (string, bool) {
 func WebchatWidgets(pages []site.RenderedPage) []string {
 	seen := map[string]bool{}
 	for _, p := range pages {
-		for _, i := range p.Document.ByTag("vz-webchat") {
-			if id, _ := p.Document.AttrValue(i, "widget"); strings.TrimSpace(id) != "" {
+		for _, i := range p.Document.ByTag(WebchatTag) {
+			if id, _ := p.Document.AttrValue(i, site.WebchatAttr); strings.TrimSpace(id) != "" {
 				seen[strings.TrimSpace(id)] = true
 			}
 		}

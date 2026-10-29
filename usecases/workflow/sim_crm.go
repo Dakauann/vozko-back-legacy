@@ -184,12 +184,12 @@ func (d simDeals) DealsForEntry(_, _, _, _ string) (opportunity.EntryDeals, erro
 }
 
 var simDealVerbs = map[opportunity_usecase.EntryAction]string{
-	opportunity_usecase.EntryCreate:      "Criaria ou atualizaria a oportunidade desta conversa",
-	opportunity_usecase.EntryCreateNew:   "Criaria uma nova oportunidade",
-	opportunity_usecase.EntryUpdateValue: "Atualizaria a oportunidade aberta",
-	opportunity_usecase.EntryMove:        "Moveria a oportunidade aberta",
-	opportunity_usecase.EntryWin:         "Marcaria a oportunidade como ganha",
-	opportunity_usecase.EntryLose:        "Marcaria a oportunidade como perdida",
+	opportunity_usecase.EntryCreate:      "Criaria ou atualizaria a negociação desta conversa",
+	opportunity_usecase.EntryCreateNew:   "Criaria uma nova negociação",
+	opportunity_usecase.EntryUpdateValue: "Atualizaria a negociação aberta",
+	opportunity_usecase.EntryMove:        "Moveria a negociação aberta",
+	opportunity_usecase.EntryWin:         "Marcaria a negociação como ganha",
+	opportunity_usecase.EntryLose:        "Marcaria a negociação como perdida",
 }
 
 func (d simDeals) ManageForEntry(workspaceID string, cmd opportunity_usecase.EntryCommand) (*opportunity_usecase.EntryResult, error) {

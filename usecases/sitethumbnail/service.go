@@ -23,7 +23,7 @@ const (
 	throttlePrefix   = "site:thumbnail:"
 	mediaFolder      = "images"
 	mediaExtension   = ".jpg"
-	mediaDescription = "Miniatura da página"
+	mediaDescription = "Miniatura do site"
 )
 
 type Renderer interface {

@@ -43,7 +43,7 @@ func NewSavedViewHandler(
 }
 
 // @Summary		Listar visões salvas
-// @Description	Retorna as visões salvas do usuário para o tipo de objeto informado (conversa por padrão), usadas para configurar o quadro do CRM. Uma visão de lead compartilhada por outra pessoa só aparece quando o filtro dela vale para quem pede: se ele usa um campo sensível sem `leads:read_sensitive`, um campo de endereço completo sem `leads:read_addresses` ou um campo que não existe mais, a visão fica de fora da lista, para que os valores do filtro nunca cheguem a quem não pode lê-los. A permissão vem do objeto da visão: visões de lead pedem `leads:read`; visões de conversa e de oportunidade seguem `conversations:read`, `conversations:create`, `conversations:update` e `conversations:delete`. Sem a permissão responde 403 (`saved_view_forbidden`).
+// @Description	Retorna as visões salvas do usuário para o tipo de objeto informado (conversa por padrão), usadas para configurar o quadro do CRM. Uma visão de lead compartilhada por outra pessoa só aparece quando o filtro dela vale para quem pede: se ele usa um campo sensível sem `leads:read_sensitive`, um campo de endereço completo sem `leads:read_addresses` ou um campo que não existe mais, a visão fica de fora da lista, para que os valores do filtro nunca cheguem a quem não pode lê-los. A permissão vem do objeto da visão: visões de lead pedem `leads:read`; visões de conversa e de negociação seguem `conversations:read`, `conversations:create`, `conversations:update` e `conversations:delete`. Sem a permissão responde 403 (`saved_view_forbidden`).
 // @Tags			Visões Salvas
 // @Produce		json
 // @Param			objectType	query	string	false	"Tipo de objeto ('conversation', 'opportunity' ou 'lead')"
@@ -72,7 +72,7 @@ func (h *SavedViewHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Criar uma visão salva
-// @Description	Cria uma nova visão salva com filtros, agrupamento e ordenação para o quadro do CRM. O nome e o tipo de objeto são obrigatórios. A permissão vem do objeto da visão: visões de lead pedem `leads:read`; visões de conversa e de oportunidade seguem `conversations:read`, `conversations:create`, `conversations:update` e `conversations:delete`. Sem a permissão responde 403 (`saved_view_forbidden`). O filtro de uma visão de lead é validado para quem salva: um campo desconhecido ou um valor impossível responde 400 (`lead_filter_invalid` ou `custom_field_filter_*`) e um campo sensível sem `leads:read_sensitive` responde 403 (`custom_field_filter_sensitive_forbidden`) e um filtro por CEP, precisão ou status do mapa ou área sem `leads:read_addresses` responde 403 (`lead_filter_address_forbidden`). As colunas escolhidas (`columns`) ficam salvas na visão.
+// @Description	Cria uma nova visão salva com filtros, agrupamento e ordenação para o quadro do CRM. O nome e o tipo de objeto são obrigatórios. A permissão vem do objeto da visão: visões de lead pedem `leads:read`; visões de conversa e de negociação seguem `conversations:read`, `conversations:create`, `conversations:update` e `conversations:delete`. Sem a permissão responde 403 (`saved_view_forbidden`). O filtro de uma visão de lead é validado para quem salva: um campo desconhecido ou um valor impossível responde 400 (`lead_filter_invalid` ou `custom_field_filter_*`) e um campo sensível sem `leads:read_sensitive` responde 403 (`custom_field_filter_sensitive_forbidden`) e um filtro por CEP, precisão ou status do mapa ou área sem `leads:read_addresses` responde 403 (`lead_filter_address_forbidden`). As colunas escolhidas (`columns`) ficam salvas na visão.
 // @Tags			Visões Salvas
 // @Accept			json
 // @Produce		json
@@ -106,7 +106,7 @@ func (h *SavedViewHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Atualizar uma visão salva
-// @Description	Atualiza os filtros, o agrupamento, a ordenação e os demais atributos de uma visão salva existente. A permissão vem do objeto da visão: visões de lead pedem `leads:read`; visões de conversa e de oportunidade seguem `conversations:read`, `conversations:create`, `conversations:update` e `conversations:delete`. Sem a permissão responde 403 (`saved_view_forbidden`). O filtro de uma visão de lead é validado para quem salva: um campo desconhecido ou um valor impossível responde 400 (`lead_filter_invalid` ou `custom_field_filter_*`) e um campo sensível sem `leads:read_sensitive` responde 403 (`custom_field_filter_sensitive_forbidden`) e um filtro por CEP, precisão ou status do mapa ou área sem `leads:read_addresses` responde 403 (`lead_filter_address_forbidden`). As colunas escolhidas (`columns`) ficam salvas na visão.
+// @Description	Atualiza os filtros, o agrupamento, a ordenação e os demais atributos de uma visão salva existente. A permissão vem do objeto da visão: visões de lead pedem `leads:read`; visões de conversa e de negociação seguem `conversations:read`, `conversations:create`, `conversations:update` e `conversations:delete`. Sem a permissão responde 403 (`saved_view_forbidden`). O filtro de uma visão de lead é validado para quem salva: um campo desconhecido ou um valor impossível responde 400 (`lead_filter_invalid` ou `custom_field_filter_*`) e um campo sensível sem `leads:read_sensitive` responde 403 (`custom_field_filter_sensitive_forbidden`) e um filtro por CEP, precisão ou status do mapa ou área sem `leads:read_addresses` responde 403 (`lead_filter_address_forbidden`). As colunas escolhidas (`columns`) ficam salvas na visão.
 // @Tags			Visões Salvas
 // @Accept			json
 // @Produce		json
@@ -142,7 +142,7 @@ func (h *SavedViewHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Remover uma visão salva
-// @Description	Exclui uma visão salva do usuário. A permissão vem do objeto da visão: visões de lead pedem `leads:read`; visões de conversa e de oportunidade seguem `conversations:read`, `conversations:create`, `conversations:update` e `conversations:delete`. Sem a permissão responde 403 (`saved_view_forbidden`).
+// @Description	Exclui uma visão salva do usuário. A permissão vem do objeto da visão: visões de lead pedem `leads:read`; visões de conversa e de negociação seguem `conversations:read`, `conversations:create`, `conversations:update` e `conversations:delete`. Sem a permissão responde 403 (`saved_view_forbidden`).
 // @Tags			Visões Salvas
 // @Produce		json
 // @Param			id	path	string	true	"ID da visão salva"
@@ -167,7 +167,7 @@ func (h *SavedViewHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary		Definir visão padrão
-// @Description	Marca a visão salva informada como a visão padrão do usuário para aquele tipo de objeto. A permissão vem do objeto da visão: visões de lead pedem `leads:read`; visões de conversa e de oportunidade seguem `conversations:read`, `conversations:create`, `conversations:update` e `conversations:delete`. Sem a permissão responde 403 (`saved_view_forbidden`).
+// @Description	Marca a visão salva informada como a visão padrão do usuário para aquele tipo de objeto. A permissão vem do objeto da visão: visões de lead pedem `leads:read`; visões de conversa e de negociação seguem `conversations:read`, `conversations:create`, `conversations:update` e `conversations:delete`. Sem a permissão responde 403 (`saved_view_forbidden`).
 // @Tags			Visões Salvas
 // @Produce		json
 // @Param			id	path		string	true	"ID da visão salva"

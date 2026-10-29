@@ -245,6 +245,8 @@ type e2eAnyReference struct{}
 
 func (e2eAnyReference) Check(context.Context, string, string, site.FormSettings) error { return nil }
 
+func (e2eAnyReference) CheckWebchat(context.Context, string, string) error { return nil }
+
 type e2eSiteStore struct {
 	mu        sync.Mutex
 	projects  map[string]site_usecase.Project
@@ -856,6 +858,10 @@ func (f *e2eFormStore) WorkspaceForms(context.Context, string) ([]siteforms.Page
 	return nil, nil
 }
 
+func (f *e2eFormStore) WorkspaceForm(context.Context, string, string) (*siteforms.PageForm, error) {
+	return nil, nil
+}
+
 type e2eSubmissions struct {
 	mu      sync.Mutex
 	rows    []sitesubmission.Submission
@@ -1133,4 +1139,14 @@ func (r *replayRenderer) LiveDOM(_ context.Context, url string, routes []string)
 
 func (e2eNoMedia) Lookup(context.Context, string, string) (*media.Media, error) {
 	return nil, media.ErrMediaNotFound
+}
+
+type e2eAutomations struct{}
+
+func (e2eAutomations) List(context.Context, string, string) ([]siteforms.FormAutomation, error) {
+	return []siteforms.FormAutomation{{WorkflowID: "wf_boas_vindas", Name: "Boas vindas", Active: true, Use: "trigger"}}, nil
+}
+
+func (e2eAutomations) Scaffold(context.Context, string, string, string, string) (string, error) {
+	return "", errors.New("the end to end world creates no workflows")
 }

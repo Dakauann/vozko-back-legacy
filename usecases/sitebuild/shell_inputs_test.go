@@ -38,7 +38,7 @@ func TestPreviewPointsEveryFormAtThePreviewSink(t *testing.T) {
 func TestShellCarriesTheFaviconAndOrganizationData(t *testing.T) {
 	f := newFixture(t)
 	in := previewInput()
-	in.Settings.Site = site.Identity{FaviconMediaID: "m1", StructuredData: true}
+	in.Settings.Site = site.Identity{FaviconMediaID: "m1", StructuredData: true, WebchatWidget: "pk_chat"}
 	_, err := f.svc.Candidate(context.Background(), CandidateInput{
 		WorkspaceID: in.WorkspaceID, ProjectID: in.ProjectID, Project: in.Project, Settings: in.Settings, PrimaryOrigin: "https://sorriso.paginas.test",
 	})
@@ -46,7 +46,7 @@ func TestShellCarriesTheFaviconAndOrganizationData(t *testing.T) {
 		t.Fatal(err)
 	}
 	shell := f.builder.builds[0].Shell
-	if shell.Favicon != "https://cdn.vozko.test/m1.webp" || shell.PrimaryOrigin != "https://sorriso.paginas.test" {
+	if shell.Favicon != "https://cdn.vozko.test/m1.webp" || shell.PrimaryOrigin != "https://sorriso.paginas.test" || shell.Webchat != "pk_chat" {
 		t.Fatalf("got %+v", shell)
 	}
 	if len(shell.StructuredData) != 1 {
@@ -61,12 +61,24 @@ func TestShellCarriesTheFaviconAndOrganizationData(t *testing.T) {
 	}
 }
 
+func TestAPreviewCarriesTheSiteChat(t *testing.T) {
+	f := newFixture(t)
+	in := previewInput()
+	in.Settings.Site = site.Identity{WebchatWidget: "XSktACZ7IA_UjRpGckO_xwik"}
+	if _, err := f.svc.Preview(context.Background(), in); err != nil {
+		t.Fatal(err)
+	}
+	if shell := f.builder.builds[0].Shell; shell.Webchat != "XSktACZ7IA_UjRpGckO_xwik" {
+		t.Fatalf("got %+v", shell)
+	}
+}
+
 func TestShellLeavesOutWhatIsNotEnabledAndRefusesAMissingFavicon(t *testing.T) {
 	f := newFixture(t)
 	if _, err := f.svc.Preview(context.Background(), previewInput()); err != nil {
 		t.Fatal(err)
 	}
-	if shell := f.builder.builds[0].Shell; shell.Favicon != "" || len(shell.StructuredData) != 0 {
+	if shell := f.builder.builds[0].Shell; shell.Favicon != "" || len(shell.StructuredData) != 0 || shell.Webchat != "" {
 		t.Fatalf("got %+v", shell)
 	}
 	in := previewInput()
@@ -112,5 +124,30 @@ func TestCandidateLeavesWhatsAppAnchorsForThePublish(t *testing.T) {
 	}
 	if !strings.Contains(string(out.Result.Assets[0].Body), `<a href="#" data-vz-whatsapp="phone-1">`) || len(f.whatsapp.calls) != 0 {
 		t.Fatalf("publish links carry a page reference and are made at publish: %s", out.Result.Assets[0].Body)
+	}
+}
+
+func TestPreviewStampsKnownChatWidgetsLikeAPublishedPage(t *testing.T) {
+	f := newFixture(t)
+	result := okResult()
+	result.Assets[0].Body = []byte(`<!DOCTYPE html><html><head></head><body><vz-webchat widget="pk_chat"></vz-webchat><vz-webchat widget="pk_foreign"></vz-webchat></body></html>`)
+	f.builder.result = result
+	out, err := f.svc.Preview(context.Background(), previewInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, _ := hostOf(t, out.URL)
+	served, err := f.svc.Serve(context.Background(), host, "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(served.Body)
+	if !strings.Contains(body, `<vz-webchat data-vz-webchat-key="pk_chat" widget="pk_chat">`) || !strings.Contains(body, `<vz-webchat widget="pk_foreign">`) || strings.Contains(body, "data-vz-webchat-preview") {
+		t.Fatalf("got %s", body)
+	}
+	f.widgets.err = errors.New("db down")
+	f.builder.result.Assets[0].Body = []byte(`<!DOCTYPE html><html><head></head><body><vz-webchat widget="pk_other"></vz-webchat></body></html>`)
+	if _, err := f.svc.Preview(context.Background(), PreviewInput{WorkspaceID: "ws1", ProjectID: "p1", RevisionID: "r2", Project: htmlProject()}); err == nil {
+		t.Fatal("a widget store failure refuses the preview")
 	}
 }

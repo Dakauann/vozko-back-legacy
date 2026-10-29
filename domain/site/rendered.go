@@ -213,7 +213,7 @@ func (g *gapList) element(code string, p RenderedPage, i int) {
 
 func (c CheckedPages) OpenGaps(pages []RenderedPage, settings Settings) []Issue {
 	g := &gapList{seen: map[string]bool{}}
-	privacy := false
+	privacy, booking := false, false
 	for _, p := range pages {
 		doc := p.Document
 		for _, img := range doc.Images() {
@@ -222,7 +222,7 @@ func (c CheckedPages) OpenGaps(pages []RenderedPage, settings Settings) []Issue 
 			}
 		}
 		for _, link := range doc.Links() {
-			if href := strings.TrimSpace(link.Href); !link.HasHref || href == "" || href == "#" {
+			if !linkHasDestination(doc, link) {
 				g.element(CodeLinkEmpty, p, link.Element)
 			}
 			if privacyLink(link) {
@@ -239,12 +239,21 @@ func (c CheckedPages) OpenGaps(pages []RenderedPage, settings Settings) []Issue 
 			if !m.HasIdentity() {
 				g.add(CodeFormIdentityMissing+"|"+m.ID, Issue{Code: CodeFormIdentityMissing, Route: p.Route, Node: m.Node, Detail: m.ID})
 			}
+			if settings.Forms[m.ID].CheckDealOwner(m.ID) != nil {
+				g.add(CodeFormDealOwnerRequired+"|"+m.ID, Issue{Code: CodeFormDealOwnerRequired, Route: p.Route, Node: m.Node, Detail: m.ID})
+			}
+			if !followUpReachable(m, settings.Forms[m.ID]) {
+				g.add(CodeFormFollowUpFieldMissing+"|"+m.ID, Issue{Code: CodeFormFollowUpFieldMissing, Route: p.Route, Node: m.Node, Detail: m.ID})
+			}
+		}
+		if c.bookingGaps(g, p, settings) {
+			booking = true
 		}
 		for _, i := range invisibleAboveTheFold(doc) {
 			g.element(CodeInvisibleWithoutJS, p, i)
 		}
 	}
-	if len(c.Manifests) > 0 && !privacy {
+	if (len(c.Manifests) > 0 || booking) && !privacy {
 		g.add(CodePrivacyLinkMissing, Issue{Code: CodePrivacyLinkMissing})
 	}
 	if len(settings.Integrations.Enabled()) > 0 && !settings.Consent.Banner {
@@ -376,4 +385,12 @@ func RenderedChecks(pages []RenderedPage) []Check {
 		}
 	}
 	return checks
+}
+
+func linkHasDestination(doc *sitehtml.Document, link sitehtml.Link) bool {
+	if ref, ok := doc.AttrValue(link.Element, WhatsAppNumberAttr); ok && strings.TrimSpace(ref) != "" {
+		return true
+	}
+	href := strings.TrimSpace(link.Href)
+	return link.HasHref && href != "" && href != "#"
 }

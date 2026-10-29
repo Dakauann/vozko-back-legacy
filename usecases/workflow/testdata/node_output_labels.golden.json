@@ -337,15 +337,15 @@
   ],
   [
     "output_open_count",
-    "Oportunidades abertas"
+    "Negociações abertas"
   ],
   [
     "output_opportunities",
-    "Oportunidades"
+    "Negociações"
   ],
   [
     "output_opportunity_id",
-    "ID da oportunidade"
+    "ID da negociação"
   ],
   [
     "output_passed",

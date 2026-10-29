@@ -3,7 +3,6 @@ package copilot_usecase
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"vozko/domain/copilot"
 )
@@ -28,8 +27,8 @@ func TestSiteToolsExistOnlyInsideTheSiteEditor(t *testing.T) {
 }
 
 func TestTheSitePromptExplainsTheEditorMechanicsOnlyThere(t *testing.T) {
-	prompt := systemPrompt(siteView, time.Now())
-	for _, want := range []string{"# Editor de páginas", siteView.ProjectID, "site_read", "site_edit", "edit_file", "node_stale", "@ref", "open_gaps", "site_look", "site_generate_image", "site_publish", "load_skill"} {
+	prompt := systemPrompt(siteView)
+	for _, want := range []string{"# Editor de sites", siteView.ProjectID, "site_read", "site_edit", "edit_file", "node_stale", "@ref", "open_gaps", "site_look", "site_generate_image", "site_publish", "load_skill"} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("the site prompt lacks %q", want)
 		}
@@ -43,7 +42,7 @@ func TestTheSitePromptExplainsTheEditorMechanicsOnlyThere(t *testing.T) {
 		t.Fatal("a focused surface leaves out the guides of other areas")
 	}
 	for _, other := range []copilot.View{{}, studioView, emailView} {
-		if strings.Contains(systemPrompt(other, time.Now()), "# Editor de páginas") {
+		if strings.Contains(systemPrompt(other), "# Editor de sites") {
 			t.Fatal("the site editor section stays inside the site editor")
 		}
 	}

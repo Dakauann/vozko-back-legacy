@@ -7,13 +7,14 @@ const (
 	RuntimeFile    = "vz-runtime.js"
 	BridgeFile     = "vz-editor-bridge.js"
 	ScreenshotFile = "vz-screenshot.js"
+	TailwindFile   = "vz-tailwind-browser.js"
 )
 
-//go:embed pow.js vz-runtime.js vz-editor-bridge.js vz-screenshot.js
+//go:embed pow.js vz-runtime.js vz-editor-bridge.js vz-screenshot.js vz-tailwind-browser.js
 var Assets embed.FS
 
 func Names() []string {
-	return []string{RuntimeFile, PowFile, BridgeFile, ScreenshotFile}
+	return []string{RuntimeFile, PowFile, BridgeFile, ScreenshotFile, TailwindFile}
 }
 
 func Files() (map[string]string, error) {

@@ -74,7 +74,7 @@ func TestOpenGapsAreReportedUnreadWhenThePreviewFails(t *testing.T) {
 	r.storage.previewErr = &site_usecase.BuildFailedError{Errors: []site_usecase.BuildIssue{{Path: "src/App.jsx", Line: 4, Message: "Unexpected token"}, {Path: "src/App.jsx", Line: 4, Message: "Unexpected token"}}}
 	raw, _ := json.Marshal(NewSiteReadTool(r.deps).Execute(context.Background(), r.cc, map[string]interface{}{}).Data)
 	text := string(raw)
-	if strings.Contains(text, `"open_gaps":`) || !strings.Contains(text, `"open_gaps_unread":"a página não compila`) || strings.Count(text, "Unexpected token") != 1 {
+	if strings.Contains(text, `"open_gaps":`) || !strings.Contains(text, `"open_gaps_unread":"o site não compila`) || strings.Count(text, "Unexpected token") != 1 {
 		t.Fatalf("an unknown state is never reported as no gaps, got %s", text)
 	}
 }

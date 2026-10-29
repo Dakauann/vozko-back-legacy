@@ -68,3 +68,22 @@ func TestTheUsageIsUnavailableWhenItCannotBeExact(t *testing.T) {
 		}
 	}
 }
+
+func TestTheUsageSplitsWhatWasSentNewFromTheCache(t *testing.T) {
+	thread := &Thread{ID: "th-1", CostTracked: true}
+	usage := aiusage.Totals{Calls: 3, Billed: 4, LatestInput: 30_000, Tokens: aiusage.Tokens{Input: 541_600, Output: 4_000, CacheRead: 480_000, CacheWrite: 40_000}}
+	cost := CostOf(thread, balance.ReferenceTotals{BillingMicros: 790_000, GenerationBillingMicros: 250_000, Debits: 4}, &usage)
+	if cost.Usage.ContextTokens != 30_000 || cost.Usage.NewInputTokens() != 21_600 || cost.Usage.ProcessedTokens() != 545_600 {
+		t.Fatalf("usage = %+v, new %d, processed %d", cost.Usage, cost.Usage.NewInputTokens(), cost.Usage.ProcessedTokens())
+	}
+	if cost.GenerationMicros != 250_000 || cost.ModelMicros != 540_000 {
+		t.Fatalf("money = model %d, generations %d", cost.ModelMicros, cost.GenerationMicros)
+	}
+	odd := aiusage.Totals{Calls: 1, Billed: 1, Tokens: aiusage.Tokens{Input: 100, CacheRead: 90, CacheWrite: 20}}
+	if got := CostOf(thread, balance.ReferenceTotals{Debits: 1}, &odd).Usage.NewInputTokens(); got != 0 {
+		t.Fatalf("new input never goes below zero, got %d", got)
+	}
+	if missing := CostOf(thread, balance.ReferenceTotals{BillingMicros: 100, GenerationBillingMicros: 50, MissingRate: true}, nil); missing.GenerationMicros != 0 || missing.ModelMicros != 0 {
+		t.Fatalf("an inexact total splits nothing, got %+v", missing)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"vozko/domain/site"
+	"vozko/domain/webchat"
 )
 
 type memoryCache struct {
@@ -146,3 +147,32 @@ var errBoom = errors.New("boom")
 type clock struct{ now time.Time }
 
 func (c *clock) Now() time.Time { return c.now }
+
+type fakeWidgets struct {
+	rows []webchat.Widget
+	err  error
+}
+
+func (f *fakeWidgets) FindByPublicKey(_ context.Context, key string) (*webchat.Widget, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	for _, w := range f.rows {
+		if w.PublicKey == key {
+			return &w, nil
+		}
+	}
+	return nil, webchat.ErrWidgetNotFound
+}
+
+func (f *fakeWidgets) FindByID(_ context.Context, workspaceID, id string) (*webchat.Widget, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	for _, w := range f.rows {
+		if w.ID == id && w.WorkspaceID == workspaceID {
+			return &w, nil
+		}
+	}
+	return nil, webchat.ErrWidgetNotFound
+}

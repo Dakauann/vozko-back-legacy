@@ -30,7 +30,7 @@ func pageFormsRequest(workspaceID string) *http.Request {
 }
 
 func TestPageFormsAreListedByKeyForTheWorkflowPicker(t *testing.T) {
-	forms := &fakeForms{pageForms: []siteforms.PageForm{{ProjectID: "p1", ProjectName: "Clínica Sorriso", FormID: "contato", FormKey: "key-1", Live: true}}}
+	forms := &fakeForms{pageForms: []siteforms.PageForm{{ProjectID: "p1", ProjectName: "Clínica Sorriso", FormID: "contato", FormName: "Fale conosco", FormKey: "key-1", Live: true}}}
 	var guarded []string
 	r := mux.NewRouter()
 	RegisterProtectedRoutes(r, NewHandler(forms), func(res workspace_domain.Resource, act workspace_domain.Action, next http.HandlerFunc) http.HandlerFunc {
@@ -40,7 +40,7 @@ func TestPageFormsAreListedByKeyForTheWorkflowPicker(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, pageFormsRequest("w1"))
 	body := rec.Body.String()
-	if rec.Code != http.StatusOK || !strings.Contains(body, `"formKey":"key-1"`) || !strings.Contains(body, `"projectName":"Clínica Sorriso"`) || !strings.Contains(body, `"live":true`) {
+	if rec.Code != http.StatusOK || !strings.Contains(body, `"formKey":"key-1"`) || !strings.Contains(body, `"projectName":"Clínica Sorriso"`) || !strings.Contains(body, `"live":true`) || !strings.Contains(body, `"formName":"Fale conosco"`) {
 		t.Fatalf("list %d %s", rec.Code, body)
 	}
 	if forms.workspace != "w1" {

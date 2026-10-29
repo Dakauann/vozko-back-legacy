@@ -314,6 +314,7 @@ type ListTarget struct {
 	Field  BindingSource
 	Key    string
 	Column string
+	Fixed  bool
 }
 
 func TemplateTargets(fields []BindingSource) []ListTarget {
@@ -338,6 +339,7 @@ type listCell struct {
 	index int
 	slot  int
 	key   string
+	fixed bool
 }
 
 type ListMapping struct {
@@ -345,6 +347,7 @@ type ListMapping struct {
 	MetadataColumns []MetadataColumn
 	cells           []listCell
 	metadata        []metadataCell
+	fixed           map[string]bool
 }
 
 func MapList(layout ListLayout, kind ContactKind, targets []ListTarget, defs []*customfield.Definition) ListMapping {
@@ -377,20 +380,32 @@ func MapList(layout ListLayout, kind ContactKind, targets []ListTarget, defs []*
 			slot++
 			continue
 		}
+		if target.Fixed {
+			mapping.cells = append(mapping.cells, listCell{index: -1, key: target.Key, fixed: true})
+			mapping.fix(target.Key)
+			continue
+		}
 		index := layout.columnIndex(target.Column)
 		mapping.cells = append(mapping.cells, listCell{index: index, slot: slotOfColumn[index], key: target.Key})
 	}
 	if layout.Header {
-		mapping.metadata, mapping.MetadataColumns = metadataCellsOf(layout, used)
+		mapping.metadata, mapping.MetadataColumns = metadataCellsOf(layout, used, mapping.fixed)
 	}
 	mapping.MetadataColumns = mapping.withKeyColumns()
 	return mapping
 }
 
+func (m *ListMapping) fix(key string) {
+	if m.fixed == nil {
+		m.fixed = map[string]bool{}
+	}
+	m.fixed[key] = true
+}
+
 func (m ListMapping) withKeyColumns() []MetadataColumn {
 	columns := m.MetadataColumns
 	for _, c := range m.cells {
-		if c.key == "" || slices.ContainsFunc(columns, func(known MetadataColumn) bool { return known.Key == c.key }) {
+		if c.key == "" || c.fixed || slices.ContainsFunc(columns, func(known MetadataColumn) bool { return known.Key == c.key }) {
 			continue
 		}
 		columns = append(columns, MetadataColumn{Key: c.key, Label: c.key})
@@ -483,7 +498,7 @@ func columnLabel(layout ListLayout, index, slot int) string {
 	return "var" + strconv.Itoa(slot)
 }
 
-func metadataCellsOf(layout ListLayout, used map[int]bool) ([]metadataCell, []MetadataColumn) {
+func metadataCellsOf(layout ListLayout, used map[int]bool, fixed map[string]bool) ([]metadataCell, []MetadataColumn) {
 	var cells []metadataCell
 	var columns []MetadataColumn
 	named := map[string]bool{}
@@ -495,7 +510,7 @@ func metadataCellsOf(layout ListLayout, used map[int]bool) ([]metadataCell, []Me
 			continue
 		}
 		key := MetadataKey(h)
-		if key == "" {
+		if key == "" || fixed[key] {
 			continue
 		}
 		cells = append(cells, metadataCell{index: i, key: key})
@@ -516,6 +531,9 @@ func (m ListMapping) Cells(row ListRow) []string {
 }
 
 func (c listCell) read(row ListRow) string {
+	if c.fixed {
+		return ""
+	}
 	if c.key != "" {
 		if value, typed := row.Metadata[c.key]; typed {
 			return strings.TrimSpace(agent.MetadataToVars(map[string]any{c.key: value})[c.key])

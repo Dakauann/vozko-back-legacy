@@ -37,6 +37,7 @@ type Handler struct {
 	exports       ExportSaver
 	presets       PresetService
 	libraryAssets LibraryAssetImporter
+	perception    PerceptionAnalyzer
 }
 
 func NewHandler(svc Service, capabilities CapabilityReporter, exports ExportSaver, presets PresetService) *Handler {

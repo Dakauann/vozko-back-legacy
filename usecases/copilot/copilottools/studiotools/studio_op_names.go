@@ -239,3 +239,11 @@ func (n studioOpNames) closest(raw string) string {
 	}
 	return best
 }
+
+func (n studioOpNames) nearestFamily(raw string) string {
+	family, ok := n.resolve(raw)
+	if !ok {
+		family = n.closest(raw)
+	}
+	return "a família mais próxima é " + family
+}

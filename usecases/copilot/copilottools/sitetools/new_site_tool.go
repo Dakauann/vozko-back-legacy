@@ -23,12 +23,12 @@ const (
 	defaultStarter   = "blank"
 	stateOpened      = "opened"
 	stateWaiting     = "waiting"
-	newSiteOpened    = "página criada e aberta: o editor de páginas já está na tela do usuário e as ferramentas site_ entram na sua próxima chamada. Continue o trabalho agora, começando por site_read; não peça que ele abra nem que confirme nada"
-	newSiteWaiting   = "página criada, mas o editor continua fechado: ele abre quando o usuário tocar no cartão. Diga isso uma vez e não diga que abriu. Quando ele abrir, o app avisa você e as ferramentas site_ chegam; nunca peça que ele avise que abriu"
+	newSiteOpened    = "site criado e aberto: o editor de sites já está na tela do usuário e as ferramentas site_ entram na sua próxima chamada. Continue o trabalho agora, começando por site_read; não peça que ele abra nem que confirme nada"
+	newSiteWaiting   = "site criado, mas o editor continua fechado: ele abre quando o usuário tocar no cartão. Diga isso uma vez e não diga que abriu. Quando ele abrir, o app avisa você e as ferramentas site_ chegam; nunca peça que ele avise que abriu"
 	newSiteNameBad   = "name é obrigatório e vai até 120 caracteres"
 	newSiteStarter   = "starter %q não existe para %s; use um de: %s"
-	newSiteFailed    = "a página não pôde ser criada agora; tente de novo"
-	newSiteTaken     = "este pedido já criou uma página para outra pessoa; nada foi criado"
+	newSiteFailed    = "o site não pôde ser criado agora; tente de novo"
+	newSiteTaken     = "este pedido já criou um site para outra pessoa; nada foi criado"
 	newSiteNamespace = "6c1f4e2a-8b3d-4f5e-9a7b-2c4d6e8f0a1b"
 )
 
@@ -41,9 +41,9 @@ var openingWords = screencall.Words{
 }
 
 type newSiteArgs struct {
-	Name    string `json:"name" req:"true" desc:"nome da página, como aparece em Páginas"`
+	Name    string `json:"name" req:"true" desc:"nome do site, como aparece em Meus sites"`
 	Stack   string `json:"stack,omitempty" enum:"react,html" desc:"react (padrão) ou html"`
-	Starter string `json:"starter,omitempty" enum:"blank,captura-de-leads" desc:"ponto de partida; blank (padrão) quando você vai escrever a página do zero"`
+	Starter string `json:"starter,omitempty" enum:"blank,captura-de-leads" desc:"ponto de partida; blank (padrão) quando você vai escrever o site do zero"`
 }
 
 type siteOpening struct {
@@ -63,9 +63,9 @@ func (t *newSiteTool) Meta() copilot.Meta {
 
 func (t *newSiteTool) Definition() tools.Definition {
 	return copilottools.Definition("new_site",
-		"Cria uma página (landing page) em Páginas a partir de um ponto de partida e mostra um cartão que leva o usuário ao editor dela. "+
-			"O retorno diz o estado real: opened (o editor já abriu na tela dele e as ferramentas site_ entram na sua próxima chamada) ou waiting (criada, esperando ele abrir pelo cartão; o app avisa quando ele abrir). "+
-			"No editor, você lê com site_read, edita com site_edit e vê com site_look, ao lado dele. Repetir o mesmo pedido nesta conversa devolve a mesma página.",
+		"Cria um site em Meus sites a partir de um ponto de partida e mostra um cartão que leva o usuário ao editor dela. "+
+			"O retorno diz o estado real: opened (o editor já abriu na tela dele e as ferramentas site_ entram na sua próxima chamada) ou waiting (criado, esperando ele abrir pelo cartão; o app avisa quando ele abrir). "+
+			"No editor, você lê com site_read, edita com site_edit e vê com site_look, ao lado dele. Repetir o mesmo pedido nesta conversa devolve o mesmo site.",
 		newSiteArgs{})
 }
 

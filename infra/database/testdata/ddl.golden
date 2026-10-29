@@ -893,4 +893,5 @@ ag_tool_instances
 ag_drop_agent_bindings_index
 ag_canonical_http_configs
 ag_mcp_collection_instances
+ag_drop_platform_variables
 bl_balance_read_model

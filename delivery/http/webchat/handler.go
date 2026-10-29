@@ -21,11 +21,12 @@ const maxManagementBody = 64 << 10
 type Handler struct {
 	widgets    *wcuc.Widgets
 	moderation *wcuc.Moderation
+	usage      *wcuc.Usage
 	publicBase string
 }
 
-func NewHandler(widgets *wcuc.Widgets, moderation *wcuc.Moderation, publicBase string) *Handler {
-	return &Handler{widgets: widgets, moderation: moderation, publicBase: publicBase}
+func NewHandler(widgets *wcuc.Widgets, moderation *wcuc.Moderation, usage *wcuc.Usage, publicBase string) *Handler {
+	return &Handler{widgets: widgets, moderation: moderation, usage: usage, publicBase: publicBase}
 }
 
 type WidgetRequest struct {

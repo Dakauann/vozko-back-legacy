@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
@@ -29,6 +30,7 @@ type triggerFormVersions interface {
 
 type triggerPageForms interface {
 	LiveForm(ctx context.Context, workspaceID, formKey string) (siteforms.ActiveForm, error)
+	PageForm(ctx context.Context, workspaceID, formKey string) (siteforms.PageForm, error)
 }
 
 type triggerFormCatalog struct {
@@ -39,6 +41,13 @@ type triggerFormCatalog struct {
 
 func (c triggerFormCatalog) pageForm(ctx context.Context, workspaceID, formKey string) (workflow_domain.TriggerForm, error) {
 	form, err := c.pages.LiveForm(ctx, workspaceID, formKey)
+	if errors.Is(err, sitesubmission.ErrFormUnknown) {
+		draft, draftErr := c.pages.PageForm(ctx, workspaceID, formKey)
+		if draftErr != nil {
+			return workflow_domain.TriggerForm{}, errors.Join(err, draftErr)
+		}
+		return workflow_domain.TriggerForm{ID: draft.FormKey, Name: draft.FormID}, nil
+	}
 	if err != nil {
 		return workflow_domain.TriggerForm{}, err
 	}
@@ -95,6 +104,10 @@ func (c triggerFormCatalog) TriggerForm(workspaceID, formID string) (workflow_do
 
 type lazyPageForms struct {
 	c *Container
+}
+
+func (p lazyPageForms) PageForm(ctx context.Context, workspaceID, formKey string) (siteforms.PageForm, error) {
+	return p.c.siteForms().PageForm(ctx, workspaceID, formKey)
 }
 
 func (p lazyPageForms) LiveForm(ctx context.Context, workspaceID, formKey string) (siteforms.ActiveForm, error) {

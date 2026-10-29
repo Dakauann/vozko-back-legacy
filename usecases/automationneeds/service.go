@@ -27,7 +27,7 @@ type DeclarationCatalog interface {
 
 type SheetFiles interface {
 	Resolve(ctx context.Context, workspaceID string, t variabledecl.Type, uses []sheetfit.Use, value string) (workflow.SheetFile, error)
-	Candidates(ctx context.Context, workspaceID string, t variabledecl.Type, uses []sheetfit.Use) ([]sheetfit.Candidate, error)
+	Candidates(ctx context.Context, workspaceID string, t variabledecl.Type, uses []sheetfit.Use, chosen string) ([]sheetfit.Candidate, error)
 	Attention(ctx context.Context, workspaceID string, file workflow.SheetFile) (bool, error)
 }
 
@@ -79,10 +79,9 @@ type Labels struct {
 }
 
 func (l Labels) Apply(needs domain.Needs) domain.Needs {
-	out := needs.Labeled(l.catalog)
+	out := needs.Typed(l.catalog, l.registry)
 	for i := range out {
 		if l.registry != nil {
-			out[i].Shape = l.registry.ShapeOf(out[i].Type)
 			out[i].Example = l.registry.ExampleOf(variabledecl.Declaration{Type: out[i].Type, Example: l.exampleOf(out[i].Name)})
 		}
 	}

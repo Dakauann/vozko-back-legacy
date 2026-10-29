@@ -17,6 +17,15 @@ var errorCodes = []struct {
 	{ErrKnobsInvalid, CodeKnobsInvalid},
 	{ErrKnobValueInvalid, CodeKnobValueInvalid},
 	{ErrFormChannelRequired, CodeFormChannelRequired},
+	{ErrFormDealOwnerRequired, CodeFormDealOwnerRequired},
+	{ErrBookingDurationInvalid, CodeBookingDurationInvalid},
+	{ErrBookingBufferInvalid, CodeBookingBufferInvalid},
+	{ErrBookingNoticeInvalid, CodeBookingNoticeInvalid},
+	{ErrBookingHorizonInvalid, CodeBookingHorizonInvalid},
+	{ErrBookingHoursInvalid, CodeBookingHoursInvalid},
+	{ErrBookingTitleInvalid, CodeBookingTitleInvalid},
+	{ErrBookingConsentInvalid, CodeBookingConsentInvalid},
+	{ErrBookingFieldsInvalid, CodeBookingFieldsInvalid},
 	{ErrDesignSystemInvalid, CodeDesignSystemInvalid},
 	{ErrSettingsInvalid, CodeSettingsInvalid},
 	{ErrRedirectInvalid, CodeRedirectInvalid},
@@ -57,8 +66,11 @@ func Codes() []string {
 		CodeNodeInvalid, CodeNodeStale, CodeRevInvalid, CodeRefInvalid, CodeRefDuplicate, CodeRefUnknown, CodePositionInvalid,
 		CodeTextMarkupInvalid, CodeAttributeForbidden, CodeClassInvalid, CodeBreakpointInvalid, CodeMediaInvalid,
 		CodeLibraryKeyInvalid, CodeTokenInvalid, CodeKnobUnknown, CodeKnobValueInvalid, CodeEditNoop, CodeEditPlaceholder,
-		CodeEditNotFound, CodeEditAmbiguous, CodeSkipped, CodeOperationFailed, CodeFileStale, CodeKnobExists, CodeWhatsAppTextTooLong, CodeWhatsAppNumberUnknown,
+		CodeEditNotFound, CodeEditAmbiguous, CodeSkipped, CodeOperationFailed, CodeCopyReferenceMissing, CodeFileStale, CodeKnobExists, CodeWhatsAppTextTooLong, CodeWhatsAppNumberUnknown,
+		CodeElementUnknown, CodeElementKeyInvalid, CodeWebchatWidgetUnknown, CodeBookingUnknown, CodeFormLabelTooLong,
 		CodeSettingsInvalid, CodeRedirectInvalid, CodeStepsInvalid, CodeBatchMalformed, CodeEditRefused, CodeFormChannelRequired, CodeDesignSystemInvalid,
+		CodeBookingDurationInvalid, CodeBookingBufferInvalid, CodeBookingNoticeInvalid, CodeBookingHorizonInvalid, CodeBookingHoursInvalid,
+		CodeBookingTitleInvalid, CodeBookingConsentInvalid, CodeBookingFieldsInvalid,
 	}
 	return slices.Concat(codes, GapCodes())
 }

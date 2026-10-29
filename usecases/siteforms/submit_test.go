@@ -125,7 +125,7 @@ func TestOwnerFunnelAndNotificationFollowTheFormSettings(t *testing.T) {
 	}
 }
 
-func TestADealWithoutAnyOwnerIsNotCreated(t *testing.T) {
+func TestALegacyLiveFormWithoutAnyOwnerStaysLiveButOpensNoDeal(t *testing.T) {
 	w := newWorld(t)
 	key := w.publish(t, site.FormSettings{FunnelID: "pipe1", StageID: "stage-2"})
 	if _, err := w.svc.Submit(context.Background(), key, visitor, w.body(t, key, goodFields())); err != nil {
@@ -169,7 +169,7 @@ func TestAWorkflowFormOpensTheConversationOnTheChosenChannelAndFires(t *testing.
 			if trigger.EntryID != tc.entryID || trigger.EntryType != tc.entryType || trigger.Form.Kind != formlead.KindSiteForm || trigger.Form.ID != key || trigger.SubmissionID != "sub-1" || trigger.WorkspaceID != "w1" {
 				t.Fatalf("trigger %+v", trigger)
 			}
-			if trigger.Data["route"] != "/oferta" || trigger.Data["variant"] != "b" || trigger.Data["form_id"] != "contato" || trigger.Data["project_id"] != "p1" {
+			if trigger.Data["route"] != "/oferta" || trigger.Data["variant"] != "b" || trigger.Data["page_form_id"] != "contato" || trigger.Data["form_id"] != key || trigger.Data["project_id"] != "p1" || trigger.Data["form.lead.name"] != "Ana" {
 				t.Fatalf("trigger data %+v", trigger.Data)
 			}
 			if utm, _ := trigger.Data["utm"].(map[string]string); utm["campaign"] != "natal" {
@@ -189,6 +189,23 @@ func TestAWorkflowFormOpensTheConversationOnTheChosenChannelAndFires(t *testing.
 	}
 	if w.official.got != nil || w.unofficial.got != nil {
 		t.Fatal("only the chosen channel is opened")
+	}
+}
+
+func TestAChannelWhoseFieldWasLeftEmptyIsSkippedInsteadOfRetried(t *testing.T) {
+	w := newWorld(t)
+	email := site.FollowUp{Kind: site.FollowUpEmail, ID: "sender-1"}
+	key := w.publish(t, site.FormSettings{WorkflowID: "wf-1", FollowUp: &email})
+	fields := goodFields()
+	delete(fields, "lead.email")
+	if _, err := w.svc.Submit(context.Background(), key, visitor, w.body(t, key, fields)); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.email.got) != 0 || len(w.leads.triggers) != 0 {
+		t.Fatalf("no address means no conversation and no workflow: %+v %+v", w.email.got, w.leads.triggers)
+	}
+	if err := w.svc.RunEffects(context.Background(), "sub-1"); err != nil {
+		t.Fatalf("the effect is settled, never retried: %v", err)
 	}
 }
 

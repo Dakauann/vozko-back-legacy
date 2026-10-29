@@ -97,6 +97,35 @@ func withTailBreakpoints(messages []openrouter.ChatCompletionMessage, volatileTa
 	return out
 }
 
+func withReplayBreakpoint(messages []openrouter.ChatCompletionMessage, history, replayed, volatileTail int) []openrouter.ChatCompletionMessage {
+	if replayed <= 0 || replayed > history-max(volatileTail, 0) {
+		return messages
+	}
+	out := slices.Clone(messages)
+	for i := len(out) - history + replayed - 1; i >= 0; i-- {
+		if out[i].Role == openrouter.ChatMessageRoleSystem {
+			continue
+		}
+		if marked(out[i].Content) {
+			return out
+		}
+		if content, ok := withBreakpoint(out[i].Content); ok {
+			out[i].Content = content
+			return out
+		}
+	}
+	return out
+}
+
+func marked(content openrouter.Content) bool {
+	for _, part := range content.Multi {
+		if part.CacheControl != nil {
+			return true
+		}
+	}
+	return false
+}
+
 func withoutTailBreakpoints(messages []openrouter.ChatCompletionMessage) []openrouter.ChatCompletionMessage {
 	out := slices.Clone(messages)
 	for i, message := range out {

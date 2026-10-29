@@ -251,19 +251,19 @@ TRANSCRIÇÃO DA CONVERSA
 	}.prompt()
 }
 
-const autoDealRules = `- Mantenha as oportunidades desta conversa no funil usando a ferramenta auto_manage_opportunity.
-- create: quando o cliente demonstra intenção real de compra e ainda não há oportunidade aberta para esse interesse. create_new: só para um contrato diferente dos que já existem.
+const autoDealRules = `- Mantenha as negociações desta conversa no funil usando a ferramenta auto_manage_opportunity.
+- create: quando o cliente demonstra intenção real de compra e ainda não há negociação aberta para esse interesse. create_new: só para um contrato diferente dos que já existem.
 - update_value: quando um valor é combinado ou alterado. move: quando a negociação avança para outra etapa aberta.
 - win: quando o cliente CONFIRMA a compra, sempre com o valor fechado em "value".
-- lose: só quando desistir é a posição MAIS RECENTE do cliente, com o motivo em "lost_reason". Se ele desistiu e depois voltou atrás, a oportunidade continua aberta.
-- Quando houver mais de uma oportunidade aberta, informe em "opportunity_id" o id exato da lista abaixo.
-- NUNCA invente valores nem oportunidades. Se nada mudou nas oportunidades, não chame a ferramenta.
+- lose: só quando desistir é a posição MAIS RECENTE do cliente, com o motivo em "lost_reason". Se ele desistiu e depois voltou atrás, a negociação continua aberta.
+- Quando houver mais de uma negociação aberta, informe em "opportunity_id" o id exato da lista abaixo.
+- NUNCA invente valores nem negociações. Se nada mudou nas negociações, não chame a ferramenta.
 - ` + latestPositionRule
 
 const (
 	autoTagInstruction    = "Siga os passos do sistema: descubra a posição MAIS RECENTE do cliente nas mensagens mais recentes e chame manage_entry_stage com a etapa que a descreve. Se a etapa atual já está correta, passe a mesma etapa."
 	autoMemoryInstruction = "Siga as instruções do sistema: gerencie a memória do lead com a ferramenta manage_lead_memory. Se não houver fatos duráveis novos ou alterados, não chame nenhuma ferramenta."
-	autoDealInstruction   = "Siga as instruções do sistema: mantenha as oportunidades da conversa com a ferramenta auto_manage_opportunity, pela posição MAIS RECENTE do cliente. Se nada mudou nas oportunidades, não chame nenhuma ferramenta."
+	autoDealInstruction   = "Siga as instruções do sistema: mantenha as negociações da conversa com a ferramenta auto_manage_opportunity, pela posição MAIS RECENTE do cliente. Se nada mudou nas negociações, não chame nenhuma ferramenta."
 
 	autoMemoryProfileInstruction = "Siga as instruções do sistema: gerencie a memória do lead com a ferramenta manage_lead_memory e leve a data de nascimento ao cadastro com update_lead_profile. Se não houver nada novo ou alterado, não chame nenhuma ferramenta."
 )
@@ -278,7 +278,7 @@ type AutoDealPromptInput struct {
 }
 
 func BuildAutoDealPrompt(input AutoDealPromptInput) AutoTaskPrompt {
-	system := fmt.Sprintf(`Você mantém as oportunidades de venda de uma conversa em um CRM. Sua ÚNICA tarefa é ler a transcrição abaixo e, usando a ferramenta auto_manage_opportunity, registrar o que mudou nas oportunidades desta conversa.
+	system := fmt.Sprintf(`Você mantém as negociações de uma conversa em um CRM. Sua ÚNICA tarefa é ler a transcrição abaixo e, usando a ferramenta auto_manage_opportunity, registrar o que mudou nas negociações desta conversa.
 
 ═══════════════════════════════════════════════════
 CONTEXTO

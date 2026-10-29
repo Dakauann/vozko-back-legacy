@@ -29,6 +29,18 @@ func TestNodeOutlineFollowsTheAnnotatedElementsOnly(t *testing.T) {
 	}
 }
 
+func TestNodeOutlineListsAnIconComponentRenderedAsSvgAsItsOwnNode(t *testing.T) {
+	doc, err := sitehtml.Parse(`<html><body><span data-vz-node="src/pages/Home.jsx#40"><svg data-vz-inst="src/pages/Home.jsx#60" class="size-6"><path d="M0 0"></path></svg></span>` +
+		`<div data-vz-inst="src/pages/Home.jsx#90">componente</div><svg data-vz-inst="nada"></svg></body></html>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := NodeOutline(doc, 8, 100)
+	if len(got) != 1 || len(got[0].Children) != 1 || got[0].Children[0].Node != "src/pages/Home.jsx#60" || got[0].Children[0].Tag != "svg" {
+		t.Fatalf("got %+v", got)
+	}
+}
+
 func TestNodeOutlineIsBoundedInDepthAndSize(t *testing.T) {
 	var b strings.Builder
 	b.WriteString("<html><body>")
@@ -57,5 +69,30 @@ func TestNodeOutlineIsBoundedInDepthAndSize(t *testing.T) {
 	walk(got, 1)
 	if depth > 3 || count > 20 {
 		t.Fatalf("depth %d count %d", depth, count)
+	}
+}
+
+func TestNodeOutlineCarriesAnchorsAndTheFormEachNodeBelongsTo(t *testing.T) {
+	doc, err := sitehtml.Parse(`<html><body>` +
+		`<section data-vz-node="pages/index.html#1" id="planos"><h2 data-vz-node="pages/index.html#2">Planos</h2></section>` +
+		`<vz-form id="contato"><form data-vz-node="pages/index.html#3"><button data-vz-node="pages/index.html#4">Enviar</button></form></vz-form>` +
+		`<form data-vz-node="pages/index.html#5" data-vz-form="orcamento" id="orcamento-form"><div><button data-vz-node="pages/index.html#6">Pedir</button></div></form>` +
+		`</body></html>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := NodeOutline(doc, 8, 100)
+	if len(got) != 3 {
+		t.Fatalf("roots %+v", got)
+	}
+	section, contato, orcamento := got[0], got[1], got[2]
+	if section.Anchor != "planos" || section.Form != "" || section.Children[0].Anchor != "" {
+		t.Fatalf("section %+v", section)
+	}
+	if contato.Form != "contato" || contato.Anchor != "" || contato.Children[0].Form != "contato" {
+		t.Fatalf("contato %+v", contato)
+	}
+	if orcamento.Form != "orcamento" || orcamento.Anchor != "orcamento-form" || orcamento.Children[0].Form != "orcamento" {
+		t.Fatalf("orcamento %+v", orcamento)
 	}
 }

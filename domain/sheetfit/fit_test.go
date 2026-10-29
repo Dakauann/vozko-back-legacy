@@ -134,9 +134,6 @@ func TestAFileTheFlowCannotUseIsRefusedWithACode(t *testing.T) {
 			}
 		}, code: CodeFileOtherAccount},
 		{name: "no account connected", acct: "-", code: CodeFileOtherAccount},
-		{name: "the model file itself", file: func(f *googlesheet.Spreadsheet) {
-			*f = googlesheet.Spreadsheet{ID: modelFile, Sheets: cobrancaModel().Sheets}
-		}, code: CodeModelFile},
 		{name: "no uses", model: func(m *Model) { m.Uses = nil }, code: CodeUsesRequired},
 		{name: "unknown use kind", model: func(m *Model) { m.Uses[0].Kind = "delete_row" }, code: CodeUseInvalid},
 		{name: "use without a model tab", model: func(m *Model) { m.Uses[0].ModelSheetID = " " }, code: CodeUseInvalid},
@@ -368,10 +365,14 @@ func TestTheWholeModelUsesEveryTabTheWayItCanBeWritten(t *testing.T) {
 	}
 }
 
-func TestTheModelFileIsNeverAValue(t *testing.T) {
+func TestTheModelFileItselfCanReceiveTheRows(t *testing.T) {
 	model := cobrancaModel()
-	if !IsModelFile(model, googlesheet.Spreadsheet{ID: modelFile}) || IsModelFile(model, centro()) {
-		t.Fatal("the model file rule is wrong")
+	got, err := Fit(model, googlesheet.Spreadsheet{ID: modelFile, Sheets: model.Sheets}, account)
+	if err != nil {
+		t.Fatalf("Fit: %v", err)
+	}
+	if got.SpreadsheetID != modelFile || got.Tabs[modelNeg] != modelNeg || got.Tabs[modelPag] != modelPag || len(got.Tabs) != 2 {
+		t.Fatalf("assignment = %+v", got)
 	}
 }
 
@@ -391,11 +392,11 @@ func TestAWorkspaceFindsItsFiles(t *testing.T) {
 func TestCandidatesPutTheFilesThatFitFirst(t *testing.T) {
 	model := cobrancaModel()
 	ws := Workspace{Account: account, Files: []googlesheet.Spreadsheet{{ID: modelFile, Sheets: model.Sheets}, centro()}}
-	got, err := Candidates(ws, model)
-	if err != nil || len(got) != 2 || got[0].File.ID != centroFile || got[0].Misfit != nil || got[1].Misfit.Code != CodeModelFile {
+	got, err := Candidates(ws, model, Choice{})
+	if err != nil || len(got) != 2 || got[0].Misfit != nil || got[1].Misfit != nil {
 		t.Fatalf("Candidates = %+v, %v", got, err)
 	}
-	if _, err := Candidates(ws, Model{Sheets: model.Sheets}); err == nil {
+	if _, err := Candidates(ws, Model{Sheets: model.Sheets}, Choice{}); err == nil {
 		t.Fatal("a model without uses must be refused, not listed")
 	}
 }

@@ -147,6 +147,14 @@ func Resolve[T Schedule | Spec](workspace, department *T) *T {
 	return workspace
 }
 
+func (s *Schedule) Segments(day time.Time) [][2]time.Time {
+	if s == nil {
+		return nil
+	}
+	y, m, d := day.In(s.Location()).Date()
+	return s.segmentsOn(y, m, d)
+}
+
 func (s *Schedule) segmentsOn(y int, m time.Month, d int) [][2]time.Time {
 	loc := s.Location()
 	if s.isHoliday(y, m, d) {

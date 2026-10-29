@@ -1,12 +1,12 @@
 ---
 name: lgpd-em-paginas
 surface: site
-description: LGPD na página: consentimento no formulário, política de privacidade, banner de cookies quando há pixel ou analytics e o que nunca coletar; carregue antes de publicar uma página com formulário ou rastreamento.
+description: LGPD na página: consentimento no formulário, política de privacidade, banner de cookies quando há pixel ou analytics e o que nunca coletar; carregue antes de publicar um site com formulário ou rastreamento.
 ---
 
 # LGPD em páginas
 
-Você não dá parecer jurídico; ajuda a montar a página do jeito que a plataforma e a LGPD (Lei 13.709/2018) esperam. Textos legais com dados da empresa vêm do usuário.
+Você não dá parecer jurídico; ajuda a montar o site do jeito que a plataforma e a LGPD (Lei 13.709/2018) esperam. Textos legais com dados da empresa vêm do usuário.
 
 ## Formulário
 - Peça só os dados que o próximo passo precisa (finalidade e necessidade). Nada de CPF, data de nascimento ou dados de saúde num formulário de captura.

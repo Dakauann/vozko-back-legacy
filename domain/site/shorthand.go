@@ -25,6 +25,12 @@ func (s *batchState) expand(i int, o Operation) ([]Operation, *Failure) {
 		return expandWhatsAppLink(i, o)
 	case OpClearWhatsAppLink:
 		return []Operation{attrOp(o, WhatsAppNumberAttr, nil), attrOp(o, WhatsAppTextAttr, nil)}, nil
+	case OpInsertElement:
+		return expandElement(i, o)
+	case OpSetFormField:
+		return expandSetFormField(i, o)
+	case OpInsertFormField:
+		return expandInsertFormField(i, o)
 	}
 	return []Operation{o}, nil
 }
@@ -132,7 +138,7 @@ func (o Operation) literalFiles() []string {
 	var nodes []string
 	switch o.Op.Family() {
 	case FamilyVisual:
-		nodes = append(nodes, o.Node, o.Before, o.After)
+		nodes = append(nodes, o.Node, o.Before, o.After, o.Into)
 		if o.At != nil {
 			nodes = append(nodes, o.At.Before, o.At.After, o.At.Into)
 		}
@@ -185,6 +191,9 @@ func (b Batch) StaleRevs(p Project) map[string][]uint64 {
 	for _, o := range b.Operations {
 		for _, file := range o.literalFiles() {
 			wanted.add(p, file, o.Rev)
+		}
+		if file, ok := literalFile(o.Source); ok {
+			wanted.add(p, file, o.SourceRev)
 		}
 	}
 	return wanted.sorted()

@@ -82,12 +82,12 @@ func TestFitFilesTellsWhichWorkspaceFilesTheModelUsesCanWriteInto(t *testing.T) 
 		}
 		codes[fit.File.ID] = code
 	}
-	want := map[string]string{"sp-centro": "", "sp-1": sheetfit.CodeTabMissing, "sp-model": sheetfit.CodeModelFile, "sp-norte": sheetfit.CodeFileOtherAccount}
+	want := map[string]string{"sp-centro": "", "sp-1": sheetfit.CodeTabMissing, "sp-model": "", "sp-norte": sheetfit.CodeFileOtherAccount}
 	if !reflect.DeepEqual(codes, want) {
 		t.Fatalf("codes = %v", codes)
 	}
-	first := fits[0]
-	if first.File.ID != "sp-centro" || first.Assignment.Tabs[model.timeline.ID] != timeline.ID || first.Assignment.Tabs[model.payments.ID] != payments.ID {
+	first := fitOf(t, fits, "sp-centro")
+	if first.Misfit != nil || first.Assignment.Tabs[model.timeline.ID] != timeline.ID || first.Assignment.Tabs[model.payments.ID] != payments.ID {
 		t.Fatalf("first = %+v", first)
 	}
 	for _, fit := range fits {
@@ -183,7 +183,7 @@ func TestCopyModelCreatesAFileThatFitsTheModel(t *testing.T) {
 		t.Fatalf("unique = %+v", payments.Unique)
 	}
 	fits, err := w.manager.FitFiles(context.Background(), FitFilesInput{WorkspaceID: testWorkspace, ModelSpreadsheetID: "sp-model", Uses: model.uses()})
-	if err != nil || fits[0].File.ID != "sp-copy" || fits[0].Misfit != nil || !reflect.DeepEqual(fits[0].Assignment.Tabs, copied.Tabs) {
+	if err != nil || fitOf(t, fits, "sp-copy").Misfit != nil || !reflect.DeepEqual(fitOf(t, fits, "sp-copy").Assignment.Tabs, copied.Tabs) {
 		t.Fatalf("the copy does not fit: %+v, %v", fits, err)
 	}
 }
@@ -221,4 +221,15 @@ func TestFitWorkspaceListsNamedFilesWithTheConnectedAccount(t *testing.T) {
 	if _, err := w.manager.FitWorkspace(context.Background(), testWorkspace); err == nil {
 		t.Fatal("an unreadable account must not look like a disconnected one")
 	}
+}
+
+func fitOf(t *testing.T, fits []FileFit, spreadsheetID string) FileFit {
+	t.Helper()
+	for _, fit := range fits {
+		if fit.File.ID == spreadsheetID {
+			return fit
+		}
+	}
+	t.Fatalf("no fit for %s in %+v", spreadsheetID, fits)
+	return FileFit{}
 }

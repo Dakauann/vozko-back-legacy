@@ -64,7 +64,7 @@ Granulado, vazamento de luz, glitch, partículas, reflexo de lente, tremor de c�
 - animate grava keyframes de x, y (centro, de 0 a 1), scale (1 é o tamanho atual), rotation (graus), opacity, blur (desfoque em pixels do quadro, 0 é nítido) e as cores fill e stroke de textos, formas e ícones (cada chave com color em #rrggbb; as cores se misturam entre as chaves). O at_ms conta do início do clipe. update_clip com blur deixa um desfoque fixo, como um fundo desfocado atrás de um texto.
 - Desfoque animado: foco que entra (blur de 12 a 24 para 0 em 300 a 500 ms junto com a entrada), troca de assunto (o que sai desfoca) e ênfase de profundidade (fundo desfocado, texto nítido).
 - A easing de uma chave vale para o trecho que sai dela. entrance e exit dão entradas e saídas prontas (effect fade e deslizes, ou transition_kind com qualquer transição visual medida na caixa do clipe, como um wipe que revela um logo; detalhes em transicoes); motion_preset aplica animações completas.
-- Os campos de animate, das chaves, dos comportamentos e dos animadores de texto vêm de studio_op_guide (famílias animacao, chaves, comportamentos e texto): peça antes do primeiro lote da resposta.
+- Os campos de animate, das chaves, dos comportamentos e dos animadores de texto vêm de studio_op_guide (famílias animacao, chaves, comportamentos e texto): peça antes do primeiro lote que usa uma família cujo guia não está na conversa.
 - Crie e anime no mesmo lote com ref e @ref. O vídeo vai até 10 minutos e cada propriedade aceita quantas chaves precisar.
 - A 30 quadros por segundo, 1 quadro dura 33 ms: 100 ms são 3 quadros, 300 ms são 9, 500 ms são 15.
 

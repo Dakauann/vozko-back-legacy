@@ -33,6 +33,9 @@ func (r *UsageRepository) Record(record aiusage.Record) error {
 }
 
 const usageTotalsSQL = `
+WITH scoped AS (
+	SELECT * FROM ai_usage_records WHERE workspace_id = ? AND reference_id LIKE ? ESCAPE '\'
+)
 SELECT
 	COUNT(*) FILTER (WHERE input_tokens + output_tokens > 0) AS calls,
 	COUNT(*) FILTER (WHERE billed) AS billed,
@@ -40,18 +43,19 @@ SELECT
 	COALESCE(SUM(output_tokens), 0) AS output,
 	COALESCE(SUM(cache_read_tokens), 0) AS cache_read,
 	COALESCE(SUM(cache_write_tokens), 0) AS cache_write,
-	COALESCE(SUM(reasoning_tokens), 0) AS reasoning
-FROM ai_usage_records
-WHERE workspace_id = ? AND reference_id LIKE ? ESCAPE '\'`
+	COALESCE(SUM(reasoning_tokens), 0) AS reasoning,
+	COALESCE((SELECT input_tokens FROM scoped WHERE input_tokens + output_tokens > 0 ORDER BY created_at DESC, reference_id DESC LIMIT 1), 0) AS latest_input
+FROM scoped`
 
 type usageTotalsRow struct {
-	Calls      int
-	Billed     int
-	Input      int64
-	Output     int64
-	CacheRead  int64
-	CacheWrite int64
-	Reasoning  int64
+	Calls       int
+	Billed      int
+	Input       int64
+	Output      int64
+	CacheRead   int64
+	CacheWrite  int64
+	Reasoning   int64
+	LatestInput int64
 }
 
 func (r *UsageRepository) TotalsUnder(workspaceID, referencePrefix string) (aiusage.Totals, error) {
@@ -60,9 +64,10 @@ func (r *UsageRepository) TotalsUnder(workspaceID, referencePrefix string) (aius
 		return aiusage.Totals{}, err
 	}
 	return aiusage.Totals{
-		Calls:  row.Calls,
-		Billed: row.Billed,
-		Tokens: aiusage.Tokens{Input: row.Input, Output: row.Output, CacheRead: row.CacheRead, CacheWrite: row.CacheWrite, Reasoning: row.Reasoning},
+		Calls:       row.Calls,
+		Billed:      row.Billed,
+		LatestInput: row.LatestInput,
+		Tokens:      aiusage.Tokens{Input: row.Input, Output: row.Output, CacheRead: row.CacheRead, CacheWrite: row.CacheWrite, Reasoning: row.Reasoning},
 	}, nil
 }
 

@@ -381,7 +381,7 @@ func TestExportSendsAZipAttachment(t *testing.T) {
 }
 
 func TestSitesErrorCodesMatchTheGoldenSoTheFrontTranslatesThem(t *testing.T) {
-	codes := response.RefusalCodes(response.ErrorRefusalsOf(refusals), response.ErrorRefusalsOf(formRefusals), response.ErrorRefusalsOf(captureRefusals), requestRefusals)
+	codes := response.RefusalCodes(response.ErrorRefusalsOf(refusals), response.ErrorRefusalsOf(formRefusals), response.ErrorRefusalsOf(captureRefusals), response.ErrorRefusalsOf(nextStepsRefusals), requestRefusals)
 	codes = append(codes, detailCodes()...)
 	codegolden.Compare(t, filepath.Join("testdata", "sites_error_codes.golden"), codes,
 		"update testdata/sites_error_codes.golden, and translate sites.errors.<code> in the pt, en, es and de catalogs of vozko-front")

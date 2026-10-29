@@ -19,11 +19,12 @@ import (
 
 const (
 	sectionForms       = "forms"
-	settingsSections   = "pages,integrations,forms,redirects,consent"
-	settingsUnknown    = "section %q não existe; use uma de: pages, integrations, forms, redirects, consent"
-	settingsFormOnly   = "form_id só vale com section forms"
-	settingsBadJSON    = "value precisa ser JSON válido: o conteúdo inteiro da seção (ou do formulário, com form_id), ou null para limpar"
-	settingsInvalid    = "as configurações não foram salvas: %v"
+	sectionBookings    = "bookings"
+	settingsSections   = "site,pages,integrations,forms,bookings,redirects,consent"
+	settingsUnknown    = "section %q não existe; use uma de: site, pages, integrations, forms, bookings, redirects, consent"
+	settingsFormOnly   = "form_id só vale com section forms ou bookings"
+	settingsBadJSON    = "value precisa ser JSON válido: o conteúdo inteiro da seção (ou do item, com form_id), ou null para limpar"
+	settingsInvalid    = "as configurações não foram salvas (%s): %v"
 	settingsReference  = "as configurações não foram salvas: no formulário %s, %s"
 	settingsMoved      = "as configurações mudaram duas vezes enquanto você editava e não foram salvas; leia de novo"
 	settingsFailed     = "as configurações não puderam ser salvas agora; tente de novo"
@@ -41,8 +42,8 @@ var referenceWords = map[error]string{
 }
 
 type siteSettingsArgs struct {
-	Section string  `json:"section" req:"true" enum:"pages,integrations,forms,redirects,consent" desc:"a seção"`
-	FormID  string  `json:"form_id,omitempty" desc:"com forms: só esse formulário (o id do data-vz-form)"`
+	Section string  `json:"section" req:"true" enum:"site,pages,integrations,forms,bookings,redirects,consent" desc:"a seção; site guarda favicon_media_id, structured_data e webchat_widget"`
+	FormID  string  `json:"form_id,omitempty" desc:"com forms ou bookings: só esse item pelo id"`
 	Value   *string `json:"value,omitempty" desc:"para mudar: o JSON novo da seção ou do formulário, ou null; sem value, lê"`
 }
 
@@ -69,8 +70,9 @@ func (t *siteSettingsTool) NeedsApprovalFor(_ copilot.Mode, args map[string]inte
 
 func (t *siteSettingsTool) Definition() tools.Definition {
 	return copilottools.Definition("site_settings",
-		"Lê ou muda uma seção das configurações da página aberta. pages: por rota, title, description, og_media_id, canonical, noindex. integrations: meta_pixel, ga4, gtm, google_ads, tiktok_pixel, clarity. "+
-			"forms: por id do data-vz-form, funnel_id, stage_id, owner {kind unassigned|user|roulette, id}, workflow_id, follow_up {kind whatsapp|unofficial_whatsapp|email, id}, success {kind message|redirect|whatsapp, message, route, channel}, notify. "+
+		"Lê ou muda uma seção das configurações do site aberto. pages: por rota, title, description, og_media_id, canonical, noindex. integrations: meta_pixel, ga4, gtm, google_ads, tiktok_pixel, clarity. "+
+			"forms: por id do data-vz-form ou do vz-booking, funnel_id, stage_id, owner {kind unassigned|user|roulette, id}, workflow_id, follow_up {kind whatsapp|unofficial_whatsapp|email, id}, success {kind message|redirect|whatsapp, message, route, channel}, notify. "+
+			"bookings: por id, duration_minutes, buffer_minutes, notice_minutes, horizon_days, hours {timezone, days {mon..sun: [{start, end}]}}, title com {nome}, meet, fields (email, message), consent_text. "+
 			"redirects: lista de {from, to, status}. consent: banner, text, categories (analytics, marketing). Ids vêm das ferramentas de leitura; nunca invente. Sem value, lê; com value, troca a seção inteira (ou o formulário de form_id). Mudar redirects ou integrations sempre pede aprovação, em qualquer modo.",
 		siteSettingsArgs{})
 }
@@ -88,7 +90,7 @@ func settingsChangeOf(args map[string]interface{}) (settingsChange, error) {
 	if !copilottools.Contains(strings.Split(settingsSections, ","), c.section) {
 		return c, fmt.Errorf(settingsUnknown, c.section)
 	}
-	if c.formID != "" && c.section != sectionForms {
+	if c.formID != "" && c.section != sectionForms && c.section != sectionBookings {
 		return c, errors.New(settingsFormOnly)
 	}
 	if a.Value == nil {
@@ -138,17 +140,17 @@ func sectionOf(settings site.Settings, c settingsChange) (json.RawMessage, error
 		return nil, err
 	}
 	value := sections[c.section]
-	if c.formID == "" {
-		if value == nil {
-			return json.RawMessage("null"), nil
+	if c.formID != "" && value != nil {
+		var items map[string]json.RawMessage
+		if err := json.Unmarshal(value, &items); err != nil {
+			return nil, err
 		}
-		return value, nil
+		value = items[c.formID]
 	}
-	form, ok := settings.Forms[c.formID]
-	if !ok {
+	if value == nil {
 		return json.RawMessage("null"), nil
 	}
-	return json.Marshal(form)
+	return value, nil
 }
 
 func applyChange(settings site.Settings, c settingsChange) ([]byte, error) {
@@ -163,24 +165,24 @@ func applyChange(settings site.Settings, c settingsChange) ([]byte, error) {
 	null := bytes.Equal(bytes.TrimSpace(*c.value), []byte("null"))
 	switch {
 	case c.formID != "":
-		forms := map[string]json.RawMessage{}
-		if existing := sections[sectionForms]; existing != nil {
-			if err := json.Unmarshal(existing, &forms); err != nil {
+		items := map[string]json.RawMessage{}
+		if existing := sections[c.section]; existing != nil {
+			if err := json.Unmarshal(existing, &items); err != nil {
 				return nil, err
 			}
 		}
 		if null {
-			delete(forms, c.formID)
+			delete(items, c.formID)
 		} else {
-			forms[c.formID] = *c.value
+			items[c.formID] = *c.value
 		}
-		encoded, err := json.Marshal(forms)
+		encoded, err := json.Marshal(items)
 		if err != nil {
 			return nil, err
 		}
-		sections[sectionForms] = encoded
-		if len(forms) == 0 {
-			delete(sections, sectionForms)
+		sections[c.section] = encoded
+		if len(items) == 0 {
+			delete(sections, c.section)
 		}
 	case null:
 		delete(sections, c.section)
@@ -201,7 +203,7 @@ func settingsFailure(err error) string {
 	}
 	switch {
 	case errors.Is(err, site.ErrSettingsInvalid):
-		return fmt.Sprintf(settingsInvalid, err)
+		return fmt.Sprintf(settingsInvalid, site.ErrorCode(err), err)
 	case errors.Is(err, site_usecase.ErrProjectArchived):
 		return siteArchived
 	case errors.Is(err, site_usecase.ErrProjectSuspended):

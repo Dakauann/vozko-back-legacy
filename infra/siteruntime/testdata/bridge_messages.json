@@ -5,6 +5,9 @@
         "type": "vz:ready"
       },
       {
+        "type": "vz:save"
+      },
+      {
         "type": "vz:hover",
         "node": "pages/index.html#120",
         "rect": {
@@ -248,6 +251,342 @@
         "type": "vz:capture-failed",
         "id": "cap-1",
         "reason": "capture_failed"
+      },
+      {
+        "type": "vz:styles",
+        "node": "pages/index.html#9",
+        "classes": [
+          "py-4",
+          "md:py-8"
+        ],
+        "computed": {
+          "padding-top": "16px",
+          "display": "block"
+        },
+        "rem": 16
+      },
+      {
+        "type": "vz:apply-refused",
+        "id": "edit-1",
+        "reason": "attribute_forbidden"
+      },
+      {
+        "type": "vz:select",
+        "node": "pages/index.html#9",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 10,
+          "height": 10
+        },
+        "tag": "p",
+        "text": "Oi",
+        "attrs": {},
+        "classes": [],
+        "path": [
+          "p:0"
+        ],
+        "rev": 2,
+        "item": null,
+        "computed": {
+          "font-size": "16px"
+        },
+        "rem": 16
+      },
+      {
+        "type": "vz:applied",
+        "id": "edit-1"
+      },
+      {
+        "type": "vz:select",
+        "node": "pages/index.html#90",
+        "rect": {
+          "x": 0,
+          "y": 120,
+          "width": 1280,
+          "height": 480
+        },
+        "tag": "section",
+        "text": "Planos",
+        "attrs": {},
+        "classes": [
+          "grid",
+          "grid-cols-3",
+          "gap-8"
+        ],
+        "path": [
+          "main:0",
+          "section:2"
+        ],
+        "rev": 4,
+        "item": null,
+        "computed": {
+          "display": "grid",
+          "grid-template-columns": "400px 400px 400px",
+          "column-gap": "32px"
+        },
+        "rem": 16,
+        "parent": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 2400
+        },
+        "children": [
+          {
+            "x": 0,
+            "y": 120,
+            "width": 400,
+            "height": 300
+          },
+          {
+            "x": 432,
+            "y": 120,
+            "width": 400,
+            "height": 300
+          },
+          {
+            "x": 864,
+            "y": 120,
+            "width": 400,
+            "height": 300
+          }
+        ]
+      },
+      {
+        "type": "vz:styles",
+        "node": "pages/index.html#90",
+        "classes": [
+          "grid",
+          "grid-cols-2",
+          "gap-8"
+        ],
+        "computed": {
+          "display": "grid"
+        },
+        "rem": 16,
+        "rect": {
+          "x": 0,
+          "y": 120,
+          "width": 1280,
+          "height": 640
+        },
+        "parent": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 2400
+        },
+        "children": [
+          {
+            "x": 0,
+            "y": 120,
+            "width": 624,
+            "height": 300
+          },
+          {
+            "x": 656,
+            "y": 120,
+            "width": 624,
+            "height": 300
+          }
+        ]
+      },
+      {
+        "type": "vz:select",
+        "node": "pages/index.html#300",
+        "rect": {
+          "x": 0,
+          "y": 120,
+          "width": 1280,
+          "height": 480
+        },
+        "tag": "section",
+        "text": "Planos",
+        "attrs": {},
+        "classes": [
+          "grid",
+          "grid-cols-3",
+          "gap-8"
+        ],
+        "path": [
+          "main:0",
+          "section:2"
+        ],
+        "rev": 4,
+        "item": null,
+        "computed": {
+          "display": "grid",
+          "grid-template-columns": "400px 400px 400px",
+          "column-gap": "32px"
+        },
+        "rem": 16,
+        "parent": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 2400
+        },
+        "children": [
+          {
+            "x": 0,
+            "y": 120,
+            "width": 400,
+            "height": 300
+          },
+          {
+            "x": 432,
+            "y": 120,
+            "width": 400,
+            "height": 300
+          },
+          {
+            "x": 864,
+            "y": 120,
+            "width": 400,
+            "height": 300
+          }
+        ],
+        "inherited": {
+          "color": {
+            "node": "pages/index.html#200",
+            "tag": "section"
+          },
+          "font-size": {
+            "node": "pages/index.html#200",
+            "tag": "section"
+          }
+        },
+        "family": {
+          "parent": "pages/index.html#200",
+          "previous": "",
+          "next": "pages/index.html#260"
+        }
+      },
+      {
+        "type": "vz:styles",
+        "node": "pages/index.html#90",
+        "classes": [
+          "grid",
+          "grid-cols-2",
+          "gap-8"
+        ],
+        "computed": {
+          "display": "grid"
+        },
+        "rem": 16,
+        "rect": {
+          "x": 0,
+          "y": 120,
+          "width": 1280,
+          "height": 640
+        },
+        "parent": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 2400
+        },
+        "children": [
+          {
+            "x": 0,
+            "y": 120,
+            "width": 624,
+            "height": 300
+          },
+          {
+            "x": 656,
+            "y": 120,
+            "width": 624,
+            "height": 300
+          }
+        ],
+        "inherited": {}
+      },
+      {
+        "type": "vz:context",
+        "node": "pages/index.html#300",
+        "x": 40,
+        "y": 60.5
+      },
+      {
+        "type": "vz:context",
+        "node": "",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "type": "vz:drop",
+        "slot": {
+          "container": "pages/index.html#90",
+          "tag": "section",
+          "anchor": "pages/index.html#120",
+          "place": "before",
+          "axis": "y"
+        }
+      },
+      {
+        "type": "vz:drop",
+        "slot": {
+          "container": "",
+          "tag": "body",
+          "anchor": "",
+          "place": "into",
+          "axis": "y"
+        },
+        "x": 12.5,
+        "y": 40
+      },
+      {
+        "type": "vz:drop",
+        "slot": {
+          "container": "src/App.jsx#40",
+          "tag": "div",
+          "anchor": "src/App.jsx#40",
+          "place": "into",
+          "axis": "x",
+          "refused": "inside_self"
+        }
+      },
+      {
+        "type": "vz:drop",
+        "slot": null
+      },
+      {
+        "type": "vz:drag-begin",
+        "node": "src/App.jsx#40",
+        "item": 2
+      },
+      {
+        "type": "vz:drag-end",
+        "commit": false
+      },
+      {
+        "type": "vz:shortcut",
+        "action": "paste"
+      },
+      {
+        "type": "vz:select",
+        "node": "src/App.jsx#88",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 24,
+          "height": 24
+        },
+        "tag": "svg",
+        "text": "",
+        "attrs": {},
+        "classes": [
+          "size-6"
+        ],
+        "path": [
+          "main:0",
+          "svg:0"
+        ],
+        "rev": 2,
+        "item": null,
+        "kind": "icon"
       }
     ],
     "invalid": [
@@ -1773,6 +2112,739 @@
           "id": "",
           "reason": "too_large"
         }
+      },
+      {
+        "why": "save carries nothing",
+        "message": {
+          "type": "vz:save",
+          "node": "pages/index.html#1"
+        }
+      },
+      {
+        "why": "computed style names are lowercase css properties",
+        "message": {
+          "type": "vz:styles",
+          "node": "pages/index.html#9",
+          "classes": [],
+          "computed": {
+            "Padding Top": "1px"
+          },
+          "rem": 16
+        }
+      },
+      {
+        "why": "refusal reasons are a closed list",
+        "message": {
+          "type": "vz:apply-refused",
+          "id": "edit-1",
+          "reason": "because"
+        }
+      },
+      {
+        "why": "an applied change names it",
+        "message": {
+          "type": "vz:applied"
+        }
+      },
+      {
+        "why": "children boxes are rectangles",
+        "message": {
+          "type": "vz:styles",
+          "node": "pages/index.html#9",
+          "classes": [],
+          "computed": {},
+          "rem": 16,
+          "children": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": -1,
+              "height": 2
+            }
+          ]
+        }
+      },
+      {
+        "why": "at most 48 children boxes",
+        "message": {
+          "type": "vz:styles",
+          "node": "pages/index.html#9",
+          "classes": [],
+          "computed": {},
+          "rem": 16,
+          "children": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            }
+          ]
+        }
+      },
+      {
+        "why": "the parent is one rectangle",
+        "message": {
+          "type": "vz:select",
+          "node": "pages/index.html#9",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "tag": "p",
+          "text": "",
+          "attrs": {},
+          "classes": [],
+          "path": [],
+          "rev": null,
+          "item": null,
+          "parent": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            }
+          ]
+        }
+      },
+      {
+        "why": "an inherited source for a style that is not inherited",
+        "message": {
+          "type": "vz:select",
+          "node": "pages/index.html#300",
+          "rect": {
+            "x": 0,
+            "y": 120,
+            "width": 1280,
+            "height": 480
+          },
+          "tag": "section",
+          "text": "Planos",
+          "attrs": {},
+          "classes": [
+            "grid",
+            "grid-cols-3",
+            "gap-8"
+          ],
+          "path": [
+            "main:0",
+            "section:2"
+          ],
+          "rev": 4,
+          "item": null,
+          "computed": {
+            "display": "grid",
+            "grid-template-columns": "400px 400px 400px",
+            "column-gap": "32px"
+          },
+          "rem": 16,
+          "parent": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 2400
+          },
+          "children": [
+            {
+              "x": 0,
+              "y": 120,
+              "width": 400,
+              "height": 300
+            },
+            {
+              "x": 432,
+              "y": 120,
+              "width": 400,
+              "height": 300
+            },
+            {
+              "x": 864,
+              "y": 120,
+              "width": 400,
+              "height": 300
+            }
+          ],
+          "inherited": {
+            "background-color": {
+              "node": "pages/index.html#200",
+              "tag": "section"
+            }
+          }
+        }
+      },
+      {
+        "why": "an inherited source without a valid node",
+        "message": {
+          "type": "vz:select",
+          "node": "pages/index.html#300",
+          "rect": {
+            "x": 0,
+            "y": 120,
+            "width": 1280,
+            "height": 480
+          },
+          "tag": "section",
+          "text": "Planos",
+          "attrs": {},
+          "classes": [
+            "grid",
+            "grid-cols-3",
+            "gap-8"
+          ],
+          "path": [
+            "main:0",
+            "section:2"
+          ],
+          "rev": 4,
+          "item": null,
+          "computed": {
+            "display": "grid",
+            "grid-template-columns": "400px 400px 400px",
+            "column-gap": "32px"
+          },
+          "rem": 16,
+          "parent": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 2400
+          },
+          "children": [
+            {
+              "x": 0,
+              "y": 120,
+              "width": 400,
+              "height": 300
+            },
+            {
+              "x": 432,
+              "y": 120,
+              "width": 400,
+              "height": 300
+            },
+            {
+              "x": 864,
+              "y": 120,
+              "width": 400,
+              "height": 300
+            }
+          ],
+          "inherited": {
+            "color": {
+              "node": "../x#1",
+              "tag": "section"
+            }
+          }
+        }
+      },
+      {
+        "why": "an inherited source with extra fields",
+        "message": {
+          "type": "vz:select",
+          "node": "pages/index.html#300",
+          "rect": {
+            "x": 0,
+            "y": 120,
+            "width": 1280,
+            "height": 480
+          },
+          "tag": "section",
+          "text": "Planos",
+          "attrs": {},
+          "classes": [
+            "grid",
+            "grid-cols-3",
+            "gap-8"
+          ],
+          "path": [
+            "main:0",
+            "section:2"
+          ],
+          "rev": 4,
+          "item": null,
+          "computed": {
+            "display": "grid",
+            "grid-template-columns": "400px 400px 400px",
+            "column-gap": "32px"
+          },
+          "rem": 16,
+          "parent": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 2400
+          },
+          "children": [
+            {
+              "x": 0,
+              "y": 120,
+              "width": 400,
+              "height": 300
+            },
+            {
+              "x": 432,
+              "y": 120,
+              "width": 400,
+              "height": 300
+            },
+            {
+              "x": 864,
+              "y": 120,
+              "width": 400,
+              "height": 300
+            }
+          ],
+          "inherited": {
+            "color": {
+              "node": "pages/index.html#200",
+              "tag": "section",
+              "classes": [
+                "text-red-500"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "why": "a family without every neighbour",
+        "message": {
+          "type": "vz:select",
+          "node": "pages/index.html#300",
+          "rect": {
+            "x": 0,
+            "y": 120,
+            "width": 1280,
+            "height": 480
+          },
+          "tag": "section",
+          "text": "Planos",
+          "attrs": {},
+          "classes": [
+            "grid",
+            "grid-cols-3",
+            "gap-8"
+          ],
+          "path": [
+            "main:0",
+            "section:2"
+          ],
+          "rev": 4,
+          "item": null,
+          "computed": {
+            "display": "grid",
+            "grid-template-columns": "400px 400px 400px",
+            "column-gap": "32px"
+          },
+          "rem": 16,
+          "parent": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 2400
+          },
+          "children": [
+            {
+              "x": 0,
+              "y": 120,
+              "width": 400,
+              "height": 300
+            },
+            {
+              "x": 432,
+              "y": 120,
+              "width": 400,
+              "height": 300
+            },
+            {
+              "x": 864,
+              "y": 120,
+              "width": 400,
+              "height": 300
+            }
+          ],
+          "inherited": {
+            "color": {
+              "node": "pages/index.html#200",
+              "tag": "section"
+            },
+            "font-size": {
+              "node": "pages/index.html#200",
+              "tag": "section"
+            }
+          },
+          "family": {
+            "parent": "pages/index.html#200",
+            "previous": ""
+          }
+        }
+      },
+      {
+        "why": "a context menu request without coordinates",
+        "message": {
+          "type": "vz:context",
+          "node": "pages/index.html#300"
+        }
+      },
+      {
+        "why": "a context menu request for a malformed node",
+        "message": {
+          "type": "vz:context",
+          "node": "../x#1",
+          "x": 1,
+          "y": 1
+        }
+      },
+      {
+        "why": "drop place outside the three positions",
+        "message": {
+          "type": "vz:drop",
+          "slot": {
+            "container": "",
+            "tag": "body",
+            "anchor": "",
+            "place": "inside",
+            "axis": "y"
+          }
+        }
+      },
+      {
+        "why": "drop refusal reason unknown",
+        "message": {
+          "type": "vz:drop",
+          "slot": {
+            "container": "",
+            "tag": "body",
+            "anchor": "",
+            "place": "into",
+            "axis": "y",
+            "refused": "nope"
+          }
+        }
+      },
+      {
+        "why": "drag end without a decision",
+        "message": {
+          "type": "vz:drag-end"
+        }
+      },
+      {
+        "why": "shortcut the editor does not handle",
+        "message": {
+          "type": "vz:shortcut",
+          "action": "cut"
+        }
+      },
+      {
+        "why": "selection kind other than icon",
+        "message": {
+          "type": "vz:select",
+          "node": "src/App.jsx#88",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 24,
+            "height": 24
+          },
+          "tag": "svg",
+          "text": "",
+          "attrs": {},
+          "classes": [],
+          "path": [],
+          "rev": 2,
+          "item": null,
+          "kind": "chart"
+        }
       }
     ]
   },
@@ -1842,6 +2914,141 @@
         "id": "cap-4",
         "kind": "image",
         "height": 900
+      },
+      {
+        "type": "vz:apply",
+        "id": "edit-1",
+        "node": "pages/index.html#9",
+        "change": {
+          "kind": "classes",
+          "add": [
+            "md:py-8"
+          ],
+          "remove": [
+            "py-4"
+          ]
+        }
+      },
+      {
+        "type": "vz:apply",
+        "id": "edit-2",
+        "node": "pages/index.html#9",
+        "item": 1,
+        "change": {
+          "kind": "attr",
+          "name": "href",
+          "value": "#planos"
+        }
+      },
+      {
+        "type": "vz:apply",
+        "id": "edit-3",
+        "node": "pages/index.html#9",
+        "change": {
+          "kind": "attr",
+          "name": "target",
+          "value": null
+        }
+      },
+      {
+        "type": "vz:apply",
+        "id": "edit-4",
+        "node": "pages/index.html#9",
+        "change": {
+          "kind": "remove"
+        }
+      },
+      {
+        "type": "vz:apply",
+        "id": "edit-5",
+        "node": "pages/index.html#9",
+        "change": {
+          "kind": "duplicate"
+        }
+      },
+      {
+        "type": "vz:apply",
+        "id": "edit-6",
+        "node": "pages/index.html#9",
+        "change": {
+          "kind": "move",
+          "anchor": "pages/index.html#2",
+          "place": "after"
+        }
+      },
+      {
+        "type": "vz:revert",
+        "id": "edit-1"
+      },
+      {
+        "type": "vz:scroll-y",
+        "y": 840
+      },
+      {
+        "type": "vz:scroll-y",
+        "y": 320,
+        "anchor": {
+          "node": "pages/index.html#10",
+          "top": 100.5
+        }
+      },
+      {
+        "type": "vz:probe",
+        "x": 120,
+        "y": 300.5,
+        "moving": ""
+      },
+      {
+        "type": "vz:probe",
+        "x": 120,
+        "y": 300,
+        "moving": "src/App.jsx#40",
+        "item": 1
+      },
+      {
+        "type": "vz:probe-step",
+        "direction": "out",
+        "moving": ""
+      },
+      {
+        "type": "vz:probe-end"
+      },
+      {
+        "type": "vz:apply",
+        "id": "drag-3",
+        "node": "src/App.jsx#40",
+        "change": {
+          "kind": "move",
+          "anchor": "src/App.jsx#10",
+          "place": "into"
+        }
+      },
+      {
+        "type": "vz:select-node",
+        "node": "src/App.jsx#40",
+        "item": null,
+        "path": [
+          "main:0",
+          "div:1",
+          "svg:0"
+        ]
+      },
+      {
+        "type": "vz:scroll-y",
+        "y": 320,
+        "anchor": {
+          "node": "src/App.jsx#40",
+          "top": 12,
+          "item": 1,
+          "path": [
+            "main:0",
+            "div:1"
+          ]
+        }
+      },
+      {
+        "type": "vz:hover-states",
+        "on": true
       }
     ],
     "invalid": [
@@ -1980,6 +3187,109 @@
           "id": "c",
           "kind": "image",
           "scale": 2
+        }
+      },
+      {
+        "why": "live changes never carry markup",
+        "message": {
+          "type": "vz:apply",
+          "id": "edit-1",
+          "node": "pages/index.html#9",
+          "change": {
+            "kind": "html",
+            "html": "<img onerror=x>"
+          }
+        }
+      },
+      {
+        "why": "a class change lists class tokens only",
+        "message": {
+          "type": "vz:apply",
+          "id": "edit-1",
+          "node": "pages/index.html#9",
+          "change": {
+            "kind": "classes",
+            "add": [
+              "a b"
+            ],
+            "remove": []
+          }
+        }
+      },
+      {
+        "why": "a move names a place",
+        "message": {
+          "type": "vz:apply",
+          "id": "edit-1",
+          "node": "pages/index.html#9",
+          "change": {
+            "kind": "move",
+            "anchor": "pages/index.html#2",
+            "place": "inside"
+          }
+        }
+      },
+      {
+        "why": "a revert names the change",
+        "message": {
+          "type": "vz:revert"
+        }
+      },
+      {
+        "why": "a scroll position is a number",
+        "message": {
+          "type": "vz:scroll-y",
+          "y": "840"
+        }
+      },
+      {
+        "why": "a landing anchor without its screen position",
+        "message": {
+          "type": "vz:scroll-y",
+          "y": 320,
+          "anchor": {
+            "node": "pages/index.html#10"
+          }
+        }
+      },
+      {
+        "why": "probe without a point",
+        "message": {
+          "type": "vz:probe",
+          "moving": ""
+        }
+      },
+      {
+        "why": "probe step direction unknown",
+        "message": {
+          "type": "vz:probe-step",
+          "direction": "up",
+          "moving": ""
+        }
+      },
+      {
+        "why": "probe moving something that is not a node",
+        "message": {
+          "type": "vz:probe",
+          "x": 1,
+          "y": 1,
+          "moving": "x"
+        }
+      },
+      {
+        "why": "hover states without a decision",
+        "message": {
+          "type": "vz:hover-states"
+        }
+      },
+      {
+        "why": "select path with a malformed segment",
+        "message": {
+          "type": "vz:select-node",
+          "node": "src/App.jsx#40",
+          "path": [
+            "main"
+          ]
         }
       }
     ]

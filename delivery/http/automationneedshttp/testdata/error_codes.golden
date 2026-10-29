@@ -4,6 +4,7 @@ automation_publish_switches_off
 automation_voice_variables
 automation_test_values_missing
 automation_sheets_unmet
+automation_channel_unsupported
 automation_needs_unreadable
 automation_needs_not_found
 automation_needs_too_many

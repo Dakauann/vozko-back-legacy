@@ -9,6 +9,7 @@ import (
 	ia "vozko/domain/inbox_assignment"
 	"vozko/domain/lead"
 	"vozko/domain/shared"
+	"vozko/domain/sitepublish"
 	conversation_usecase "vozko/usecases/conversation"
 )
 
@@ -57,4 +58,9 @@ type Limits struct {
 
 type SiteOrigins interface {
 	WidgetOrigins(ctx context.Context, workspaceID, widgetID string) ([]string, error)
+}
+
+type PreviewGrants interface {
+	PreviewOrigin(origin string) bool
+	PreviewGrant(ctx context.Context, origin string) (sitepublish.PreviewGrant, bool, error)
 }

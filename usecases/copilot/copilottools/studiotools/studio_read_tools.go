@@ -18,7 +18,29 @@ const (
 )
 
 type studioReadArgs struct {
-	Detail string `json:"detail" enum:"summary,full" desc:"summary (padrão): faixas, clipes, tempos, textos e trabalhos em andamento; full: inclui também transformações, keyframes, estilos e a biblioteca recente"`
+	Detail     string   `json:"detail" enum:"summary,full" desc:"summary (padrão): faixas, clipes, tempos, textos e trabalhos em andamento; full: inclui também transformações, keyframes, estilos e a biblioteca recente"`
+	IDs        []string `json:"ids,omitempty" desc:"lê por inteiro só estes itens; in diz onde cada um está"`
+	TrackID    string   `json:"track_id,omitempty" desc:"vídeo: uma faixa inteira"`
+	ArtboardID string   `json:"artboard_id,omitempty" desc:"imagem: uma prancheta inteira"`
+	Changes    bool     `json:"changes,omitempty" desc:"só o que o usuário mudou desde a sua última leitura"`
+}
+
+func (a studioReadArgs) scope(kind copilot.StudioKind) (studioReadScope, error) {
+	modes := 0
+	for _, used := range []bool{len(a.IDs) > 0, a.TrackID != "", a.ArtboardID != "", a.Changes} {
+		if used {
+			modes++
+		}
+	}
+	switch {
+	case modes > 1:
+		return studioReadScope{}, fmt.Errorf("%w: use ids, track_id, artboard_id ou changes, um de cada vez", copilottools.ErrInvalidArgs)
+	case a.TrackID != "" && kind != copilot.StudioVideo:
+		return studioReadScope{}, fmt.Errorf("%w: track_id vale no vídeo; na imagem use artboard_id", copilottools.ErrInvalidArgs)
+	case a.ArtboardID != "" && kind != copilot.StudioImage:
+		return studioReadScope{}, fmt.Errorf("%w: artboard_id vale na imagem; no vídeo use track_id", copilottools.ErrInvalidArgs)
+	}
+	return studioReadScope{ids: a.IDs, trackID: a.TrackID, artboardID: a.ArtboardID, changes: a.Changes}, nil
 }
 
 type studioReadTool struct {
@@ -37,13 +59,17 @@ func (t *studioReadTool) Definition() tools.Definition {
 		"Lê o projeto aberto no Estúdio como ele está agora na tela, inclusive o que o usuário mudou desde a sua última leitura: "+
 			"formato, duração, faixas de baixo para cima com seus clipes (id, tipo, mídia, início, duração, recorte, textos, animações), "+
 			"marcadores, posição do cursor de tempo, seleção e trabalhos na fila. Em projetos de imagem: cada prancheta (id, nome, tamanho, lugar, fundo) com suas camadas de baixo para cima, e qual é a ativa. "+
-			"alerts traz problemas medidos no documento (sombras, alinhamento, camadas, movimento). Use antes de editar e sempre que precisar de ids.",
+			"alerts traz problemas medidos no documento (sombras, alinhamento, camadas, movimento). Projeto grande volta como esboço com todos os ids: leia por inteiro só o que vai editar. Use antes de editar e sempre que precisar de ids.",
 		studioReadArgs{})
 }
 
 func (t *studioReadTool) Execute(ctx context.Context, cc copilot.Context, args map[string]interface{}) copilot.Result {
 	var a studioReadArgs
 	if err := copilottools.DecodeArgs(args, &a); err != nil {
+		return studioFailure(err.Error())
+	}
+	scope, err := a.scope(cc.View.ProjectKind)
+	if err != nil {
 		return studioFailure(err.Error())
 	}
 	if _, err := t.deps.openProject(ctx, cc); err != nil {
@@ -57,7 +83,11 @@ func (t *studioReadTool) Execute(ctx context.Context, cc copilot.Context, args m
 	if err != nil {
 		return screencall.Result(cc, err)
 	}
-	return copilot.Result{Status: copilot.StatusOK, Data: screencall.Data(reply)}
+	shaped, err := shapeStudioRead(t.deps.withReadAlerts(reply.Data, cc.View.ProjectKind), scope)
+	if err != nil {
+		return studioFailure(err.Error())
+	}
+	return copilot.Result{Status: copilot.StatusOK, Data: shaped}
 }
 
 type studioLookRegion struct {
@@ -163,6 +193,7 @@ func (t *studioLookTool) Execute(ctx context.Context, cc copilot.Context, args m
 	if len(reply.Images) != 1 {
 		return studioFailure(studioNoCapture)
 	}
+	reply.Data = t.deps.withLookReports(reply)
 	return copilot.Result{Status: copilot.StatusOK, Data: screencall.Data(reply), Images: reply.Images, Subject: lookSubject(project.ID, reply.Target)}
 }
 

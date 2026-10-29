@@ -82,3 +82,40 @@ func TestVisitorTokenNeedsBothIDs(t *testing.T) {
 		t.Fatalf("NewVisitorToken without visitor = %v", err)
 	}
 }
+
+func TestDemoTokenRoundTripEndsWithItsPreview(t *testing.T) {
+	keys := testKeys(t)
+	now := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
+	ends := now.Add(30 * time.Minute)
+	token, err := NewDemoToken(keys, VisitorGrant{WidgetID: "w1", VisitorID: "d1", ExpiresAt: ends}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant, err := VerifyDemoToken(keys, token, now.Add(29*time.Minute))
+	if err != nil || grant.WidgetID != "w1" || grant.VisitorID != "d1" || !grant.ExpiresAt.Equal(ends) {
+		t.Fatalf("grant = %+v %v", grant, err)
+	}
+	if _, err := VerifyDemoToken(keys, token, ends.Add(time.Second)); !errors.Is(err, ErrVisitorTokenExpired) {
+		t.Fatalf("after the preview = %v", err)
+	}
+	if _, err := NewDemoToken(keys, VisitorGrant{WidgetID: "w1", VisitorID: "d1", ExpiresAt: now}, now); !errors.Is(err, ErrVisitorTokenInvalid) {
+		t.Fatalf("an ended preview = %v", err)
+	}
+}
+
+func TestDemoAndVisitorTokensNeverStandInForEachOther(t *testing.T) {
+	keys := testKeys(t)
+	now := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
+	demo, _ := NewDemoToken(keys, VisitorGrant{WidgetID: "w1", VisitorID: "d1", ExpiresAt: now.Add(time.Hour)}, now)
+	real, _ := NewVisitorToken(keys, VisitorGrant{WidgetID: "w1", VisitorID: "v1"}, now)
+	if _, err := VerifyVisitorToken(keys, demo, now); !errors.Is(err, ErrVisitorTokenInvalid) {
+		t.Fatalf("a demo token as a visitor = %v", err)
+	}
+	if _, err := VerifyDemoToken(keys, real, now); !errors.Is(err, ErrVisitorTokenInvalid) {
+		t.Fatalf("a visitor token as a demo = %v", err)
+	}
+	relabelled := "v1" + strings.TrimPrefix(demo, strings.Split(demo, ".")[0])
+	if _, err := VerifyVisitorToken(keys, relabelled, now); !errors.Is(err, ErrVisitorTokenInvalid) {
+		t.Fatalf("a relabelled demo token = %v", err)
+	}
+}

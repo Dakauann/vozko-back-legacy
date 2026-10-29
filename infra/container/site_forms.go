@@ -30,7 +30,7 @@ const (
 )
 
 func (c *Container) siteEmbedOrigins() siteforms.EmbedOrigins {
-	return siteforms.EmbedOrigins{Forms: siteform_repository.NewFormStore(c.db), Hostnames: c.siteHostnameReader()}
+	return siteforms.EmbedOrigins{Forms: siteform_repository.NewFormStore(c.db), Hostnames: c.siteHostnameReader(), Origins: siteAddresses(c.cfg.Sites).Origins}
 }
 
 func (c *Container) sitePageOriginRecorder() *conversationad.PageRecorder {
@@ -94,6 +94,11 @@ func (c *Container) siteForms() *siteforms.Service {
 		Links:       c.useCases.createShortLink,
 		Numbers:     siteforms.PageNumbers{Phones: c.repositories.businessPhone, Grants: c.repositories.workspacePhoneAccess, Instances: c.unofficialWhatsApp.Instances},
 		References:  siteform_repository.NewReferenceStore(c.db),
+		Automations: lazyFormAutomations{c: c},
+		Calendar:    c.siteBookingCalendar(),
+		Slots:       c.siteBookingSlots(),
+		BookingLock: c.siteBookingLock(),
+		LeadFields:  c.repositories.customField,
 		Config: siteforms.Config{
 			ChallengeKey: []byte(sites.FormsChallengeKey), IPHashKey: sitesubmission.IPHashKey(sites.FormsChallengeKey),
 			Addresses: siteAddresses(sites), ShortLinkBase: c.cfg.ShortLinkBaseURL,
@@ -117,7 +122,7 @@ func (p siteFormsForPublish) KeysFor(ctx context.Context, workspaceID, projectID
 func (p siteFormsForPublish) Activate(ctx context.Context, in sitepublish_usecase.ActivateForms) error {
 	return p.c.siteForms().Activate(ctx, siteforms.ActivateInput{
 		WorkspaceID: in.WorkspaceID, ProjectID: in.ProjectID, DeploymentID: in.DeploymentID,
-		Manifests: in.Manifests, Settings: in.Settings, Widgets: in.Widgets,
+		Manifests: in.Manifests, Settings: in.Settings, Widgets: in.Widgets, Bookings: in.Bookings,
 	})
 }
 
@@ -137,6 +142,10 @@ func (p siteFormsForPublish) DirectLink(ctx context.Context, workspaceID, number
 	return p.c.siteForms().DirectLink(ctx, workspaceID, numberRef, text)
 }
 
+func (p siteFormsForPublish) WorkflowBound(ctx context.Context, workspaceID, projectID, formID, workflowID string) (bool, error) {
+	return p.c.siteForms().WorkflowBound(ctx, workspaceID, projectID, formID, workflowID)
+}
+
 func (c *Container) siteFormsForPublish() siteFormsForPublish {
 	return siteFormsForPublish{c: c}
 }
@@ -154,4 +163,16 @@ func (c *Container) siteFormHandlers() (*siteformhttp.PublicHandler, *siteformht
 func siteFormRoutes(c *Container) deliveryHttp.SiteFormRoutes {
 	public, submissions := c.siteFormHandlers()
 	return deliveryHttp.SiteFormRoutes{Public: public, Submissions: submissions}
+}
+
+type lazyFormAutomations struct {
+	c *Container
+}
+
+func (l lazyFormAutomations) List(ctx context.Context, workspaceID, formID string) ([]siteforms.FormAutomation, error) {
+	return l.c.formAutomations().List(ctx, workspaceID, formID)
+}
+
+func (l lazyFormAutomations) Scaffold(ctx context.Context, workspaceID, userID, formID, formName string) (string, error) {
+	return l.c.formAutomations().Scaffold(ctx, workspaceID, userID, formID, formName)
 }

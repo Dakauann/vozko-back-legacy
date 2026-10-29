@@ -1,6 +1,7 @@
 ---
 name: politicas-de-anuncios
 description: Os Padrões de Publicidade da Meta que mais reprovam anúncios (atributos pessoais, antes e depois, saúde, promessas, página de destino) e o que fazer quando um anúncio é reprovado; carregue antes de escrever textos ou quando um anúncio for reprovado.
+surface: ads
 ---
 
 # Políticas de anúncios da Meta
