@@ -314,7 +314,7 @@ func (src entrySource) conditions(scope entrySourceScope) (string, []interface{}
 		if scope.ConversationStatus != "" {
 			sql.WriteString(" AND " + src.ConversationStatus + " = ?")
 			args = append(args, scope.ConversationStatus)
-		} else if scope.ExcludeFinished && !scope.Groups.ListsFinished() {
+		} else if scope.ExcludeFinished && (conversation.InboxView{Groups: scope.Groups}).ExcludesFinished() {
 			sql.WriteString(" AND " + src.ConversationStatus + " IS DISTINCT FROM 'finished'")
 		}
 	}

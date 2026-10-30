@@ -40,10 +40,18 @@ func (t *recordingTransport) hit(fragment string) bool {
 }
 
 type fakeOnboardUC struct {
-	authorizeErr error
-	executeErr   error
-	executed     int
-	authorized   []string
+	authorizeErr    error
+	executeErr      error
+	executed        int
+	authorized      []string
+	register        bool
+	registrationErr error
+	asked           []string
+}
+
+func (f *fakeOnboardUC) NeedsRegistration(metaPhoneNumberID, wabaID string, _ businessphone.Status, _ bool) (bool, error) {
+	f.asked = append(f.asked, metaPhoneNumberID+"@"+wabaID)
+	return f.register, f.registrationErr
 }
 
 func (f *fakeOnboardUC) Authorize(workspaceID, metaPhoneNumberID string) error {

@@ -2,6 +2,7 @@ package whatsapp_repository
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -12,13 +13,15 @@ import (
 
 const businessPhoneCacheTTL = 60 * time.Second
 
+var errAccountAccessUnrecorded = errors.New("business phone repository cannot record account access")
+
 type CachedBusinessPhoneRepository struct {
 	inner  businessphone.Repository
 	shared cache.SharedState
 	ttl    time.Duration
 }
 
-func NewCachedBusinessPhoneRepository(inner businessphone.Repository, shared cache.SharedState) businessphone.Repository {
+func NewCachedBusinessPhoneRepository(inner businessphone.Repository, shared cache.SharedState) *CachedBusinessPhoneRepository {
 	return &CachedBusinessPhoneRepository{inner: inner, shared: shared, ttl: businessPhoneCacheTTL}
 }
 
@@ -26,7 +29,11 @@ func bphoneIDKey(id string) string       { return "wa:bphone:id:" + id }
 func bphoneMetaKey(metaID string) string { return "wa:bphone:meta:" + metaID }
 
 func (r *CachedBusinessPhoneRepository) invalidateBoth(id, metaID string) {
-	if r.shared == nil {
+	dropCachedPhone(r.shared, id, metaID)
+}
+
+func dropCachedPhone(shared cache.SharedState, id, metaID string) {
+	if shared == nil {
 		return
 	}
 	keys := make([]string, 0, 2)
@@ -37,7 +44,7 @@ func (r *CachedBusinessPhoneRepository) invalidateBoth(id, metaID string) {
 		keys = append(keys, bphoneMetaKey(metaID))
 	}
 	if len(keys) > 0 {
-		_ = r.shared.Del(keys...)
+		_ = shared.Del(keys...)
 	}
 }
 
@@ -91,6 +98,7 @@ type cachedPhoneDTO struct {
 	Dialog360ChannelID         string                        `json:"dialog360ChannelId,omitempty"`
 	Dialog360APIKey            string                        `json:"dialog360ApiKey,omitempty"`
 	OnboardingError            string                        `json:"onboardingError,omitempty"`
+	AccountAccessLostAt        *time.Time                    `json:"accountAccessLostAt,omitempty"`
 	WABAId                     string                        `json:"wabaId"`
 	OwnerWorkspaceID           string                        `json:"ownerWorkspaceId,omitempty"`
 	OwnerAssignedBy            string                        `json:"ownerAssignedBy,omitempty"`
@@ -122,6 +130,7 @@ func newCachedPhoneDTO(p *businessphone.WhatsAppBusinessPhoneNumber) cachedPhone
 		Dialog360ChannelID:         p.Dialog360ChannelID,
 		Dialog360APIKey:            p.Dialog360APIKey,
 		OnboardingError:            p.OnboardingError,
+		AccountAccessLostAt:        p.AccountAccessLostAt,
 		WABAId:                     p.WABAId,
 		OwnerWorkspaceID:           p.OwnerWorkspaceID,
 		OwnerAssignedBy:            p.OwnerAssignedBy,
@@ -154,6 +163,7 @@ func (d cachedPhoneDTO) toEntity() *businessphone.WhatsAppBusinessPhoneNumber {
 		Dialog360ChannelID:         d.Dialog360ChannelID,
 		Dialog360APIKey:            d.Dialog360APIKey,
 		OnboardingError:            d.OnboardingError,
+		AccountAccessLostAt:        d.AccountAccessLostAt,
 		WABAId:                     d.WABAId,
 		OwnerWorkspaceID:           d.OwnerWorkspaceID,
 		OwnerAssignedBy:            d.OwnerAssignedBy,
@@ -330,6 +340,18 @@ func (r *CachedBusinessPhoneRepository) SyncFromMeta(phone *businessphone.WhatsA
 		}
 	}
 	return err
+}
+
+func (r *CachedBusinessPhoneRepository) RecordAccountAccess(id string, lostAt *time.Time) (bool, error) {
+	recorder, ok := r.inner.(businessphone.AccountAccessRecorder)
+	if !ok {
+		return false, errAccountAccessUnrecorded
+	}
+	changed, err := recorder.RecordAccountAccess(id, lostAt)
+	if changed {
+		r.invalidateByID(id)
+	}
+	return changed, err
 }
 
 func (r *CachedBusinessPhoneRepository) ClearAccessToken(id string) error {

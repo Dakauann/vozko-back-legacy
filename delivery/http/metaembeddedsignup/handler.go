@@ -765,6 +765,11 @@ func (h *MetaEmbeddedSignupHandler) handleDialog360Provision(w http.ResponseWrit
 	})
 }
 
+func writeOnboardingFailed(w http.ResponseWriter) {
+	response.WriteErrorWithCode(w, http.StatusInternalServerError, "onboarding_failed",
+		"The WhatsApp number could not be connected. Nothing was saved; try again.", nil)
+}
+
 func writePhoneLimitReached(w http.ResponseWriter) {
 	response.WriteErrorWithCode(w, http.StatusForbidden, "phone_limit_reached",
 		"WhatsApp number capacity reached for this workspace.", nil)
@@ -846,6 +851,12 @@ func (h *MetaEmbeddedSignupHandler) handleTokenExchange(w http.ResponseWriter, c
 }
 
 func (h *MetaEmbeddedSignupHandler) processWithToken(w http.ResponseWriter, accessToken, phoneNumberID, wabaID, businessID, ownerWorkspaceID, ownerAssignedBy string) {
+	if h.onboardUseCase == nil {
+		log.Printf("[meta-embedded-signup] ❌ Onboarding is not configured")
+		response.WriteErrorWithCode(w, http.StatusServiceUnavailable, "onboarding_unavailable", "WhatsApp onboarding is unavailable. Try again later.", nil)
+		return
+	}
+
 	results := map[string]interface{}{
 		"status":          "success",
 		"phone_number_id": phoneNumberID,
@@ -888,124 +899,117 @@ func (h *MetaEmbeddedSignupHandler) processWithToken(w http.ResponseWriter, acce
 		}
 	}
 
-	if wabaID != "" {
-		subscribeResult := h.subscribeToWebhooks(wabaID, accessToken)
-		results["webhook_subscription"] = subscribeResult
+	if phoneNumberID == "" || wabaID == "" {
+		log.Printf("[meta-embedded-signup] ❌ Nothing to connect: phone=%s, waba=%s", phoneNumberID, wabaID)
+		response.WriteErrorWithCode(w, http.StatusUnprocessableEntity, "no_phone_number",
+			"No WhatsApp number was found in this account. Add a number in Meta and connect again.", nil)
+		return
 	}
+
+	results["webhook_subscription"] = h.subscribeToWebhooks(wabaID, accessToken)
 
 	var phoneStatus string
 	var messagingLimitTier string
 	var isCoexistence bool
-	if phoneNumberID != "" {
-		phoneDetails := h.getPhoneNumberDetails(phoneNumberID, accessToken)
-		results["phone_details"] = phoneDetails
-		if detailMap, ok := phoneDetails.(map[string]interface{}); ok {
-			if s, ok := detailMap["status"].(string); ok {
-				phoneStatus = s
-			}
-			if t, ok := detailMap["messaging_limit_tier"].(string); ok {
-				messagingLimitTier = t
-			}
+	phoneDetails := h.getPhoneNumberDetails(phoneNumberID, accessToken)
+	results["phone_details"] = phoneDetails
+	if detailMap, ok := phoneDetails.(map[string]interface{}); ok {
+		if s, ok := detailMap["status"].(string); ok {
+			phoneStatus = s
 		}
-
-		if h.coexistenceService != nil {
-			coexStatus, err := h.coexistenceService.CheckCoexistenceStatus(phoneNumberID, accessToken)
-			if err != nil {
-				log.Printf("[meta-embedded-signup] ⚠️ Could not check coexistence status: %v", err)
-				results["coexistence_check"] = map[string]interface{}{"error": err.Error()}
-			} else {
-				isCoexistence = coexStatus.IsCoexistence()
-				results["coexistence_check"] = map[string]interface{}{
-					"is_on_biz_app":  coexStatus.IsOnBizApp,
-					"platform_type":  coexStatus.PlatformType,
-					"is_coexistence": isCoexistence,
-				}
-				log.Printf("[meta-embedded-signup] Coexistence check: is_on_biz_app=%v, platform_type=%s, coexistence=%v",
-					coexStatus.IsOnBizApp, coexStatus.PlatformType, isCoexistence)
-			}
+		if t, ok := detailMap["messaging_limit_tier"].(string); ok {
+			messagingLimitTier = t
 		}
 	}
 
-	if phoneNumberID != "" {
-		if isCoexistence {
-			log.Printf("[meta-embedded-signup] Phone %s is in coexistence mode, skipping registration", phoneNumberID)
-			results["phone_registration"] = "skipped - coexistence phone (already registered on WhatsApp Business App)"
-		} else if phoneStatus == "CONNECTED" {
-			log.Printf("[meta-embedded-signup] Phone %s is already CONNECTED, skipping registration", phoneNumberID)
-			results["phone_registration"] = "skipped - already CONNECTED"
+	if h.coexistenceService != nil {
+		coexStatus, err := h.coexistenceService.CheckCoexistenceStatus(phoneNumberID, accessToken)
+		if err != nil {
+			log.Printf("[meta-embedded-signup] ⚠️ Could not check coexistence status: %v", err)
+			results["coexistence_check"] = map[string]interface{}{"error": err.Error()}
 		} else {
-			registerResult := h.registerPhoneNumber(phoneNumberID, accessToken)
-			results["phone_registration"] = registerResult
+			isCoexistence = coexStatus.IsCoexistence()
+			results["coexistence_check"] = map[string]interface{}{
+				"is_on_biz_app":  coexStatus.IsOnBizApp,
+				"platform_type":  coexStatus.PlatformType,
+				"is_coexistence": isCoexistence,
+			}
+			log.Printf("[meta-embedded-signup] Coexistence check: is_on_biz_app=%v, platform_type=%s, coexistence=%v",
+				coexStatus.IsOnBizApp, coexStatus.PlatformType, isCoexistence)
 		}
+	}
+
+	register, err := h.onboardUseCase.NeedsRegistration(phoneNumberID, wabaID, businessphone.Status(phoneStatus), isCoexistence)
+	if err != nil {
+		log.Printf("[meta-embedded-signup] ❌ Could not tell whether phone %s needs registration: %v", phoneNumberID, err)
+		writeOnboardingFailed(w)
+		return
+	}
+	if register {
+		results["phone_registration"] = h.registerPhoneNumber(phoneNumberID, accessToken)
+	} else {
+		log.Printf("[meta-embedded-signup] Phone %s is already connected in WABA %s, skipping registration", phoneNumberID, wabaID)
+		results["phone_registration"] = "skipped - already connected in this account"
 	}
 
 	var wabaName, accountReviewStatus, businessVerificationStatus, ownershipType string
-	if wabaID != "" {
-		wabaDetails := h.getWABADetails(wabaID, accessToken)
-		results["waba_details"] = wabaDetails
-		if detailMap, ok := wabaDetails.(map[string]interface{}); ok {
-			if n, ok := detailMap["name"].(string); ok {
-				wabaName = n
-			}
-			if s, ok := detailMap["account_review_status"].(string); ok {
-				accountReviewStatus = s
-			}
-			if s, ok := detailMap["business_verification_status"].(string); ok {
-				businessVerificationStatus = s
-			}
-			if s, ok := detailMap["ownership_type"].(string); ok {
-				ownershipType = s
-			}
+	wabaDetails := h.getWABADetails(wabaID, accessToken)
+	results["waba_details"] = wabaDetails
+	if detailMap, ok := wabaDetails.(map[string]interface{}); ok {
+		if n, ok := detailMap["name"].(string); ok {
+			wabaName = n
+		}
+		if s, ok := detailMap["account_review_status"].(string); ok {
+			accountReviewStatus = s
+		}
+		if s, ok := detailMap["business_verification_status"].(string); ok {
+			businessVerificationStatus = s
+		}
+		if s, ok := detailMap["ownership_type"].(string); ok {
+			ownershipType = s
 		}
 	}
 
-	if h.onboardUseCase != nil && phoneNumberID != "" && wabaID != "" && accessToken != "" {
-		onboardResult, err := h.onboardUseCase.Execute(businessphone.OnboardEmbeddedSignupInput{
-			Provider:                   businessphone.ProviderMeta,
-			PhoneNumberID:              phoneNumberID,
-			WABAId:                     wabaID,
-			OwnerWorkspaceID:           ownerWorkspaceID,
-			OwnerAssignedBy:            ownerAssignedBy,
-			BusinessID:                 businessID,
-			AccessToken:                accessToken,
-			WABAName:                   wabaName,
-			AccountReviewStatus:        accountReviewStatus,
-			BusinessVerificationStatus: businessVerificationStatus,
-			OwnershipType:              ownershipType,
-			MessagingLimitTier:         messagingLimitTier,
-			IsCoexistence:              isCoexistence,
-		})
-		if errors.Is(err, businessphone.ErrPhoneHeldByAnotherWorkspace) {
-			response.WriteErrorWithCode(w, http.StatusConflict, "phone_held_by_another_workspace",
-				"This WhatsApp number is already connected to another workspace.", nil)
-			return
-		}
-		if errors.Is(err, businessphone.ErrPhoneLimitReached) {
-			writePhoneLimitReached(w)
-			return
-		}
-		if err != nil {
-			log.Printf("[meta-embedded-signup] ❌ Failed to save phone to database: %v", err)
-			results["db_save"] = map[string]interface{}{
-				"error": err.Error(),
-			}
-		} else {
-			log.Printf("[meta-embedded-signup] ✅ Phone saved to DB: id=%s, isNew=%v, waba=%s (%s)",
-				onboardResult.Phone.ID, onboardResult.IsNew, wabaID, wabaName)
-			results["db_save"] = map[string]interface{}{
-				"success":  true,
-				"phone_id": onboardResult.Phone.ID,
-				"is_new":   onboardResult.IsNew,
-				"status":   string(onboardResult.Phone.Status),
-			}
+	onboardResult, err := h.onboardUseCase.Execute(businessphone.OnboardEmbeddedSignupInput{
+		Provider:                   businessphone.ProviderMeta,
+		PhoneNumberID:              phoneNumberID,
+		WABAId:                     wabaID,
+		OwnerWorkspaceID:           ownerWorkspaceID,
+		OwnerAssignedBy:            ownerAssignedBy,
+		BusinessID:                 businessID,
+		AccessToken:                accessToken,
+		WABAName:                   wabaName,
+		AccountReviewStatus:        accountReviewStatus,
+		BusinessVerificationStatus: businessVerificationStatus,
+		OwnershipType:              ownershipType,
+		MessagingLimitTier:         messagingLimitTier,
+		IsCoexistence:              isCoexistence,
+	})
+	if errors.Is(err, businessphone.ErrPhoneHeldByAnotherWorkspace) {
+		response.WriteErrorWithCode(w, http.StatusConflict, "phone_held_by_another_workspace",
+			"This WhatsApp number is already connected to another workspace.", nil)
+		return
+	}
+	if errors.Is(err, businessphone.ErrPhoneLimitReached) {
+		writePhoneLimitReached(w)
+		return
+	}
+	if err != nil {
+		log.Printf("[meta-embedded-signup] ❌ Failed to save phone to database: %v", err)
+		writeOnboardingFailed(w)
+		return
+	}
+	log.Printf("[meta-embedded-signup] ✅ Phone saved to DB: id=%s, isNew=%v, waba=%s (%s)",
+		onboardResult.Phone.ID, onboardResult.IsNew, wabaID, wabaName)
+	results["db_save"] = map[string]interface{}{
+		"success":  true,
+		"phone_id": onboardResult.Phone.ID,
+		"is_new":   onboardResult.IsNew,
+		"status":   string(onboardResult.Phone.Status),
+	}
 
-			if isCoexistence && h.ensureReceptiveContainer != nil && h.coexistenceService != nil {
-				h.handleCoexistenceSync(onboardResult.Phone, ownerWorkspaceID, phoneNumberID, accessToken, results)
-			}
-		}
-	} else if phoneNumberID == "" || wabaID == "" {
-		log.Printf("[meta-embedded-signup] ⚠️ Skipping DB save: phone=%s, waba=%s", phoneNumberID, wabaID)
-		results["db_save"] = "skipped - missing required data"
+	if isCoexistence && h.ensureReceptiveContainer != nil && h.coexistenceService != nil {
+		h.handleCoexistenceSync(onboardResult.Phone, ownerWorkspaceID, phoneNumberID, accessToken, results)
 	}
 
 	response.WriteSuccess(w, http.StatusOK, results)

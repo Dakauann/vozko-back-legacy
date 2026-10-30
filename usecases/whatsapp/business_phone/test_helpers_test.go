@@ -371,6 +371,7 @@ func (m *mockMetaAPIService) UnsubscribeApp(wabaID string, accessToken string) e
 type mockWABARepository struct {
 	accounts  map[string]*waba.WhatsAppBusinessAccount
 	updateErr error
+	findErr   error
 }
 
 func newMockWABARepo() *mockWABARepository {
@@ -406,6 +407,9 @@ func (m *mockWABARepository) FindByID(id string) (*waba.WhatsAppBusinessAccount,
 }
 
 func (m *mockWABARepository) FindByMetaWABAId(metaWABAId string) (*waba.WhatsAppBusinessAccount, error) {
+	if m.findErr != nil {
+		return nil, m.findErr
+	}
 	for _, a := range m.accounts {
 		if a.MetaWABAId == metaWABAId {
 			return a, nil

@@ -42,6 +42,7 @@ const (
 	EntryUnseen EntryReach = iota
 	EntryListed
 	EntryElsewhere
+	EntryLeftView
 )
 
 func ReachOf(isGroup bool, scope GroupScope, hidesGroups bool) EntryReach {

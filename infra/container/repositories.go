@@ -66,6 +66,7 @@ func (c *Container) initRepositories() {
 	messageStatus := whatsapp_repository.NewMessageStatusRepository(c.db)
 	qualityChanges := whatsapp_repository.NewQualityChangeRepository(c.db)
 	wcCampaigns := wc_repository.NewCachedRepository(wc_repository.NewRepository(c.db), c.redisProvider.SharedState())
+	businessPhones := whatsapp_repository.NewCachedBusinessPhoneRepository(whatsapp_repository.NewBusinessPhoneRepository(c.db), c.redisProvider.SharedState())
 	c.repositories = &repositories{
 		agent:                   agent_repository.NewCachedRepository(agent_repository.NewRepository(c.db), c.redisProvider.SharedState()),
 		lead:                    lead_repository.NewCachedRepository(c.db, c.redisProvider.SharedState()),
@@ -86,7 +87,8 @@ func (c *Container) initRepositories() {
 		wcSchedules:             wcCampaigns,
 		wcEntry:                 wc_entry_repository.NewRepository(c.db),
 		wcDispatchReport:        wc_entry_repository.NewDispatchReportReader(c.db),
-		businessPhone:           whatsapp_repository.NewCachedBusinessPhoneRepository(whatsapp_repository.NewBusinessPhoneRepository(c.db), c.redisProvider.SharedState()),
+		businessPhone:           businessPhones,
+		phoneAccountAccess:      businessPhones,
 		ownerPhoneReader:        whatsapp_repository.NewOwnerPhoneReader(c.db),
 		whatsappQuality:         qualityChanges,
 		whatsappQualityHistory:  qualityChanges,
@@ -137,6 +139,7 @@ func (c *Container) initRepositories() {
 		shortLink:               shortlink_repository.NewShortLinkRepository(c.db),
 		shortLinkClick:          shortlink_repository.NewClickRepository(c.db),
 		waba:                    whatsapp_repository.NewWABARepository(c.db),
+		phoneOnboardings:        whatsapp_repository.NewOnboardingStore(c.db, c.redisProvider.SharedState()),
 		invoice:                 invoice_repository.NewRepository(c.db),
 		invoiceChargeRenewals:   invoice_repository.NewChargeRenewals(c.db),
 		callBilling:             call_billing_repository.NewRepository(c.db),

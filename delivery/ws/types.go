@@ -149,6 +149,10 @@ func (c *WSConnection) groupScope(requested *bool) conversation.GroupScope {
 	return conversation.InboxGroupScope(wantsGroups, c.hidesGroups.Load())
 }
 
+func (c *WSConnection) inboxView() conversation.InboxView {
+	return conversation.InboxView{Status: conversation.ConversationStatus(c.ConversationStatus), Groups: c.groupScope(nil)}
+}
+
 type SubscribePayload struct {
 	EntryID   string `json:"entry_id"`
 	EntryType string `json:"entry_type"`

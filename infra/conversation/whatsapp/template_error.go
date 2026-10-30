@@ -48,6 +48,10 @@ func (e *TemplateAPIError) Retryable() bool {
 	return e != nil && e.Meta != nil && e.Meta.Retryable()
 }
 
+func (e *TemplateAPIError) AccountAccessLost() bool {
+	return e != nil && e.Meta != nil && (e.Meta.NeedsReauth() || e.Meta.IsPermission())
+}
+
 func newTemplateAPIError(op string, status int, body []byte) *TemplateAPIError {
 	return &TemplateAPIError{Op: op, Meta: parseMetaError(status, body)}
 }

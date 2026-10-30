@@ -176,7 +176,7 @@ func TestSyncTemplates_PaginatesAndNormalizesCategoryAndStatus(t *testing.T) {
 		},
 	}
 	factory := &syncTemplatesFactoryMock{client: client, wabaID: "waba-1"}
-	uc := NewSyncTemplatesUseCase(repo, factory, templateQualityHistory{}, &fakeQualityRecorder{})
+	uc := NewSyncTemplatesUseCase(repo, factory, templateQualityHistory{}, &fakeQualityRecorder{}, &fakeAccountAccess{})
 
 	synced, err := uc.Execute(template.SyncTemplatesInput{BusinessPhoneID: "phone-1", PageSize: 1})
 	if err != nil {
@@ -238,7 +238,7 @@ func TestSyncTemplates_RecordsTheQualityOnlyWhenItIsNewOrMoved(t *testing.T) {
 	recorder := &fakeQualityRecorder{}
 	history := templateQualityHistory{"seen-green": "GREEN", "turned-yellow": "GREEN"}
 	repo := newMockTemplateRepo()
-	uc := NewSyncTemplatesUseCase(repo, &syncTemplatesFactoryMock{client: client, wabaID: "waba-1"}, history, recorder)
+	uc := NewSyncTemplatesUseCase(repo, &syncTemplatesFactoryMock{client: client, wabaID: "waba-1"}, history, recorder, &fakeAccountAccess{})
 
 	if _, err := uc.Execute(template.SyncTemplatesInput{BusinessPhoneID: "phone-1"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -263,7 +263,7 @@ func TestSyncTemplates_RecordsTheQualityOnlyWhenItIsNewOrMoved(t *testing.T) {
 func TestSyncTemplates_FailsWhenTheQualityCannotBeRecorded(t *testing.T) {
 	boom := errors.New("db down")
 	client := &syncTemplatesClientMock{outputs: []*conversation.ListTemplatesOutput{{Templates: []conversation.Template{{ID: "t1", Name: "t1", QualityScore: "RED"}}}}}
-	uc := NewSyncTemplatesUseCase(newMockTemplateRepo(), &syncTemplatesFactoryMock{client: client, wabaID: "waba-1"}, templateQualityHistory{}, &fakeQualityRecorder{err: boom})
+	uc := NewSyncTemplatesUseCase(newMockTemplateRepo(), &syncTemplatesFactoryMock{client: client, wabaID: "waba-1"}, templateQualityHistory{}, &fakeQualityRecorder{err: boom}, &fakeAccountAccess{})
 
 	if _, err := uc.Execute(template.SyncTemplatesInput{BusinessPhoneID: "phone-1"}); !errors.Is(err, boom) {
 		t.Fatalf("expected the record failure, got %v", err)
@@ -298,7 +298,7 @@ func TestSyncTemplates_RewritesAStoredTemplateOnlyWhenItChanged(t *testing.T) {
 				ParameterFormat: template.ParameterFormatPositional, HeaderMediaURL: &mediaURL,
 				Components: []template.TemplateComponent{{Type: "BODY", Text: "Hi"}}}
 			client := &syncTemplatesClientMock{outputs: []*conversation.ListTemplatesOutput{{Templates: []conversation.Template{tc.fromMeta}}}}
-			uc := NewSyncTemplatesUseCase(repo, &syncTemplatesFactoryMock{client: client, wabaID: "waba-1"}, templateQualityHistory{"ext-1": "GREEN"}, &fakeQualityRecorder{})
+			uc := NewSyncTemplatesUseCase(repo, &syncTemplatesFactoryMock{client: client, wabaID: "waba-1"}, templateQualityHistory{"ext-1": "GREEN"}, &fakeQualityRecorder{}, &fakeAccountAccess{})
 
 			synced, err := uc.Execute(template.SyncTemplatesInput{BusinessPhoneID: "phone-1"})
 			if err != nil {

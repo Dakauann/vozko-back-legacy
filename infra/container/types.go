@@ -92,6 +92,7 @@ import (
 	billing_domain "vozko/domain/billing"
 	cache "vozko/domain/cache"
 	calendar_domain "vozko/domain/calendar"
+	callrouting_domain "vozko/domain/callrouting"
 	call_billing_domain "vozko/domain/calls/billing"
 	call_cdr_domain "vozko/domain/calls/cdr"
 	call_recordings "vozko/domain/calls/recordings"
@@ -100,7 +101,6 @@ import (
 	"vozko/domain/choicestats"
 	coexistence_domain "vozko/domain/coexistence"
 	config_domain "vozko/domain/config"
-	callrouting_domain "vozko/domain/callrouting"
 	conversation_domain "vozko/domain/conversation"
 	ce_domain "vozko/domain/conversation_event"
 	"vozko/domain/crm_telemetry"
@@ -317,7 +317,7 @@ type Container struct {
 
 	conversationRuns *workflow_usecase.ConversationRunStarter
 
-	automationNeedsWiring *automationNeedsWiring
+	automationNeedsWiring   *automationNeedsWiring
 	variableDeclarationsSvc *variabledecl_usecase.Service
 	sheetVariablesSvc       *sheetvariable.Service
 
@@ -347,6 +347,8 @@ type repositories struct {
 	wcEntry                 wc_entry_domain.Repository
 	wcDispatchReport        wc_entry_domain.DispatchReportReader
 	businessPhone           businessphone.Repository
+	phoneOnboardings        businessphone.OnboardingStore
+	phoneAccountAccess      businessphone.AccountAccessRecorder
 	ownerPhoneReader        businessphone.OwnerPhoneReader
 	whatsappQuality         whatsapp_quality.Recorder
 	whatsappQualityHistory  whatsapp_quality.History

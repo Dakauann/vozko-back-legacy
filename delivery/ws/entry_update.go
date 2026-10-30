@@ -7,6 +7,8 @@ import (
 	"vozko/domain/conversation"
 )
 
+const entryLeftViewReason = "left_view"
+
 type entryUpdate struct {
 	entryID      string
 	entryType    string
@@ -16,6 +18,7 @@ type entryUpdate struct {
 	data         []byte
 	alertData    []byte
 	unlistedData []byte
+	leftViewData []byte
 }
 
 func (h *ConversationHub) entryWorkspaceID(entryID, entryType string) string {
@@ -56,9 +59,17 @@ func (h *ConversationHub) buildEntryUpdate(entryID, entryType, workspaceID strin
 		log.Printf("[ConversationHub] Error marshaling entry update: %v", err)
 		return nil, false
 	}
+	leftViewData, err := json.Marshal(&WSOutgoingMessage{
+		Type:    WSEventEntryRemoved,
+		Payload: EntryRemovedPayload{EntryID: entryID, EntryType: entryType, Reason: entryLeftViewReason},
+	})
+	if err != nil {
+		log.Printf("[ConversationHub] Error marshaling entry left view: %v", err)
+		return nil, false
+	}
 	update := &entryUpdate{
 		entryID: entryID, entryType: entryType, workspaceID: workspaceID,
-		campaignID: campaignID, entry: entry, data: data,
+		campaignID: campaignID, entry: entry, data: data, leftViewData: leftViewData,
 	}
 	if change == customerWrote {
 		payload.Alert = true
@@ -84,6 +95,8 @@ func (h *ConversationHub) entryUpdateReach(update *entryUpdate, allowEntry func(
 	switch {
 	case reach == conversation.EntryListed && h.entryUpdateReaches(update, allowEntry, conn):
 		return conversation.EntryListed
+	case reach == conversation.EntryListed && h.entryUpdateVisible(update, allowEntry, conn, false):
+		return conversation.EntryLeftView
 	case reach == conversation.EntryElsewhere && h.entryUpdateVisible(update, allowEntry, conn, false):
 		return conversation.EntryElsewhere
 	}
@@ -104,7 +117,7 @@ func (h *ConversationHub) entryUpdateVisible(update *entryUpdate, allowEntry fun
 	if conn.CampaignType != "" && conn.CampaignType != update.entryType {
 		return false
 	}
-	if inStatusTab && conn.ConversationStatus != "" && string(update.entry.ConversationStatus) != conn.ConversationStatus {
+	if inStatusTab && !conn.inboxView().Includes(update.entry.ConversationStatus) {
 		return false
 	}
 	if !allowEntry(conn) {
@@ -126,6 +139,8 @@ func (h *ConversationHub) deliverEntryUpdate(conn *WSConnection, update *entryUp
 		data = update.data
 	case reach == conversation.EntryElsewhere && alert && update.unlistedData != nil:
 		data = update.unlistedData
+	case reach == conversation.EntryLeftView:
+		data = update.leftViewData
 	default:
 		return
 	}

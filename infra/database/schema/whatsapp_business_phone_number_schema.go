@@ -33,15 +33,16 @@ type WhatsAppBusinessPhoneNumber struct {
 	Dialog360ChannelID         string                      `gorm:"size:64;index"`
 	Dialog360APIKey            piigorm.EncryptedString     `gorm:"column:dialog360_api_key;type:bytea"`
 	OnboardingError            string                      `gorm:"type:text"`
-	WABAName                   string                      `gorm:"size:255"`
-	AccountReviewStatus        string                      `gorm:"size:30"`
-	BusinessVerificationStatus string                      `gorm:"size:30"`
-	OwnershipType              string                      `gorm:"size:50"`
-	MessagingLimitTier         string                      `gorm:"size:30"`
-	CallsEnabled               bool                        `gorm:"default:false"`
-	CreatedAt                  time.Time                   `gorm:"autoCreateTime"`
-	UpdatedAt                  time.Time                   `gorm:"autoUpdateTime"`
-	DeletedAt                  gorm.DeletedAt              `gorm:"index"`
+	AccountAccessLostAt        *time.Time
+	WABAName                   string         `gorm:"size:255"`
+	AccountReviewStatus        string         `gorm:"size:30"`
+	BusinessVerificationStatus string         `gorm:"size:30"`
+	OwnershipType              string         `gorm:"size:50"`
+	MessagingLimitTier         string         `gorm:"size:30"`
+	CallsEnabled               bool           `gorm:"default:false"`
+	CreatedAt                  time.Time      `gorm:"autoCreateTime"`
+	UpdatedAt                  time.Time      `gorm:"autoUpdateTime"`
+	DeletedAt                  gorm.DeletedAt `gorm:"index"`
 }
 
 func (WhatsAppBusinessPhoneNumber) TableName() string {

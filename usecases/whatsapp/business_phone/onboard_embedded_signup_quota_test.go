@@ -48,7 +48,7 @@ func TestOnboardEmbeddedSignup_NewPhoneNeedsNoSlot(t *testing.T) {
 	repo := newMockRepo()
 	wabaRepo := newMockWABARepo()
 	gate := &stubProvisioningGate{ok: false}
-	uc := NewOnboardEmbeddedSignupUseCase(repo, wabaRepo, newMockMetaAPI(), gate)
+	uc, _ := newOnboarding(repo, wabaRepo, gate)
 
 	res, err := uc.Execute(quotaInput("ws-1", "meta-new"))
 	if err != nil {
@@ -65,7 +65,7 @@ func TestOnboardEmbeddedSignup_NewPhoneNeedsNoSlot(t *testing.T) {
 func TestOnboardEmbeddedSignup_ReconnectOfOwnedActivePhoneIsAllowed(t *testing.T) {
 	repo := newMockRepo()
 	repo.phoneNumbers["p1"] = ownedPhone("p1", "meta-1", "ws-1", businessphone.StatusConnected)
-	uc := NewOnboardEmbeddedSignupUseCase(repo, newMockWABARepo(), newMockMetaAPI(), &stubProvisioningGate{ok: false})
+	uc, _ := newOnboarding(repo, newMockWABARepo(), &stubProvisioningGate{ok: false})
 
 	res, err := uc.Execute(quotaInput("ws-1", "meta-1"))
 	if err != nil {
@@ -79,7 +79,7 @@ func TestOnboardEmbeddedSignup_ReconnectOfOwnedActivePhoneIsAllowed(t *testing.T
 func TestOnboardEmbeddedSignup_OwnedSuspendedPhoneMayBeRevived(t *testing.T) {
 	repo := newMockRepo()
 	repo.phoneNumbers["p1"] = ownedPhone("p1", "meta-1", "ws-1", businessphone.StatusSuspended)
-	uc := NewOnboardEmbeddedSignupUseCase(repo, newMockWABARepo(), newMockMetaAPI(), &stubProvisioningGate{ok: false})
+	uc, _ := newOnboarding(repo, newMockWABARepo(), &stubProvisioningGate{ok: false})
 
 	if _, err := uc.Execute(quotaInput("ws-1", "meta-1")); err != nil {
 		t.Fatalf("a workspace may reconnect its own suspended number, got %v", err)
@@ -89,7 +89,7 @@ func TestOnboardEmbeddedSignup_OwnedSuspendedPhoneMayBeRevived(t *testing.T) {
 func TestOnboardEmbeddedSignup_PhoneOwnedByAnotherWorkspaceIsRefused(t *testing.T) {
 	repo := newMockRepo()
 	repo.phoneNumbers["p1"] = ownedPhone("p1", "meta-1", "ws-other", businessphone.StatusConnected)
-	uc := NewOnboardEmbeddedSignupUseCase(repo, newMockWABARepo(), newMockMetaAPI(), &stubProvisioningGate{ok: true})
+	uc, _ := newOnboarding(repo, newMockWABARepo(), &stubProvisioningGate{ok: true})
 
 	_, err := uc.Execute(quotaInput("ws-1", "meta-1"))
 	if !errors.Is(err, businessphone.ErrPhoneHeldByAnotherWorkspace) {
@@ -104,7 +104,7 @@ func TestOnboardEmbeddedSignup_AuthorizeMatchesExecuteRule(t *testing.T) {
 	repo := newMockRepo()
 	repo.phoneNumbers["p1"] = ownedPhone("p1", "meta-1", "ws-1", businessphone.StatusConnected)
 	repo.phoneNumbers["p2"] = ownedPhone("p2", "meta-2", "ws-other", businessphone.StatusConnected)
-	uc := NewOnboardEmbeddedSignupUseCase(repo, newMockWABARepo(), newMockMetaAPI(), &stubProvisioningGate{ok: false})
+	uc, _ := newOnboarding(repo, newMockWABARepo(), &stubProvisioningGate{ok: false})
 
 	if err := uc.Authorize("ws-1", "meta-1"); err != nil {
 		t.Fatalf("owned phone must be authorized, got %v", err)

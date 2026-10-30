@@ -1,6 +1,8 @@
 package whatsapp_repository
 
 import (
+	"time"
+
 	"strings"
 
 	"gorm.io/gorm"
@@ -49,6 +51,7 @@ func (r *businessPhoneRepository) Update(phoneID string, phone *businessphone.Wh
 		"business_profile":         mapBusinessProfileToSchema(phone.BusinessProfile),
 		"business_portfolio_id":    phone.BusinessPortfolioID,
 		"onboarding_error":         phone.OnboardingError,
+		"account_access_lost_at":   phone.AccountAccessLostAt,
 	}
 
 	if phone.OwnerWorkspaceID != "" {
@@ -73,6 +76,9 @@ func (r *businessPhoneRepository) Update(phoneID string, phone *businessphone.Wh
 	}
 	if phone.Dialog360APIKey != "" {
 		update["dialog360_api_key"] = piigorm.NewEncrypted(phone.Dialog360APIKey)
+	}
+	if phone.WABAId != "" {
+		update["waba_id"] = phone.WABAId
 	}
 	if phone.DisplayPhoneNumber != "" {
 		update["display_phone_number"] = phone.DisplayPhoneNumber
@@ -122,6 +128,17 @@ func (r *businessPhoneRepository) UpdateCallsEnabled(phoneID string, enabled boo
 		return businessphone.ErrPhoneNumberNotFound
 	}
 	return nil
+}
+
+func (r *businessPhoneRepository) RecordAccountAccess(phoneID string, lostAt *time.Time) (bool, error) {
+	query := r.db.Model(&schema.WhatsAppBusinessPhoneNumber{}).Where("id = ?", phoneID)
+	if lostAt == nil {
+		query = query.Where("account_access_lost_at IS NOT NULL")
+	} else {
+		query = query.Where("account_access_lost_at IS NULL")
+	}
+	result := query.Update("account_access_lost_at", lostAt)
+	return result.RowsAffected > 0, result.Error
 }
 
 func (r *businessPhoneRepository) ClearAccessToken(phoneID string) error {
@@ -411,6 +428,7 @@ func mapPhoneToSchema(phone *businessphone.WhatsAppBusinessPhoneNumber) *schema.
 		Dialog360ChannelID:         phone.Dialog360ChannelID,
 		Dialog360APIKey:            encryptedOrNull(phone.Dialog360APIKey),
 		OnboardingError:            phone.OnboardingError,
+		AccountAccessLostAt:        phone.AccountAccessLostAt,
 		WABAName:                   phone.WABAName,
 		AccountReviewStatus:        phone.AccountReviewStatus,
 		BusinessVerificationStatus: phone.BusinessVerificationStatus,
@@ -461,6 +479,7 @@ func mapPhoneToDomain(record *schema.WhatsAppBusinessPhoneNumber) *businessphone
 		Dialog360ChannelID:         record.Dialog360ChannelID,
 		Dialog360APIKey:            record.Dialog360APIKey.String(),
 		OnboardingError:            record.OnboardingError,
+		AccountAccessLostAt:        record.AccountAccessLostAt,
 		WABAName:                   record.WABAName,
 		AccountReviewStatus:        record.AccountReviewStatus,
 		BusinessVerificationStatus: record.BusinessVerificationStatus,

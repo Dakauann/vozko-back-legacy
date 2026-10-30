@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"vozko/domain/conversation"
+	businessphone "vozko/domain/whatsapp/business_phone"
 	"vozko/domain/whatsapp/quality"
 	"vozko/domain/whatsapp/template"
 )
@@ -19,15 +20,17 @@ type syncTemplatesUseCase struct {
 	clientFactory template.WhatsAppClientFactory
 	history       quality.History
 	changes       quality.Recorder
+	access        businessphone.AccountAccessRecorder
 	now           func() time.Time
 }
 
-func NewSyncTemplatesUseCase(templateRepo template.Repository, clientFactory template.WhatsAppClientFactory, history quality.History, changes quality.Recorder) template.SyncTemplatesUseCase {
+func NewSyncTemplatesUseCase(templateRepo template.Repository, clientFactory template.WhatsAppClientFactory, history quality.History, changes quality.Recorder, access businessphone.AccountAccessRecorder) template.SyncTemplatesUseCase {
 	return &syncTemplatesUseCase{
 		templateRepo:  templateRepo,
 		clientFactory: clientFactory,
 		history:       history,
 		changes:       changes,
+		access:        access,
 		now:           time.Now,
 	}
 }
@@ -61,7 +64,7 @@ func (uc *syncTemplatesUseCase) Execute(input template.SyncTemplatesInput) ([]*t
 			After: after,
 		})
 		if err != nil {
-			return nil, err
+			return nil, uc.recordLostAccess(input.BusinessPhoneID, err)
 		}
 
 		for _, apiTemplate := range output.Templates {
@@ -118,7 +121,21 @@ func (uc *syncTemplatesUseCase) Execute(input template.SyncTemplatesInput) ([]*t
 		after = strings.TrimSpace(output.NextAfter)
 	}
 
+	if _, err := uc.access.RecordAccountAccess(input.BusinessPhoneID, nil); err != nil {
+		return nil, err
+	}
 	return synced, nil
+}
+
+func (uc *syncTemplatesUseCase) recordLostAccess(phoneID string, refusal error) error {
+	if !template.AccountAccessLost(refusal) {
+		return refusal
+	}
+	lostAt := uc.now().UTC()
+	if _, err := uc.access.RecordAccountAccess(phoneID, &lostAt); err != nil {
+		return errors.Join(refusal, err)
+	}
+	return refusal
 }
 
 func (uc *syncTemplatesUseCase) recordQuality(wabaID string, rated []conversation.Template) error {

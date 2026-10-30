@@ -14,6 +14,7 @@ import (
 type onboardEmbeddedSignupUseCase struct {
 	repo       businessphone.Repository
 	wabaRepo   waba.Repository
+	store      businessphone.OnboardingStore
 	metaClient businessphone.MetaAPIService
 	gate       businessphone.ProvisioningGate
 }
@@ -21,12 +22,14 @@ type onboardEmbeddedSignupUseCase struct {
 func NewOnboardEmbeddedSignupUseCase(
 	repo businessphone.Repository,
 	wabaRepo waba.Repository,
+	store businessphone.OnboardingStore,
 	metaClient businessphone.MetaAPIService,
 	gate businessphone.ProvisioningGate,
 ) businessphone.OnboardEmbeddedSignupUseCase {
 	return &onboardEmbeddedSignupUseCase{
 		repo:       repo,
 		wabaRepo:   wabaRepo,
+		store:      store,
 		metaClient: metaClient,
 		gate:       gate,
 	}
@@ -78,33 +81,66 @@ func (uc *onboardEmbeddedSignupUseCase) Execute(input businessphone.OnboardEmbed
 
 	log.Printf("[onboard-embedded-signup] Onboarding phone %s for WABA %s (business_id=%s)", input.PhoneNumberID, input.WABAId, input.BusinessID)
 
-	if err := uc.upsertWABA(input); err != nil {
-		log.Printf("[onboard-embedded-signup] Failed to upsert WABA %s: %v (continuing with phone onboarding)", input.WABAId, err)
+	account, accountIsNew, err := uc.account(input)
+	if err != nil {
+		return nil, err
 	}
 
 	var metaPhone *businessphone.MetaPhoneNumberInfo
 	if input.Provider.Normalized() != businessphone.ProviderDialog360 {
-		var err error
 		metaPhone, err = uc.metaClient.GetPhoneNumber(input.PhoneNumberID, input.AccessToken)
 		if err != nil {
 			log.Printf("[onboard-embedded-signup] Could not fetch phone details from Meta: %v (will save with minimal data)", err)
 		}
 	}
 
-	existing, err := uc.repo.FindByMetaPhoneNumberID(input.PhoneNumberID)
-	if err == nil && existing != nil {
-		log.Printf("[onboard-embedded-signup] Phone %s already exists (id=%s), updating...", input.PhoneNumberID, existing.ID)
-		return uc.updateExistingPhone(existing, input, metaPhone)
+	onboarding, err := uc.phone(input, metaPhone)
+	if err != nil {
+		return nil, err
+	}
+	onboarding.Account, onboarding.AccountIsNew = account, accountIsNew
+
+	if err := uc.store.Save(onboarding); err != nil {
+		log.Printf("[onboard-embedded-signup] Failed to save WABA %s with phone %s: %v", input.WABAId, input.PhoneNumberID, err)
+		return nil, err
 	}
 
-	softDeleted, sdErr := uc.repo.FindByMetaPhoneNumberIDUnscoped(input.PhoneNumberID)
-	if sdErr == nil && softDeleted != nil {
-		log.Printf("[onboard-embedded-signup] Phone %s was soft-deleted (id=%s), restoring...", input.PhoneNumberID, softDeleted.ID)
-		if err := uc.repo.Restore(softDeleted.ID); err != nil {
-			log.Printf("[onboard-embedded-signup] Failed to restore phone: %v", err)
-			return nil, err
-		}
-		return uc.updateExistingPhone(softDeleted, input, metaPhone)
+	log.Printf("[onboard-embedded-signup] Saved phone %s (meta_id=%s, new=%v) with WABA %s", onboarding.Phone.ID, onboarding.Phone.MetaPhoneNumberID, onboarding.PhoneIsNew, input.WABAId)
+	return &businessphone.OnboardEmbeddedSignupResult{
+		Phone: onboarding.Phone,
+		IsNew: onboarding.PhoneIsNew,
+	}, nil
+}
+
+func (uc *onboardEmbeddedSignupUseCase) NeedsRegistration(metaPhoneNumberID, wabaID string, metaStatus businessphone.Status, coexistence bool) (bool, error) {
+	linked, err := uc.repo.FindByMetaPhoneNumberID(metaPhoneNumberID)
+	if errors.Is(err, businessphone.ErrPhoneNumberNotFound) {
+		return businessphone.RegistrationNeeded(nil, wabaID, metaStatus, coexistence), nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return businessphone.RegistrationNeeded(linked, wabaID, metaStatus, coexistence), nil
+}
+
+func (uc *onboardEmbeddedSignupUseCase) phone(
+	input businessphone.OnboardEmbeddedSignupInput,
+	metaPhone *businessphone.MetaPhoneNumberInfo,
+) (businessphone.Onboarding, error) {
+	existing, err := uc.repo.FindByMetaPhoneNumberID(input.PhoneNumberID)
+	if err != nil && !errors.Is(err, businessphone.ErrPhoneNumberNotFound) {
+		return businessphone.Onboarding{}, err
+	}
+	if existing != nil {
+		return uc.updatedPhone(existing, input, metaPhone, false)
+	}
+
+	softDeleted, err := uc.repo.FindByMetaPhoneNumberIDUnscoped(input.PhoneNumberID)
+	if err != nil && !errors.Is(err, businessphone.ErrPhoneNumberNotFound) {
+		return businessphone.Onboarding{}, err
+	}
+	if softDeleted != nil {
+		return uc.updatedPhone(softDeleted, input, metaPhone, true)
 	}
 
 	phone := &businessphone.WhatsAppBusinessPhoneNumber{
@@ -139,27 +175,20 @@ func (uc *onboardEmbeddedSignupUseCase) Execute(input businessphone.OnboardEmbed
 	}
 
 	if err := phone.AssignOwner(input.OwnerWorkspaceID, input.OwnerAssignedBy, time.Now().UTC()); err != nil {
-		return nil, err
+		return businessphone.Onboarding{}, err
 	}
 
-	if err := uc.repo.Create(phone); err != nil {
-		log.Printf("[onboard-embedded-signup] Failed to create phone: %v", err)
-		return nil, err
-	}
-
-	log.Printf("[onboard-embedded-signup] Created new phone %s (meta_id=%s, display=%s)", phone.ID, phone.MetaPhoneNumberID, phone.DisplayPhoneNumber)
-	return &businessphone.OnboardEmbeddedSignupResult{
-		Phone: phone,
-		IsNew: true,
-	}, nil
+	return businessphone.Onboarding{Phone: phone, PhoneIsNew: true}, nil
 }
 
-func (uc *onboardEmbeddedSignupUseCase) updateExistingPhone(
+func (uc *onboardEmbeddedSignupUseCase) updatedPhone(
 	existing *businessphone.WhatsAppBusinessPhoneNumber,
 	input businessphone.OnboardEmbeddedSignupInput,
 	metaPhone *businessphone.MetaPhoneNumberInfo,
-) (*businessphone.OnboardEmbeddedSignupResult, error) {
+	restored bool,
+) (businessphone.Onboarding, error) {
 	existing.WABAId = input.WABAId
+	existing.Reconnected()
 	existing.BusinessPortfolioID = input.BusinessID
 	existing.AccessToken = input.AccessToken
 	if input.Provider.Normalized() != businessphone.ProviderMeta {
@@ -193,25 +222,19 @@ func (uc *onboardEmbeddedSignupUseCase) updateExistingPhone(
 
 	if !existing.BelongsToWorkspace(input.OwnerWorkspaceID) || existing.OwnerAssignedAt == nil || existing.OwnerAssignedBy == "" {
 		if err := existing.AssignOwner(input.OwnerWorkspaceID, input.OwnerAssignedBy, time.Now().UTC()); err != nil {
-			return nil, err
+			return businessphone.Onboarding{}, err
 		}
 	}
 
-	if err := uc.repo.Update(existing.ID, existing); err != nil {
-		log.Printf("[onboard-embedded-signup] Failed to update phone: %v", err)
-		return nil, err
-	}
-
-	log.Printf("[onboard-embedded-signup] Updated existing phone %s", existing.ID)
-	return &businessphone.OnboardEmbeddedSignupResult{
-		Phone: existing,
-		IsNew: false,
-	}, nil
+	return businessphone.Onboarding{Phone: existing, PhoneRestored: restored}, nil
 }
 
-func (uc *onboardEmbeddedSignupUseCase) upsertWABA(input businessphone.OnboardEmbeddedSignupInput) error {
+func (uc *onboardEmbeddedSignupUseCase) account(input businessphone.OnboardEmbeddedSignupInput) (*waba.WhatsAppBusinessAccount, bool, error) {
 	existing, err := uc.wabaRepo.FindByMetaWABAId(input.WABAId)
-	if err == nil && existing != nil {
+	if err != nil && !errors.Is(err, waba.ErrWABANotFound) {
+		return nil, false, err
+	}
+	if existing != nil {
 		existing.Name = input.WABAName
 		existing.BusinessPortfolioID = input.BusinessID
 		existing.AccessToken = input.AccessToken
@@ -225,16 +248,12 @@ func (uc *onboardEmbeddedSignupUseCase) upsertWABA(input businessphone.OnboardEm
 		if input.Dialog360ClientID != "" {
 			existing.Dialog360ClientID = input.Dialog360ClientID
 		}
-		if err := uc.wabaRepo.Update(existing.ID, existing); err != nil {
-			return err
-		}
-		log.Printf("[onboard-embedded-signup] Updated WABA %s (meta_id=%s)", existing.ID, existing.MetaWABAId)
-		return nil
+		return existing, false, nil
 	}
 
 	account, err := waba.NewWhatsAppBusinessAccount(input.WABAId, input.WABAName)
 	if err != nil {
-		return err
+		return nil, false, err
 	}
 	account.Provider = string(input.Provider.Normalized())
 	account.BusinessPortfolioID = input.BusinessID
@@ -244,10 +263,5 @@ func (uc *onboardEmbeddedSignupUseCase) upsertWABA(input businessphone.OnboardEm
 	account.BusinessVerificationStatus = input.BusinessVerificationStatus
 	account.OwnershipType = input.OwnershipType
 	account.MessagingLimitTier = input.MessagingLimitTier
-
-	if err := uc.wabaRepo.Create(account); err != nil {
-		return err
-	}
-	log.Printf("[onboard-embedded-signup] Created WABA %s (meta_id=%s)", account.ID, account.MetaWABAId)
-	return nil
+	return account, true, nil
 }

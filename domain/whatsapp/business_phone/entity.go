@@ -190,6 +190,7 @@ type WhatsAppBusinessPhoneNumber struct {
 	OwnershipType              string          `json:"ownershipType,omitempty"`
 	MessagingLimitTier         string          `json:"messagingLimitTier,omitempty"`
 	CallsEnabled               bool            `json:"callsEnabled"`
+	AccountAccessLostAt        *time.Time      `json:"accountAccessLostAt,omitempty"`
 	CreatedAt                  time.Time       `json:"createdAt"`
 	UpdatedAt                  time.Time       `json:"updatedAt"`
 }

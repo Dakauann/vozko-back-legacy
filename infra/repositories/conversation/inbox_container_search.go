@@ -187,13 +187,13 @@ func containerInboxConditions(input conversation.SearchEntriesInput, ch channelQ
 	}
 
 	if statusCol := ch.StatusColumn; statusCol != "" {
-		if input.ConversationStatus == "" {
-			if !input.Groups.ListsFinished() {
-				whereConditions = append(whereConditions, statusCol+" IS DISTINCT FROM 'finished'")
-			}
-		} else {
+		view := conversation.InboxView{Status: input.ConversationStatus, Groups: input.Groups}
+		switch {
+		case view.Status != "":
 			whereConditions = append(whereConditions, statusCol+" = ?")
-			whereArgs = append(whereArgs, string(input.ConversationStatus))
+			whereArgs = append(whereArgs, string(view.Status))
+		case view.ExcludesFinished():
+			whereConditions = append(whereConditions, statusCol+" IS DISTINCT FROM 'finished'")
 		}
 	}
 

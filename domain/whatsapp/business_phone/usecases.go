@@ -144,4 +144,5 @@ type OnboardEmbeddedSignupResult struct {
 type OnboardEmbeddedSignupUseCase interface {
 	Execute(input OnboardEmbeddedSignupInput) (*OnboardEmbeddedSignupResult, error)
 	Authorize(workspaceID, metaPhoneNumberID string) error
+	NeedsRegistration(metaPhoneNumberID, wabaID string, metaStatus Status, coexistence bool) (bool, error)
 }

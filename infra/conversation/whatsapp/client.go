@@ -1590,7 +1590,7 @@ func (c *Client) ListTemplates(ctx context.Context, input conversation.ListTempl
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("whatsapp list templates failed: status=%d body=%s", resp.StatusCode, string(respBody))
+		return nil, newTemplateAPIError("list templates", resp.StatusCode, respBody)
 	}
 
 	var decoded listTemplatesResponse

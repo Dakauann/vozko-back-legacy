@@ -177,11 +177,11 @@ func TestBroadcastEntryUpdateLocal_FiltersConnectionsByConversationStatus(t *tes
 	require.Len(t, connAll.Send, 1, "connection with no status filter should receive update")
 	require.Len(t, connNew.Send, 1, "connection filtering for 'new' should receive update")
 
-	require.Len(t, connOngoing.Send, 0, "connection filtering for 'ongoing' should NOT receive update for 'new' entry")
-	require.Len(t, connFinished.Send, 0, "connection filtering for 'finished' should NOT receive update for 'new' entry")
+	require.Equal(t, WSEventEntryRemoved, receivedEvent(t, connOngoing).Type, "connection filtering for 'ongoing' is told the 'new' entry left its view")
+	require.Equal(t, WSEventEntryRemoved, receivedEvent(t, connFinished).Type, "connection filtering for 'finished' is told the 'new' entry left its view")
 }
 
-func TestBroadcastEntryUpdateLocal_NoStatusFilterReceivesAllStatuses(t *testing.T) {
+func TestBroadcastEntryUpdateLocal_TheActiveTabListsOpenConversationsOnly(t *testing.T) {
 	authorizer := &hubDepartmentTestAuthorizer{
 		entryAccess: map[string]bool{"user-1": true},
 		viewOthers:  map[string]bool{"user-1": true},
@@ -205,7 +205,9 @@ func TestBroadcastEntryUpdateLocal_NoStatusFilterReceivesAllStatuses(t *testing.
 	hub.broadcastEntryUpdateLocal("e-ongoing", "whatsapp", entryChanged)
 	hub.broadcastEntryUpdateLocal("e-finished", "whatsapp", entryChanged)
 
-	require.Len(t, conn.Send, 3, "unfiltered connection should receive entry updates for all statuses")
+	require.Equal(t, WSEventEntryUpdate, receivedEventAt(t, conn).Type, "the active tab lists a new conversation")
+	require.Equal(t, WSEventEntryUpdate, receivedEventAt(t, conn).Type, "the active tab lists an ongoing conversation")
+	require.Equal(t, WSEventEntryRemoved, receivedEventAt(t, conn).Type, "a finished conversation leaves the active tab")
 }
 
 func TestHandleSetConversationStatus_CannotSetNewManually(t *testing.T) {
